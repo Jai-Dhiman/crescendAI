@@ -139,15 +139,6 @@ export interface BarMap {
 	is_reanchored: boolean;
 }
 
-export interface FollowerState {
-	last_known_bar: number | null;
-}
-
-export interface AlignChunkResult {
-	bar_map: BarMap | null;
-	state: FollowerState;
-}
-
 export interface BarMapChroma {
 	bar_min: number;
 	bar_max: number;
@@ -252,28 +243,6 @@ export function selectTeachingMoment(
 		baselines,
 		recentObservations,
 	) as TeachingMoment | null;
-}
-
-/**
- * Align a chunk of performance notes to a score using subsequence DTW.
- *
- * @param chunkIndex integer index of this chunk in the session
- * @param perfNotes array of performance notes from AMT
- * @param scoreBars array of ScoreBar from the loaded score JSON
- * @param followerState persistent state across chunks
- */
-export function alignChunk(
-	chunkIndex: number,
-	perfNotes: PerfNote[],
-	scoreBars: ScoreBar[],
-	followerState: FollowerState,
-): AlignChunkResult {
-	return requireScoreAnalysis().align_chunk(
-		chunkIndex,
-		perfNotes,
-		scoreBars,
-		followerState,
-	) as AlignChunkResult;
 }
 
 /**

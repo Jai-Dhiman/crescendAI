@@ -122,12 +122,6 @@ pub struct BarMap {
     pub is_reanchored: bool,
 }
 
-/// Persistent state across chunks.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct FollowerState {
-    pub last_known_bar: Option<u32>,
-}
-
 // --- Teaching moment types ---
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -192,14 +186,6 @@ pub struct ChunkAnalysis {
     pub tier: u8,
     pub bar_range: Option<String>,
     pub dimensions: Vec<DimensionAnalysis>,
-}
-
-// --- align_chunk return type ---
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AlignChunkResult {
-    pub bar_map: Option<BarMap>,
-    pub state: FollowerState,
 }
 
 // --- Chroma DTW output ---

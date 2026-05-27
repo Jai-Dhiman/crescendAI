@@ -1,4 +1,4 @@
-//! score-analysis: standalone WASM crate exposing DTW score follower,
+//! score-analysis: standalone WASM crate exposing chroma-DTW score follower,
 //! bar analysis, and teaching moment selection for use from TypeScript workers.
 
 use wasm_bindgen::prelude::*;
@@ -6,7 +6,6 @@ use wasm_bindgen::prelude::*;
 mod bar_analysis;
 mod chroma_dtw;
 mod dims;
-mod score_follower;
 mod teaching_moments;
 pub mod types;
 
@@ -35,34 +34,6 @@ pub fn select_teaching_moment(
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
     let result = teaching_moments::select_teaching_moment(&chunks, &baselines, &recent);
-    serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
-}
-
-/// Align a chunk of performance notes to a score using subsequence DTW.
-///
-/// `chunk_index`: integer index of this chunk in the session
-/// `perf_notes_js`: array of `{ pitch, onset, offset, velocity }`
-/// `score_bars_js`: array of score bars (ScoreBar) from the loaded score JSON
-/// `follower_state_js`: `{ last_known_bar: number | null }`
-///
-/// Returns `{ bar_map: BarMap | null, state: FollowerState }`.
-#[wasm_bindgen]
-pub fn align_chunk(
-    chunk_index: usize,
-    perf_notes_js: JsValue,
-    score_bars_js: JsValue,
-    follower_state_js: JsValue,
-) -> Result<JsValue, JsValue> {
-    let perf_notes: Vec<types::PerfNote> = serde_wasm_bindgen::from_value(perf_notes_js)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
-    let score_bars: Vec<types::ScoreBar> = serde_wasm_bindgen::from_value(score_bars_js)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
-    let mut state: types::FollowerState = serde_wasm_bindgen::from_value(follower_state_js)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
-
-    let bar_map = score_follower::align_chunk(chunk_index, &perf_notes, &score_bars, &mut state);
-
-    let result = types::AlignChunkResult { bar_map, state };
     serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
