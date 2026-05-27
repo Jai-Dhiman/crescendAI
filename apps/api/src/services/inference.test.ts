@@ -1,12 +1,6 @@
 // apps/api/src/services/inference.test.ts
 import { describe, expect, it } from "vitest";
-import { callMuqEndpoint } from "./inference";
 import type { MuqResult } from "./inference";
-
-// Minimal Bindings stub — only MUQ_ENDPOINT is needed for these tests
-function makeEnv(url: string): { MUQ_ENDPOINT: string } {
-  return { MUQ_ENDPOINT: url } as unknown as Parameters<typeof callMuqEndpoint>[0];
-}
 
 const VALID_SCORES = {
   dynamics: 0.6,
@@ -28,7 +22,7 @@ function makeChromaB64(nFrames: number): string {
   return btoa(String.fromCharCode(...bytes));
 }
 
-describe("callMuqEndpoint chroma fields", () => {
+describe("parseMuqResponse chroma fields", () => {
   it("returns chromaBytes decoded from chroma_b64 when present in response", async () => {
     const nFrames = 10;
     const b64 = makeChromaB64(nFrames);
