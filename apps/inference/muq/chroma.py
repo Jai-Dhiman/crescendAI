@@ -12,6 +12,8 @@ import librosa
 import numpy as np
 
 _HOP = 441  # 50 Hz at 22050 Hz
+SR = 22050
+FRAME_RATE_HZ = SR / _HOP  # 50.0
 
 
 def chroma_feature(y: np.ndarray, sr: int) -> tuple[bytes, int]:
