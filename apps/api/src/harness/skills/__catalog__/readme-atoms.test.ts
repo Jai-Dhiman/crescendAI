@@ -10,7 +10,6 @@ const FINAL_ATOMS = [
 	"fetch-reference-percentile",
 	"fetch-similar-past-observation",
 	"align-performance-to-score",
-	"classify-stop-moment",
 	"extract-bar-range-signals",
 	"compute-ioi-correlation",
 	"compute-key-overlap-ratio",
@@ -19,7 +18,7 @@ const FINAL_ATOMS = [
 	"fetch-session-history",
 ];
 
-test("atoms/README.md lists all 15 final atoms", async () => {
+test("atoms/README.md lists all 14 final atoms", async () => {
 	const content = await readFile("docs/harness/skills/atoms/README.md", "utf8");
 	for (const name of FINAL_ATOMS) {
 		expect(content, `expected README to mention ${name}`).toContain(name);

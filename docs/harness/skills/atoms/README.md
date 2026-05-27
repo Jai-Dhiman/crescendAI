@@ -2,7 +2,7 @@
 
 Single-purpose, near-deterministic building blocks. Atoms do not call other skills. One file per atom. See `../README.md` for three-tier overview.
 
-**Final size:** 15 atoms.
+**Final size:** 14 atoms.
 
 ## Computational primitives
 - `compute-velocity-curve` -- per-bar mean MIDI velocity
@@ -22,7 +22,6 @@ Single-purpose, near-deterministic building blocks. Atoms do not call other skil
 
 ## Signal pipeline primitives
 - `align-performance-to-score` -- DTW alignment of performance midi_notes to score
-- `classify-stop-moment` -- logistic regression on MuQ scores -> stop probability
 - `extract-bar-range-signals` -- enrichment cache slice for a bar range
 
 Each atom is narrow, deterministic on a given input, makes no calls to other skills, and is independently testable. Each atom's contract lives in its own markdown file in this directory.

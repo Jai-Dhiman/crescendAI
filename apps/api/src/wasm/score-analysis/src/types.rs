@@ -171,19 +171,8 @@ pub struct TeachingMoment {
     pub score: f64,
     pub baseline: f64,
     pub deviation: f64,
-    pub stop_probability: f64,
     pub reasoning: String,
     pub is_positive: bool,
-}
-
-// --- STOP result ---
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StopResult {
-    pub probability: f64,
-    pub triggered: bool,
-    pub top_dimension: String,
-    pub top_deviation: f64,
 }
 
 // --- Bar analysis types ---

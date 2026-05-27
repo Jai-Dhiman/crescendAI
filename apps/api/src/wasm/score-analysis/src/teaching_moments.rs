@@ -1,20 +1,21 @@
 //! Teaching moment selection: given a session of scored chunks, determine
 //! which chunk is a teaching moment and which dimension to surface.
 //!
-//! Algorithm (from 02-pipeline.md Stage 3):
-//! 1. Run STOP classifier on each chunk, filter by threshold
-//! 2. For passing chunks, compute deviation from student baseline per dimension
-//! 3. Rank by max deviation (blind-spot detection: "normally fine but bad today")
+//! Algorithm:
+//! 1. For each chunk, find its worst dimension (largest negative deviation from baseline)
+//! 2. Keep chunks whose worst dimension is below baseline (deviation < 0)
+//! 3. Rank by deviation magnitude (blind-spot detection: "normally fine but bad today")
 //! 4. De-duplicate against recent observations (skip if same dimension in last 3)
 //! 5. Return top-1 `TeachingMoment`
 //!
 //! No-candidates fallback (positive teaching moment):
+//! - When every chunk is at-or-above baseline on every dimension, no negative
+//!   candidate exists. Return a positive moment instead.
 //! - Find highest-scoring dimension or largest positive deviation from baseline
 //! - Return positive moment with `is_positive`: true
 //! - If fewer than 2 chunks, return None ("need more to listen to")
 
 use crate::dims::DIMS_6;
-use crate::stop;
 use crate::types::{RecentObservation, ScoredChunk, StudentBaselines, TeachingMoment};
 
 /// Minimum number of scored chunks before we can produce a teaching moment.
@@ -28,9 +29,8 @@ const DEDUP_WINDOW: usize = 3;
 /// Returns None only when fewer than `MIN_CHUNKS` are provided (the caller
 /// should respond with "I need a bit more to listen to").
 ///
-/// When no chunks pass the STOP threshold, returns a positive teaching
-/// moment acknowledging what the student did well (per 02-pipeline.md
-/// "No-Candidates Fallback").
+/// When every chunk is at-or-above baseline on every dimension, returns a
+/// positive teaching moment acknowledging what the student did well.
 pub fn select_teaching_moment(
     chunks: &[ScoredChunk],
     baselines: &StudentBaselines,
@@ -42,18 +42,20 @@ pub fn select_teaching_moment(
 
     let baseline_arr = baselines.as_array();
 
-    // Score each chunk with STOP classifier and compute per-dimension deviations.
+    // Find each chunk's worst dimension and keep chunks below baseline.
     let mut candidates: Vec<Candidate> = Vec::new();
 
     for chunk in chunks {
-        let stop_result = stop::classify(&chunk.scores);
-        if !stop_result.triggered {
-            continue;
-        }
-
         // Find the blind-spot dimension: largest negative deviation from baseline.
         // "Normally fine but bad today" is more valuable than "always bad".
         let (dim_idx, deviation) = max_negative_deviation(&chunk.scores, &baseline_arr);
+
+        // Only treat as a candidate if the student is actually below baseline somewhere.
+        // If they are at-or-above baseline on every dimension, this chunk is fine -- no
+        // candidate. If every chunk is fine, the positive-moment fallback fires below.
+        if deviation >= 0.0 {
+            continue;
+        }
 
         candidates.push(Candidate {
             chunk_index: chunk.chunk_index,
@@ -61,7 +63,6 @@ pub fn select_teaching_moment(
             score: chunk.scores[dim_idx],
             baseline: baseline_arr[dim_idx],
             deviation,
-            stop_probability: stop_result.probability,
         });
     }
 
@@ -88,12 +89,12 @@ pub fn select_teaching_moment(
     }
 
     // If all candidates were deduped, return the top one anyway
-    // (better to repeat a dimension than say nothing when STOP fired).
+    // (better to repeat a dimension than say nothing when there's a real issue).
     if let Some(candidate) = candidates.first() {
         return Some(candidate.to_teaching_moment(false));
     }
 
-    // No chunks passed STOP threshold -> positive teaching moment fallback.
+    // No chunks were below baseline anywhere -> positive teaching moment fallback.
     Some(select_positive_moment(chunks, &baseline_arr))
 }
 
@@ -140,7 +141,6 @@ fn select_positive_moment(chunks: &[ScoredChunk], baselines: &[f64; 6]) -> Teach
         score: best_score,
         baseline: baselines[best_dim_idx],
         deviation: best_deviation,
-        stop_probability: 0.0,
         reasoning: format!(
             "No issues detected. {} scored {:.2} (baseline {:.2}, +{:.2} deviation). Positive moment.",
             dim_name, best_score, baselines[best_dim_idx], best_deviation,
@@ -172,15 +172,14 @@ struct Candidate {
     score: f64,
     baseline: f64,
     deviation: f64,
-    stop_probability: f64,
 }
 
 impl Candidate {
     fn to_teaching_moment(&self, is_positive: bool) -> TeachingMoment {
         let dim_name = DIMS_6[self.dim_idx];
         let reasoning = format!(
-            "{} scored {:.2} vs baseline {:.2} (deviation {:.2}). STOP probability: {:.2}.",
-            dim_name, self.score, self.baseline, self.deviation, self.stop_probability,
+            "{} scored {:.2} vs baseline {:.2} (deviation {:.2}).",
+            dim_name, self.score, self.baseline, self.deviation,
         );
 
         TeachingMoment {
@@ -189,7 +188,6 @@ impl Candidate {
             score: self.score,
             baseline: self.baseline,
             deviation: self.deviation,
-            stop_probability: self.stop_probability,
             reasoning,
             is_positive,
         }
@@ -276,7 +274,6 @@ mod tests {
         let moment = result.expect("should return a positive moment");
         assert!(moment.is_positive);
         assert!(moment.deviation > 0.0);
-        assert_eq!(moment.stop_probability, 0.0);
     }
 
     #[test]

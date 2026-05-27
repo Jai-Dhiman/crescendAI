@@ -8,7 +8,7 @@
 // Types (mirror Rust serde output)
 // ═══════════════════════════════════════════════════
 
-// --- STOP / teaching moment types ---
+// --- Teaching moment types ---
 
 export interface ScoredChunk {
 	chunk_index: number;
@@ -35,7 +35,6 @@ export interface TeachingMoment {
 	score: number;
 	baseline: number;
 	deviation: number;
-	stop_probability: number;
 	reasoning: string;
 	is_positive: boolean;
 }

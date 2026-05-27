@@ -1,4 +1,4 @@
-//! score-analysis: standalone WASM crate exposing STOP classifier, DTW score follower,
+//! score-analysis: standalone WASM crate exposing DTW score follower,
 //! bar analysis, and teaching moment selection for use from TypeScript workers.
 
 use wasm_bindgen::prelude::*;
@@ -6,32 +6,8 @@ use wasm_bindgen::prelude::*;
 mod bar_analysis;
 mod dims;
 mod score_follower;
-mod stop;
 mod teaching_moments;
 mod types;
-
-/// Classify a scored chunk with the STOP logistic regression classifier.
-///
-/// `scores` must be a 6-element array in order:
-/// [dynamics, timing, pedaling, articulation, phrasing, interpretation]
-///
-/// Returns a serialized `StopResult` with `probability`, `triggered`,
-/// `top_dimension`, and `top_deviation`.
-#[wasm_bindgen]
-pub fn classify_stop(scores: &[f64], threshold: f64) -> Result<JsValue, JsValue> {
-    if scores.len() != 6 {
-        return Err(JsValue::from_str(&format!(
-            "classify_stop: expected 6 scores, got {}",
-            scores.len()
-        )));
-    }
-    let arr: [f64; 6] = scores.try_into().expect("length checked above");
-    let mut result = stop::classify(&arr);
-    // Override triggered based on caller-supplied threshold (default is 0.5 built-in;
-    // callers may pass a different threshold for tuning without recompiling).
-    result.triggered = result.probability >= threshold;
-    serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
-}
 
 /// Select the top-1 teaching moment from a session's scored chunks.
 ///

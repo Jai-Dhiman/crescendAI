@@ -1,8 +1,8 @@
 """Synthesis pipeline evaluation.
 
 Runs practice recordings through the full synthesis pipeline (wrangler dev),
-captures synthesis output + accumulator state, evaluates all 7 capabilities:
-piece ID, STOP, teaching moments, mode detection, synthesis quality,
+captures synthesis output + accumulator state, evaluates the capabilities:
+piece ID, teaching moments, mode detection, synthesis quality,
 exercises, score following.
 
 Two-pass design: Pass A (with piece_query) tests synthesis with full context,
@@ -13,7 +13,7 @@ Requires wrangler dev running at localhost:8787.
 Usage:
     cd apps/evals/
     uv run python -m pipeline.practice_eval.eval_practice --scenarios t5
-    uv run python -m pipeline.practice_eval.eval_practice --scenarios t5 --capability stop,synthesis
+    uv run python -m pipeline.practice_eval.eval_practice --scenarios t5 --capability teaching_moments,synthesis
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ from __future__ import annotations
 import asyncio
 import argparse
 import json
-import math
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -40,33 +39,8 @@ REPORTS_DIR = Path(__file__).parents[2] / "reports"
 
 INFERENCE_CACHE_BASE = MODEL_DATA / "eval" / "inference_cache"
 
-# STOP classifier constants loaded from shared config
-_STOP_CONFIG_PATH = Path(__file__).resolve().parents[4] / "apps" / "config" / "stop_config.json"
-if not _STOP_CONFIG_PATH.exists():
-    raise FileNotFoundError(
-        f"STOP config not found at {_STOP_CONFIG_PATH}. "
-        "Run from the project root or check apps/config/stop_config.json exists."
-    )
-with open(_STOP_CONFIG_PATH) as _f:
-    _STOP_CONFIG = json.load(_f)
-STOP_SCALER_MEAN = _STOP_CONFIG["scaler_mean"]
-STOP_SCALER_STD = _STOP_CONFIG["scaler_std"]
-STOP_WEIGHTS = _STOP_CONFIG["weights"]
-STOP_BIAS = _STOP_CONFIG["bias"]
-STOP_THRESHOLD = _STOP_CONFIG["threshold"]
-DIMS_6 = _STOP_CONFIG["dimensions"]
-
-ALL_CAPABILITIES = {"stop", "piece_id", "teaching_moments", "mode_detection",
+ALL_CAPABILITIES = {"piece_id", "teaching_moments", "mode_detection",
                     "synthesis", "exercises", "score_following", "differentiation"}
-
-
-def stop_probability(scores: list[float]) -> float:
-    """Compute STOP probability offline (mirrors Rust implementation)."""
-    logit = sum(
-        ((s - m) / std) * w
-        for s, m, std, w in zip(scores, STOP_SCALER_MEAN, STOP_SCALER_STD, STOP_WEIGHTS)
-    ) + STOP_BIAS
-    return 1.0 / (1.0 + math.exp(-logit))
 
 
 def load_scenarios(piece_id: str) -> list[dict]:
@@ -129,18 +103,6 @@ def _resolve_pieces(args) -> list[tuple[str, str]]:
 # ---------------------------------------------------------------------------
 # Statistical metric extraction (no LLM cost)
 # ---------------------------------------------------------------------------
-
-def extract_stop_metrics(eval_context: dict, skill_level: int) -> list[tuple[float, int]]:
-    """Extract per-chunk STOP probabilities from scored_chunks in eval_context."""
-    scored_chunks = eval_context.get("scored_chunks", [])
-    results = []
-    for chunk in scored_chunks:
-        scores = chunk.get("scores", [0.0] * 6)
-        if len(scores) == 6:
-            prob = stop_probability(scores)
-            results.append((prob, skill_level))
-    return results
-
 
 def extract_teaching_moment_metrics(eval_context: dict) -> dict:
     """Extract teaching moment selection metrics from accumulator state."""
@@ -274,7 +236,6 @@ def main():
     pieces = _resolve_pieces(args)
 
     # Accumulators
-    stop_data: list[tuple[float, int]] = []           # (probability, skill_level)
     piece_id_data: list[dict] = []                     # per-recording piece ID results
     teaching_moment_data: list[dict] = []              # per-recording moment metrics
     mode_detection_data: list[dict] = []               # per-recording mode metrics
@@ -293,7 +254,6 @@ def main():
         with open(checkpoint_path) as f:
             ckpt = json.load(f)
         completed_ids = set(ckpt.get("completed", []))
-        stop_data = [(p, l) for p, l in ckpt.get("stop_data", [])]
         piece_id_data = ckpt.get("piece_id_data", [])
         teaching_moment_data = ckpt.get("teaching_moment_data", [])
         mode_detection_data = ckpt.get("mode_detection_data", [])
@@ -354,7 +314,6 @@ def main():
                     ec = result_a.synthesis.eval_context
 
                     # Statistical metrics (always computed, free)
-                    stop_data.extend(extract_stop_metrics(ec, skill_level))
                     tm_metrics = extract_teaching_moment_metrics(ec)
                     if tm_metrics:
                         tm_metrics["video_id"] = video_id
@@ -509,7 +468,6 @@ def main():
             with open(checkpoint_path, "w") as f:
                 json.dump({
                     "completed": list(completed_ids),
-                    "stop_data": stop_data,
                     "piece_id_data": piece_id_data,
                     "teaching_moment_data": teaching_moment_data,
                     "mode_detection_data": mode_detection_data,
@@ -567,9 +525,6 @@ def main():
     report.metadata["capabilities_judged"] = sorted(judge_capabilities)
 
     # STOP metrics
-    if stop_data:
-        _add_stop_metrics(report, stop_data)
-
     # Piece ID metrics
     if piece_id_data:
         _add_piece_id_metrics(report, piece_id_data)
@@ -619,7 +574,6 @@ def main():
 
     # Save detailed results
     details = {
-        "stop_data": stop_data,
         "piece_id_data": piece_id_data,
         "teaching_moment_data": teaching_moment_data,
         "mode_detection_data": mode_detection_data,
@@ -645,47 +599,6 @@ def main():
 # ---------------------------------------------------------------------------
 # Report builders
 # ---------------------------------------------------------------------------
-
-def _add_stop_metrics(report: EvalReport, stop_data: list[tuple[float, int]]) -> None:
-    """Add STOP classification metrics to report."""
-    from scipy.stats import spearmanr
-
-    probs = [p for p, _ in stop_data]
-    levels = [l for _, l in stop_data]
-
-    rho, p_value = spearmanr(probs, levels)
-    report.metrics["stop_spearman_rho"] = MetricResult(
-        mean=rho, std=0, n=len(stop_data), pass_threshold=0.3,
-    )
-
-    bucket_triggers = defaultdict(list)
-    bucket_probs = defaultdict(list)
-    for prob, level in stop_data:
-        bucket_triggers[level].append(prob >= STOP_THRESHOLD)
-        bucket_probs[level].append(prob)
-
-    report.metadata["stop"] = {
-        "spearman_rho": round(rho, 4),
-        "p_value": round(p_value, 4),
-        "n": len(stop_data),
-        "trigger_rate_by_bucket": {
-            str(k): {"rate": round(sum(v) / len(v), 3), "n": len(v)}
-            for k, v in sorted(bucket_triggers.items())
-        },
-        "dimension_distribution": _stop_dimension_distribution(stop_data),
-    }
-
-
-def _stop_dimension_distribution(stop_data: list[tuple[float, int]]) -> dict[str, int]:
-    """Count which dimension contributes most to STOP across all chunks."""
-    counts: dict[str, int] = {d: 0 for d in DIMS_6}
-    for prob, _ in stop_data:
-        if prob >= STOP_THRESHOLD:
-            # Can't recover top dimension from just probability -- this would need
-            # the raw scores. For now, track overall trigger count.
-            pass
-    return counts  # placeholder -- needs scored_chunks for per-dim analysis
-
 
 def _add_piece_id_metrics(report: EvalReport, piece_id_data: list[dict]) -> None:
     """Add piece identification metrics to report."""

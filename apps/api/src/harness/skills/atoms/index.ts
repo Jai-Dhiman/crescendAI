@@ -1,6 +1,5 @@
 import type { ToolDefinition } from "../../loop/types";
 import { alignPerformanceToScore } from "./align-performance-to-score";
-import { classifyStopMoment } from "./classify-stop-moment";
 import { computeDimensionDelta } from "./compute-dimension-delta";
 import { computeIoiCorrelation } from "./compute-ioi-correlation";
 import { computeKeyOverlapRatio } from "./compute-key-overlap-ratio";
@@ -29,7 +28,6 @@ export { ASSIGN_SEGMENT_LOOP_TOOL } from "../../atoms/assign-segment-loop";
 
 export const ALL_ATOMS: ToolDefinition[] = [
 	alignPerformanceToScore,
-	classifyStopMoment,
 	computeDimensionDelta,
 	computeIoiCorrelation,
 	computeKeyOverlapRatio,
