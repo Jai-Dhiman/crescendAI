@@ -104,10 +104,10 @@ describe("LandingPage a11y", () => {
 describe("LandingPage structure", () => {
   it("renders ExerciseProofBlock, FinalCTA, and footer below the hero", async () => {
     // Mock fetch (same as beforeAll above covers this)
-    const { default: IndexRoute } = await import("./index");
+    const { Route: IndexRoute } = await import("./index");
 
     // TanStack Router File Route — access the component directly
-    // The component is the default export's options.component
+    // The component is the named export Route's options.component
     const LandingPage = (IndexRoute as unknown as { options: { component: React.ComponentType } }).options.component;
     if (!LandingPage) throw new Error("LandingPage component not found on route");
 
