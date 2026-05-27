@@ -3,7 +3,7 @@
 The complete path from microphone to teaching observation. This is the technical heart of the system -- how audio becomes actionable feedback.
 
 > **Status (2026-04-27):**
-> - IMPLEMENTED: Two-stage LLM pipeline (subagent + teacher), HF inference endpoint (A1-Max 4-fold ensemble + AMT + pedal CC64), STOP classifier, teaching moment selection, blind-spot detection, score following (DTW), bar-aligned analysis, synthesized facts, exercise endpoints (25 curated), session brain state machine (DO practice mode detection + state persistence), observation pacing (mode-aware), zero-config piece ID (N-gram + rerank + DTW, merged, pending AMT container deploy), artifact declaration via Anthropic tool_use (tool_choice: auto), session synthesis (alarm-triggered, all exit paths, deferred recovery), AI Gateway (Anthropic + Workers AI)
+> - IMPLEMENTED: Two-stage LLM pipeline (subagent + teacher), HF inference endpoint (A1-Max 4-fold ensemble + AMT + pedal CC64), STOP classifier, teaching moment selection, blind-spot detection, score following (chroma-DTW), bar-aligned analysis, synthesized facts, exercise endpoints (25 curated), session brain state machine (DO practice mode detection + state persistence), observation pacing (mode-aware), zero-config piece ID (N-gram + rerank + DTW, merged, pending AMT container deploy), artifact declaration via Anthropic tool_use (tool_choice: auto), session synthesis (alarm-triggered, all exit paths, deferred recovery), AI Gateway (Anthropic + Workers AI)
 > - SHIPPED (flag-gated): V6 harness loop — hook-driven two-phase compound execution loop that replaces the linear Stage 4a/4b path on `OnSessionEnd`. Phase 1 dispatches skill-catalog atoms as Anthropic tools; Phase 2 forced-writes a Zod-validated `SynthesisArtifact`. `HARNESS_V6_ENABLED=false` in prod until atom registry is populated (Plan 2).
 > - NOT STARTED: Passage repetition detection
 > - **Code:** `apps/api/src/services/ask.rs` (pipeline), `apps/api/src/services/prompts.rs` (teacher persona), `apps/api/src/practice/session.rs` (DO session)
@@ -640,7 +640,7 @@ The old three-stage pipeline (analysis subagent + teacher + UI subagent) is repl
 
 Connect MuQ chunk timestamps to bar/measure numbers in the score. This lets the teacher say "at bar 7, the dynamics have no range" instead of "at 0:04, the dynamics have no range."
 
-**Current approach (CEO review 2026-03-19):** AMT transcribes each chunk to MIDI. The MIDI fingerprint is matched against the 242-piece score library via `piece_match.rs` (bigram Dice similarity). If matched, `score_follower.rs` aligns the performance MIDI to the score via onset+pitch DTW, producing bar numbers. This runs automatically -- no student input required.
+**Current approach (updated 2026-05-27):** AMT transcribes each chunk to MIDI. The MIDI fingerprint is matched against the 242-piece score library via `piece_match.rs` (bigram Dice similarity). If matched, the MuQ handler extracts a 12-bin chroma feature from the audio and `chroma_dtw.rs` aligns the audio chroma against the score chroma via subsequence DTW, producing bar numbers and a `chunk_bar_map` event. This runs automatically -- no student input required. `score_follower.rs` (onset+pitch DTW) has been replaced by chroma-DTW.
 
 **Graceful degradation:** If no piece match is found, observations use audio-quality language without bar numbers ("your pedaling is blurring harmonic changes" instead of "in bars 5-8, your pedaling..."). The system asks "What piece is this?" AFTER the first observation, not before. Piece identification enriches but never gates.
 
@@ -968,7 +968,7 @@ These estimates are rough and depend on HF endpoint instance type (GPU-hours pri
 | STOP classifier deployment | Option B first (6-dim scores in worker) | Simplest path. 0.649 AUC (6-dim balanced logistic regression; 2048-dim MuQ pooled reaches 0.845 but is not deployed). Upgrade to Option A (0.936 AUC, MuQ embeddings) if gap matters. |
 | Subagent provider | Workers AI (Gemma 4 26B) | Co-located with CF Workers; no extra routing hop. |
 | Teacher provider | Anthropic (Sonnet 4.6) | Best at following nuanced persona instructions. Native prompt caching for system prompt. |
-| Score alignment | AMT fingerprint + DTW (automated) | Replaces student-reported. AMT transcribes, fingerprint matches, DTW aligns to score. No student input required. Graceful degradation for unknown pieces. |
+| Score alignment | AMT fingerprint + chroma-DTW (automated) | Replaces student-reported. AMT transcribes, fingerprint matches, MuQ extracts chroma, chroma-DTW aligns to score bars. No student input required. Graceful degradation for unknown pieces. |
 | Framing as subagent output | Explicit framing decision in JSON | Prevents teacher LLM from defaulting to critique mode when only given problems. |
 | Scores as reasoning inputs | Not a report card | Model is ~80% pairwise accurate. Value is in analysis + delivery, not raw scores. |
 | Blind-spot prior | voicing > pedaling > phrasing > timing > dynamics > articulation | Dimensions harder to self-diagnose from the bench get priority in tie-breaking. |
