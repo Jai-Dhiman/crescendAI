@@ -282,6 +282,27 @@ describe("IR invariants — all 3 fixtures", () => {
         return qstamps.size >= 2;
       });
       expect(barsWithMultipleOnsets.length).toBeGreaterThan(0);
+
+      // Page viewBox regression: Verovio 6.x puts viewBox on a nested <svg>,
+      // not the root. If the parser only scans the root tag, every page's
+      // viewBox collapses to "0 0 0 0" and any consumer (e.g. ScoreCursor
+      // overlay) renders at zero size. Real Verovio engraving viewBoxes have
+      // both dimensions in the thousands of units.
+      for (const page of entry.ir.pages) {
+        expect(page.viewBox).not.toBe("0 0 0 0");
+        expect(page.viewBox).not.toBe("");
+        expect(page.width).toBeGreaterThan(1000);
+        expect(page.height).toBeGreaterThan(1000);
+        // bbox.x values for notes on this page should fall within the viewBox width.
+        const pageBars = entry.ir.bars.filter((b) => b.pageN === page.pageN);
+        for (const bar of pageBars) {
+          for (const id of bar.noteIds) {
+            const note = entry.ir.notes[id];
+            if (!note) continue;
+            expect(note.bbox.x).toBeLessThan(page.width * 1.1);
+          }
+        }
+      }
     }, 60_000);
   }
 });

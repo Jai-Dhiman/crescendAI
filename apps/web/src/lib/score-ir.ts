@@ -58,9 +58,14 @@ function extractTranslateXY(attrs: string): { x: number; y: number } {
   };
 }
 
-// Parse the viewBox attribute "minX minY width height" into width and height.
-function parseViewBox(attrs: string): { viewBox: string; width: number; height: number } {
-  const m = attrs.match(/viewBox="([^"]+)"/);
+// Extract the engraving viewBox from a Verovio-rendered SVG string.
+// Verovio 6.x puts viewBox on a NESTED <svg> inside the root, NOT on the root
+// element. The root only carries width/height in pixels. We scan the full SVG
+// text for the first viewBox="..." occurrence (supports both quote styles and
+// any whitespace) — that match is always the engraving area's coordinate system,
+// which is what note bbox positions are expressed in.
+function parseViewBox(svgText: string): { viewBox: string; width: number; height: number } {
+  const m = svgText.match(/viewBox\s*=\s*["']([^"']+)["']/);
   const viewBox = m ? m[1] : "0 0 0 0";
   const parts = viewBox.split(/\s+/).map(Number);
   return { viewBox, width: parts[2] ?? 0, height: parts[3] ?? 0 };
@@ -172,10 +177,8 @@ export function parseScoreIR(
     const pageN = pageIdx + 1;
     const svgText = pageSvgs[pageIdx];
 
-    // Extract page dimensions from the root <svg> tag.
-    const svgTagMatch = svgText.match(/<svg\s+([^>]*)>/);
-    const svgAttrs = svgTagMatch ? svgTagMatch[1] : "";
-    const { viewBox, width, height } = parseViewBox(svgAttrs);
+    // viewBox lives on a nested <svg> in Verovio output, so scan the full text.
+    const { viewBox, width, height } = parseViewBox(svgText);
 
     pages.push({ pageN, viewBox, width, height, systemBboxes: [] });
 
