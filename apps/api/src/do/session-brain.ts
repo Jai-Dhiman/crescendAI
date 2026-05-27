@@ -1076,14 +1076,12 @@ export class SessionBrain extends DurableObject<Bindings> {
 				if (scoreCtx !== null) {
 					// Chroma DTW alignment — no real audio in eval path; falls through to Tier 2.
 					const analysis2 = wasm.analyzeTier2(perfNotes, perfPedal, scoresArray);
-					if (chunkAnalysisTier === 3) {
-						chunkAnalysisTier = analysis2.tier;
-						const barStr = analysis2.bar_range;
-						if (barStr !== null) {
-							const parts = barStr.split("-").map(Number);
-							if (parts.length === 2 && parts[0] !== undefined && parts[1] !== undefined) {
-								chunkBarRange = [parts[0], parts[1]];
-							}
+					chunkAnalysisTier = analysis2.tier;
+					const barStr = analysis2.bar_range;
+					if (barStr !== null) {
+						const parts = barStr.split("-").map(Number);
+						if (parts.length === 2 && parts[0] !== undefined && parts[1] !== undefined) {
+							chunkBarRange = [parts[0], parts[1]];
 						}
 					}
 				} else {
