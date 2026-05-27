@@ -148,6 +148,13 @@ export interface AlignChunkResult {
 	state: FollowerState;
 }
 
+export interface BarMapChroma {
+	bar_min: number;
+	bar_max: number;
+	cost: number;
+	bar_per_frame: number[];
+}
+
 // --- Bar analysis types ---
 
 export interface DimensionAnalysis {
@@ -267,6 +274,35 @@ export function alignChunk(
 		scoreBars,
 		followerState,
 	) as AlignChunkResult;
+}
+
+/**
+ * Align a 15s audio chunk to a score using chroma-based subsequence DTW.
+ *
+ * Correctness is verified by the Rust cargo test (chroma_dtw_roundtrip).
+ * This wrapper forwards arguments to the WASM export and returns the result
+ * typed as BarMapChroma. The WASM module must be initialized before calling.
+ *
+ * @param audioChromaBytes raw LE float32 bytes, row-major 12 x chromaFrames
+ * @param chromaFrames number of chroma columns
+ * @param scoreBars array of ScoreBar from the loaded score JSON
+ * @param frameRateHz chroma frame rate (typically 50.0)
+ * @param decimHz output frame rate for bar_per_frame (typically 5.0)
+ */
+export function alignChunkChroma(
+	audioChromaBytes: Uint8Array,
+	chromaFrames: number,
+	scoreBars: ScoreBar[],
+	frameRateHz: number,
+	decimHz: number,
+): BarMapChroma {
+	return requireScoreAnalysis().align_chunk_chroma(
+		audioChromaBytes,
+		chromaFrames,
+		scoreBars,
+		frameRateHz,
+		decimHz,
+	) as BarMapChroma;
 }
 
 /**
