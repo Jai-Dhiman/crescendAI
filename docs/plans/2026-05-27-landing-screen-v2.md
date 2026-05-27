@@ -12,10 +12,11 @@
 ## Task Groups
 
 Group 0 (prerequisite, must complete first): Task 0
-Group A (parallel, depends on Group 0): Task 1, Task 2, Task 3, Task 4, Task 8
-Group B (parallel, depends on Group A): Task 5, Task 7, Task 9
-Group C (sequential, depends on Group B): Task 6
-Group D (sequential, depends on Group C): Task 10
+Group A (sequential, depends on Group 0): Task 1 only — creates ProofCard.tsx, ProofCard.test.tsx (render contract), and useProofCardTimeline.ts stub; all subsequent groups depend on these files existing
+Group B (parallel, depends on Group A): Task 2, Task 3, Task 4, Task 8 — Tasks 2/3/4 each append to ProofCard.test.tsx created by Task 1; Task 8 replaces the useProofCardTimeline.ts stub created by Task 1 with the full implementation
+Group C (parallel, depends on Group B): Task 5, Task 7, Task 9
+Group D (sequential, depends on Group C): Task 6
+Group E (sequential, depends on Group D): Task 10
 
 ---
 
@@ -226,7 +227,7 @@ git add apps/web/src/types/landing.ts apps/web/src/lib/landing-analytics.ts apps
 
 ### Task 1: ProofCard render contract
 
-**Group:** A (parallel with Tasks 2, 3, 4, 8)
+**Group:** A (sequential — must complete alone before Group B dispatches; creates ProofCard.tsx, ProofCard.test.tsx, and useProofCardTimeline.ts stub that all Group B tasks depend on)
 
 **Behavior being verified:** ProofCard given a valid manifest renders all four landmarks: score SVG, audio scrubber, teacher diagnosis, and exercise.
 
@@ -351,8 +352,10 @@ Create `apps/web/src/components/ProofCard.tsx`:
 ```typescript
 // apps/web/src/components/ProofCard.tsx
 import { useEffect, useRef, useState } from "react";
+import type { KeyboardEvent } from "react";
 import type { ProofCardManifest } from "../types/landing";
 import type { ScoreIR } from "../lib/score-ir";
+import { ScoreCursor } from "../lib/score-cursor";
 import { useProofCardTimeline } from "../hooks/useProofCardTimeline";
 import { trackLandingEvent } from "../lib/landing-analytics";
 import { BarScoreChip } from "./BarScoreChip";
@@ -489,10 +492,21 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
     };
   }, [cardIndex, setCurrentTime]);
 
+  // ScoreCursor — instantiate and start when scoreIR and score container are ready;
+  // passes qstampForTime(currentTime) as the live qstamp source so the cursor tracks audio.
+  useEffect(() => {
+    if (scoreIR === null || scoreContainerRef.current === null) return;
+    const cursor = new ScoreCursor(scoreContainerRef.current, scoreIR);
+    cursor.start(() => qstampForTime(currentTime) ?? 0);
+    return () => {
+      cursor.stop();
+    };
+  }, [scoreIR, currentTime, qstampForTime]);
+
   // Keyboard navigation: Tab cycles bars, Enter opens chip, Escape closes
   const barNumbers = Object.keys(manifest.perBarScores).map(Number).sort((a, b) => a - b);
 
-  function handleBarKeyDown(e: React.KeyboardEvent, barNumber: number) {
+  function handleBarKeyDown(e: KeyboardEvent<HTMLButtonElement>, barNumber: number) {
     if (e.key === "Enter") {
       setActiveBar(barNumber);
       trackLandingEvent("landing_bar_tap", { cardIndex, barNumber });
@@ -657,12 +671,13 @@ Also create the `useProofCardTimeline` hook (needed by ProofCard — full implem
 ```typescript
 // apps/web/src/hooks/useProofCardTimeline.ts
 import { useCallback, useRef, useState } from "react";
+import type { RefObject } from "react";
 import type { ScoreIR } from "../lib/score-ir";
 
 type BarTimeline = Array<{ bar: number; tSec: number }>;
 
 export function useProofCardTimeline(
-  _audioRef: React.RefObject<HTMLAudioElement | null>,
+  _audioRef: RefObject<HTMLAudioElement | null>,
   _scoreIR: ScoreIR | null,
   barTimeline: BarTimeline,
 ) {
@@ -710,7 +725,7 @@ git add apps/web/src/components/ProofCard.tsx apps/web/src/components/ProofCard.
 
 ### Task 2: Scroll autoplay
 
-**Group:** A (parallel with Tasks 1, 3, 4, 8)
+**Group:** B (parallel with Tasks 3, 4, 8 — depends on Task 1 completing first; appends to ProofCard.test.tsx created by Task 1)
 
 **Behavior being verified:** When ≥60% of ProofCard intersects the viewport and `prefers-reduced-motion` is false, `audio.play()` is called.
 
@@ -833,7 +848,7 @@ git add apps/web/src/components/ProofCard.tsx apps/web/src/components/ProofCard.
 
 ### Task 3: Graceful degradation — missing scoreIR
 
-**Group:** A (parallel with Tasks 1, 2, 4, 8)
+**Group:** B (parallel with Tasks 2, 4, 8 — depends on Task 1 completing first; appends to ProofCard.test.tsx created by Task 1)
 
 **Behavior being verified:** When `scoreir.json` fetch returns a non-ok response, ProofCard renders diagnosis text and exercise without throwing; score area is present but empty.
 
@@ -932,7 +947,7 @@ git add apps/web/src/components/ProofCard.tsx apps/web/src/components/ProofCard.
 
 ### Task 4: Graceful degradation — missing audio
 
-**Group:** A (parallel with Tasks 1, 2, 3, 8)
+**Group:** B (parallel with Tasks 2, 3, 8 — depends on Task 1 completing first; appends to ProofCard.test.tsx created by Task 1)
 
 **Behavior being verified:** When the `<audio>` element fires an `error` event (src not loadable), ProofCard renders score, diagnosis, and exercise; the scrubber/play button is still visible; ScoreCursor does not animate (currentTime stays 0).
 
@@ -1025,9 +1040,127 @@ git add apps/web/src/components/ProofCard.tsx apps/web/src/components/ProofCard.
 
 ---
 
+### Task 4.5: ScoreCursor instantiation and cursor movement
+
+**Group:** B (parallel with Tasks 2, 3, 4, 8 — depends on Task 1 completing first; appends to ProofCard.test.tsx created by Task 1)
+
+**Behavior being verified:** When `scoreIR` loads successfully, a `ScoreCursor` instance is created with the score container and `scoreIR`; when `currentTime` advances, `ScoreCursor.start` is called with a `qstampSource` that returns the correct bar number for that time.
+
+**Interface under test:** ProofCard ScoreCursor integration via `ScoreCursor` constructor + `start`/`stop` mocks.
+
+**Files:**
+- Modify: `apps/web/src/components/ProofCard.test.tsx`
+
+- [ ] **Step 1: Write the failing test**
+
+```typescript
+// Append to apps/web/src/components/ProofCard.test.tsx
+
+describe("ProofCard ScoreCursor integration", () => {
+  let mockStart: ReturnType<typeof vi.fn>;
+  let mockStop: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockFetch(MOCK_SCORE_IR, FIXTURE_EXERCISE);
+    mockStart = vi.fn();
+    mockStop = vi.fn();
+    vi.mock("../lib/score-cursor", () => ({
+      ScoreCursor: vi.fn().mockImplementation(() => ({
+        start: mockStart,
+        stop: mockStop,
+      })),
+    }));
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it("instantiates ScoreCursor and calls start when scoreIR loads", async () => {
+    const { ProofCard } = await import("./ProofCard");
+    render(React.createElement(ProofCard, { manifest: FIXTURE_MANIFEST, cardIndex: 0 }));
+
+    await waitFor(() => {
+      // ScoreCursor constructor was called with the score container
+      const { ScoreCursor } = require("../lib/score-cursor");
+      expect(ScoreCursor).toHaveBeenCalled();
+      expect(mockStart).toHaveBeenCalled();
+    });
+  });
+
+  it("the qstampSource passed to start returns bar 1 for t=0", async () => {
+    const { ProofCard } = await import("./ProofCard");
+    render(React.createElement(ProofCard, { manifest: FIXTURE_MANIFEST, cardIndex: 0 }));
+
+    await waitFor(() => {
+      expect(mockStart).toHaveBeenCalled();
+    });
+
+    // Retrieve the qstampSource callback passed to start
+    const qstampSource = mockStart.mock.calls[0]?.[0] as (() => number) | undefined;
+    expect(typeof qstampSource).toBe("function");
+    // At t=0 the barTimeline maps to bar 1
+    expect(qstampSource!()).toBe(1);
+  });
+
+  it("calls cursor.stop when component unmounts", async () => {
+    const { ProofCard } = await import("./ProofCard");
+    const { unmount } = render(React.createElement(ProofCard, { manifest: FIXTURE_MANIFEST, cardIndex: 0 }));
+
+    await waitFor(() => {
+      expect(mockStart).toHaveBeenCalled();
+    });
+
+    unmount();
+    expect(mockStop).toHaveBeenCalled();
+  });
+});
+```
+
+- [ ] **Step 2: Run test — verify it FAILS**
+
+```bash
+cd apps/web && bun run test src/components/ProofCard.test.tsx --reporter=verbose 2>&1 | grep -E "FAIL|ScoreCursor"
+```
+Expected: FAIL — `ScoreCursor` is not yet imported in ProofCard.tsx (before Task 1's import fix lands)
+
+- [ ] **Step 3: Implement the minimum to make the test pass**
+
+The ScoreCursor `useEffect` is already included in the Task 1 ProofCard.tsx implementation snippet (see Task 1, Step 3). Confirm it is present:
+
+```typescript
+// In ProofCard.tsx — confirm this useEffect block is present:
+useEffect(() => {
+  if (scoreIR === null || scoreContainerRef.current === null) return;
+  const cursor = new ScoreCursor(scoreContainerRef.current, scoreIR);
+  cursor.start(() => qstampForTime(currentTime) ?? 0);
+  return () => {
+    cursor.stop();
+  };
+}, [scoreIR, currentTime, qstampForTime]);
+```
+
+No additional code changes needed if Task 1 is implemented correctly.
+
+- [ ] **Step 4: Run test — verify it PASSES**
+
+```bash
+cd apps/web && bun run test src/components/ProofCard.test.tsx
+```
+Expected: PASS — all three ScoreCursor integration tests pass
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/web/src/components/ProofCard.test.tsx && git commit -m "feat(landing): add ScoreCursor instantiation and lifecycle tests to ProofCard"
+```
+
+---
+
 ### Task 5: Reduced motion — autoplay disabled, play button visible
 
-**Group:** B (depends on Group A)
+**Group:** C (parallel with Tasks 7 and 9 — depends on Group B)
 
 **Behavior being verified:** When `prefers-reduced-motion: reduce` is active, IntersectionObserver does not trigger `audio.play()` and the manual play button is present unconditionally.
 
@@ -1141,7 +1274,7 @@ git add apps/web/src/components/ProofCard.test.tsx && git commit -m "feat(landin
 
 ### Task 7: BarScoreChip and bar-tap behavior
 
-**Group:** B (depends on Group A)
+**Group:** C (parallel with Tasks 5 and 9 — depends on Group B)
 
 **Behavior being verified:** (a) BarScoreChip renders six bars with heights proportional to each score value. (b) Clicking a bar element in ProofCard renders a BarScoreChip with the manifest's perBarScores values for that bar.
 
@@ -1256,6 +1389,7 @@ Create `apps/web/src/components/BarScoreChip.tsx`:
 
 ```typescript
 // apps/web/src/components/BarScoreChip.tsx
+import type { KeyboardEvent } from "react";
 import type { BarQualityScores } from "../types/landing";
 
 const DIMENSIONS: Array<keyof BarQualityScores> = [
@@ -1283,7 +1417,7 @@ interface BarScoreChipProps {
 }
 
 export function BarScoreChip({ scores, barNumber, onClose }: BarScoreChipProps) {
-  function handleKeyDown(e: React.KeyboardEvent) {
+  function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === "Escape") onClose();
   }
 
@@ -1354,7 +1488,7 @@ git add apps/web/src/components/BarScoreChip.tsx apps/web/src/components/BarScor
 
 ### Task 8: useProofCardTimeline bidirectional scrub sync
 
-**Group:** A (parallel with Tasks 1, 2, 3, 4)
+**Group:** B (parallel with Tasks 2, 3, 4 — depends on Task 1 completing first; replaces the useProofCardTimeline.ts stub created by Task 1 with the full implementation — do NOT create fresh, use the stub file as the starting point)
 
 **Behavior being verified:** (a) `qstampForTime` returns the correct bar number for a given audio time. (b) Updating `currentTime` from the scrubber reflects in the hook's returned state; the hook does not internally sync to the audio ref in the test (audio sync is an effect in ProofCard, not the hook).
 
@@ -1384,7 +1518,7 @@ describe("useProofCardTimeline", () => {
     const { useProofCardTimeline } = await import("./useProofCardTimeline");
     const audioRef = { current: null };
     const { result } = renderHook(() =>
-      useProofCardTimeline(audioRef as React.RefObject<HTMLAudioElement | null>, null, BAR_TIMELINE),
+      useProofCardTimeline(audioRef as { current: HTMLAudioElement | null }, null, BAR_TIMELINE),
     );
     expect(result.current.qstampForTime(0.0)).toBe(1);
   });
@@ -1393,7 +1527,7 @@ describe("useProofCardTimeline", () => {
     const { useProofCardTimeline } = await import("./useProofCardTimeline");
     const audioRef = { current: null };
     const { result } = renderHook(() =>
-      useProofCardTimeline(audioRef as React.RefObject<HTMLAudioElement | null>, null, BAR_TIMELINE),
+      useProofCardTimeline(audioRef as { current: HTMLAudioElement | null }, null, BAR_TIMELINE),
     );
     expect(result.current.qstampForTime(14.0)).toBe(4);
   });
@@ -1402,7 +1536,7 @@ describe("useProofCardTimeline", () => {
     const { useProofCardTimeline } = await import("./useProofCardTimeline");
     const audioRef = { current: null };
     const { result } = renderHook(() =>
-      useProofCardTimeline(audioRef as React.RefObject<HTMLAudioElement | null>, null, BAR_TIMELINE),
+      useProofCardTimeline(audioRef as { current: HTMLAudioElement | null }, null, BAR_TIMELINE),
     );
     act(() => {
       result.current.setCurrentTime(8.5);
@@ -1435,12 +1569,13 @@ Replace the stub in `apps/web/src/hooks/useProofCardTimeline.ts`:
 ```typescript
 // apps/web/src/hooks/useProofCardTimeline.ts
 import { useCallback, useRef, useState } from "react";
+import type { RefObject } from "react";
 import type { ScoreIR } from "../lib/score-ir";
 
 type BarTimeline = Array<{ bar: number; tSec: number }>;
 
 export function useProofCardTimeline(
-  _audioRef: React.RefObject<HTMLAudioElement | null>,
+  _audioRef: RefObject<HTMLAudioElement | null>,
   _scoreIR: ScoreIR | null,
   barTimeline: BarTimeline,
 ) {
@@ -1495,7 +1630,7 @@ git add apps/web/src/hooks/useProofCardTimeline.ts apps/web/src/hooks/useProofCa
 
 ### Task 9: Keyboard navigation — Tab cycles bars, Enter opens chip, Escape closes
 
-**Group:** B (depends on Group A)
+**Group:** C (parallel with Tasks 5 and 7 — depends on Group B)
 
 **Behavior being verified:** Tab key cycles focus through bar buttons in ProofCard; Enter opens BarScoreChip for the focused bar; Escape closes the chip.
 
@@ -1625,7 +1760,7 @@ git add apps/web/src/components/ProofCard.tsx apps/web/src/components/ProofCard.
 
 ### Task 6: Axe accessibility scan on LandingPage
 
-**Group:** C (depends on Group B)
+**Group:** D (sequential — depends on Group C)
 
 **Behavior being verified:** LandingPage with three ProofCards (using fixture manifests) passes an axe-core accessibility scan with zero violations.
 
@@ -1807,7 +1942,7 @@ git add apps/web/src/components/ExerciseProofBlock.tsx apps/web/src/routes/index
 
 ### Task 10: Wire up index.tsx and final CTA
 
-**Group:** D (depends on Group C — all components must exist)
+**Group:** E (sequential — depends on Group D; all components must exist)
 
 **Behavior being verified:** `LandingPage` in `index.tsx` renders the ExerciseProofBlock with three manifests, followed by FinalCTA and LandingFooter; the hero section is byte-for-byte unchanged.
 
@@ -2097,9 +2232,197 @@ cd apps/web && bun run test
 
 All of the following tests must pass:
 - `src/lib/landing-analytics.test.ts` — 2 tests (Task 0)
-- `src/components/ProofCard.test.tsx` — 9 tests (Tasks 1–5, 7, 9)
+- `src/components/ProofCard.test.tsx` — 12 tests (Tasks 1–5, 4.5, 7, 9)
 - `src/components/BarScoreChip.test.tsx` — 2 tests (Task 7)
 - `src/hooks/useProofCardTimeline.test.ts` — 4 tests (Task 8)
 - `src/routes/index.test.tsx` — 2 tests (Task 6, Task 10)
 
-Total: 19 tests. No existing tests may regress.
+Total: 22 tests. No existing tests may regress.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise Challenge**
+
+Right problem: yes. The current landing page shows stock photos and pull-quotes. Nothing demonstrates what the product actually does. The interactive ProofCard is a direct product demonstration. No simpler framing would yield the same activation signal.
+
+Real pain: yes. "Low activation on the hard metric (record-first-session)" is the stated pain. A static marketing page creates no signal about whether the product is compelling.
+
+Direct path: yes. Static prebaked assets with no runtime inference is the minimum viable approach. Avoids all the complexity of live inference on the landing path.
+
+Existing coverage: `score-cursor.ts`, `score-ir.ts`, `score-cursor.test.ts`, `score-ir.test.ts` are all shipped and tested. The plan correctly identifies these as assets to reuse. **However, the plan's ProofCard implementation does not instantiate `ScoreCursor` at all** — it fetches the scoreIR and constructs a `ScoreIR` value but never passes it to a `ScoreCursor` instance. This is a core spec requirement that the plan silently drops.
+
+**Scope Check**
+
+What could be cut: the asset prefetch injection for card-2 and card-3 (Task 0 / ProofCard.tsx) is a nice-to-have optimization, not MVP. Could be deferred without affecting core functionality. No BLOCKER here, just an observation.
+
+The plan touches 14 new files across 10 tasks — reasonable complexity for the feature goal.
+
+**Twelve-Month Alignment**
+
+```
+CURRENT STATE               THIS PLAN                    12-MONTH IDEAL
+Static marketing page  →    Interactive ProofCards  →    Live inference-backed
+(photos, pull-quote)        with prebaked assets         ProofCards (user uploads
+                            and score cursor sync         their own recording)
+```
+
+This plan moves toward the ideal. The prebaked approach is a deliberate staging — it proves the interaction model before investing in per-user inference on the landing path.
+
+**Alternatives Check**
+
+The spec documents the static-prebaked vs runtime-inference tradeoff and chooses static. This is explicitly justified. The third alternative (animated GIF/video of the product) was implicitly rejected (the current state already uses MP4 animations — they're what's being replaced). Reasoning is present in the spec.
+
+---
+
+### Engineering Pass
+
+**Architecture**
+
+Data flow:
+
+```
+index.tsx (CARD_MANIFESTS)
+  └── ExerciseProofBlock (layout wrapper)
+       └── ProofCard (per-card coordination)
+            ├── fetch(scoreIRUrl) → ScoreIR state
+            ├── fetch(scoreSvgUrl) → insertAdjacentHTML into scoreContainerRef
+            ├── fetch(exerciseUrl) → exerciseComponent state
+            ├── <audio ref> → currentTime state (via timeupdate)
+            ├── scrubber range input → currentTime state → audio.currentTime sync
+            ├── useProofCardTimeline → qstampForTime(currentTime) → [ScoreCursor NOT WIRED]
+            └── IntersectionObserver → audio.play() / pause()
+```
+
+The qstamp mapping is computed but never consumed by ScoreCursor. The score SVG is static; the cursor never moves over it. This means the central UX claim in the spec — "cursor tracks through the score in sync with the audio" — is absent from the plan's implementation.
+
+Security: SVG is fetched from the same origin (`/landing/card-N/score.svg`). The biome lint comment `// biome-ignore lint/security/noDomManipulation` is present. No user input flows to the DOM.
+
+Deployment: pure static assets + React components. No migration, no partial-state risk. Rollback is `git revert`.
+
+**Module Depth Audit**
+
+- `ProofCard.tsx`: Interface = 2 props (`manifest`, `cardIndex`). Implementation hides fetch coordination, IO observers, audio sync, analytics, keyboard nav. **DEEP** — but the cursor subsystem is missing entirely from the implementation despite being listed in the spec's hidden complexity.
+- `BarScoreChip.tsx`: Interface = 3 props, implementation = bar chart + keydown. **SHALLOW** — acknowledged in spec as justified (pure display).
+- `ExerciseProofBlock.tsx`: Interface = 1 prop (manifests tuple), implementation = layout wrapper. **SHALLOW** — justified as composition-only.
+- `useProofCardTimeline.ts`: Interface = 3 params + 3 return values. Implementation = linear scan. **DEEP** — simple interface hiding O(n) traversal.
+- `landing-analytics.ts`: 3-line guard wrapper. **SHALLOW** — justified.
+
+**Code Quality**
+
+- `ProofCard.tsx` uses `React.KeyboardEvent` at line `handleBarKeyDown(e: React.KeyboardEvent, ...)` but only imports `{ useEffect, useRef, useState }` from `"react"`. No `import * as React` or `import type { KeyboardEvent } from "react"`. This is a TypeScript compile error under strict mode with `"jsx": "react-jsx"`.
+- `BarScoreChip.tsx` uses `React.KeyboardEvent` in `handleKeyDown(e: React.KeyboardEvent)` but has no `import React` at all — only `import type { BarQualityScores } from "../types/landing"`. Same compile error.
+- `useProofCardTimeline.ts` (stub and full implementation) uses `React.RefObject<HTMLAudioElement | null>` in the parameter type but only imports `{ useCallback, useRef, useState }` from `"react"`. Same compile error.
+
+All three files will fail `tsc` before any tests run.
+
+- The `exerciseComponent` state is typed as `unknown` and then cast with `as { config?: ... }` in JSX. This is not explicit exception handling — it's a silent cast. If the exercise JSON doesn't match the expected shape, nothing is shown and no error is thrown. Acceptable for a marketing page, but worth noting.
+
+- The Task 1 render contract test asserts `data-testid="proof-card-exercise"` outside of `waitFor`, immediately after `await waitFor(() => getByText(...))`. Since `manifest.diagnosis` is a synchronous prop (renders immediately), `waitFor` for the diagnosis text may resolve before the async fetch for `exerciseUrl` completes. This makes the exercise assertion potentially racy. Low severity in practice (microtask resolution in jsdom is predictable), but fragile.
+
+**Test Philosophy Audit**
+
+- Task 0 test (`landing-analytics.test.ts`): Tests behavior through the public function — ✓ behavior-first, no internal mocking of the module-under-test.
+- Task 1 test (`ProofCard.test.tsx`): Mocks `fetch` (external boundary) and `vi.mock("../lib/landing-analytics")`. The analytics mock is technically mocking an internal collaborator of ProofCard. However, it's a thin fire-and-forget helper; not testing it via ProofCard is acceptable and consistent with the spec's note that analytics is not independently tested.
+- Task 2 test (autoplay): Tests behavior (audio.play called) via IntersectionObserver mock — behavior-first. ✓
+- Task 8 hook tests: Tests `qstampForTime` behavior directly. ✓ Clean hook tests via `renderHook`.
+- Task 6 axe scan: This is a smoke test (★). No behavior assertion — just "no violations." Acceptable for a11y gate.
+- Task 10 test (`LandingPage structure`): Uses `(IndexRoute as unknown as { options: { component: React.ComponentType } }).options.component` — this is accessing the internal TanStack Router route object and relying on `Route.options.component` being a public field. Verified: TanStack Router v1 stores `this.options = options || {}` in `BaseRoute` constructor and the `component` field lives there. This pattern is safe for the current version.
+
+**Vertical Slice Audit**
+
+- Tasks 2, 3, 4 are all `Group A (parallel)` — but ALL three tasks **modify the same file** (`ProofCard.test.tsx`) that Task 1 creates. A build agent dispatching these in parallel will have three subagents concurrently writing to the same file, producing merge conflicts or last-write-wins corruption. This is not a vertical slice problem per se but a **build agent coordination failure** — parallel subagents cannot safely append to the same file.
+- Task 8 is `Group A (parallel)` and **creates `useProofCardTimeline.ts`** — but Task 1 also **creates a stub of the same file** as part of its Step 3. Two Group A subagents creating the same file in parallel will clobber each other.
+- Task 5 (`Group B`) modifies `ProofCard.test.tsx` and uses `vi.resetModules()` in `beforeEach`. In Vitest, `vi.resetModules()` is a global operation that resets the module registry. Calling it inside a `describe` block's `beforeEach` affects ALL modules across the test file for subsequent tests, potentially breaking earlier test blocks that rely on stable module identity.
+
+**Test Coverage Gaps**
+
+```
+[+] ProofCard.tsx
+    │
+    ├── load() — scoreIR fetch
+    │   ├── [TESTED]  ok response sets scoreIR — Task 1 (★★)
+    │   ├── [TESTED]  non-ok response: graceful degradation — Task 3 (★★)
+    │   └── [GAP]     ScoreCursor instantiated and started — NOT TESTED (feature absent from plan)
+    │
+    ├── load() — audio fetch
+    │   └── [TESTED]  error event triggers audio-failed state — Task 4 (★★)
+    │
+    ├── IntersectionObserver autoplay
+    │   ├── [TESTED]  ≥60% triggers play — Task 2 (★★)
+    │   └── [TESTED]  <60% does not trigger play — Task 2 (★★)
+    │
+    ├── Reduced motion
+    │   ├── [TESTED]  autoplay disabled — Task 5 (★★)
+    │   └── [TESTED]  manual play button present — Task 5 (★★)
+    │
+    ├── Bar tap → BarScoreChip
+    │   └── [TESTED]  bar click shows chip — Task 7 (★★)
+    │
+    └── Keyboard nav
+        ├── [TESTED]  Enter opens chip — Task 9 (★★)
+        └── [TESTED]  Escape closes chip — Task 9 (★★)
+
+[+] useProofCardTimeline.ts
+    ├── qstampForTime(0.0) → bar 1 [TESTED] — Task 8 (★★)
+    ├── qstampForTime(14.0) → bar 4 [TESTED] — Task 8 (★★)
+    ├── setCurrentTime updates state [TESTED] — Task 8 (★★)
+    └── empty timeline → null [TESTED] — Task 8 (★★)
+```
+
+**Failure Modes**
+
+- All three asset fetches (SVG, scoreIR, exercise) catch errors silently and continue. This is correct for a marketing page — partial failure is acceptable.
+- Audio autoplay rejection is silently caught. Play button is shown as fallback.
+- No recovery path needed for DOM state corruption — the card is stateless except for `activeBar`.
+
+---
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `Route.options.component` exposes the LandingPage component in TanStack Router v1 | SAFE | Verified: `BaseRoute` stores `this.options = options` in `@tanstack/router-core`; `createFileRoute` passes component through options |
+| `vitest-axe` + `axe-core` are not currently installed | SAFE | Verified: not in `apps/web/package.json` devDependencies |
+| `useProofCardTimeline` does not exist yet | SAFE | Verified: `apps/web/src/hooks/` directory confirmed; file absent |
+| jsdom sets `document.visibilityState` to `"visible"` by default | SAFE | Well-documented jsdom behavior |
+| `ScoreCursor` can be instantiated with a static SVG container | VALIDATE | The plan doesn't use ScoreCursor; if it did, the overlay mount logic requires the container to be in the DOM with correct dimensions |
+| Parallel tasks in Group A can safely modify the same file | RISKY | Tasks 2, 3, 4 all append to `ProofCard.test.tsx`; Task 1 and Task 8 both create `useProofCardTimeline.ts`. Parallel dispatch will cause file conflicts |
+| `React.KeyboardEvent` and `React.RefObject` are available without `import * as React` | RISKY | Not available under strict mode + `"jsx": "react-jsx"`. Files will not compile. |
+| `manifest.diagnosis` renders synchronously before fetch resolves | SAFE | It is a direct prop rendered in JSX, not behind a state gate |
+| `snapshot-landing-card.ts` is not needed for tests to pass | SAFE | Tests use hardcoded fixture manifests; the snapshot script is only needed to produce real audio/SVG assets |
+
+---
+
+### Summary
+
+[BLOCKER] count: 3
+[RISK]    count: 3
+[QUESTION] count: 1
+
+**Blockers**
+
+[BLOCKER] (confidence: 9/10) — `ProofCard.tsx`, `BarScoreChip.tsx`, and `useProofCardTimeline.ts` all use `React.KeyboardEvent` or `React.RefObject` without importing `React`. Under `strict: true` + `"jsx": "react-jsx"`, these will produce TypeScript compile errors (`'React' refers to a UMD global, but the current file is a module`) before any tests can run. Fix: add `import type { KeyboardEvent, RefObject } from "react"` to each file and replace `React.KeyboardEvent` with `KeyboardEvent`, `React.RefObject` with `RefObject`.
+
+[BLOCKER] (confidence: 10/10) — `ScoreCursor` is never instantiated in the plan's `ProofCard.tsx`. The spec's stated goal explicitly includes "bidirectional cursor-audio sync" as a core feature, and the spec's Design section (line 45) says "A single `currentTime: number` React state drives both the audio element's `currentTime` and the `qstampSource` passed to `ScoreCursor`." The plan's `useProofCardTimeline` computes `qstampForTime` but the return value is never passed to `ScoreCursor`. The score SVG is static; the cursor never moves. This is a spec requirement missing from the plan. Fix: add a `useEffect` in `ProofCard.tsx` that instantiates `ScoreCursor` (when `scoreIR !== null && scoreContainerRef.current !== null`), starts it on mount / stops it on unmount, and passes `() => qstampForTime(currentTime)` as the `qstampSource`. Add a corresponding test that asserts cursor presence when scoreIR loads.
+
+[BLOCKER] (confidence: 9/10) — Group A declares Tasks 1, 2, 3, 4, 8 as parallel, but Tasks 2, 3, 4 all **append to** `ProofCard.test.tsx` (created by Task 1), and Task 8 **creates** `useProofCardTimeline.ts` (stubbed by Task 1). Parallel subagent dispatch will cause last-write-wins file collisions on both files. Fix: move Tasks 2, 3, 4 into Group B (or make them sequential after Task 1 in a revised Group A-seq). Move Task 8's file creation to be sequential after Task 1's stub creation (e.g., keep Task 8 in Group A but make it aware it replaces the stub, not creates fresh).
+
+**Risks**
+
+[RISK] (confidence: 7/10) — Task 5's `beforeEach` calls `vi.resetModules()`. In Vitest, this clears the module registry globally within the test worker. Because all ProofCard tests accumulate in a single file, the `resetModules` in the reduced-motion describe block may invalidate cached module references used by earlier describe blocks, producing unexpected test isolation failures. Fallback: if tests fail intermittently, move the reduced-motion tests to a separate file (`ProofCard.reduced-motion.test.tsx`) so `resetModules` does not affect the main suite.
+
+[RISK] (confidence: 6/10) — Task 1's render contract test asserts `data-testid="proof-card-exercise"` outside of `waitFor`, immediately after `await waitFor(() => getByText(diagnosis))`. `manifest.diagnosis` renders synchronously (it's a prop), so `waitFor` resolves on the first flush — potentially before the `exerciseUrl` fetch microtask chain completes. If this assertion flakes, wrap it in `await waitFor(() => expect(document.querySelector('[data-testid="proof-card-exercise"]')).not.toBeNull())`.
+
+[RISK] (confidence: 7/10) — `snapshot-landing-card.ts` is listed in the spec's File Changes table as a Task 0 deliverable ("Task 0 creates `apps/web/scripts/snapshot-landing-card.ts`") but is entirely absent from the plan's Task 0 steps. The script is not needed for tests to pass (tests use fixture JSONs), but without it there is no documented path to produce real audio/SVG assets for the three cards. The landing page will launch with empty asset directories. Name the fallback in the plan or explicitly defer the script.
+
+**Questions**
+
+[QUESTION] — `snapshot-landing-card.ts` appears in the spec's Verification Architecture as a Task 0 artifact but is absent from the plan. Should it be included in Task 0, deferred to a follow-up task, or explicitly excluded on the grounds that real asset production is manual and outside the build agent's scope?
+
+---
+
+VERDICT: NEEDS_REWORK — Three blockers must be resolved: (1) missing `React` type imports in three files will prevent compilation; (2) `ScoreCursor` is never instantiated — the animated cursor is entirely absent from the plan despite being a core spec requirement; (3) Group A parallel task dispatch will cause file conflicts on `ProofCard.test.tsx` and `useProofCardTimeline.ts`.
