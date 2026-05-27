@@ -599,7 +599,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 				if (scoreCtx !== null) {
 					// Chroma DTW alignment (replaces note-level alignChunk)
 					const chromaResult: BarMapChroma | null =
-						chromaBytes !== null
+						chromaBytes !== null && chromaFrameRateHz > 0
 							? (() => {
 									try {
 										return wasm.alignChunkChroma(
