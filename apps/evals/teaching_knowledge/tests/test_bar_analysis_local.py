@@ -75,7 +75,7 @@ def test_tier1_articulation_mentions_duration_ratio() -> None:
     result = compute_tier1_dimensions(midi_notes, [], score_json)
     articulation = next(r for r in result if r["dimension"] == "articulation")
     text = articulation["analysis"].lower()
-    assert "ratio" in text or "score" in text
+    assert "ratio " in text or "performance/score" in text.lower()
 
 
 def test_tier1_dynamics_does_not_mention_notated_score() -> None:
