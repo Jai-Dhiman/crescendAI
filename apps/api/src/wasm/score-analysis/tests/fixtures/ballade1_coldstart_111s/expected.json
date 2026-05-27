@@ -5,5 +5,6 @@
   "bar_max_hi": 40,
   "n_frames": 751,
   "decim_n": 76,
-  "cost_hi": 0.3
+  "cost_hi": 0.3,
+  "frame_rate_hz": 50.0
 }

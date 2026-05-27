@@ -10,7 +10,18 @@ use score_analysis::chroma_dtw_native;
 use score_analysis::types::{BarMapChroma, ScoreBar};
 use std::path::Path;
 
-fn load_fixture(slug: &str) -> (Vec<f32>, u32, Vec<ScoreBar>, serde_json::Value) {
+#[derive(serde::Deserialize)]
+struct ExpectedFixture {
+    bar_min_lo: u32,
+    bar_min_hi: u32,
+    bar_max_lo: u32,
+    bar_max_hi: u32,
+    decim_n: usize,
+    cost_hi: f32,
+    frame_rate_hz: f32,
+}
+
+fn load_fixture(slug: &str) -> (Vec<f32>, u32, Vec<ScoreBar>, ExpectedFixture) {
     let base = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(slug);
 
     // audio_chroma.bin: raw LE f32 bytes, row-major 12 x n_frames
@@ -29,7 +40,8 @@ fn load_fixture(slug: &str) -> (Vec<f32>, u32, Vec<ScoreBar>, serde_json::Value)
 
     let expected_json = std::fs::read_to_string(base.join("expected.json"))
         .unwrap_or_else(|_| panic!("missing expected.json for {slug}"));
-    let expected: serde_json::Value = serde_json::from_str(&expected_json).unwrap();
+    let expected: ExpectedFixture = serde_json::from_str(&expected_json)
+        .unwrap_or_else(|e| panic!("expected.json parse error for {slug}: {e}"));
 
     (floats, n_frames, score_bars, expected)
 }
@@ -39,35 +51,33 @@ fn chroma_dtw_roundtrip_coldstart() {
     let (audio_f32, n_audio, score_bars, expected) = load_fixture("ballade1_coldstart_111s");
 
     let result: BarMapChroma =
-        chroma_dtw_native(&audio_f32, n_audio, &score_bars, 50.0, 5.0)
+        chroma_dtw_native(&audio_f32, n_audio, &score_bars, expected.frame_rate_hz, 5.0)
             .expect("align_chunk_chroma_native should not fail on valid fixture");
 
-    let bar_min_lo = expected["bar_min_lo"].as_u64().unwrap() as u32;
-    let bar_min_hi = expected["bar_min_hi"].as_u64().unwrap() as u32;
-    let bar_max_lo = expected["bar_max_lo"].as_u64().unwrap() as u32;
-    let bar_max_hi = expected["bar_max_hi"].as_u64().unwrap() as u32;
-    let decim_n = expected["decim_n"].as_u64().unwrap() as usize;
-    let cost_hi = expected["cost_hi"].as_f64().unwrap() as f32;
-
     assert!(
-        result.bar_min >= bar_min_lo && result.bar_min <= bar_min_hi,
-        "bar_min={} not in [{bar_min_lo}, {bar_min_hi}]",
-        result.bar_min
+        result.bar_min >= expected.bar_min_lo && result.bar_min <= expected.bar_min_hi,
+        "bar_min={} not in [{}, {}]",
+        result.bar_min,
+        expected.bar_min_lo,
+        expected.bar_min_hi,
     );
     assert!(
-        result.bar_max >= bar_max_lo && result.bar_max <= bar_max_hi,
-        "bar_max={} not in [{bar_max_lo}, {bar_max_hi}]",
-        result.bar_max
+        result.bar_max >= expected.bar_max_lo && result.bar_max <= expected.bar_max_hi,
+        "bar_max={} not in [{}, {}]",
+        result.bar_max,
+        expected.bar_max_lo,
+        expected.bar_max_hi,
     );
     assert_eq!(
         result.bar_per_frame.len(),
-        decim_n,
+        expected.decim_n,
         "bar_per_frame length mismatch"
     );
     assert!(
-        result.cost < cost_hi,
-        "cost={} not below {cost_hi}",
-        result.cost
+        result.cost < expected.cost_hi,
+        "cost={} not below {}",
+        result.cost,
+        expected.cost_hi,
     );
     // Monotone non-decreasing check
     for w in result.bar_per_frame.windows(2) {
@@ -84,26 +94,28 @@ fn chroma_dtw_roundtrip_forward() {
     let (audio_f32, n_audio, score_bars, expected) = load_fixture("ballade1_forward_2min");
 
     let result: BarMapChroma =
-        chroma_dtw_native(&audio_f32, n_audio, &score_bars, 50.0, 5.0)
+        chroma_dtw_native(&audio_f32, n_audio, &score_bars, expected.frame_rate_hz, 5.0)
             .expect("align_chunk_chroma_native should not fail on valid fixture");
 
-    let bar_min_lo = expected["bar_min_lo"].as_u64().unwrap() as u32;
-    let bar_min_hi = expected["bar_min_hi"].as_u64().unwrap() as u32;
-    let bar_max_lo = expected["bar_max_lo"].as_u64().unwrap() as u32;
-    let bar_max_hi = expected["bar_max_hi"].as_u64().unwrap() as u32;
-    let decim_n = expected["decim_n"].as_u64().unwrap() as usize;
-    let cost_hi = expected["cost_hi"].as_f64().unwrap() as f32;
-
     assert!(
-        result.bar_min >= bar_min_lo && result.bar_min <= bar_min_hi,
-        "bar_min={} not in [{bar_min_lo}, {bar_min_hi}]",
-        result.bar_min
+        result.bar_min >= expected.bar_min_lo && result.bar_min <= expected.bar_min_hi,
+        "bar_min={} not in [{}, {}]",
+        result.bar_min,
+        expected.bar_min_lo,
+        expected.bar_min_hi,
     );
     assert!(
-        result.bar_max >= bar_max_lo && result.bar_max <= bar_max_hi,
-        "bar_max={} not in [{bar_max_lo}, {bar_max_hi}]",
-        result.bar_max
+        result.bar_max >= expected.bar_max_lo && result.bar_max <= expected.bar_max_hi,
+        "bar_max={} not in [{}, {}]",
+        result.bar_max,
+        expected.bar_max_lo,
+        expected.bar_max_hi,
     );
-    assert_eq!(result.bar_per_frame.len(), decim_n);
-    assert!(result.cost < cost_hi, "cost={} not below {cost_hi}", result.cost);
+    assert_eq!(result.bar_per_frame.len(), expected.decim_n);
+    assert!(
+        result.cost < expected.cost_hi,
+        "cost={} not below {}",
+        result.cost,
+        expected.cost_hi,
+    );
 }

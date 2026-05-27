@@ -132,6 +132,7 @@ def main() -> None:
             "n_frames": n_frames,
             "decim_n": decim_n,
             "cost_hi": case["cost_hi"],
+            "frame_rate_hz": FRAME_RATE,
         }
         (out_dir / "expected.json").write_text(json.dumps(expected, indent=2))
         print(f"  expected.json: {expected}")
