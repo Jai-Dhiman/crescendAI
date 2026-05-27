@@ -703,28 +703,57 @@ git add apps/api/src/services/prompts.test.ts apps/api/src/services/prompts.ts &
 - Create: `apps/evals/teaching_knowledge/tests/__init__.py` (empty, if not already present — check first; Bash `ls`)
 - Create: `apps/evals/teaching_knowledge/tests/test_piece_score_map.py`
 
-**Hand-curated mapping (the build agent MUST verify each line by `ls /Users/jdhiman/Documents/crescendai/model/data/scores/ | grep <pattern>` before committing):**
+**Mapping procedure (the build agent populates the table from `ls` output — the plan deliberately does NOT pre-fill any specific score file):**
 
-| piece_slug | score JSON file (under `model/data/scores/`) | confidence |
-|------------|------------------------------------------------|------------|
-| `bach_prelude_c_wtc1` | `bach.prelude.bwv_846.json` | high |
-| `chopin_ballade_1` | `chopin.ballades.1.json` | high |
-| `moonlight_sonata_mvt1` | `beethoven.piano_sonatas.14-1.json` | needs verify (Sonata 14 = Op.27 No.2 "Moonlight") |
-| `pathetique_mvt2` | `beethoven.piano_sonatas.8-2.json` | needs verify (Sonata 8 = Op.13 "Pathétique") |
-| `fur_elise` | unmapped (no Bagatelle WoO.59 in scores dir as of 2026-05-27) | low |
-| `rachmaninoff_prelude_csm` | unmapped (need to determine which prelude) | unknown |
-| `chopin_etude_op10no4` | unmapped (no `chopin.etudes.10.4` in scores dir as of 2026-05-27) | unknown |
-| All others | None | — |
-
-The build agent's first action in this task is `ls /Users/jdhiman/Documents/crescendai/model/data/scores/ | grep -iE "beethoven\.piano_sonatas\.(8|14)"` etc. — confirm or refute each "needs verify" row. Pieces that cannot be confidently matched stay `None`. The plan does NOT bless any specific score file blindly; the table above is a starting point.
-
-- [ ] **Step 1: Verify the mapping table by inspecting `model/data/scores/`**
+The piece_slugs to consider are every directory under `model/data/evals/skill_eval/`:
 
 ```bash
-ls /Users/jdhiman/Documents/crescendai/model/data/scores/ | grep -iE "bach\.prelude\.bwv_846|chopin\.ballades\.1|beethoven\.piano_sonatas\.(8|14)"
+ls /Users/jdhiman/Documents/crescendai/model/data/evals/skill_eval/
 ```
 
-For each line in the proposed table marked "needs verify", confirm the file exists. For each "low" or "unknown" line, attempt to find the right file; if none, leave the slug unmapped.
+For each piece_slug, the build agent must run a targeted `ls | grep` against `model/data/scores/` to determine whether a matching score JSON exists. Musical knowledge is required to pair slugs with filenames (e.g., "Moonlight" = Beethoven Op.27 No.2 = Sonata No. 14; "Pathétique" = Op.13 = Sonata No. 8). **Verify presence with `ls` before accepting any pairing.**
+
+Candidate grep patterns for each known slug (the build agent runs these and ONLY maps the slug if the grep returns the expected file):
+
+| piece_slug | candidate grep pattern | mapping decision |
+|------------|------------------------|------------------|
+| `bach_prelude_c_wtc1` | `bach\.prelude\.bwv_846` | needs verify |
+| `chopin_ballade_1` | `chopin\.ballades\.1\.json` | needs verify |
+| `moonlight_sonata_mvt1` | `beethoven\.piano_sonatas\.14-` | needs verify (only map if a `14-1` mvt-1 file is present; if only `14-3` exists, leave unmapped — mvt 1 file is not in the scores dir) |
+| `pathetique_mvt2` | `beethoven\.piano_sonatas\.8-2` | needs verify |
+| `fantaisie_impromptu` | `chopin.*fantaisie\|chopin\.fantasie` | needs verify |
+| `fur_elise` | `bagatelle\|fur_elise\|woo_59` | needs verify |
+| `rachmaninoff_prelude_csm` | `rachmaninoff\.preludes` | needs verify (slug is ambiguous — only map if you can confirm WHICH prelude "csm" refers to; otherwise leave unmapped) |
+| `chopin_etude_op10no4` | `chopin\.etudes_op_10\.4` | needs verify |
+| `chopin_waltz_csm` | `chopin.*waltz` | needs verify |
+| `liszt_liebestraum_3` | `liszt.*liebestraum` | needs verify |
+| `nocturne_op9no2` | `chopin.*nocturne.*9.*2` | needs verify |
+| `debussy_arabesque_1` | `debussy.*arabesque` | needs verify |
+| `bach_invention_1` | `bach.*invention` | needs verify |
+| `clair_de_lune` | `debussy.*clair\|suite_bergamasque` | needs verify |
+| `mozart_k545_mvt1` | `mozart.*k.*545\|mozart\.piano_sonatas\.16` | needs verify |
+| `schumann_traumerei` | `schumann.*traumerei\|schumann.*kinderszenen` | needs verify |
+| `ensemble_4fold` | (not a piece — likely meta) | unmapped |
+
+**Rules for the build agent:**
+1. Run `ls model/data/scores/ | grep -iE "<pattern>"` for each row.
+2. If the grep returns exactly one file that musically matches the slug, add `slug -> filename` to `PIECE_SCORE_MAP`.
+3. If the grep returns no files, or returns files that do not musically match (e.g., grep for Moonlight mvt 1 returns only `14-3.json` which is mvt 3), leave the slug OUT of `PIECE_SCORE_MAP` — it will return `None` from `get_score_path_for_piece`.
+4. If the grep returns multiple plausible files, leave the slug OUT and surface to the user — do NOT guess.
+5. The final committed `PIECE_SCORE_MAP` dict must contain ONLY rows the build agent personally verified by running `ls`. Empty mappings are acceptable; wrong mappings are not.
+
+- [ ] **Step 1: Build the mapping table from `ls` output**
+
+For each piece_slug in the table above, run the candidate grep against `model/data/scores/`. Example:
+
+```bash
+ls /Users/jdhiman/Documents/crescendai/model/data/scores/ | grep -iE "beethoven\.piano_sonatas\.14-"
+ls /Users/jdhiman/Documents/crescendai/model/data/scores/ | grep -iE "beethoven\.piano_sonatas\.8-2"
+ls /Users/jdhiman/Documents/crescendai/model/data/scores/ | grep -iE "chopin\.ballades\.1\.json"
+# ...repeat for every piece_slug
+```
+
+Apply the five rules above. Record which slugs map to which files in scratch (e.g., a comment block in the implementation file); leave unmapped slugs absent from the dict. The committed `PIECE_SCORE_MAP` is your `ls`-verified result, not a copy of the plan's candidate table.
 
 - [ ] **Step 2: Write the failing test**
 
@@ -739,13 +768,10 @@ import pytest
 from teaching_knowledge.piece_score_map import get_score_path_for_piece
 
 
-@pytest.mark.parametrize(
-    "slug",
-    [
-        "bach_prelude_c_wtc1",
-        "chopin_ballade_1",
-    ],  # Build agent: add every confirmed mapping from Step 1.
-)
+from teaching_knowledge.piece_score_map import PIECE_SCORE_MAP
+
+
+@pytest.mark.parametrize("slug", sorted(PIECE_SCORE_MAP.keys()))
 def test_mapped_pieces_return_existing_path(slug: str) -> None:
     result = get_score_path_for_piece(slug)
     assert result is not None
@@ -779,12 +805,13 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCORES_DIR = REPO_ROOT / "model" / "data" / "scores"
 
-# Hand-curated mapping. Each entry was verified by inspecting model/data/scores/
-# on 2026-05-27. Pieces not in this table return None.
+# Hand-curated mapping. Each entry MUST be verified by `ls model/data/scores/`
+# before being added. Pieces not in this table return None.
+# Build agent: populate this dict from the Step 1 ls-verification results.
+# Do NOT add any row without confirming the file exists.
 PIECE_SCORE_MAP: dict[str, str] = {
-    "bach_prelude_c_wtc1": "bach.prelude.bwv_846.json",
-    "chopin_ballade_1": "chopin.ballades.1.json",
-    # Build agent: extend with any rows confirmed in Step 1.
+    # Example shape (only commit entries you personally verified):
+    # "bach_prelude_c_wtc1": "bach.prelude.bwv_846.json",
 }
 
 
@@ -1176,7 +1203,9 @@ git add apps/evals/teaching_knowledge/bar_analysis_local.py apps/evals/teaching_
 
 **Group:** B (sequential after Task 8; same file)
 
-**Behavior being verified:** When given a score JSON dict (the `model/data/scores/*.json` shape with a `bars` array of notated notes), the Tier-1 function returns six dicts whose `analysis` strings reference both performance and notated statistics (e.g. mention "score" or "notated" for at least the dynamics dimension).
+**Behavior being verified:** When given a score JSON dict (the `model/data/scores/*.json` shape with a `bars` array of notated notes), the Tier-1 function returns six dicts whose `analysis` strings reference both performance and notated statistics for the **articulation** dimension (performance-to-score duration ratio). Dynamics is deliberately NOT enriched in Tier-1 — see Code Quality note below.
+
+**Code Quality note — why dynamics is not enriched in Tier-1:** Inspecting `model/data/scores/bach.prelude.bwv_846.json` (and other score JSONs) shows every note has `velocity: 80` — the default MIDI export velocity, not a notated dynamic. Comparing performance velocity against a constant 80 carries zero pedagogical signal. The Rust Tier-1 in production has the same input limitation; this Python port deliberately drops the dynamics-vs-notated line to keep the prompt clean. Articulation duration ratio IS real signal because durations vary across score notes. A comment in `bar_analysis_local.py` documents this deliberate divergence from any "compare every dim" intuition.
 
 **Interface under test:** `compute_tier1_dimensions(midi_notes, pedal_events, score_json)` from `bar_analysis_local.py`.
 
@@ -1191,7 +1220,7 @@ git add apps/evals/teaching_knowledge/bar_analysis_local.py apps/evals/teaching_
 from teaching_knowledge.bar_analysis_local import compute_tier1_dimensions
 
 
-def test_tier1_dynamics_mentions_notated_score() -> None:
+def test_tier1_articulation_mentions_duration_ratio() -> None:
     midi_notes = [
         {"pitch": 60, "onset": 0.0, "offset": 0.5, "velocity": 90},
         {"pitch": 62, "onset": 0.5, "offset": 1.0, "velocity": 95},
@@ -1205,9 +1234,24 @@ def test_tier1_dynamics_mentions_notated_score() -> None:
         ]
     }
     result = compute_tier1_dimensions(midi_notes, [], score_json)
+    articulation = next(r for r in result if r["dimension"] == "articulation")
+    text = articulation["analysis"].lower()
+    assert "ratio" in text or "score" in text
+
+
+def test_tier1_dynamics_does_not_mention_notated_score() -> None:
+    # Score JSONs use default MIDI velocity 80 for every note; comparing
+    # performance velocity to that constant is signal-free. The Tier-1 port
+    # deliberately omits a dynamics-vs-notated line. See bar_analysis_local.py.
+    midi_notes = [{"pitch": 60, "onset": 0.0, "offset": 0.5, "velocity": 90}]
+    score_json = {"bars": [{"bar_number": 1, "notes": [
+        {"pitch": 60, "velocity": 80, "duration_seconds": 0.5}
+    ]}]}
+    result = compute_tier1_dimensions(midi_notes, [], score_json)
     dynamics = next(r for r in result if r["dimension"] == "dynamics")
     text = dynamics["analysis"].lower()
-    assert "score" in text or "notated" in text
+    assert "notated" not in text
+    assert "(score)" not in text
 ```
 
 - [ ] **Step 2: FAIL**
@@ -1228,7 +1272,15 @@ def compute_tier1_dimensions(
     pedal_events: list[dict[str, Any]],
     score_json: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    """Tier-1: compute_tier2_dimensions + notated comparison from score_json."""
+    """Tier-1: compute_tier2_dimensions + notated articulation comparison.
+
+    NOTE: Dynamics is deliberately NOT enriched with a score comparison. Score
+    JSONs under model/data/scores/ use the default MIDI export velocity 80 for
+    every note (not a real notated dynamic), so a performance-vs-score velocity
+    line carries zero signal and would dilute the prompt. The Rust Tier-1 in
+    production has the same input limitation. Articulation IS enriched because
+    notated note durations vary and the perf/score duration ratio is real signal.
+    """
     base = compute_tier2_dimensions(midi_notes, pedal_events)
     if not midi_notes:
         return base
@@ -1239,22 +1291,12 @@ def compute_tier1_dimensions(
     if not score_notes:
         return base
 
-    perf_vel_mean = mean(n["velocity"] for n in midi_notes)
-    score_vel_mean = mean(n["velocity"] for n in score_notes)
     perf_dur_mean = mean(n["offset"] - n["onset"] for n in midi_notes)
     score_dur_mean = mean(n.get("duration_seconds", 0.0) for n in score_notes) or 1e-6
 
     enriched = []
     for d in base:
-        if d["dimension"] == "dynamics":
-            d = {
-                **d,
-                "analysis": (
-                    f"{d['analysis']} Notated mean velocity {score_vel_mean:.1f} "
-                    f"(score); performance {perf_vel_mean:.1f}."
-                ),
-            }
-        elif d["dimension"] == "articulation":
+        if d["dimension"] == "articulation":
             ratio = perf_dur_mean / score_dur_mean
             d = {
                 **d,
@@ -1636,3 +1678,160 @@ No spec requirement is unmapped.
 ---
 
 **Feynman Summary:** Right now the Rust analyzer hands the API six per-dimension sentences like "your onset deviation is 45 ms early, score reference is 5 ms early" — and the API throws them away. The teacher then guesses at specifics. This plan stops throwing them away. A small filter function picks the one dimension that triggered the teaching moment plus up to two other dimensions that are also noticeably off, and ships that JSON to the teacher inside the synthesis prompt. The Python eval harness gets the same treatment so we can measure whether the teacher actually starts being more specific (the ASCF score on 513 recordings). If the lift is ≥ 0.3, we ship; if it's marginal, we tune the threshold; if it's zero, we know "any measured fact" is not enough and we need to enrich the features themselves before training.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise:** The right problem. ASCF outcome 1.387/3.0 is the weakest dimension in the locked baseline and `session-brain.ts:974` literally throws away the structured `DimensionAnalysis` records the Rust analyzer already produces. The causal chain (analyzer produces facts → API discards facts → teacher has no facts → ASCF judge sees no specificity) is verified in code (`session-brain.ts` lines 614, 974, 1081, 1240 all confirmed). Direct path.
+
+**Scope:** Tight. 6 production files, 5 eval files, no new services, no schema change (reuses `observations.reasoning_trace`). Could the MVP be smaller? Yes — Tasks 7/9/10 (the Python Tier-1/2 port) are a meaningful re-implementation of `bar_analysis.rs` and could be deferred if Task 5+11 alone produced lift on the production wire. But the spec's measurement instrument (the eval harness) requires the Python mirror; cutting it would leave the success criterion unverifiable. The eval mirror is load-bearing, not gold-plating.
+
+**12-Month Alignment:** Moves toward the north star. Bar-specific facts are exactly the substrate the Stage 2/3 teacher LoRA needs to learn from. If this lifts ASCF, the same `bar_analysis` JSON is high-signal training data for the Qwen finetune. If it does not lift ASCF, that is a falsifying signal that "any measured fact" is insufficient and the team can stop investing in feature enrichment and pivot to training-time methods. Either outcome is information.
+
+**Alternatives:** Spec is light on alternatives. The brainstorm presumably explored "enrich the Rust analyzer first" vs "use what we have"; only the chosen path is documented.
+
+[QUESTION] — Spec does not document the rejected alternatives. If "add tempo/rubato split in Rust first" or "concatenated prose instead of structured JSON" were considered and rejected, the reasoning belongs in the spec for future reference. (See spec Open Question 2 — it touches this but does not document the rejection.)
+
+### Engineering Pass
+
+#### Architecture
+
+Data flow verified by reading the actual code:
+
+```
+WASM analyzer (analyze_tier1/2) → ChunkAnalysis{tier, bar_range, dimensions[]}
+                                          ↓ [TODAY: dimensions[] dropped at session-brain.ts:621]
+                                          ↓ [PLAN: hoist chunkAnalysis, pass to buildBarAnalysisFacts]
+                                  AccumulatedMoment.llmAnalysis: BarAnalysisFacts | null
+                                          ↓
+                                  topMoments() → buildSynthesisFraming → JSON.stringify → <session_data>
+                                          ↓
+                                  persistAccumulatedMoments → observations.reasoning_trace (JSON-stringified)
+```
+
+The chain holds in real code. The four WASM call sites in `session-brain.ts` (lines 614, 635, 655, 1081, 1091, 1102 — actually 6 sites total when both handlers are counted, plan undercounts) all assign to a local `analysis` then promptly drop the `dimensions` array. The plan's hoist-and-assign edit is the minimal correct intervention.
+
+[RISK] (confidence: 8/10) — The plan's Task 3 implementation strategy says "4 sites in `handleProcessChunk`, 4 sites in `handleEvalChunk`" but `grep` finds **3 `analyzeTier1`/`analyzeTier2` calls in each handler** (6 total), not 4+4. The plan also hand-waves at line 586 ("and any I missed; the build agent must read the function and locate every wasm.analyzeTier(1|2)(...) call"). Fine instruction, but the count in the task header is wrong. Build agent must trust the grep, not the count. Watch during execution.
+
+#### Module Depth Audit
+
+- **`bar-analysis-facts.ts` (TS):** Interface = 1 function + 2 types. Implementation hides dim→index mapping, threshold (0.15), cap (2), abs-deviation sort, selected-exclusion, null-on-empty. **DEEP.**
+- **`bar_analysis_local.py`:** Interface = 1 public function `build_bar_analysis` + 3 helpers (`compute_tier1_dimensions`, `compute_tier2_dimensions`, `select_worst_chunk`) the tests reach into directly. The "public" surface is 4 functions, not 1. Three of those are tested as if they were public. **UNCLEAR / borderline SHALLOW.**
+
+[RISK] (confidence: 7/10) — `bar_analysis_local.py` tests reach in at three layers (`compute_tier2_dimensions`, `select_worst_chunk`, `compute_tier1_dimensions`, `build_bar_analysis`). The spec says "Tested through: The public function. Inputs are fixture chunk lists..." but the plan tests four functions individually. Either the spec is wrong (it is — the helpers must be testable in isolation to verify formula parity with Rust) or the plan deviates. Defensible because the Rust port needs formula-level tests, but note the deviation from spec text. Mitigation: keep the helper tests; relax the spec text in Task 12 PR description.
+
+- **`piece_score_map.py`:** Spec acknowledges shallow-but-unavoidable. Pure lookup table. Acceptable.
+
+#### Code Quality
+
+[BLOCKER] (confidence: 9/10) — **Task 5 mapping table contains a verified-wrong row.** Plan line 712 proposes `moonlight_sonata_mvt1 → beethoven.piano_sonatas.14-1.json`. `ls model/data/scores/` shows `beethoven.piano_sonatas.14-3.json` exists but **`14-1.json` does NOT exist** (the Adagio sostenuto, mvt 1 of Op.27 No.2, is absent from the scores dir). The plan instructs the build agent to verify before committing — good — but if the build agent runs `ls | grep "beethoven\.piano_sonatas\.14"`, they will see only `14-3` and leave `moonlight_sonata_mvt1` unmapped. This is salvageable but the plan's high-confidence claim that 14-1 maps Moonlight is empirically wrong and must be removed from the table before execution to avoid the build agent committing a wrong mapping if they trust the table over the verification step. Fix: rewrite the table to show all rows as "needs verify" and let the `ls` step populate it.
+
+[BLOCKER] (confidence: 9/10) — **Tier-1 notated-velocity comparison is signal-free.** Reading `bach.prelude.bwv_846.json`, every note has `velocity: 80` — this is the default MIDI export velocity, not a notated dynamic. Therefore `score_vel_mean` in Task 9's `compute_tier1_dimensions` will be 80 for every score and the "Notated mean velocity 80.0 (score); performance X" line carries zero pedagogical information. The teacher LLM will be shown a constant. The articulation duration ratio is still real signal (durations vary), but dynamics is not. Either drop the dynamics-vs-notated line entirely (it actively dilutes the prompt), or document this and accept that Tier-1 dynamics adds no signal over Tier-2. Decision must happen before Task 9 commits; otherwise the eval lift on Tier-1 will be diluted by a known-noise feature and the secondary success signal ("Tier-1 lift > Tier-2 lift") may fail for reasons unrelated to the core hypothesis.
+
+[RISK] (confidence: 7/10) — Task 11's `build_synthesis_user_msg` uses `SCALER_MEAN` (the MuQ global mean) as the baselines passed to `build_bar_analysis`. But the production path uses *student-specific* baselines (`baselines: StudentBaselines` constructed per session in `session-brain.ts` ~line 1210). The eval and production therefore compute "correlated dimensions" against different baselines. For the eval this may be acceptable (no student history exists in the cache), but the plan does not flag this divergence. The Tier-1-vs-Tier-2 success signal could mislead if student-baseline vs global-mean is a stronger lever than score-presence. Mitigation: document in Task 11 PR that eval uses global mean and prod uses per-student baselines; spec should acknowledge this is an unmodeled difference.
+
+[OBS] — `session-brain.ts:974` currently sets `llmAnalysis: null`. The existing `synthesis.ts:48` reads `moment.llmAnalysis ?? moment.reasoning` — i.e. today `llmAnalysis` always falls through to `reasoning`. The plan's Task 2 step 5 line `moment.llmAnalysis !== null ? JSON.stringify(moment.llmAnalysis) : moment.reasoning` is behaviorally identical to the old code *when* `llmAnalysis: null` (which is everywhere pre-Task-3). Tests in Task 6 must run *after* Task 3 wires real facts, OR the test fixture must explicitly construct a non-null `llmAnalysis` (the plan does the latter — OK).
+
+#### Test Philosophy — The Three Author-Flagged Concerns
+
+The author flagged three areas. Verdicts after reading the code:
+
+**1. Task 3 contract test rather than DO integration test.** Defensible (confidence 8/10). The DO requires a Durable Object environment, WASM runtime, and a constructed `wasm` bridge — none can be set up without either (a) mocking the WASM bridge (forbidden by project test philosophy) or (b) the Miniflare DO harness, which `session-brain.unit.test.ts` already deliberately avoids in favor of pulling pure functions out of the DO and testing them. The plan's contract test pins the shape that the session-brain edit must produce, and Task 12's full eval run is the integration check. **However:** the contract test in Task 3 is verifying that `buildBarAnalysisFacts` returns the right shape — *which is already tested by Task 1c*. It is not actually testing `session-brain.ts` wiring. The session-brain change is verified only by typecheck (Task 3 Step 4) and by the full eval in Task 12.
+
+[RISK] (confidence: 7/10) — Task 3 wires production code with no test that fails before the wire is in place. If the build agent makes a typo (e.g. swaps `scoresArray` for `predictions`, or uses `momentDim` from the wrong scope), nothing in Tasks 1–11 catches it; only Task 12 catches it, hours into a multi-hour run. Mitigation: have the build agent run `git diff session-brain.ts` and self-review the edit before Task 4 commit. The plan should explicitly add a self-review step here.
+
+**2. Task 5 mapping table verify.** The instruction to `ls`-verify is good practice, but as flagged in the BLOCKER above, the table contains a row that the build agent cannot verify (because the file does not exist) and the plan does not pre-flag that row as unmapped. Defensible only after the mapping is corrected.
+
+**3. Tasks 4 and 6 watch-it-fail revert-then-restore.** Defensible (confidence 8/10) but fragile. The plan's instruction at lines 364, 671, 911 is correct in principle — to bind a test to behavior rather than shape, you must observe the failure. But the discipline depends entirely on the build agent following the revert step; there is no automated enforcement. For Task 4 specifically, the test asserts `out).toContain('"bar_analysis"')` — this could pass for any reason that the string "bar_analysis" appears in the output (it appears because `topMoments` is passed `unknown`-typed). The revert-then-restore step is the only thing that converts this from a shape test to a behavior test.
+
+[RISK] (confidence: 6/10) — The watch-it-fail discipline in Tasks 1c/4/6 is the only thing distinguishing these tests from shape tests. Build-agent compliance must be enforced (e.g., subagent must paste failing test output into commit message). If skipped, these three tasks add no behavior coverage.
+
+#### Vertical Slice Audit
+
+- Task 1, 1b, 1c: each is one test + one impl + one commit. Compliant.
+- Task 1c step 3 says "no code edit needed" because 1b implementation already covers the cap-2 case. The watch-it-fail revert restores behavior coverage. Borderline compliant.
+- Task 2: one type change + one round-trip test + minimum caller fixup in synthesis.ts. Bundles a synthesis.ts edit with an accumulator test. **Mild bundling.**
+
+[RISK] (confidence: 6/10) — Task 2 Step 5 quietly modifies `synthesis.ts` (the `JSON.stringify` line) as a "minimum compile-only fix" but commits it alongside the accumulator changes (Step 7's `git add` includes synthesis.ts). The synthesis.ts edit is behavioral, not compile-only — it changes what gets written to `reasoning_trace`. The plan acknowledges this and defers behavior coverage to Task 6, which then has to revert-restore Task 2's edit to verify failure. Cleaner alternative: keep Task 2 type-only (cast to string with `JSON.stringify` already, but assert behavior is unchanged via a Task 2 test), then Task 6 changes behavior. Not blocking — the revert-restore discipline papers over this — but it is the source of the "may pass without code change" awkwardness the author flagged.
+
+- Tasks 3–11: one test + one impl + one commit each. Compliant.
+- Task 0, Task 12: verification gates, no commit. Compliant by exception.
+
+#### Test Coverage Gaps
+
+```
+[+] bar-analysis-facts.ts
+    └── buildBarAnalysisFacts()
+        ├── [TESTED ★★] empty dimensions → null (Task 1)
+        ├── [TESTED ★★] selected dimension present, correlated excludes it (Task 1b)
+        ├── [TESTED ★★] correlated cap at 2, sorted (Task 1c)
+        ├── [TESTED ★★] threshold 0.15 (Task 1c)
+        └── [GAP]      selectedDimension not in analysis.dimensions → null
+                       (Task 1b implementation handles this via `find(...) === undefined`
+                        but no test covers it)
+
+[+] session-brain.ts (Task 3 wire)
+    └── handleProcessChunk + handleEvalChunk accMoment build
+        ├── [GAP] chunkAnalysis assignment after Tier1 — typecheck only
+        ├── [GAP] chunkAnalysis assignment after Tier2 — typecheck only
+        ├── [GAP] Tier-3 path (no analyzeTier call) → chunkAnalysis stays null → llmAnalysis null
+                  (the "correct" behavior is asserted nowhere; only Task 12 sees it)
+
+[+] bar_analysis_local.py
+    └── all helpers tested individually — OK
+    └── build_bar_analysis() tested for None-on-empty, Tier-2 path, cap-2.
+        └── [GAP] Tier-1 path end-to-end (score_json provided) → no test asserting
+                  the returned dict's `tier == 1` and the dynamics analysis string
+                  contains "notated"
+
+[+] run_eval.build_synthesis_user_msg
+    └── Task 11 tests chunks-present and chunks-none paths.
+        └── [GAP] piece_slug maps to a real score but file load fails → behavior?
+                  (Task 5 raises FileNotFoundError; Task 11 does not catch it →
+                   whole eval row errors out. Is that intended? Probably yes per
+                   "explicit exception handling" preference, but not tested.)
+```
+
+[RISK] (confidence: 7/10) — selectedDimension-not-found branch in `buildBarAnalysisFacts` (returns `null`) is exercised by no test. The branch exists in Task 1b's code. Add a one-line test.
+
+[RISK] (confidence: 7/10) — Tier-3 path in session-brain (no analyzeTier1/2 call → `chunkAnalysis` stays null) has zero test coverage. If the Tier-3 branch is the most common in production (per the project memory "AMT not deployed (all sessions Tier 3)"), this is the **dominant production path** and the only verification is the eval, which doesn't exercise the production session-brain.
+
+#### Failure Modes
+
+[RISK] (confidence: 7/10) — Task 12 full eval at 513 recordings × Sonnet RPS may take many hours. If it fails halfway (Sonnet 5xx, rate limit, network), there is no resume mechanism documented. `run_eval.py` may support resume — verify before kicking off — otherwise budget for a full re-run. Not blocking; just calendar risk.
+
+[OBS] — Task 5 raises `FileNotFoundError` when a mapped file doesn't exist. Good — matches user preference for explicit exceptions over silent fallbacks.
+
+[OBS] — Task 11's `_json.loads(score_path.read_text())` per row is wasteful (re-reads + re-parses ~1 MB JSON for every recording of the same piece). For 513 recordings across ~17 pieces this is OK (~50 MB throwaway). For a production-style harness it would warrant a cache. Not blocking.
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| ASCF baseline 1.387 reproduces on 10-recording smoke | VALIDATE | Task 0 explicitly validates; gate present |
+| `topMoments` parameter in `buildSynthesisFraming` passes `bar_analysis` through untouched | SAFE | Verified: line 121–124 passes `topMoments` (typed `unknown`) directly into `JSON.stringify` with no filtering |
+| `analysis.dimensions` array populated for all Tier-1/2 chunks | SAFE | Verified in `bar_analysis.rs` — analyze_tier1/2 always populate 6 entries |
+| Score JSON files contain real notated velocities | RESOLVED | Verified empirically wrong; Task 9 now omits the dynamics-vs-notated line and documents why. Articulation duration ratio retained as the real-signal Tier-1 feature. |
+| `model/data/scores/beethoven.piano_sonatas.14-1.json` exists | RESOLVED | Verified wrong (only 14-3 exists). Task 5 mapping table rewritten as a procedure — build agent populates from `ls` output, no row pre-blessed. |
+| Task 3 contract test is sufficient because Task 12 eval covers integration | VALIDATE | Plausible but unverified until Task 12 succeeds; until then the production wire is typecheck-only |
+| Tier-3 (no AMT) is the rare path; Tier-1/2 dominates | RISKY | Project memory says the opposite: "AMT not deployed (all sessions Tier 3)". If true, the entire production wire produces `llmAnalysis: null` and the only path being measured is the eval. The production lift cannot be observed until AMT deploys. |
+| Build agent will follow the watch-it-fail revert-restore discipline | VALIDATE | Plan instructs it; subagent discipline depends on `/build` enforcement |
+| Existing `synthesis.test.ts` uses `vi.fn()` mocks; Task 6 plan uses hand-rolled `makeFakeDb` | VALIDATE | Plan says "adopt whatever pattern is in place"; build agent should choose `vi.fn()` to match. Plan's example code shows the wrong pattern but the instruction to match existing is correct. |
+| `SCALER_MEAN` in `run_eval.py` is the right baseline for eval correlated-dim filter | RISKY | Production uses per-student baselines; eval uses global means. Different baselines → different correlated dimensions. Documented nowhere. |
+| `chopin.etudes_op_10.4.json` not `chopin.etudes.10.4.json` is the correct filename | SAFE | Verified: file is named `chopin.etudes_op_10.4.json`. Plan's "unmapped" row for chopin_etude_op10no4 is wrong — the file exists. Build agent's `ls` will catch this. |
+
+### Summary
+
+[BLOCKER] count: 2
+[RISK]    count: 8
+[QUESTION] count: 1
+[OBS]      count: 3
+
+The two blockers are both empirical: the Moonlight mapping row in Task 5 is verifiably wrong, and the notated-velocity comparison in Task 9 is signal-free because score JSONs lack real notated dynamics. Both must be addressed in the plan text before execution, not deferred to build-agent discovery. The three author-flagged concerns (contract test, mapping verify, watch-it-fail) are defensible in principle but depend on build-agent discipline that the plan should make harder to skip.
+
+Additionally, the project memory note that AMT is not deployed (all production sessions are Tier 3) means the production wire of this change produces `llmAnalysis: null` for every real user today; only the eval harness exercises the feature meaningfully. That is not a blocker for shipping the plumbing — but the team should know that "ship" means "ship the plumbing and the eval lift; production lift gated on AMT deploy." Worth a note in the plan's success-criteria section so reviewers don't expect production-side ASCF movement until AMT ships.
+
+VERDICT: NEEDS_REWORK — Fix two blockers before execution: (1) correct the Task 5 mapping table (mark all rows "needs verify" or remove the empirically wrong Moonlight 14-1 row); (2) decide what to do about signal-free notated-velocity comparison in Task 9 (either drop the dynamics-vs-notated line or document and accept). After these two are addressed, the plan can proceed with the noted risks tracked during build.
