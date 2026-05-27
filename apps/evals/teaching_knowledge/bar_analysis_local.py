@@ -119,3 +119,53 @@ def select_worst_chunk(
                     "chunk": chunk,
                 }
     return best
+
+
+DEVIATION_THRESHOLD = 0.15
+CORRELATED_CAP = 2
+
+
+def build_bar_analysis(
+    chunks: list[dict[str, Any]],
+    baselines: dict[str, float],
+    score_json: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Public entry: pick worst chunk, compute Tier-1 or Tier-2, filter to facts."""
+    worst = select_worst_chunk(chunks, baselines)
+    if worst is None:
+        return None
+    chunk = worst["chunk"]
+    selected_dim = worst["dimension"]
+    midi = chunk.get("midi_notes", [])
+    pedal = chunk.get("pedal_events", [])
+
+    if score_json is not None:
+        dims = compute_tier1_dimensions(midi, pedal, score_json)
+        tier = 1
+    else:
+        dims = compute_tier2_dimensions(midi, pedal)
+        tier = 2
+
+    selected = next((d for d in dims if d["dimension"] == selected_dim), None)
+    if selected is None:
+        return None
+
+    preds = chunk.get("predictions", {})
+    candidates = []
+    for d in dims:
+        if d["dimension"] == selected_dim:
+            continue
+        if d["dimension"] not in baselines or d["dimension"] not in preds:
+            continue
+        dev = abs(float(preds[d["dimension"]]) - float(baselines[d["dimension"]]))
+        if dev >= DEVIATION_THRESHOLD:
+            candidates.append((dev, d))
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    correlated = [d for _, d in candidates[:CORRELATED_CAP]]
+
+    return {
+        "tier": tier,
+        "bar_range": None,
+        "selected": selected,
+        "correlated": correlated,
+    }

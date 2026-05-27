@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from teaching_knowledge.bar_analysis_local import (
+    build_bar_analysis,
     compute_tier1_dimensions,
     compute_tier2_dimensions,
     select_worst_chunk,
@@ -90,3 +91,47 @@ def test_tier1_dynamics_does_not_mention_notated_score() -> None:
     text = dynamics["analysis"].lower()
     assert "notated" not in text
     assert "(score)" not in text
+
+
+def test_returns_none_on_no_chunks() -> None:
+    assert build_bar_analysis([], {"timing": 0.5}, None) is None
+
+
+def test_returns_tier2_facts_when_score_json_is_none() -> None:
+    baselines = {d: 0.5 for d in ["dynamics", "timing", "pedaling",
+                                  "articulation", "phrasing", "interpretation"]}
+    chunks = [{
+        "chunk_index": 0,
+        "predictions": {"dynamics": 0.55, "timing": 0.20, "pedaling": 0.50,
+                        "articulation": 0.50, "phrasing": 0.50, "interpretation": 0.50},
+        "midi_notes": [
+            {"pitch": 60, "onset": 0.0, "offset": 0.5, "velocity": 80},
+            {"pitch": 62, "onset": 0.5, "offset": 1.0, "velocity": 70},
+        ],
+        "pedal_events": [],
+    }]
+    result = build_bar_analysis(chunks, baselines, None)
+    assert result is not None
+    assert result["tier"] == 2
+    assert result["selected"]["dimension"] == "timing"
+    # dynamics dev = 0.05 < 0.15 → correlated should be empty
+    assert result["correlated"] == []
+
+
+def test_correlated_includes_dimensions_above_threshold_cap_2() -> None:
+    baselines = {d: 0.5 for d in ["dynamics", "timing", "pedaling",
+                                  "articulation", "phrasing", "interpretation"]}
+    chunks = [{
+        "chunk_index": 0,
+        # devs: dyn 0.30, tim selected(-0.31, strictly worst), ped 0.25, art 0.20, phr 0.10, int 0.05
+        # NOTE: timing dev = 0.31 (not 0.30) to break the dyn/tim tie deterministically;
+        # select_worst_chunk uses strict > comparison and dict iteration order is insertion order.
+        "predictions": {"dynamics": 0.80, "timing": 0.19, "pedaling": 0.75,
+                        "articulation": 0.70, "phrasing": 0.60, "interpretation": 0.55},
+        "midi_notes": [{"pitch": 60, "onset": 0.0, "offset": 0.5, "velocity": 80}],
+        "pedal_events": [],
+    }]
+    result = build_bar_analysis(chunks, baselines, None)
+    dims = [c["dimension"] for c in result["correlated"]]
+    assert len(dims) == 2
+    assert dims == ["dynamics", "pedaling"]  # top 2 by |dev|
