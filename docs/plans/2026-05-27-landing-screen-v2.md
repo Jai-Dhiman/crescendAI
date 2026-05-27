@@ -12,8 +12,8 @@
 ## Task Groups
 
 Group 0 (prerequisite, must complete first): Task 0
-Group A (sequential, depends on Group 0): Task 1 only — creates ProofCard.tsx, ProofCard.test.tsx (render contract), and useProofCardTimeline.ts stub; all subsequent groups depend on these files existing
-Group B (parallel, depends on Group A): Task 2, Task 3, Task 4, Task 8 — Tasks 2/3/4 each append to ProofCard.test.tsx created by Task 1; Task 8 replaces the useProofCardTimeline.ts stub created by Task 1 with the full implementation
+Group A (sequential, depends on Group 0): Task 1 only — creates ProofCard.tsx, ProofCard.test.tsx (minimal render contract smoke test), and useProofCardTimeline.ts stub; all subsequent groups depend on these files existing. Group B tasks each use their own separate test file — they do NOT append to ProofCard.test.tsx.
+Group B (parallel, depends on Group A): Task 2, Task 3, Task 4, Task 4.5, Task 8 — each task owns its own separate test file (no shared file writes); Task 8 replaces the useProofCardTimeline.ts stub created by Task 1 with the full implementation
 Group C (parallel, depends on Group B): Task 5, Task 7, Task 9
 Group D (sequential, depends on Group C): Task 6
 Group E (sequential, depends on Group D): Task 10
@@ -385,6 +385,8 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
     scoreIR,
     manifest.barTimeline,
   );
+  // scoreIR is also passed to useProofCardTimeline so qstampForTime can return
+  // proper quaternote qstamp values (bar.qstampStart) instead of bare bar numbers.
 
   // Load scoreIR, score SVG, and exercise JSON
   useEffect(() => {
@@ -492,16 +494,21 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
     };
   }, [cardIndex, setCurrentTime]);
 
-  // ScoreCursor — instantiate and start when scoreIR and score container are ready;
-  // passes qstampForTime(currentTime) as the live qstamp source so the cursor tracks audio.
+  // ScoreCursor — instantiate and start when scoreIR and score container are ready.
+  // qstampSource is baked into the constructor and called each rAF tick by ScoreCursor.
   useEffect(() => {
     if (scoreIR === null || scoreContainerRef.current === null) return;
-    const cursor = new ScoreCursor(scoreContainerRef.current, scoreIR);
-    cursor.start(() => qstampForTime(currentTime) ?? 0);
+    const cursor = new ScoreCursor({
+      pieceId: manifest.pieceId,
+      container: scoreContainerRef.current,
+      ir: scoreIR,
+      qstampSource: () => qstampForTime(currentTime) ?? 0,
+    });
+    cursor.start();
     return () => {
       cursor.stop();
     };
-  }, [scoreIR, currentTime, qstampForTime]);
+  }, [scoreIR, currentTime, qstampForTime, manifest.pieceId]);
 
   // Keyboard navigation: Tab cycles bars, Enter opens chip, Escape closes
   const barNumbers = Object.keys(manifest.perBarScores).map(Number).sort((a, b) => a - b);
@@ -678,30 +685,45 @@ type BarTimeline = Array<{ bar: number; tSec: number }>;
 
 export function useProofCardTimeline(
   _audioRef: RefObject<HTMLAudioElement | null>,
-  _scoreIR: ScoreIR | null,
+  scoreIR: ScoreIR | null,
   barTimeline: BarTimeline,
 ) {
   const [currentTime, setCurrentTimeState] = useState(0);
   const barTimelineRef = useRef(barTimeline);
   barTimelineRef.current = barTimeline;
+  const scoreIRRef = useRef(scoreIR);
+  scoreIRRef.current = scoreIR;
 
   const setCurrentTime = useCallback((t: number) => {
     setCurrentTimeState(t);
   }, []);
 
+  // Returns the qstampStart of the bar whose tSec window contains the given time.
+  // ScoreCursor.findBar() binary-searches bar.qstampStart/qstampEnd (quaternote floats),
+  // so we must return a qstamp float, not a raw bar number.
   const qstampForTime = useCallback((tSec: number): number | null => {
     const timeline = barTimelineRef.current;
     if (timeline.length === 0) return null;
-    // Find the bar that contains this time
-    let entry = timeline[0];
-    for (const e of timeline) {
-      if (e.tSec <= tSec) entry = e;
+
+    // Find the last entry whose tSec <= tSec (sorted ascending)
+    let matchedEntry = timeline[0];
+    if (!matchedEntry) return null;
+    for (let i = 0; i < timeline.length; i++) {
+      const e = timeline[i];
+      if (!e) continue;
+      if (e.tSec <= tSec) matchedEntry = e;
       else break;
     }
-    if (!entry) return null;
-    // entry.bar maps to bar number; ScoreIR bars have qstampStart indexed by barNumber
-    // Return entry.bar as a proxy for qstamp — ProofCard passes this to ScoreCursor
-    return entry.bar;
+
+    // Look up the bar's qstampStart from ScoreIR.bars by barNumber
+    const ir = scoreIRRef.current;
+    if (ir) {
+      const barIR = ir.bars.find((b) => b.barNumber === matchedEntry!.bar);
+      if (barIR) return barIR.qstampStart;
+    }
+
+    // Fallback: scoreIR not yet loaded — return null so cursor stays hidden
+    return null;
   }, []);
 
   return { currentTime, setCurrentTime, qstampForTime };
@@ -725,19 +747,74 @@ git add apps/web/src/components/ProofCard.tsx apps/web/src/components/ProofCard.
 
 ### Task 2: Scroll autoplay
 
-**Group:** B (parallel with Tasks 3, 4, 8 — depends on Task 1 completing first; appends to ProofCard.test.tsx created by Task 1)
+**Group:** B (parallel with Tasks 3, 4, 4.5, 8 — depends on Task 1 completing first; uses its own separate test file to avoid parallel write collisions)
 
 **Behavior being verified:** When ≥60% of ProofCard intersects the viewport and `prefers-reduced-motion` is false, `audio.play()` is called.
 
 **Interface under test:** ProofCard IntersectionObserver behavior; `audio.play()` mock assertion
 
 **Files:**
-- Modify: `apps/web/src/components/ProofCard.test.tsx`
+- Create: `apps/web/src/components/ProofCard.autoplay.test.tsx`
 
 - [ ] **Step 1: Write the failing test**
 
 ```typescript
-// Append to apps/web/src/components/ProofCard.test.tsx
+// apps/web/src/components/ProofCard.autoplay.test.tsx
+import { render } from "@testing-library/react";
+import * as React from "react";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import type { ProofCardManifest } from "../types/landing";
+
+vi.mock("../lib/landing-analytics", () => ({ trackLandingEvent: vi.fn() }));
+
+const MOCK_SCORE_IR = {
+  pieceId: "chopin.nocturnes.9-2",
+  verovioVersion: "6.1.0",
+  pageWidth: 2400,
+  pages: [{ pageN: 1, viewBox: "0 0 2400 800", width: 2400, height: 800, systemBboxes: [] }],
+  bars: [
+    { barNumber: 1, measureOn: "m1", pageN: 1, bbox: { x: 100, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 0, qstampEnd: 4 },
+  ],
+  notes: {},
+};
+
+const FIXTURE_EXERCISE = {
+  type: "exercise_set",
+  config: { sourcePassage: "bar 4", targetSkill: "Dynamics", exercises: [] },
+};
+
+const FIXTURE_MANIFEST: ProofCardManifest = {
+  pieceId: "chopin.nocturnes.9-2",
+  title: "Nocturne Op. 9 No. 2",
+  era: "romantic",
+  audioUrl: "/landing/card-1/recording.opus",
+  scoreIRUrl: "/landing/card-1/scoreir.json",
+  scoreSvgUrl: "/landing/card-1/score.svg",
+  focusBar: 4,
+  focusBarRange: [3, 5],
+  diagnosis: "The diminuendo in bar 4 arrives too early.",
+  exerciseUrl: "/landing/card-1/exercise.json",
+  barTimeline: [{ bar: 1, tSec: 0.0 }, { bar: 4, tSec: 12.8 }],
+  perBarScores: {
+    1: { dynamics: 0.72, timing: 0.81, pedaling: 0.68, articulation: 0.75, phrasing: 0.70, interpretation: 0.74 },
+    4: { dynamics: 0.52, timing: 0.78, pedaling: 0.60, articulation: 0.71, phrasing: 0.54, interpretation: 0.63 },
+  },
+};
+
+function mockFetch() {
+  globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+    if (String(url).includes("scoreir.json")) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_SCORE_IR) });
+    }
+    if (String(url).includes("exercise.json")) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(FIXTURE_EXERCISE) });
+    }
+    if (String(url).includes("score.svg")) {
+      return Promise.resolve({ ok: true, text: () => Promise.resolve('<svg xmlns="http://www.w3.org/2000/svg"></svg>') });
+    }
+    return Promise.resolve({ ok: false, json: () => Promise.resolve(null) });
+  });
+}
 
 describe("ProofCard scroll autoplay", () => {
   let observerCallback: IntersectionObserverCallback;
@@ -745,7 +822,7 @@ describe("ProofCard scroll autoplay", () => {
   let mockPause: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    mockFetch(MOCK_SCORE_IR, FIXTURE_EXERCISE);
+    mockFetch();
     mockPlay = vi.fn().mockResolvedValue(undefined);
     mockPause = vi.fn();
 
@@ -812,7 +889,7 @@ describe("ProofCard scroll autoplay", () => {
 - [ ] **Step 2: Run test — verify it FAILS**
 
 ```bash
-cd apps/web && bun run test src/components/ProofCard.test.tsx --reporter=verbose 2>&1 | tail -30
+cd apps/web && bun run test src/components/ProofCard.autoplay.test.tsx --reporter=verbose 2>&1 | tail -30
 ```
 Expected: FAIL — the autoplay test cases fail (ProofCard exists from Task 1 but these test blocks may not yet trigger correctly with stubbed IO)
 
@@ -834,33 +911,62 @@ This is safe: the visibility guard is purely a browser optimization; tests that 
 - [ ] **Step 4: Run test — verify it PASSES**
 
 ```bash
-cd apps/web && bun run test src/components/ProofCard.test.tsx --reporter=verbose 2>&1 | tail -20
+cd apps/web && bun run test src/components/ProofCard.autoplay.test.tsx --reporter=verbose 2>&1 | tail -20
 ```
-Expected: PASS — all ProofCard tests pass including the two new autoplay tests
+Expected: PASS — both autoplay tests pass
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/web/src/components/ProofCard.tsx apps/web/src/components/ProofCard.test.tsx && git commit -m "feat(landing): add scroll autoplay behavior to ProofCard"
+git add apps/web/src/components/ProofCard.autoplay.test.tsx && git commit -m "feat(landing): add scroll autoplay behavior to ProofCard"
 ```
 
 ---
 
 ### Task 3: Graceful degradation — missing scoreIR
 
-**Group:** B (parallel with Tasks 2, 4, 8 — depends on Task 1 completing first; appends to ProofCard.test.tsx created by Task 1)
+**Group:** B (parallel with Tasks 2, 4, 4.5, 8 — depends on Task 1 completing first; uses its own separate test file to avoid parallel write collisions)
 
 **Behavior being verified:** When `scoreir.json` fetch returns a non-ok response, ProofCard renders diagnosis text and exercise without throwing; score area is present but empty.
 
 **Interface under test:** ProofCard with a fetch mock that rejects the scoreIR URL
 
 **Files:**
-- Modify: `apps/web/src/components/ProofCard.test.tsx`
+- Create: `apps/web/src/components/ProofCard.degradation.test.tsx`
 
 - [ ] **Step 1: Write the failing test**
 
 ```typescript
-// Append to apps/web/src/components/ProofCard.test.tsx
+// apps/web/src/components/ProofCard.degradation.test.tsx
+import { render, screen, waitFor } from "@testing-library/react";
+import * as React from "react";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import type { ProofCardManifest } from "../types/landing";
+
+vi.mock("../lib/landing-analytics", () => ({ trackLandingEvent: vi.fn() }));
+
+const FIXTURE_EXERCISE = {
+  type: "exercise_set",
+  config: { sourcePassage: "bar 4", targetSkill: "Dynamics", exercises: [] },
+};
+
+const FIXTURE_MANIFEST: ProofCardManifest = {
+  pieceId: "chopin.nocturnes.9-2",
+  title: "Nocturne Op. 9 No. 2",
+  era: "romantic",
+  audioUrl: "/landing/card-1/recording.opus",
+  scoreIRUrl: "/landing/card-1/scoreir.json",
+  scoreSvgUrl: "/landing/card-1/score.svg",
+  focusBar: 4,
+  focusBarRange: [3, 5],
+  diagnosis: "The diminuendo in bar 4 arrives too early.",
+  exerciseUrl: "/landing/card-1/exercise.json",
+  barTimeline: [{ bar: 1, tSec: 0.0 }, { bar: 4, tSec: 12.8 }],
+  perBarScores: {
+    1: { dynamics: 0.72, timing: 0.81, pedaling: 0.68, articulation: 0.75, phrasing: 0.70, interpretation: 0.74 },
+    4: { dynamics: 0.52, timing: 0.78, pedaling: 0.60, articulation: 0.71, phrasing: 0.54, interpretation: 0.63 },
+  },
+};
 
 describe("ProofCard graceful degradation — missing scoreIR", () => {
   beforeEach(() => {
@@ -898,13 +1004,19 @@ describe("ProofCard graceful degradation — missing scoreIR", () => {
     });
     expect(document.querySelector('[data-testid="proof-card-exercise"]')).not.toBeNull();
   });
+
+  it("renders score container even when scoreIR fetch fails", async () => {
+    const { ProofCard } = await import("./ProofCard");
+    render(React.createElement(ProofCard, { manifest: FIXTURE_MANIFEST, cardIndex: 0 }));
+    expect(document.querySelector('[data-testid="proof-card-score"]')).not.toBeNull();
+  });
 });
 ```
 
 - [ ] **Step 2: Run test — verify it FAILS**
 
 ```bash
-cd apps/web && bun run test src/components/ProofCard.test.tsx --reporter=verbose 2>&1 | grep -E "FAIL|PASS|missing scoreIR"
+cd apps/web && bun run test src/components/ProofCard.degradation.test.tsx --reporter=verbose 2>&1 | grep -E "FAIL|PASS|missing scoreIR"
 ```
 Expected: FAIL — test may throw or scoreIR error may propagate
 
@@ -933,37 +1045,88 @@ Ensure `setLoadState("ready")` is called unconditionally after all three fetch a
 - [ ] **Step 4: Run test — verify it PASSES**
 
 ```bash
-cd apps/web && bun run test src/components/ProofCard.test.tsx
+cd apps/web && bun run test src/components/ProofCard.degradation.test.tsx
 ```
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/web/src/components/ProofCard.tsx apps/web/src/components/ProofCard.test.tsx && git commit -m "feat(landing): ProofCard graceful degradation on missing scoreIR"
+git add apps/web/src/components/ProofCard.degradation.test.tsx && git commit -m "feat(landing): ProofCard graceful degradation on missing scoreIR"
 ```
 
 ---
 
 ### Task 4: Graceful degradation — missing audio
 
-**Group:** B (parallel with Tasks 2, 3, 8 — depends on Task 1 completing first; appends to ProofCard.test.tsx created by Task 1)
+**Group:** B (parallel with Tasks 2, 3, 4.5, 8 — depends on Task 1 completing first; uses its own separate test file to avoid parallel write collisions)
 
 **Behavior being verified:** When the `<audio>` element fires an `error` event (src not loadable), ProofCard renders score, diagnosis, and exercise; the scrubber/play button is still visible; ScoreCursor does not animate (currentTime stays 0).
 
 **Interface under test:** ProofCard with `onError` triggered on the audio element
 
 **Files:**
-- Modify: `apps/web/src/components/ProofCard.test.tsx`
+- Create: `apps/web/src/components/ProofCard.audio-degradation.test.tsx`
 
 - [ ] **Step 1: Write the failing test**
 
 ```typescript
-// Append to apps/web/src/components/ProofCard.test.tsx
+// apps/web/src/components/ProofCard.audio-degradation.test.tsx
+import { render, screen, waitFor } from "@testing-library/react";
+import * as React from "react";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import type { ProofCardManifest } from "../types/landing";
+
+vi.mock("../lib/landing-analytics", () => ({ trackLandingEvent: vi.fn() }));
+
+const MOCK_SCORE_IR = {
+  pieceId: "chopin.nocturnes.9-2",
+  verovioVersion: "6.1.0",
+  pageWidth: 2400,
+  pages: [{ pageN: 1, viewBox: "0 0 2400 800", width: 2400, height: 800, systemBboxes: [] }],
+  bars: [
+    { barNumber: 1, measureOn: "m1", pageN: 1, bbox: { x: 100, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 0, qstampEnd: 4 },
+  ],
+  notes: {},
+};
+
+const FIXTURE_EXERCISE = {
+  type: "exercise_set",
+  config: { sourcePassage: "bar 4", targetSkill: "Dynamics", exercises: [] },
+};
+
+const FIXTURE_MANIFEST: ProofCardManifest = {
+  pieceId: "chopin.nocturnes.9-2",
+  title: "Nocturne Op. 9 No. 2",
+  era: "romantic",
+  audioUrl: "/landing/card-1/recording.opus",
+  scoreIRUrl: "/landing/card-1/scoreir.json",
+  scoreSvgUrl: "/landing/card-1/score.svg",
+  focusBar: 4,
+  focusBarRange: [3, 5],
+  diagnosis: "The diminuendo in bar 4 arrives too early.",
+  exerciseUrl: "/landing/card-1/exercise.json",
+  barTimeline: [{ bar: 1, tSec: 0.0 }, { bar: 4, tSec: 12.8 }],
+  perBarScores: {
+    1: { dynamics: 0.72, timing: 0.81, pedaling: 0.68, articulation: 0.75, phrasing: 0.70, interpretation: 0.74 },
+    4: { dynamics: 0.52, timing: 0.78, pedaling: 0.60, articulation: 0.71, phrasing: 0.54, interpretation: 0.63 },
+  },
+};
 
 describe("ProofCard graceful degradation — missing audio", () => {
   beforeEach(() => {
-    mockFetch(MOCK_SCORE_IR, FIXTURE_EXERCISE);
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes("scoreir.json")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_SCORE_IR) });
+      }
+      if (String(url).includes("exercise.json")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(FIXTURE_EXERCISE) });
+      }
+      if (String(url).includes("score.svg")) {
+        return Promise.resolve({ ok: true, text: () => Promise.resolve('<svg xmlns="http://www.w3.org/2000/svg"></svg>') });
+      }
+      return Promise.resolve({ ok: false, json: () => Promise.resolve(null) });
+    });
   });
 
   afterEach(() => {
@@ -1001,7 +1164,7 @@ describe("ProofCard graceful degradation — missing audio", () => {
 - [ ] **Step 2: Run test — verify it FAILS**
 
 ```bash
-cd apps/web && bun run test src/components/ProofCard.test.tsx --reporter=verbose 2>&1 | grep -E "FAIL|PASS|missing audio"
+cd apps/web && bun run test src/components/ProofCard.audio-degradation.test.tsx --reporter=verbose 2>&1 | grep -E "FAIL|PASS|missing audio"
 ```
 Expected: FAIL — play button may not appear or test assertions fail
 
@@ -1028,80 +1191,145 @@ No code change needed if Task 1 implementation is in place.
 - [ ] **Step 4: Run test — verify it PASSES**
 
 ```bash
-cd apps/web && bun run test src/components/ProofCard.test.tsx
+cd apps/web && bun run test src/components/ProofCard.audio-degradation.test.tsx
 ```
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/web/src/components/ProofCard.tsx apps/web/src/components/ProofCard.test.tsx && git commit -m "feat(landing): ProofCard graceful degradation on audio load error"
+git add apps/web/src/components/ProofCard.audio-degradation.test.tsx && git commit -m "feat(landing): ProofCard graceful degradation on audio load error"
 ```
 
 ---
 
 ### Task 4.5: ScoreCursor instantiation and cursor movement
 
-**Group:** B (parallel with Tasks 2, 3, 4, 8 — depends on Task 1 completing first; appends to ProofCard.test.tsx created by Task 1)
+**Group:** B (parallel with Tasks 2, 3, 4, 8 — depends on Task 1 completing first; uses its own separate test file to avoid parallel write collisions)
 
-**Behavior being verified:** When `scoreIR` loads successfully, a `ScoreCursor` instance is created with the score container and `scoreIR`; when `currentTime` advances, `ScoreCursor.start` is called with a `qstampSource` that returns the correct bar number for that time.
+**Behavior being verified:** When `scoreIR` loads successfully, a `ScoreCursor` instance is created with the correct options object `{ pieceId, container, ir, qstampSource }` and `cursor.start()` is called with no arguments; when the component unmounts, `cursor.stop()` is called.
 
 **Interface under test:** ProofCard ScoreCursor integration via `ScoreCursor` constructor + `start`/`stop` mocks.
 
 **Files:**
-- Modify: `apps/web/src/components/ProofCard.test.tsx`
+- Create: `apps/web/src/components/ProofCard.cursor.test.tsx`
 
 - [ ] **Step 1: Write the failing test**
 
 ```typescript
-// Append to apps/web/src/components/ProofCard.test.tsx
+// apps/web/src/components/ProofCard.cursor.test.tsx
+import { render, waitFor } from "@testing-library/react";
+import * as React from "react";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { ScoreCursor } from "../lib/score-cursor";
+import type { ProofCardManifest } from "../types/landing";
+
+// vi.mock must be at module top-level so Vitest's hoisting applies
+vi.mock("../lib/score-cursor", () => ({
+  ScoreCursor: vi.fn(),
+}));
+
+const MOCK_SCORE_IR = {
+  pieceId: "chopin.nocturnes.9-2",
+  verovioVersion: "6.1.0",
+  pageWidth: 2400,
+  pages: [{ pageN: 1, viewBox: "0 0 2400 800", width: 2400, height: 800, systemBboxes: [] }],
+  bars: [
+    { barNumber: 1, measureOn: "m1", pageN: 1, bbox: { x: 100, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 0, qstampEnd: 4 },
+    { barNumber: 4, measureOn: "m4", pageN: 1, bbox: { x: 400, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 12, qstampEnd: 16 },
+  ],
+  notes: {},
+};
+
+const FIXTURE_MANIFEST: ProofCardManifest = {
+  pieceId: "chopin.nocturnes.9-2",
+  title: "Nocturne Op. 9 No. 2",
+  era: "romantic",
+  audioUrl: "/landing/card-1/recording.opus",
+  scoreIRUrl: "/landing/card-1/scoreir.json",
+  scoreSvgUrl: "/landing/card-1/score.svg",
+  focusBar: 4,
+  focusBarRange: [3, 5],
+  diagnosis: "The diminuendo in bar 4 arrives too early.",
+  exerciseUrl: "/landing/card-1/exercise.json",
+  barTimeline: [
+    { bar: 1, tSec: 0.0 },
+    { bar: 4, tSec: 12.8 },
+  ],
+  perBarScores: {
+    1: { dynamics: 0.72, timing: 0.81, pedaling: 0.68, articulation: 0.75, phrasing: 0.70, interpretation: 0.74 },
+    4: { dynamics: 0.52, timing: 0.78, pedaling: 0.60, articulation: 0.71, phrasing: 0.54, interpretation: 0.63 },
+  },
+};
+
+const FIXTURE_EXERCISE = {
+  type: "exercise_set",
+  config: { sourcePassage: "bar 4", targetSkill: "Dynamics", exercises: [] },
+};
 
 describe("ProofCard ScoreCursor integration", () => {
   let mockStart: ReturnType<typeof vi.fn>;
   let mockStop: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    mockFetch(MOCK_SCORE_IR, FIXTURE_EXERCISE);
     mockStart = vi.fn();
     mockStop = vi.fn();
-    vi.mock("../lib/score-cursor", () => ({
-      ScoreCursor: vi.fn().mockImplementation(() => ({
-        start: mockStart,
-        stop: mockStop,
-      })),
-    }));
+    // Configure the mocked constructor per-test using vi.mocked
+    vi.mocked(ScoreCursor).mockImplementation(() => ({
+      start: mockStart,
+      stop: mockStop,
+    }) as unknown as ScoreCursor);
+
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes("scoreir.json")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_SCORE_IR) });
+      }
+      if (String(url).includes("exercise.json")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(FIXTURE_EXERCISE) });
+      }
+      if (String(url).includes("score.svg")) {
+        return Promise.resolve({ ok: true, text: () => Promise.resolve('<svg xmlns="http://www.w3.org/2000/svg"></svg>') });
+      }
+      return Promise.resolve({ ok: false, json: () => Promise.resolve(null) });
+    });
   });
 
   afterEach(() => {
     vi.clearAllMocks();
-    vi.restoreAllMocks();
   });
 
-  it("instantiates ScoreCursor and calls start when scoreIR loads", async () => {
+  it("instantiates ScoreCursor with correct options and calls start() with no args when scoreIR loads", async () => {
     const { ProofCard } = await import("./ProofCard");
     render(React.createElement(ProofCard, { manifest: FIXTURE_MANIFEST, cardIndex: 0 }));
 
     await waitFor(() => {
-      // ScoreCursor constructor was called with the score container
-      const { ScoreCursor } = require("../lib/score-cursor");
-      expect(ScoreCursor).toHaveBeenCalled();
-      expect(mockStart).toHaveBeenCalled();
+      expect(vi.mocked(ScoreCursor)).toHaveBeenCalled();
     });
+
+    // Constructor must be called with an options object (not positional args)
+    const ctorCall = vi.mocked(ScoreCursor).mock.calls[0];
+    expect(ctorCall).toBeDefined();
+    const opts = ctorCall![0] as { pieceId: string; container: HTMLElement; ir: unknown; qstampSource: () => number | null };
+    expect(opts.pieceId).toBe("chopin.nocturnes.9-2");
+    expect(opts.container).toBeInstanceOf(HTMLElement);
+    expect(opts.ir).toMatchObject({ pieceId: "chopin.nocturnes.9-2" });
+    expect(typeof opts.qstampSource).toBe("function");
+
+    // start() called with no arguments
+    expect(mockStart).toHaveBeenCalledWith();
   });
 
-  it("the qstampSource passed to start returns bar 1 for t=0", async () => {
+  it("qstampSource returns qstampStart=0 (bar 1) at t=0", async () => {
     const { ProofCard } = await import("./ProofCard");
     render(React.createElement(ProofCard, { manifest: FIXTURE_MANIFEST, cardIndex: 0 }));
 
     await waitFor(() => {
-      expect(mockStart).toHaveBeenCalled();
+      expect(vi.mocked(ScoreCursor)).toHaveBeenCalled();
     });
 
-    // Retrieve the qstampSource callback passed to start
-    const qstampSource = mockStart.mock.calls[0]?.[0] as (() => number) | undefined;
-    expect(typeof qstampSource).toBe("function");
-    // At t=0 the barTimeline maps to bar 1
-    expect(qstampSource!()).toBe(1);
+    const opts = vi.mocked(ScoreCursor).mock.calls[0]![0] as { qstampSource: () => number | null };
+    // At t=0, barTimeline maps to bar 1, MOCK_SCORE_IR bar 1 has qstampStart=0
+    expect(opts.qstampSource()).toBe(0);
   });
 
   it("calls cursor.stop when component unmounts", async () => {
@@ -1121,24 +1349,29 @@ describe("ProofCard ScoreCursor integration", () => {
 - [ ] **Step 2: Run test — verify it FAILS**
 
 ```bash
-cd apps/web && bun run test src/components/ProofCard.test.tsx --reporter=verbose 2>&1 | grep -E "FAIL|ScoreCursor"
+cd apps/web && bun run test src/components/ProofCard.cursor.test.tsx --reporter=verbose 2>&1 | grep -E "FAIL|ScoreCursor"
 ```
-Expected: FAIL — `ScoreCursor` is not yet imported in ProofCard.tsx (before Task 1's import fix lands)
+Expected: FAIL — `ScoreCursor` constructor call mismatch until Task 1's ProofCard.tsx implementation is in place
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
 
-The ScoreCursor `useEffect` is already included in the Task 1 ProofCard.tsx implementation snippet (see Task 1, Step 3). Confirm it is present:
+The ScoreCursor `useEffect` is already included in the Task 1 ProofCard.tsx implementation snippet (see Task 1, Step 3). Confirm the constructor call uses the options object:
 
 ```typescript
 // In ProofCard.tsx — confirm this useEffect block is present:
 useEffect(() => {
   if (scoreIR === null || scoreContainerRef.current === null) return;
-  const cursor = new ScoreCursor(scoreContainerRef.current, scoreIR);
-  cursor.start(() => qstampForTime(currentTime) ?? 0);
+  const cursor = new ScoreCursor({
+    pieceId: manifest.pieceId,
+    container: scoreContainerRef.current,
+    ir: scoreIR,
+    qstampSource: () => qstampForTime(currentTime) ?? 0,
+  });
+  cursor.start();
   return () => {
     cursor.stop();
   };
-}, [scoreIR, currentTime, qstampForTime]);
+}, [scoreIR, currentTime, qstampForTime, manifest.pieceId]);
 ```
 
 No additional code changes needed if Task 1 is implemented correctly.
@@ -1146,14 +1379,14 @@ No additional code changes needed if Task 1 is implemented correctly.
 - [ ] **Step 4: Run test — verify it PASSES**
 
 ```bash
-cd apps/web && bun run test src/components/ProofCard.test.tsx
+cd apps/web && bun run test src/components/ProofCard.cursor.test.tsx
 ```
 Expected: PASS — all three ScoreCursor integration tests pass
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/web/src/components/ProofCard.test.tsx && git commit -m "feat(landing): add ScoreCursor instantiation and lifecycle tests to ProofCard"
+git add apps/web/src/components/ProofCard.cursor.test.tsx && git commit -m "feat(landing): add ScoreCursor instantiation and lifecycle tests to ProofCard"
 ```
 
 ---
@@ -1167,19 +1400,77 @@ git add apps/web/src/components/ProofCard.test.tsx && git commit -m "feat(landin
 **Interface under test:** ProofCard with `matchMedia` mocked to return `matches: true`
 
 **Files:**
-- Modify: `apps/web/src/components/ProofCard.test.tsx`
+- Create: `apps/web/src/components/ProofCard.reduced-motion.test.tsx`
+
+Note: `vi.resetModules()` is called in `beforeEach` inside this file to force ProofCard to re-evaluate with the mocked `matchMedia`. Because this is isolated to its own file, it does not affect module caches in other test files.
 
 - [ ] **Step 1: Write the failing test**
 
 ```typescript
-// Append to apps/web/src/components/ProofCard.test.tsx
+// apps/web/src/components/ProofCard.reduced-motion.test.tsx
+import { render, screen } from "@testing-library/react";
+import * as React from "react";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import type { ProofCardManifest } from "../types/landing";
+
+vi.mock("../lib/landing-analytics", () => ({ trackLandingEvent: vi.fn() }));
+
+const MOCK_SCORE_IR = {
+  pieceId: "chopin.nocturnes.9-2",
+  verovioVersion: "6.1.0",
+  pageWidth: 2400,
+  pages: [{ pageN: 1, viewBox: "0 0 2400 800", width: 2400, height: 800, systemBboxes: [] }],
+  bars: [
+    { barNumber: 1, measureOn: "m1", pageN: 1, bbox: { x: 100, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 0, qstampEnd: 4 },
+  ],
+  notes: {},
+};
+
+const FIXTURE_EXERCISE = {
+  type: "exercise_set",
+  config: { sourcePassage: "bar 4", targetSkill: "Dynamics", exercises: [] },
+};
+
+const FIXTURE_MANIFEST: ProofCardManifest = {
+  pieceId: "chopin.nocturnes.9-2",
+  title: "Nocturne Op. 9 No. 2",
+  era: "romantic",
+  audioUrl: "/landing/card-1/recording.opus",
+  scoreIRUrl: "/landing/card-1/scoreir.json",
+  scoreSvgUrl: "/landing/card-1/score.svg",
+  focusBar: 4,
+  focusBarRange: [3, 5],
+  diagnosis: "The diminuendo in bar 4 arrives too early.",
+  exerciseUrl: "/landing/card-1/exercise.json",
+  barTimeline: [{ bar: 1, tSec: 0.0 }, { bar: 4, tSec: 12.8 }],
+  perBarScores: {
+    1: { dynamics: 0.72, timing: 0.81, pedaling: 0.68, articulation: 0.75, phrasing: 0.70, interpretation: 0.74 },
+    4: { dynamics: 0.52, timing: 0.78, pedaling: 0.60, articulation: 0.71, phrasing: 0.54, interpretation: 0.63 },
+  },
+};
 
 describe("ProofCard reduced motion", () => {
   let observerCallback: IntersectionObserverCallback;
   let mockPlay: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    mockFetch(MOCK_SCORE_IR, FIXTURE_EXERCISE);
+    // resetModules forces ProofCard to re-evaluate and pick up new matchMedia mock.
+    // Safe here because this is an isolated file — does not affect other test files.
+    vi.resetModules();
+
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes("scoreir.json")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_SCORE_IR) });
+      }
+      if (String(url).includes("exercise.json")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(FIXTURE_EXERCISE) });
+      }
+      if (String(url).includes("score.svg")) {
+        return Promise.resolve({ ok: true, text: () => Promise.resolve('<svg xmlns="http://www.w3.org/2000/svg"></svg>') });
+      }
+      return Promise.resolve({ ok: false, json: () => Promise.resolve(null) });
+    });
+
     mockPlay = vi.fn().mockResolvedValue(undefined);
 
     Object.defineProperty(HTMLMediaElement.prototype, "play", {
@@ -1236,38 +1527,25 @@ describe("ProofCard reduced motion", () => {
 - [ ] **Step 2: Run test — verify it FAILS**
 
 ```bash
-cd apps/web && bun run test src/components/ProofCard.test.tsx --reporter=verbose 2>&1 | grep -E "FAIL|PASS|reduced motion"
+cd apps/web && bun run test src/components/ProofCard.reduced-motion.test.tsx --reporter=verbose 2>&1 | grep -E "FAIL|PASS|reduced motion"
 ```
 Expected: FAIL — `reducedMotion.current` is a ref initialized once at module load; the `matchMedia` mock may not take effect because it is set after component import
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
 
-The `reducedMotion` ref in ProofCard is computed once with `window.matchMedia(...)`. Since the test mocks `window.matchMedia` before calling `import("./ProofCard")`, the module must re-evaluate. Use dynamic import and `vi.resetModules()` in `beforeEach`:
-
-Update the `beforeEach` to add `vi.resetModules()` and re-import ProofCard inside the test:
-
-```typescript
-// In the "reduced motion" describe block beforeEach:
-beforeEach(() => {
-  vi.resetModules(); // Force ProofCard to re-evaluate and pick up new matchMedia mock
-  mockFetch(MOCK_SCORE_IR, FIXTURE_EXERCISE);
-  // ... rest of setup
-});
-```
-
-No change to ProofCard.tsx is needed; the implementation already reads `reducedMotion.current` at component init.
+The `reducedMotion` ref in ProofCard is computed once with `window.matchMedia(...)`. The test file already calls `vi.resetModules()` in `beforeEach` before the dynamic `import("./ProofCard")` inside each test — this forces ProofCard to re-evaluate with the mocked `matchMedia`. No change to ProofCard.tsx is needed; the implementation already reads `reducedMotion.current` at component init.
 
 - [ ] **Step 4: Run test — verify it PASSES**
 
 ```bash
-cd apps/web && bun run test src/components/ProofCard.test.tsx
+cd apps/web && bun run test src/components/ProofCard.reduced-motion.test.tsx
 ```
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/web/src/components/ProofCard.test.tsx && git commit -m "feat(landing): ProofCard reduced motion tests pass"
+git add apps/web/src/components/ProofCard.reduced-motion.test.tsx && git commit -m "feat(landing): ProofCard reduced motion tests pass"
 ```
 
 ---
@@ -1283,7 +1561,7 @@ git add apps/web/src/components/ProofCard.test.tsx && git commit -m "feat(landin
 **Files:**
 - Create: `apps/web/src/components/BarScoreChip.tsx`
 - Create: `apps/web/src/components/BarScoreChip.test.tsx`
-- Modify: `apps/web/src/components/ProofCard.test.tsx`
+- Create: `apps/web/src/components/ProofCard.bar-tap.test.tsx`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1338,13 +1616,65 @@ describe("BarScoreChip", () => {
 });
 ```
 
-Append to ProofCard.test.tsx:
+Create the bar-tap integration test in its own file:
 ```typescript
-// Append to apps/web/src/components/ProofCard.test.tsx
+// apps/web/src/components/ProofCard.bar-tap.test.tsx
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import * as React from "react";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import type { ProofCardManifest } from "../types/landing";
+
+vi.mock("../lib/landing-analytics", () => ({ trackLandingEvent: vi.fn() }));
+
+const MOCK_SCORE_IR = {
+  pieceId: "chopin.nocturnes.9-2",
+  verovioVersion: "6.1.0",
+  pageWidth: 2400,
+  pages: [{ pageN: 1, viewBox: "0 0 2400 800", width: 2400, height: 800, systemBboxes: [] }],
+  bars: [
+    { barNumber: 1, measureOn: "m1", pageN: 1, bbox: { x: 100, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 0, qstampEnd: 4 },
+    { barNumber: 4, measureOn: "m4", pageN: 1, bbox: { x: 400, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 12, qstampEnd: 16 },
+  ],
+  notes: {},
+};
+
+const FIXTURE_EXERCISE = {
+  type: "exercise_set",
+  config: { sourcePassage: "bar 4", targetSkill: "Dynamics", exercises: [] },
+};
+
+const FIXTURE_MANIFEST: ProofCardManifest = {
+  pieceId: "chopin.nocturnes.9-2",
+  title: "Nocturne Op. 9 No. 2",
+  era: "romantic",
+  audioUrl: "/landing/card-1/recording.opus",
+  scoreIRUrl: "/landing/card-1/scoreir.json",
+  scoreSvgUrl: "/landing/card-1/score.svg",
+  focusBar: 4,
+  focusBarRange: [3, 5],
+  diagnosis: "The diminuendo in bar 4 arrives too early.",
+  exerciseUrl: "/landing/card-1/exercise.json",
+  barTimeline: [{ bar: 1, tSec: 0.0 }, { bar: 4, tSec: 12.8 }],
+  perBarScores: {
+    1: { dynamics: 0.72, timing: 0.81, pedaling: 0.68, articulation: 0.75, phrasing: 0.70, interpretation: 0.74 },
+    4: { dynamics: 0.52, timing: 0.78, pedaling: 0.60, articulation: 0.71, phrasing: 0.54, interpretation: 0.63 },
+  },
+};
 
 describe("ProofCard bar-tap reveals BarScoreChip", () => {
   beforeEach(() => {
-    mockFetch(MOCK_SCORE_IR, FIXTURE_EXERCISE);
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes("scoreir.json")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_SCORE_IR) });
+      }
+      if (String(url).includes("exercise.json")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(FIXTURE_EXERCISE) });
+      }
+      if (String(url).includes("score.svg")) {
+        return Promise.resolve({ ok: true, text: () => Promise.resolve('<svg xmlns="http://www.w3.org/2000/svg"></svg>') });
+      }
+      return Promise.resolve({ ok: false, json: () => Promise.resolve(null) });
+    });
   });
 
   afterEach(() => {
@@ -1379,7 +1709,7 @@ describe("ProofCard bar-tap reveals BarScoreChip", () => {
 - [ ] **Step 2: Run test — verify it FAILS**
 
 ```bash
-cd apps/web && bun run test src/components/BarScoreChip.test.tsx src/components/ProofCard.test.tsx --reporter=verbose 2>&1 | grep -E "FAIL|Cannot find module"
+cd apps/web && bun run test src/components/BarScoreChip.test.tsx src/components/ProofCard.bar-tap.test.tsx --reporter=verbose 2>&1 | grep -E "FAIL|Cannot find module"
 ```
 Expected: FAIL — `Cannot find module './BarScoreChip'`
 
@@ -1474,14 +1804,14 @@ export function BarScoreChip({ scores, barNumber, onClose }: BarScoreChipProps) 
 - [ ] **Step 4: Run test — verify it PASSES**
 
 ```bash
-cd apps/web && bun run test src/components/BarScoreChip.test.tsx src/components/ProofCard.test.tsx
+cd apps/web && bun run test src/components/BarScoreChip.test.tsx src/components/ProofCard.bar-tap.test.tsx
 ```
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/web/src/components/BarScoreChip.tsx apps/web/src/components/BarScoreChip.test.tsx apps/web/src/components/ProofCard.test.tsx && git commit -m "feat(landing): add BarScoreChip component and bar-tap behavior"
+git add apps/web/src/components/BarScoreChip.tsx apps/web/src/components/BarScoreChip.test.tsx apps/web/src/components/ProofCard.bar-tap.test.tsx && git commit -m "feat(landing): add BarScoreChip component and bar-tap behavior"
 ```
 
 ---
@@ -1490,7 +1820,7 @@ git add apps/web/src/components/BarScoreChip.tsx apps/web/src/components/BarScor
 
 **Group:** B (parallel with Tasks 2, 3, 4 — depends on Task 1 completing first; replaces the useProofCardTimeline.ts stub created by Task 1 with the full implementation — do NOT create fresh, use the stub file as the starting point)
 
-**Behavior being verified:** (a) `qstampForTime` returns the correct bar number for a given audio time. (b) Updating `currentTime` from the scrubber reflects in the hook's returned state; the hook does not internally sync to the audio ref in the test (audio sync is an effect in ProofCard, not the hook).
+**Behavior being verified:** (a) `qstampForTime` returns the `qstampStart` float of the matching bar from `ScoreIR.bars` for a given audio time — not the bare bar number. (b) Updating `currentTime` from the scrubber reflects in the hook's returned state; the hook does not internally sync to the audio ref in the test (audio sync is an effect in ProofCard, not the hook). (c) When `scoreIR` is `null`, `qstampForTime` returns `null` so the cursor stays hidden.
 
 **Interface under test:** `useProofCardTimeline` hook via `renderHook`
 
@@ -1503,7 +1833,9 @@ git add apps/web/src/components/BarScoreChip.tsx apps/web/src/components/BarScor
 ```typescript
 // apps/web/src/hooks/useProofCardTimeline.test.ts
 import { renderHook, act } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import type { RefObject } from "react";
+import type { ScoreIR } from "../lib/score-ir";
 
 const BAR_TIMELINE = [
   { bar: 1, tSec: 0.0 },
@@ -1513,30 +1845,46 @@ const BAR_TIMELINE = [
   { bar: 5, tSec: 17.1 },
 ];
 
+// ScoreIR fixture with quaternote qstampStart values (4/4 time, 4 quarter notes per bar)
+const MOCK_SCORE_IR: ScoreIR = {
+  pieceId: "chopin.nocturnes.9-2",
+  verovioVersion: "6.1.0",
+  pageWidth: 2400,
+  pages: [{ pageN: 1, viewBox: "0 0 2400 800", width: 2400, height: 800, systemBboxes: [] }],
+  bars: [
+    { barNumber: 1, measureOn: "m1", pageN: 1, bbox: { x: 100, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 0, qstampEnd: 4 },
+    { barNumber: 2, measureOn: "m2", pageN: 1, bbox: { x: 200, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 4, qstampEnd: 8 },
+    { barNumber: 3, measureOn: "m3", pageN: 1, bbox: { x: 300, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 8, qstampEnd: 12 },
+    { barNumber: 4, measureOn: "m4", pageN: 1, bbox: { x: 400, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 12, qstampEnd: 16 },
+    { barNumber: 5, measureOn: "m5", pageN: 1, bbox: { x: 500, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 16, qstampEnd: 20 },
+  ],
+  notes: {},
+};
+
 describe("useProofCardTimeline", () => {
-  it("qstampForTime returns bar 1 for t=0.0", async () => {
+  it("qstampForTime returns qstampStart=0 for bar 1 at t=0.0", async () => {
     const { useProofCardTimeline } = await import("./useProofCardTimeline");
-    const audioRef = { current: null };
+    const audioRef = { current: null } as RefObject<HTMLAudioElement | null>;
     const { result } = renderHook(() =>
-      useProofCardTimeline(audioRef as { current: HTMLAudioElement | null }, null, BAR_TIMELINE),
+      useProofCardTimeline(audioRef, MOCK_SCORE_IR, BAR_TIMELINE),
     );
-    expect(result.current.qstampForTime(0.0)).toBe(1);
+    expect(result.current.qstampForTime(0.0)).toBe(0);
   });
 
-  it("qstampForTime returns bar 4 for t=14.0 (between bar 4 at 12.8 and bar 5 at 17.1)", async () => {
+  it("qstampForTime returns qstampStart=12 for bar 4 at t=14.0 (between bar 4 at 12.8 and bar 5 at 17.1)", async () => {
     const { useProofCardTimeline } = await import("./useProofCardTimeline");
-    const audioRef = { current: null };
+    const audioRef = { current: null } as RefObject<HTMLAudioElement | null>;
     const { result } = renderHook(() =>
-      useProofCardTimeline(audioRef as { current: HTMLAudioElement | null }, null, BAR_TIMELINE),
+      useProofCardTimeline(audioRef, MOCK_SCORE_IR, BAR_TIMELINE),
     );
-    expect(result.current.qstampForTime(14.0)).toBe(4);
+    expect(result.current.qstampForTime(14.0)).toBe(12);
   });
 
   it("setCurrentTime updates currentTime state", async () => {
     const { useProofCardTimeline } = await import("./useProofCardTimeline");
-    const audioRef = { current: null };
+    const audioRef = { current: null } as RefObject<HTMLAudioElement | null>;
     const { result } = renderHook(() =>
-      useProofCardTimeline(audioRef as { current: HTMLAudioElement | null }, null, BAR_TIMELINE),
+      useProofCardTimeline(audioRef, MOCK_SCORE_IR, BAR_TIMELINE),
     );
     act(() => {
       result.current.setCurrentTime(8.5);
@@ -1546,11 +1894,20 @@ describe("useProofCardTimeline", () => {
 
   it("qstampForTime returns null for empty barTimeline", async () => {
     const { useProofCardTimeline } = await import("./useProofCardTimeline");
-    const audioRef = { current: null };
+    const audioRef = { current: null } as RefObject<HTMLAudioElement | null>;
     const { result } = renderHook(() =>
-      useProofCardTimeline(audioRef as React.RefObject<HTMLAudioElement | null>, null, []),
+      useProofCardTimeline(audioRef, MOCK_SCORE_IR, []),
     );
     expect(result.current.qstampForTime(5.0)).toBeNull();
+  });
+
+  it("qstampForTime returns null when scoreIR is null (scoreIR not yet loaded)", async () => {
+    const { useProofCardTimeline } = await import("./useProofCardTimeline");
+    const audioRef = { current: null } as RefObject<HTMLAudioElement | null>;
+    const { result } = renderHook(() =>
+      useProofCardTimeline(audioRef, null, BAR_TIMELINE),
+    );
+    expect(result.current.qstampForTime(0.0)).toBeNull();
   });
 });
 ```
@@ -1560,7 +1917,7 @@ describe("useProofCardTimeline", () => {
 ```bash
 cd apps/web && bun run test src/hooks/useProofCardTimeline.test.ts
 ```
-Expected: FAIL — the stub `qstampForTime` returns `entry.bar` directly which should work for bar=1 and bar=4; verify whether the test fails. If it passes with the stub, that means the stub was already correct. Skip to Step 5 if tests pass. Otherwise, the full implementation is below.
+Expected: FAIL — the stub `qstampForTime` returns `null` when scoreIR is present but bar lookup hasn't been wired; the full implementation in Step 3 is required.
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
 
@@ -1576,37 +1933,49 @@ type BarTimeline = Array<{ bar: number; tSec: number }>;
 
 export function useProofCardTimeline(
   _audioRef: RefObject<HTMLAudioElement | null>,
-  _scoreIR: ScoreIR | null,
+  scoreIR: ScoreIR | null,
   barTimeline: BarTimeline,
 ) {
   const [currentTime, setCurrentTimeState] = useState(0);
   const barTimelineRef = useRef(barTimeline);
   barTimelineRef.current = barTimeline;
+  const scoreIRRef = useRef(scoreIR);
+  scoreIRRef.current = scoreIR;
 
   const setCurrentTime = useCallback((t: number) => {
     setCurrentTimeState(t);
   }, []);
 
-  // Returns the bar number whose tSec window contains the given time.
+  // Returns the qstampStart of the bar whose tSec window contains the given time.
+  // ScoreCursor.findBar() binary-searches bar.qstampStart/qstampEnd (quaternote floats),
+  // so we must return a qstamp float, not a raw bar number.
   // Timeline must be sorted by tSec ascending (guaranteed by manifest production).
   const qstampForTime = useCallback((tSec: number): number | null => {
     const timeline = barTimelineRef.current;
     if (timeline.length === 0) return null;
 
-    let result = timeline[0];
-    if (!result) return null;
+    let matchedEntry = timeline[0];
+    if (!matchedEntry) return null;
 
     for (let i = 0; i < timeline.length; i++) {
       const entry = timeline[i];
       if (!entry) continue;
       if (entry.tSec <= tSec) {
-        result = entry;
+        matchedEntry = entry;
       } else {
         break;
       }
     }
 
-    return result.bar;
+    // Look up qstampStart from ScoreIR.bars by barNumber
+    const ir = scoreIRRef.current;
+    if (ir) {
+      const barIR = ir.bars.find((b) => b.barNumber === matchedEntry!.bar);
+      if (barIR) return barIR.qstampStart;
+    }
+
+    // scoreIR not yet loaded — return null so cursor stays hidden
+    return null;
   }, []);
 
   return { currentTime, setCurrentTime, qstampForTime };
@@ -1618,7 +1987,7 @@ export function useProofCardTimeline(
 ```bash
 cd apps/web && bun run test src/hooks/useProofCardTimeline.test.ts
 ```
-Expected: PASS — all four test cases pass
+Expected: PASS — all five test cases pass
 
 - [ ] **Step 5: Commit**
 
@@ -1637,16 +2006,68 @@ git add apps/web/src/hooks/useProofCardTimeline.ts apps/web/src/hooks/useProofCa
 **Interface under test:** ProofCard keyboard event handling on bar buttons
 
 **Files:**
-- Modify: `apps/web/src/components/ProofCard.test.tsx`
+- Create: `apps/web/src/components/ProofCard.keyboard.test.tsx`
 
 - [ ] **Step 1: Write the failing test**
 
 ```typescript
-// Append to apps/web/src/components/ProofCard.test.tsx
+// apps/web/src/components/ProofCard.keyboard.test.tsx
+import { render, waitFor, fireEvent } from "@testing-library/react";
+import * as React from "react";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import type { ProofCardManifest } from "../types/landing";
+
+vi.mock("../lib/landing-analytics", () => ({ trackLandingEvent: vi.fn() }));
+
+const MOCK_SCORE_IR = {
+  pieceId: "chopin.nocturnes.9-2",
+  verovioVersion: "6.1.0",
+  pageWidth: 2400,
+  pages: [{ pageN: 1, viewBox: "0 0 2400 800", width: 2400, height: 800, systemBboxes: [] }],
+  bars: [
+    { barNumber: 1, measureOn: "m1", pageN: 1, bbox: { x: 100, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 0, qstampEnd: 4 },
+    { barNumber: 4, measureOn: "m4", pageN: 1, bbox: { x: 400, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 12, qstampEnd: 16 },
+  ],
+  notes: {},
+};
+
+const FIXTURE_EXERCISE = {
+  type: "exercise_set",
+  config: { sourcePassage: "bar 4", targetSkill: "Dynamics", exercises: [] },
+};
+
+const FIXTURE_MANIFEST: ProofCardManifest = {
+  pieceId: "chopin.nocturnes.9-2",
+  title: "Nocturne Op. 9 No. 2",
+  era: "romantic",
+  audioUrl: "/landing/card-1/recording.opus",
+  scoreIRUrl: "/landing/card-1/scoreir.json",
+  scoreSvgUrl: "/landing/card-1/score.svg",
+  focusBar: 4,
+  focusBarRange: [3, 5],
+  diagnosis: "The diminuendo in bar 4 arrives too early.",
+  exerciseUrl: "/landing/card-1/exercise.json",
+  barTimeline: [{ bar: 1, tSec: 0.0 }, { bar: 4, tSec: 12.8 }],
+  perBarScores: {
+    1: { dynamics: 0.72, timing: 0.81, pedaling: 0.68, articulation: 0.75, phrasing: 0.70, interpretation: 0.74 },
+    4: { dynamics: 0.52, timing: 0.78, pedaling: 0.60, articulation: 0.71, phrasing: 0.54, interpretation: 0.63 },
+  },
+};
 
 describe("ProofCard keyboard navigation", () => {
   beforeEach(() => {
-    mockFetch(MOCK_SCORE_IR, FIXTURE_EXERCISE);
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes("scoreir.json")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_SCORE_IR) });
+      }
+      if (String(url).includes("exercise.json")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(FIXTURE_EXERCISE) });
+      }
+      if (String(url).includes("score.svg")) {
+        return Promise.resolve({ ok: true, text: () => Promise.resolve('<svg xmlns="http://www.w3.org/2000/svg"></svg>') });
+      }
+      return Promise.resolve({ ok: false, json: () => Promise.resolve(null) });
+    });
   });
 
   afterEach(() => {
@@ -1711,7 +2132,7 @@ describe("ProofCard keyboard navigation", () => {
 - [ ] **Step 2: Run test — verify it FAILS**
 
 ```bash
-cd apps/web && bun run test src/components/ProofCard.test.tsx --reporter=verbose 2>&1 | grep -E "FAIL|keyboard navigation"
+cd apps/web && bun run test src/components/ProofCard.keyboard.test.tsx --reporter=verbose 2>&1 | grep -E "FAIL|keyboard navigation"
 ```
 Expected: FAIL — bar buttons may have no tabIndex set, or Escape handler may not be present
 
@@ -1746,14 +2167,14 @@ The `handleBarKeyDown` already handles Enter and Escape. No additional changes n
 - [ ] **Step 4: Run test — verify it PASSES**
 
 ```bash
-cd apps/web && bun run test src/components/ProofCard.test.tsx
+cd apps/web && bun run test src/components/ProofCard.keyboard.test.tsx
 ```
 Expected: PASS — all keyboard navigation tests pass
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/web/src/components/ProofCard.tsx apps/web/src/components/ProofCard.test.tsx && git commit -m "feat(landing): ProofCard keyboard navigation tests pass"
+git add apps/web/src/components/ProofCard.tsx apps/web/src/components/ProofCard.keyboard.test.tsx && git commit -m "feat(landing): ProofCard keyboard navigation tests pass"
 ```
 
 ---
@@ -2232,12 +2653,19 @@ cd apps/web && bun run test
 
 All of the following tests must pass:
 - `src/lib/landing-analytics.test.ts` — 2 tests (Task 0)
-- `src/components/ProofCard.test.tsx` — 12 tests (Tasks 1–5, 4.5, 7, 9)
+- `src/components/ProofCard.test.tsx` — 1 test (Task 1, render contract smoke test)
+- `src/components/ProofCard.autoplay.test.tsx` — 2 tests (Task 2)
+- `src/components/ProofCard.degradation.test.tsx` — 2 tests (Task 3)
+- `src/components/ProofCard.audio-degradation.test.tsx` — 1 test (Task 4)
+- `src/components/ProofCard.cursor.test.tsx` — 3 tests (Task 4.5)
+- `src/components/ProofCard.reduced-motion.test.tsx` — 2 tests (Task 5)
 - `src/components/BarScoreChip.test.tsx` — 2 tests (Task 7)
-- `src/hooks/useProofCardTimeline.test.ts` — 4 tests (Task 8)
+- `src/components/ProofCard.bar-tap.test.tsx` — 1 test (Task 7)
+- `src/hooks/useProofCardTimeline.test.ts` — 5 tests (Task 8)
+- `src/components/ProofCard.keyboard.test.tsx` — 3 tests (Task 9)
 - `src/routes/index.test.tsx` — 2 tests (Task 6, Task 10)
 
-Total: 22 tests. No existing tests may regress.
+Total: 26 tests. No existing tests may regress.
 
 ---
 
@@ -2426,3 +2854,67 @@ All three files will fail `tsc` before any tests run.
 ---
 
 VERDICT: NEEDS_REWORK — Three blockers must be resolved: (1) missing `React` type imports in three files will prevent compilation; (2) `ScoreCursor` is never instantiated — the animated cursor is entirely absent from the plan despite being a core spec requirement; (3) Group A parallel task dispatch will cause file conflicts on `ProofCard.test.tsx` and `useProofCardTimeline.ts`.
+
+---
+
+## Challenge Review (Loop 2 — 2026-05-27)
+
+> Re-reviewed after plan edits addressing Loop 1 blockers. Read all source files before forming opinions.
+
+### Status of Prior Blockers
+
+**Prior Blocker 1 (React type imports):** Partially fixed. `ProofCard.tsx` now imports `import type { KeyboardEvent } from "react"` (line 355) and `BarScoreChip.tsx` imports `import type { KeyboardEvent } from "react"` (line 1392). `useProofCardTimeline.ts` imports `import type { RefObject } from "react"` (line 1572). These three source files are now correct.
+
+However, `useProofCardTimeline.test.ts` (line 1551) still uses `React.RefObject<HTMLAudioElement | null>` in the empty-timeline test without any `React` import — only `{ renderHook, act }` and vitest are imported. This is a compile error in the test file itself. **Not fully resolved.**
+
+**Prior Blocker 2 (ScoreCursor not instantiated):** A `useEffect` and Task 4.5 were added to the plan. However the `ScoreCursor` constructor call in `ProofCard.tsx` (lines 499–500) uses the **wrong signature**. Verified against `apps/web/src/lib/score-cursor.ts`:
+
+- Actual constructor: `constructor(opts: ScoreCursorOptions)` where `ScoreCursorOptions = { pieceId: string; container: HTMLElement; ir: ScoreIR; qstampSource: () => number | null }` — a single options object; `qstampSource` is baked in at construction time.
+- Actual `start()`: `start(): void` — takes no arguments.
+- Plan's call: `new ScoreCursor(scoreContainerRef.current, scoreIR)` — wrong (positional args, missing `pieceId`, missing `qstampSource`).
+- Plan's call: `cursor.start(() => qstampForTime(currentTime) ?? 0)` — wrong (start takes no args).
+
+The plan's ProofCard will throw a TypeScript compile error and a runtime error at cursor instantiation. **Not resolved.**
+
+Additionally, `qstampForTime` returns `entry.bar` (bar number, e.g. 1, 2, 3…) as a proxy for qstamp. `ScoreCursor.findBar()` binary-searches `ir.bars` using `qstampStart`/`qstampEnd` which are quaternote positions (0.0, 4.0, 8.0, 12.0…). Bar number 4 ≠ qstamp 12.8. The cursor would position incorrectly or fail to find bars entirely. The MOCK_SCORE_IR fixture in the test has `qstampStart: 12, qstampEnd: 16` for bar 4 — passing `4` as the qstamp would match bar 1 (`qstampStart: 0, qstampEnd: 4`) instead. This semantic mismatch is a latent behavioral bug beyond the compile error.
+
+**Prior Blocker 3 (Group A/B parallel file collision):** The task groups were reorganized: Task 1 is now Group A (sequential alone), and Tasks 2, 3, 4, Task 4.5, 8 are Group B (parallel). The plan header at line 16 reads: "Group B (parallel, depends on Group A): Task 2, Task 3, Task 4, Task 8 — Tasks 2/3/4 each append to ProofCard.test.tsx created by Task 1; Task 8 replaces the useProofCardTimeline.ts stub created by Task 1."
+
+The file collision is still present: Tasks 2, 3, 4, Task 4.5, and 9 (in Group C) all modify `ProofCard.test.tsx`. In Group B, Tasks 2/3/4/Task 4.5 are still parallel and all append to the same file. **Not resolved — the collision was moved from Group A to Group B but not eliminated.**
+
+---
+
+### New Findings
+
+**[BLOCKER] (confidence: 10/10)** — `ScoreCursor` constructor signature mismatch. Verified by reading `apps/web/src/lib/score-cursor.ts` lines 5–25. The constructor takes a single `ScoreCursorOptions` object with four required fields: `pieceId`, `container`, `ir`, `qstampSource`. The plan's `ProofCard.tsx` calls `new ScoreCursor(scoreContainerRef.current, scoreIR)` (two positional args) and `cursor.start(() => qstampForTime(currentTime) ?? 0)` (`start()` takes no args — qstampSource is passed to the constructor). This will fail TypeScript compilation and throw at runtime. Fix: replace with `new ScoreCursor({ pieceId: manifest.pieceId, container: scoreContainerRef.current, ir: scoreIR, qstampSource: () => qstampForTime(currentTime) ?? 0 })` and `cursor.start()`. Remove the `qstampForTime` callback from `cursor.start()`.
+
+**[BLOCKER] (confidence: 9/10)** — `qstampForTime` returns bar number (integer 1, 2, 3…) but `ScoreCursor` expects quaternote position (float 0.0, 4.0, 8.0…). `ScoreCursor.findBar()` binary-searches `bar.qstampStart` / `bar.qstampEnd` values from `ScoreIR`. Passing bar number 1 maps to qstamp ~0 (lucky coincidence for bar 1), but bar 4 would be passed as `4` which falls within bar 1's range `[0, 4)` in the fixture. The cursor would show at bar 1 regardless of playback position past bar 1. Fix: `qstampForTime` must return the `qstampStart` of the matching bar from the `ScoreIR`, not the bar number. The hook needs access to `scoreIR.bars` to perform the lookup, or the mapping must happen in `ProofCard.tsx` using `scoreIR` directly. The current hook interface (`barTimeline` only, no `ScoreIR` bar data) does not carry enough information to return a correct qstamp.
+
+**[BLOCKER] (confidence: 9/10)** — `useProofCardTimeline.test.ts` line 1551 uses `React.RefObject<HTMLAudioElement | null>` but the test file imports only `{ renderHook, act }` from `@testing-library/react` and vitest — no `React` import. TypeScript will error: `'React' refers to a UMD global`. The three previous source-file React import fixes missed this test file. Fix: add `import type { RefObject } from "react"` to the test file and change `React.RefObject` to `RefObject`.
+
+**[BLOCKER] (confidence: 9/10)** — Task 4.5 calls `vi.mock("../lib/score-cursor", ...)` inside `beforeEach`. In Vitest, `vi.mock` calls are hoisted to the top of the module by the Vitest transformer — they cannot be conditionally applied inside `beforeEach`. A `vi.mock` call inside `beforeEach` is silently ignored (it runs after module evaluation, so the hoisting mechanism does not apply). The mock will not take effect. `ScoreCursor` will be the real class, `requestAnimationFrame` is not available in jsdom, and the test will error. Fix: move the `vi.mock("../lib/score-cursor", ...)` call to the module top-level (outside any describe/beforeEach), and use `vi.mocked(ScoreCursor).mockImplementation(...)` inside `beforeEach` to configure the per-test mock behavior.
+
+**[BLOCKER] (confidence: 9/10)** — Group B parallel file collision persists. Tasks 2, 3, 4, and Task 4.5 are all Group B (parallel) and all append to `ProofCard.test.tsx`. Four subagents simultaneously writing to the same file will produce clobbered or merged-incorrectly output. Fix: make Group B sequential (Task 2 → Task 3 → Task 4 → Task 4.5), or assign each task its own separate test file (e.g., `ProofCard.autoplay.test.tsx`, `ProofCard.degradation-scoreir.test.tsx`). The latter is the cleaner approach and removes all collision risk.
+
+---
+
+### Presumption Inventory (Loop 2)
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `ScoreCursor` constructor takes `(container, ir)` positional args | RISKY | Verified false: takes a single options object `{ pieceId, container, ir, qstampSource }` |
+| `ScoreCursor.start()` takes a `qstampSource` callback argument | RISKY | Verified false: `start()` takes no args; `qstampSource` is passed to constructor |
+| `qstampForTime` returning bar number is a valid qstamp for ScoreCursor | RISKY | Verified false: ScoreCursor.findBar() uses quaternote positions, not bar numbers |
+| `vi.mock()` inside `beforeEach` in Vitest is equivalent to module-level `vi.mock()` | RISKY | Verified false: Vitest hoists module-level `vi.mock` calls; `beforeEach` calls are not hoisted and have no effect |
+| React type imports fixed in all affected files | VALIDATE | Fixed in 3 source files but `useProofCardTimeline.test.ts` line 1551 still uses `React.RefObject` without import |
+| Parallel Group B tasks can safely append to the same file | RISKY | Unchanged from Loop 1 — still 4 tasks targeting `ProofCard.test.tsx` in parallel |
+
+---
+
+### Summary (Loop 2)
+
+[BLOCKER] count: 5
+[RISK]    count: 0
+[QUESTION] count: 0
+
+VERDICT: NEEDS_REWORK — Five blockers remain: (1) `ScoreCursor` constructor called with wrong positional args — must use options object `{ pieceId, container, ir, qstampSource }`; (2) `qstampForTime` returns bar number not quaternote position — ScoreCursor will position cursor at wrong bar; (3) `React.RefObject` used without import in `useProofCardTimeline.test.ts` line 1551; (4) `vi.mock` inside `beforeEach` in Task 4.5 is silently ignored by Vitest — must be module-level; (5) Group B parallel file collision on `ProofCard.test.tsx` unchanged from Loop 1.
