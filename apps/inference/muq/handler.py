@@ -30,6 +30,7 @@ from preprocessing.audio import (
     download_and_preprocess_audio,
     preprocess_audio_from_bytes,
 )
+from chroma import chroma_feature
 
 
 class EndpointHandler:
@@ -120,6 +121,11 @@ class EndpointHandler:
             audio, duration = self._load_audio(inputs, max_duration)
             print(f"Audio loaded: {duration:.1f}s")
 
+            # Compute chroma features for score following (50 Hz frame rate)
+            chroma_bytes, chroma_n_frames = chroma_feature(audio, sr=22050)
+            chroma_b64 = base64.b64encode(chroma_bytes).decode("ascii")
+            chroma_frame_rate_hz = 22050 / 441  # 50.0
+
             # Verify models are loaded
             if not self._cache.muq_model:
                 return {
@@ -156,6 +162,9 @@ class EndpointHandler:
                     },
                     "audio_duration_seconds": duration,
                     "processing_time_ms": processing_time_ms,
+                    "chroma_b64": chroma_b64,
+                    "chroma_frames": chroma_n_frames,
+                    "chroma_frame_rate_hz": chroma_frame_rate_hz,
                 }
             else:
                 result = {
@@ -170,6 +179,9 @@ class EndpointHandler:
                     },
                     "audio_duration_seconds": duration,
                     "processing_time_ms": processing_time_ms,
+                    "chroma_b64": chroma_b64,
+                    "chroma_frames": chroma_n_frames,
+                    "chroma_frame_rate_hz": chroma_frame_rate_hz,
                 }
 
             print(f"Inference complete in {processing_time_ms}ms")

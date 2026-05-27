@@ -57,3 +57,73 @@ class TestChromaFeature:
         arr = np.frombuffer(b, dtype="<f4").reshape(12, n)
         dominant_pc = int(arr.mean(axis=1).argmax())
         assert dominant_pc == 9, f"Expected pitch class 9 (A), got {dominant_pc}"
+
+
+class TestHandlerChromaIntegration:
+    """Verify EndpointHandler.__call__ response includes chroma fields."""
+
+    def test_handler_call_returns_chroma_fields(self, monkeypatch):
+        """Invoke EndpointHandler().__call__ with a synthetic audio dict and assert
+        that the returned response contains chroma_b64 (str), chroma_frames (int > 0),
+        and chroma_frame_rate_hz == 50.0. MuQ model loading is monkeypatched out so
+        the test runs without GPU."""
+        import base64
+        import handler as handler_module
+        from handler import EndpointHandler
+
+        y_synth = make_sine(440.0, 1.0)  # 1s at 22050 Hz
+
+        h = EndpointHandler.__new__(EndpointHandler)
+
+        # Minimal mock cache: muq_model must be truthy to pass the guard check;
+        # muq_heads must be iterable for len() in model_info.
+        class _FakeCache:
+            muq_model = object()
+            muq_heads = [None]
+
+        h._cache = _FakeCache()
+
+        def fake_load_audio(inputs, max_duration):
+            return y_synth, 1.0
+
+        stub_predictions = {
+            "dynamics": 0.6,
+            "timing": 0.7,
+            "pedaling": 0.5,
+            "articulation": 0.8,
+            "phrasing": 0.65,
+            "interpretation": 0.72,
+        }
+
+        stub_arr = np.array([0.6, 0.7, 0.5, 0.8, 0.65, 0.72], dtype=np.float32)
+
+        def fake_extract_embeddings(audio, cache):
+            return stub_arr
+
+        def fake_predict_with_ensemble(embeddings, cache):
+            return stub_arr
+
+        def fake_predictions_to_dict(preds):
+            return stub_predictions
+
+        monkeypatch.setattr(h, "_load_audio", fake_load_audio)
+        monkeypatch.setattr(h, "_predictions_to_dict", fake_predictions_to_dict)
+        monkeypatch.setattr(handler_module, "extract_muq_embeddings", fake_extract_embeddings)
+        monkeypatch.setattr(handler_module, "predict_with_ensemble", fake_predict_with_ensemble)
+
+        inputs = {"audio": {"data": b"", "mime_type": "audio/wav"}}
+        result = h(inputs)
+
+        assert "chroma_b64" in result, f"handler response missing chroma_b64, got keys: {list(result.keys())}"
+        assert "chroma_frames" in result, "handler response missing chroma_frames"
+        assert "chroma_frame_rate_hz" in result, "handler response missing chroma_frame_rate_hz"
+        assert isinstance(result["chroma_b64"], str), "chroma_b64 must be a str"
+        assert result["chroma_frames"] > 0, "chroma_frames must be > 0"
+        assert result["chroma_frame_rate_hz"] == 50.0, (
+            f"chroma_frame_rate_hz must be 50.0, got {result['chroma_frame_rate_hz']}"
+        )
+        n_frames = result["chroma_frames"]
+        decoded = base64.b64decode(result["chroma_b64"])
+        assert len(decoded) == 12 * n_frames * 4, (
+            f"decoded chroma bytes length {len(decoded)} != 12 * {n_frames} * 4"
+        )
