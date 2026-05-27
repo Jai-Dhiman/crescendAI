@@ -100,6 +100,44 @@ describe("buildSynthesisFraming", () => {
 		expect(out).toContain("Romantic");
 		expect(out).toContain("dynamics");
 	});
+
+	it("includes bar_analysis field in session_data JSON when provided on a top moment", () => {
+		const facts = {
+			tier: 1,
+			bar_range: "4-7",
+			selected: { dimension: "timing", analysis: "rushing 45ms" },
+			correlated: [{ dimension: "articulation", analysis: "clipped" }],
+		};
+		const topMoments = [
+			{ dimension: "timing", score: 0.3, bar_analysis: facts },
+		];
+		const out = buildSynthesisFraming(
+			300_000,
+			"continuous_play",
+			topMoments,
+			[],
+			{ title: "Etude", composer: "Chopin", skill_level: 3 },
+			"",
+			"Chopin",
+		);
+		expect(out).toContain('"bar_analysis"');
+		expect(out).toContain('"rushing 45ms"');
+		expect(out).toContain('"bar_range": "4-7"');
+	});
+
+	it("omits bar_analysis from a top moment that did not include it", () => {
+		const topMoments = [{ dimension: "timing", score: 0.3 }];
+		const out = buildSynthesisFraming(
+			300_000,
+			"continuous_play",
+			topMoments,
+			[],
+			{ title: "Etude", composer: "Chopin", skill_level: 3 },
+			"",
+			"Chopin",
+		);
+		expect(out).not.toContain("bar_analysis");
+	});
 });
 
 describe("buildSynthesisFraming + teacher_voice", () => {
