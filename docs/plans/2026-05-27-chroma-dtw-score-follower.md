@@ -1166,7 +1166,11 @@ export function parseMuqResponse(raw: MuqResponseRaw): MuqResult {
 	let chromaFrames = 0;
 	let chromaFrameRateHz = 50.0;
 
-	if (raw.chroma_b64 && raw.chroma_frames) {
+	if (
+		raw.chroma_b64 !== undefined &&
+		raw.chroma_frames !== undefined &&
+		raw.chroma_frames !== null
+	) {
 		const binaryStr = atob(raw.chroma_b64);
 		const bytes = new Uint8Array(binaryStr.length);
 		for (let i = 0; i < binaryStr.length; i++) {
@@ -1484,21 +1488,32 @@ Wait — the `analyzeTier1` call requires a `BarMap` (note-level), which the old
 
 Find and delete: `state.followerState = { lastKnownBar: null };`
 
-**2e. Add `chunk_bar_map` variant to `session-brain.schema.ts` and send as a separate WebSocket message after bar analysis completes.**
+**2e. Create `wsOutgoingMessageSchema` in `session-brain.schema.ts` and send `chunk_bar_map` as a separate WebSocket message after bar analysis completes.**
 
 Do NOT add `bar_per_frame` to the existing `chunk_processed` send at line 547. `chunk_processed` fires immediately after MuQ scores arrive; bar analysis and `chromaResult` are computed in the block that begins at line 584 — AFTER that send. `chromaResult` is not in scope at line 547 and TypeScript will emit a compile error if referenced there. The `chunk_processed` send must remain unchanged.
 
-First, add the new message variant to `wsOutgoingMessageSchema` (or equivalent union) in `session-brain.schema.ts`. Find the existing outgoing message schema and add:
+`wsOutgoingMessageSchema` does NOT currently exist in `session-brain.schema.ts` (the file exports only `sessionStateSchema`, `wsChunkReadySchema`, `wsEndSessionSchema`, `wsSetPieceSchema`, `wsEvalChunkSchema`, `wsIncomingMessageSchema`, and `createInitialState`). Create it as a new export — do NOT try to add a variant to an existing union:
 
 ```typescript
-z.object({
+// new in session-brain.schema.ts — append after wsIncomingMessageSchema
+
+export const wsChunkBarMapSchema = z.object({
 	type: z.literal("chunk_bar_map"),
 	chunk_index: z.number().int(),
 	bar_min: z.number().int(),
 	bar_max: z.number().int(),
 	bar_per_frame: z.array(z.number().int()),
-}),
+});
+
+export const wsOutgoingMessageSchema = z.discriminatedUnion("type", [
+	wsChunkBarMapSchema,
+]);
+
+export type WsChunkBarMap = z.infer<typeof wsChunkBarMapSchema>;
+export type WsOutgoingMessage = z.infer<typeof wsOutgoingMessageSchema>;
 ```
+
+Note: this is a NEW discriminated union. Do not modify any existing union in the file.
 
 Then, after the bar analysis block completes (around line 615, after `chromaResult` is computed and `chunkBarRange` is set), add a conditional send:
 
@@ -1800,50 +1815,72 @@ Note: The handler integration test is a simple import+call test using the existi
 
 ```python
 class TestHandlerChromaIntegration:
-    """Verify handler response includes chroma fields."""
+    """Verify handler.__call__ response includes chroma fields."""
 
-    def test_chroma_fields_present_in_result_dict(self):
-        """The result dict built by handler.py contains chroma_b64, chroma_frames."""
+    def test_handler_call_returns_chroma_fields(self, monkeypatch):
+        """Invoke EndpointHandler().__call__ with a synthetic audio dict and assert
+        that the returned response contains chroma_b64 (str), chroma_frames (int > 0),
+        and chroma_frame_rate_hz == 50.0. MuQ model loading is monkeypatched out so
+        the test runs without GPU."""
         import base64
         import struct
+        import numpy as np
 
-        # Simulate what handler.py does: call chroma_feature and embed in result
-        y = make_sine(440.0, 2.0)
-        raw_bytes, n_frames = chroma_feature(y, SR)
+        # Monkeypatch _load_audio to return a synthetic sine wave instead of decoding
+        # the real audio input — avoids file I/O and keeps the test fast.
+        y_synth = make_sine(440.0, 1.0)  # 1s at 22050 Hz
 
-        result = {
-            "predictions": {"dynamics": 0.6},
-            "chroma_b64": base64.b64encode(raw_bytes).decode("ascii"),
-            "chroma_frames": n_frames,
-            "chroma_frame_rate_hz": float(SR / HOP),
+        def fake_load_audio(inputs, max_duration):
+            return y_synth, 1.0  # (audio_array, duration_s)
+
+        # Monkeypatch the model inference to return stub scores — avoids GPU load.
+        stub_predictions = {
+            "dynamics": 0.6,
+            "timing": 0.7,
+            "pedaling": 0.5,
+            "articulation": 0.8,
+            "phrasing": 0.65,
+            "interpretation": 0.72,
         }
 
-        assert "chroma_b64" in result
-        assert "chroma_frames" in result
-        assert result["chroma_frames"] == n_frames
-        # Round-trip decode check
+        def fake_predict_with_ensemble(audio, sr):
+            return stub_predictions, None  # (predictions_dict, confidences)
+
+        from handler import InferenceHandler
+        handler = InferenceHandler()
+        monkeypatch.setattr(handler, "_load_audio", fake_load_audio)
+        monkeypatch.setattr(handler, "_predict_with_ensemble", fake_predict_with_ensemble)
+
+        # Minimal inputs dict — _load_audio is monkeypatched so audio content is ignored.
+        inputs = {"audio": {"data": b"", "mime_type": "audio/wav"}}
+        result = handler.__call__(inputs)
+
+        # Core assertion: chroma fields must be present in the handler response.
+        assert "chroma_b64" in result, "handler response missing chroma_b64"
+        assert "chroma_frames" in result, "handler response missing chroma_frames"
+        assert "chroma_frame_rate_hz" in result, "handler response missing chroma_frame_rate_hz"
+        assert isinstance(result["chroma_b64"], str), "chroma_b64 must be a str"
+        assert result["chroma_frames"] > 0, "chroma_frames must be > 0"
+        assert result["chroma_frame_rate_hz"] == 50.0, (
+            f"chroma_frame_rate_hz must be 50.0, got {result['chroma_frame_rate_hz']}"
+        )
+        # Round-trip decode: bytes length must match 12 * chroma_frames * 4
+        n_frames = result["chroma_frames"]
         decoded = base64.b64decode(result["chroma_b64"])
-        floats = struct.unpack(f"<{12 * n_frames}f", decoded)
-        assert len(floats) == 12 * n_frames
+        assert len(decoded) == 12 * n_frames * 4, (
+            f"decoded chroma bytes length {len(decoded)} != 12 * {n_frames} * 4"
+        )
 ```
+
+Note: if `InferenceHandler` does not expose `_load_audio` or `_predict_with_ensemble` as monkeypatchable attributes, check `handler.py` for the actual method names used for audio loading and model inference, and adjust the `monkeypatch.setattr` calls accordingly. The goal is to stub out GPU-dependent paths so the chroma computation path runs with a synthetic waveform.
 
 - [ ] **Step 2: Run test — verify it FAILS**
 
-The test above actually passes immediately since it only exercises `chroma_feature` directly. The real test for handler.py wiring is the TypeScript test in Task 4 (which calls `parseMuqResponse` against a response with `chroma_b64`). The handler's Python side test is a compile/import check:
-
 ```bash
-cd /Users/jdhiman/Documents/crescendai/apps/inference/muq && python -c "from handler import InferenceHandler" 2>&1
+cd /Users/jdhiman/Documents/crescendai/apps/inference/muq && uv run pytest test_chroma.py::TestHandlerChromaIntegration -v 2>&1 | head -30
 ```
 
-Expected at the start of Task 9: ImportError or AttributeError if `chroma_feature` is referenced in handler.py before it exists (it does exist after Task 2, so this should pass — the real failure is that handler.py doesn't yet call `chroma_feature`).
-
-To create an observable failing test, verify handler.py does NOT yet have `chroma_b64` in its result dict by grepping:
-
-```bash
-grep -n "chroma_b64" /Users/jdhiman/Documents/crescendai/apps/inference/muq/handler.py
-```
-
-Expected: no matches (i.e., the key is absent from handler.py).
+Expected: FAIL — `AssertionError: handler response missing chroma_b64` (handler.py does not yet call `chroma_feature` or embed chroma fields in its result dict).
 
 - [ ] **Step 3: Add chroma fields to `handler.py` result dict**
 
@@ -2145,3 +2182,44 @@ The Rust error paths (`audio_f32.len() mismatch`, `empty bars`, `no notes`) are 
 ---
 
 VERDICT: NEEDS_REWORK — Task 3 vitest test cannot pass as written (WASM module always null in node environment); Task 6 has a send-order sequencing bug where `chromaResult` is referenced before it is declared at the `chunk_processed` send site. Both blockers must be resolved before execution begins.
+
+---
+
+## Challenge Review — Loop 2 (re-review after fix commit 7432c542)
+
+### What the fix commit changed
+
+**Blocker 1 (Task 3):** The end-to-end fixture-loading vitest test was replaced with a `vi.mock("./wasm-bridge", ...)` approach. `alignChunkChroma` is overridden inside the factory to call a `mockRequireScoreAnalysis` controlled by the test. This correctly sidesteps the null-module problem.
+
+**Blocker 2 (Task 6):** `bar_per_frame` was removed from the `chunk_processed` send. Task 6 now explicitly prohibits touching `chunk_processed` and instead adds a new `chunk_bar_map` message sent after bar analysis completes, with a corresponding Zod schema variant added to `wsOutgoingMessageSchema` in `session-brain.schema.ts`.
+
+### Verification of prior BLOCKERs
+
+**Prior BLOCKER 1 (Task 3 WASM null) — RESOLVED.** The mock approach does not call `requireScoreAnalysis()` from the real module. The three tests now test: (a) function is exported, (b) mock throws with the right error message, (c) mock forwards 5 args and returns result. These are correct behavioral tests of the wrapper contract.
+
+**Prior BLOCKER 2 (Task 6 send-order) — RESOLVED IN INTENT.** Task 6 Step 2e now explicitly says not to touch `chunk_processed` and sends `bar_per_frame` in a separate `chunk_bar_map` message after bar analysis. The constraint is correctly documented.
+
+### New BLOCKER found in this re-review
+
+**[BLOCKER] (confidence: 9/10) — `wsOutgoingMessageSchema` does not exist in `session-brain.schema.ts`, but Task 6 Step 2e instructs the build agent to add `chunk_bar_map` to it, and Task 7's test calls `require("./session-brain.schema").wsOutgoingMessageSchema.parse(barMapMsg)`.** Verified by reading `apps/api/src/do/session-brain.schema.ts` (145 lines): the file exports only `sessionStateSchema`, `wsChunkReadySchema`, `wsEndSessionSchema`, `wsSetPieceSchema`, `wsEvalChunkSchema`, `wsIncomingMessageSchema`, and `createInitialState`. There is no `wsOutgoingMessageSchema`. Task 7's test at line 1619 does `const { wsOutgoingMessageSchema } = require("./session-brain.schema")` — this resolves to `undefined`, and `undefined.parse(...)` throws `TypeError: Cannot read properties of undefined (reading 'parse')`. The test cannot pass until `wsOutgoingMessageSchema` is created. Task 6 Step 2e must be revised to: (a) create a new `wsOutgoingMessageSchema` export in `session-brain.schema.ts` (a discriminated union or plain union of outgoing message shapes), (b) add the `chunk_bar_map` variant to it. Alternatively, the Task 7 test can be rewritten to not use the schema and instead assert on the structure of a plain object — but using the schema is the correct approach for behavioral verification.
+
+### Remaining concerns (non-blocking, carried forward)
+
+**[RISK] (confidence: 7/10) — Task 3: `vi.fn()` refs captured by a hoisted `vi.mock` factory.** The plan declares `const mockAlignChunkChroma = vi.fn()` and `const mockRequireScoreAnalysis = vi.fn()` at module scope, then references them inside the `vi.mock("./wasm-bridge", async (importOriginal) => { ... })` factory. Vitest hoists `vi.mock` calls above `const` declarations, so the factory closure captures the `const` bindings before they are initialized — this is the well-known "vi.mock hoisting" gotcha. The fix is to wrap the mock variables in `vi.hoisted(() => ({ ... }))`. If vitest's module-level hoisting behavior handles this correctly in the test environment (some versions do), this is not a blocker; if not, the factory sees `undefined` for `mockRequireScoreAnalysis` and the "forwards all 5 arguments" test throws. Verify by running the test in Step 2. If it fails with `Cannot read properties of undefined`, add `vi.hoisted`.
+
+**[RISK] (confidence: 8/10) — Task 9 test is a shape test that passes without implementation.** Carried forward from prior review — unchanged in the fix commit.
+
+**[RISK] (confidence: 7/10) — WASM target build not verified until Task 8.** Carried forward from prior review — unchanged.
+
+**[RISK] (confidence: 7/10) — DTW memory usage on large scores.** Carried forward from prior review — unchanged.
+
+**[RISK] (confidence: 6/10) — `raw.chroma_frames` truthy check silently drops zero-frame chroma.** Carried forward from prior review — unchanged.
+
+### Summary
+
+| Category | Count |
+|----------|-------|
+| [BLOCKER] | 1 |
+| [RISK] | 5 |
+
+VERDICT: NEEDS_REWORK — `wsOutgoingMessageSchema` does not exist in `session-brain.schema.ts`; Task 6 Step 2e must create it before Task 7's test can pass. Fix: add `export const wsOutgoingMessageSchema = z.discriminatedUnion("type", [...])` to `session-brain.schema.ts` with the `chunk_bar_map` variant, and ensure the existing outgoing message shapes (`chunk_processed`, `connected`, `synthesis`, etc.) are included so the union is complete and Task 7's parse check is meaningful.
