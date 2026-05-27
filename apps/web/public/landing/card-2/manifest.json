@@ -1,0 +1,28 @@
+{
+  "pieceId": "bach.wtc1.prelude-c-major",
+  "title": "Prelude in C Major, BWV 846",
+  "era": "baroque",
+  "audioUrl": "/landing/card-2/recording.opus",
+  "scoreIRUrl": "/landing/card-2/scoreir.json",
+  "scoreSvgUrl": "/landing/card-2/score.svg",
+  "focusBar": 3,
+  "focusBarRange": [2, 4],
+  "diagnosis": "Bar 3 has a slight rush on the second arpeggio group — your timing score dips here. Isolate beats 3–4 and practice with a metronome at 80% tempo before returning to full speed.",
+  "exerciseUrl": "/landing/card-2/exercise.json",
+  "barTimeline": [
+    { "bar": 1, "tSec": 0.0 },
+    { "bar": 2, "tSec": 3.1 },
+    { "bar": 3, "tSec": 6.2 },
+    { "bar": 4, "tSec": 9.3 },
+    { "bar": 5, "tSec": 12.4 },
+    { "bar": 6, "tSec": 15.5 }
+  ],
+  "perBarScores": {
+    "1": { "dynamics": 0.80, "timing": 0.85, "pedaling": 0.78, "articulation": 0.82, "phrasing": 0.79, "interpretation": 0.81 },
+    "2": { "dynamics": 0.78, "timing": 0.80, "pedaling": 0.76, "articulation": 0.81, "phrasing": 0.77, "interpretation": 0.79 },
+    "3": { "dynamics": 0.79, "timing": 0.59, "pedaling": 0.77, "articulation": 0.80, "phrasing": 0.76, "interpretation": 0.78 },
+    "4": { "dynamics": 0.81, "timing": 0.84, "pedaling": 0.79, "articulation": 0.83, "phrasing": 0.80, "interpretation": 0.82 },
+    "5": { "dynamics": 0.82, "timing": 0.86, "pedaling": 0.80, "articulation": 0.84, "phrasing": 0.81, "interpretation": 0.83 },
+    "6": { "dynamics": 0.80, "timing": 0.85, "pedaling": 0.78, "articulation": 0.82, "phrasing": 0.79, "interpretation": 0.81 }
+  }
+}
