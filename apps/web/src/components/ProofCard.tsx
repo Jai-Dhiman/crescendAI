@@ -28,6 +28,9 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
       window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
 
+  const [duration, setDuration] = useState(30);
+  const [isPlaying, setIsPlaying] = useState(false);
+
   const { currentTime, setCurrentTime, qstampForTime } = useProofCardTimeline(
     audioRef,
     scoreIR,
@@ -138,13 +141,30 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
     function onError() {
       setLoadState("audio-failed");
     }
+    function onLoadedMetadata() {
+      setDuration(audio!.duration);
+    }
+    function onPlay() {
+      setIsPlaying(true);
+    }
+    function onPause() {
+      setIsPlaying(false);
+    }
     audio.addEventListener("timeupdate", onTimeUpdate);
     audio.addEventListener("ended", onEnded);
     audio.addEventListener("error", onError);
+    audio.addEventListener("loadedmetadata", onLoadedMetadata);
+    audio.addEventListener("durationchange", onLoadedMetadata);
+    audio.addEventListener("play", onPlay);
+    audio.addEventListener("pause", onPause);
     return () => {
       audio.removeEventListener("timeupdate", onTimeUpdate);
       audio.removeEventListener("ended", onEnded);
       audio.removeEventListener("error", onError);
+      audio.removeEventListener("loadedmetadata", onLoadedMetadata);
+      audio.removeEventListener("durationchange", onLoadedMetadata);
+      audio.removeEventListener("play", onPlay);
+      audio.removeEventListener("pause", onPause);
     };
   }, [cardIndex, setCurrentTime]);
 
@@ -270,7 +290,7 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
           {showPlayButton && (
             <button
               type="button"
-              aria-label={audioRef.current?.paused !== false ? "Play" : "Pause"}
+              aria-label={isPlaying ? "Pause" : "Play"}
               className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-accent text-cream"
               onClick={() => {
                 const audio = audioRef.current;
@@ -288,7 +308,7 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
           <input
             type="range"
             min={0}
-            max={audioRef.current?.duration ?? 30}
+            max={duration}
             step={0.1}
             value={currentTime}
             onChange={(e) => setCurrentTime(Number(e.target.value))}
