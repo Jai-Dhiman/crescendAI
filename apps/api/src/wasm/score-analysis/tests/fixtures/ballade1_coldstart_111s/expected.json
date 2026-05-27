@@ -1,0 +1,9 @@
+{
+  "bar_min_lo": 25,
+  "bar_min_hi": 35,
+  "bar_max_lo": 28,
+  "bar_max_hi": 40,
+  "n_frames": 751,
+  "decim_n": 76,
+  "cost_hi": 0.3
+}
