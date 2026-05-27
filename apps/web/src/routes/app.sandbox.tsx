@@ -6,6 +6,7 @@ import { ArtifactOverlay } from "../components/ArtifactOverlay";
 import { SegmentLoopArtifactCard } from "../components/cards/SegmentLoopArtifact";
 import { PlayPassageCard } from "../components/cards/PlayPassageCard";
 import { ArtifactScrollContext } from "../contexts/artifact-scroll";
+import { ScoreCursor } from "../lib/score-cursor";
 import { scoreRenderer } from "../lib/score-renderer";
 import type {
 	ExerciseSetConfig,
@@ -679,6 +680,219 @@ function ScoreClipPanel({
 	);
 }
 
+// Playback cursor demo. Loads a piece, renders page 1, instantiates ScoreCursor
+// with a synthetic qstampSource that sweeps wall-clock time -> qstamp. Pause
+// hides the cursor (qstampSource returns null). The sweep is clamped to page-1
+// bars so the visible cursor stays aligned with the rendered SVG; if it crossed
+// to page 2 in this single-page demo container, the overlay would visually jump
+// back to top-left (each overlay is absolutely positioned at 0,0 by design).
+function ScoreCursorPanel({ pieceId }: { pieceId: string }) {
+	const [error, setError] = useState<string | null>(null);
+	const [isPlaying, setIsPlaying] = useState(false);
+	const [ready, setReady] = useState(false);
+	const [maxQstamp, setMaxQstamp] = useState(0);
+	const [debug, setDebug] = useState({
+		q: 0,
+		lineX: 0,
+		lineVis: "?",
+		bar: 0,
+		overlayVB: "?",
+		verovioVB: "?",
+	});
+	const containerRef = useRef<HTMLDivElement>(null);
+	const cursorRef = useRef<ScoreCursor | null>(null);
+	const playStartedAtRef = useRef<number | null>(null);
+	const pausedOffsetRef = useRef<number>(0);
+	const maxQstampRef = useRef<number>(0);
+	const isPlayingRef = useRef(false);
+	isPlayingRef.current = isPlaying;
+	const lastQstampRef = useRef<number | null>(null);
+	const lastBarRef = useRef<number>(0);
+
+	// qstamp units per second of wall-clock; tuned for visible motion.
+	const QSTAMP_PER_SEC = 4;
+
+	useEffect(() => {
+		let cancelled = false;
+		async function setup() {
+			try {
+				const result = await scoreRenderer.load(pieceId);
+				if (cancelled) return;
+				if (result === "failed") {
+					setError("Score failed to load");
+					return;
+				}
+				const ir = scoreRenderer.getIR(pieceId);
+				if (!ir) {
+					setError("IR not available after load");
+					return;
+				}
+				const svg = await scoreRenderer.getPage(pieceId, 1);
+				if (cancelled || !containerRef.current) return;
+				// SVG is produced by our trusted Verovio worker over MXL files we control;
+				// matches the SvgPanel pattern used elsewhere in this sandbox.
+				containerRef.current.textContent = "";
+				containerRef.current.insertAdjacentHTML("afterbegin", svg);
+
+				// Clamp the sweep to bars whose pageN === 1 so the cursor stays on
+				// the rendered page. Falls back to first bar's end if no page-1 bars.
+				const page1End =
+					ir.bars
+						.filter((b) => b.pageN === 1)
+						.reduce((m, b) => Math.max(m, b.qstampEnd), 0) ||
+					ir.bars[0]?.qstampEnd ||
+					0;
+				maxQstampRef.current = page1End;
+				setMaxQstamp(page1End);
+
+				const cursor = new ScoreCursor({
+					pieceId,
+					container: containerRef.current,
+					ir,
+					qstampSource: () => {
+						if (!isPlayingRef.current || playStartedAtRef.current === null) {
+							lastQstampRef.current = null;
+							return null;
+						}
+						const elapsedSec =
+							(performance.now() - playStartedAtRef.current) / 1000;
+						const raw = pausedOffsetRef.current + elapsedSec * QSTAMP_PER_SEC;
+						const q = maxQstampRef.current > 0
+							? raw % maxQstampRef.current
+							: 0;
+						lastQstampRef.current = q;
+						// Find current bar for debug readout.
+						const bar = ir.bars.find(
+							(b) => b.qstampStart <= q && q < b.qstampEnd,
+						);
+						lastBarRef.current = bar?.barNumber ?? 0;
+						return q;
+					},
+				});
+				cursor.start();
+				cursorRef.current = cursor;
+				// Make the cursor's line bright + thick for the demo so it's
+				// obvious whether it's positioned and visible. Cursor module
+				// hardcodes #2563eb / width 2 — we override after start().
+				for (const overlay of Array.from(
+					containerRef.current.querySelectorAll("svg.score-cursor-overlay"),
+				)) {
+					const line = overlay.querySelector("line");
+					if (line) {
+						line.setAttribute("stroke", "#ef4444");
+						line.setAttribute("stroke-width", "6");
+					}
+				}
+
+				// Sample the cursor state ~10x/sec for a visible debug readout.
+				const debugInterval = window.setInterval(() => {
+					const containerEl = containerRef.current;
+					if (!containerEl) return;
+					const overlay = containerEl.querySelector(
+						"svg.score-cursor-overlay",
+					);
+					const line = overlay?.querySelector("line");
+					// The Verovio SVG is the first <svg> child that isn't our overlay.
+					const verovioSvg = Array.from(
+						containerEl.querySelectorAll("svg"),
+					).find((s) => !s.classList.contains("score-cursor-overlay"));
+					setDebug({
+						q: lastQstampRef.current ?? Number.NaN,
+						lineX: line ? Number(line.getAttribute("x1") ?? "0") : -1,
+						lineVis:
+							(line?.getAttribute("visibility") as string | null) ?? "?",
+						bar: lastBarRef.current,
+						overlayVB: overlay?.getAttribute("viewBox") ?? "?",
+						verovioVB: verovioSvg?.getAttribute("viewBox") ?? "?",
+					});
+				}, 100);
+				(cursor as unknown as { __debugInterval: number }).__debugInterval =
+					debugInterval;
+
+				setReady(true);
+			} catch (e) {
+				if (!cancelled) setError(String(e));
+			}
+		}
+		setup();
+		return () => {
+			cancelled = true;
+			const c = cursorRef.current as
+				| (ScoreCursor & { __debugInterval?: number })
+				| null;
+			if (c?.__debugInterval !== undefined) {
+				window.clearInterval(c.__debugInterval);
+			}
+			cursorRef.current?.stop();
+			cursorRef.current = null;
+		};
+	}, [pieceId]);
+
+	function handlePlayPause() {
+		if (isPlaying) {
+			if (playStartedAtRef.current !== null) {
+				const elapsedSec =
+					(performance.now() - playStartedAtRef.current) / 1000;
+				pausedOffsetRef.current += elapsedSec * QSTAMP_PER_SEC;
+			}
+			playStartedAtRef.current = null;
+			setIsPlaying(false);
+		} else {
+			playStartedAtRef.current = performance.now();
+			setIsPlaying(true);
+		}
+	}
+
+	function handleReset() {
+		pausedOffsetRef.current = 0;
+		if (isPlayingRef.current) {
+			playStartedAtRef.current = performance.now();
+		}
+	}
+
+	return (
+		<div className="flex flex-col gap-2">
+			<div className="flex gap-2 items-center">
+				<button
+					type="button"
+					onClick={handlePlayPause}
+					disabled={!ready}
+					className="px-3 py-1 bg-accent text-cream rounded text-body-sm disabled:opacity-50"
+				>
+					{isPlaying ? "Pause" : "Play"}
+				</button>
+				<button
+					type="button"
+					onClick={handleReset}
+					disabled={!ready}
+					className="px-3 py-1 border border-border text-text-secondary rounded text-body-sm disabled:opacity-50"
+				>
+					Reset
+				</button>
+				<span className="text-body-xs text-text-tertiary">
+					page-1 qstamp: 0 → {maxQstamp.toFixed(2)} (≈ {QSTAMP_PER_SEC}/sec, loops)
+				</span>
+			</div>
+			<div className="font-mono text-body-xs text-text-tertiary whitespace-pre">
+				{`DEBUG: q=${Number.isNaN(debug.q) ? "null" : debug.q.toFixed(2)} bar=${debug.bar} lineX=${debug.lineX.toFixed(1)} vis=${debug.lineVis}\n  overlayVB="${debug.overlayVB}"\n  verovioVB="${debug.verovioVB}"`}
+			</div>
+			{/* Status sits OUTSIDE the cursor container: ScoreCursor owns its container's
+			    DOM imperatively (appendChild overlays, textContent wipes), and React must
+			    not also be managing children inside it — otherwise the reconciler crashes
+			    with "node to be removed is not a child of this node" when React tries to
+			    unmount a child we already wiped. */}
+			{error && <p className="text-body-xs text-red-400">{error}</p>}
+			{!ready && !error && (
+				<p className="text-body-xs text-text-tertiary">Loading…</p>
+			)}
+			<div
+				ref={containerRef}
+				className="relative border border-border rounded-lg overflow-hidden bg-white [&>svg]:w-full [&>svg]:block"
+			/>
+		</div>
+	);
+}
+
 // Chopin Ballade No. 1 is ~264 bars. Tests span: opening, single-bar isolation,
 // first theme, likely page-boundary zone, climax, and final bars.
 const CLIP_TESTS: ClipTest[] = [
@@ -852,6 +1066,23 @@ function ArtifactSandbox() {
 								/>
 							))}
 						</div>
+					</section>
+
+					{/* Playback cursor — synthetic qstampSource sweep over page 1 */}
+					<section className="border border-border rounded-xl bg-surface-card p-5 flex flex-col gap-4">
+						<div>
+							<h2 className="font-display text-display-xs text-cream">
+								Playback Cursor
+							</h2>
+							<p className="text-body-sm text-text-secondary mt-1">
+								Loads the piece, calls scoreRenderer.getIR(), and instantiates
+								a ScoreCursor with a synthetic qstampSource that sweeps page-1
+								qstamps. Play/Pause toggles whether qstampSource returns a
+								number or null (null hides the cursor). Reset restarts the
+								sweep at qstamp 0.
+							</p>
+						</div>
+						<ScoreCursorPanel pieceId="chopin.ballades.1" />
 					</section>
 
 					{/* ScoreHighlight artifacts — tests the full artifact rendering pipeline */}
