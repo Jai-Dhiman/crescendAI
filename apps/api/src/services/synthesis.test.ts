@@ -108,7 +108,7 @@ describe('persistAccumulatedMoments reasoning_trace', () => {
     expect(insertedValues[0]?.reasoningTrace).toBe('rushing ahead of beat')
   })
 
-  it('writes JSON-stringified facts when llmAnalysis is non-null', async () => {
+  it('writes discriminated-union JSON with kind="facts" when llmAnalysis is non-null', async () => {
     const facts: BarAnalysisFacts = {
       tier: 1,
       bar_range: '4-7',
@@ -120,6 +120,32 @@ describe('persistAccumulatedMoments reasoning_trace', () => {
       { ...baseMoment, llmAnalysis: facts },
     ])
     const trace = insertedValues[0]?.reasoningTrace as string
-    expect(JSON.parse(trace)).toEqual(facts)
+    const parsed = JSON.parse(trace)
+    // Discriminant must be present so eval harnesses can detect structured facts
+    expect(parsed.kind).toBe('facts')
+    // All BarAnalysisFacts fields must survive round-trip
+    expect(parsed).toMatchObject(facts)
+  })
+
+  it('round-trip: kind="facts" JSON is not raw prose and contains all BarAnalysisFacts fields', async () => {
+    const facts: BarAnalysisFacts = {
+      tier: 2,
+      bar_range: '1-3',
+      selected: { dimension: 'dynamics', analysis: 'forte marking ignored' },
+      correlated: [{ dimension: 'phrasing', analysis: 'phrase shape flat' }],
+    }
+    const { mockDb, insertedValues } = makeMockDb()
+    await persistAccumulatedMoments(mockDb as never, 'stu-1', 'sess-1', 'conv-1', [
+      { ...baseMoment, dimension: 'dynamics', llmAnalysis: facts },
+    ])
+    const trace = insertedValues[0]?.reasoningTrace as string
+    const parsed = JSON.parse(trace)
+    expect(parsed.kind).toBe('facts')
+    expect(parsed.bar_range).toBe('1-3')
+    expect(parsed.selected.dimension).toBe('dynamics')
+    expect(parsed.correlated).toHaveLength(1)
+    // Must not be raw prose string (would corrupt eval prompt)
+    expect(typeof trace).toBe('string')
+    expect(trace).not.toMatch(/^Selected dimension/)
   })
 })

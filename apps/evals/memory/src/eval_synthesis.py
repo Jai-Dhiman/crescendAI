@@ -14,6 +14,7 @@ import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from shared.reasoning_trace_utils import decode_reasoning_trace
 from .memory_db import MemoryDB, SynthesizedFact
 from .scenarios import MemoryEvalScenario, load_all_scenarios
 
@@ -141,7 +142,7 @@ def build_synthesis_prompt(
                 delta = score - baseline
                 prompt += f"  Score: {score:.2f} (baseline: {baseline:.2f}, delta: {delta:+.2f})\n"
             if trace and trace != "{}":
-                prompt += f"  Reasoning: {trace}\n"
+                prompt += f"  Reasoning: {decode_reasoning_trace(trace)}\n"
         prompt += "\n"
 
     if teaching_approaches:
