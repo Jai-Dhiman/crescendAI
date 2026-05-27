@@ -1219,7 +1219,7 @@ git add apps/api/src/services/inference.ts apps/api/src/services/inference.test.
 **Files:**
 - Modify: `apps/api/src/do/session-brain.schema.ts`
 
-Note: Test runs in the node pool. No existing schema test file — create `session-brain.schema.test.ts` in the same directory. Add `src/do/**/*.test.ts` to the `include` list of `vitest.node.config.ts`.
+Note: Test runs in the node pool. No existing schema test file — create `session-brain.schema.test.ts` in the same directory. Add only the new test file as an explicit entry in `vitest.node.config.ts` — do NOT add a `src/do/**/*.test.ts` glob, which would pull `session-brain.unit.test.ts` (and `session-brain.test.ts`) into the node pool; those files transitively import `cloudflare:workers` and must stay in the workers pool (`vitest.config.ts`).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1261,7 +1261,7 @@ cd /Users/jdhiman/Documents/crescendai/apps/api && bun run vitest run --config v
 
 Expected: FAIL — `expect("followerState" in initial).toBe(false)` fails because `createInitialState` still returns `followerState`.
 
-Note: To make the `src/do/**/*.test.ts` glob work, first add it to `vitest.node.config.ts`'s `include` array:
+Note: To register the new test file in the node pool, add only the single explicit path to `vitest.node.config.ts`'s `include` array. Do NOT use a `src/do/**/*` glob — that would capture `session-brain.unit.test.ts` and `session-brain.test.ts`, which import from `session-brain.ts`, which has `import { DurableObject } from "cloudflare:workers"`. The node pool cannot resolve `cloudflare:workers` and both files would fail. `session-brain.schema.ts` has no Cloudflare imports and is safe to run in the node pool.
 
 ```typescript
 include: [
@@ -1271,7 +1271,7 @@ include: [
   "src/lib/**/*.test.ts",
   "src/harness/loop/**/*.test.ts",
   "src/services/**/*.test.ts",
-  "src/do/**/*.test.ts",  // add this line
+  "src/do/session-brain.schema.test.ts",  // explicit entry; do NOT use src/do/**/*.test.ts glob
 ],
 ```
 
@@ -2223,3 +2223,40 @@ VERDICT: NEEDS_REWORK — Task 3 vitest test cannot pass as written (WASM module
 | [RISK] | 5 |
 
 VERDICT: NEEDS_REWORK — `wsOutgoingMessageSchema` does not exist in `session-brain.schema.ts`; Task 6 Step 2e must create it before Task 7's test can pass. Fix: add `export const wsOutgoingMessageSchema = z.discriminatedUnion("type", [...])` to `session-brain.schema.ts` with the `chunk_bar_map` variant, and ensure the existing outgoing message shapes (`chunk_processed`, `connected`, `synthesis`, etc.) are included so the union is complete and Task 7's parse check is meaningful.
+
+---
+
+## Challenge Review — Loop 3 (re-review, third pass)
+
+### What changed since Loop 2
+
+**Loop 2 BLOCKER (wsOutgoingMessageSchema missing) — RESOLVED IN PLAN.** Task 6 Step 2e now explicitly states `wsOutgoingMessageSchema` does NOT currently exist and provides exact schema code to create it as a new export. Confirmed current `apps/api/src/do/session-brain.schema.ts` (145 lines) still has no `wsOutgoingMessageSchema` — the plan correctly instructs the build agent to create it.
+
+**Loop 1 BLOCKER 1 (Task 3 WASM null) — CONFIRMED RESOLVED.** The `vi.mock("./wasm-bridge", ...)` factory overrides `alignChunkChroma` to delegate to `mockRequireScoreAnalysis`. It does not call the real `requireScoreAnalysis()`. The `const mockAlignChunkChroma = vi.fn(); const mockRequireScoreAnalysis = vi.fn()` at module scope before `vi.mock(...)` is an established pattern confirmed working in the existing codebase (`apps/api/src/harness/atoms/assign-segment-loop.test.ts` lines 7-10 uses the identical pattern). SAFE.
+
+**Loop 1 BLOCKER 2 (Task 6 send-order) — CONFIRMED RESOLVED.** Task 6 Step 2e explicitly prohibits touching `chunk_processed` and sends `bar_per_frame` in a new `chunk_bar_map` message after bar analysis. `chromaResult` is computed and in scope at the send site.
+
+### New BLOCKER found in this pass
+
+**[BLOCKER] (confidence: 10/10) — Task 5 adds `"src/do/**/*.test.ts"` glob to `vitest.node.config.ts`, which causes two existing tests to fail with `Cannot find package 'cloudflare:workers'`.** Verified by running the test suite with the proposed glob added. `session-brain.unit.test.ts` (imports `buildV6WsPayload` from `session-brain.ts`) and `session-brain.test.ts` (imports `toEnrichedChunk` from `session-brain.ts`) both fail because `session-brain.ts` line 1 has `import { DurableObject } from "cloudflare:workers"`, which the node vitest environment cannot resolve. `passage-loop-detector.test.ts` passes (it imports only from `passage-loop-detector.ts`, which has no `cloudflare:workers` import). The new `session-brain.schema.test.ts` and modified `session-brain.unit.test.ts` from Tasks 5 and 7 will also break for the same reason when their tests run and vitest tries to load the full module graph. Fix options (pick one): (a) add explicit file paths to the config instead of the glob: add `"src/do/session-brain.schema.test.ts"` and `"src/do/session-brain.unit.test.ts"` as individual entries in the `include` array; (b) add a `moduleNameMapper` alias in `vitest.node.config.ts` that maps `cloudflare:workers` to a stub file; (c) mock `cloudflare:workers` in `scripts/test-setup-node.ts`. Option (a) is the most surgical and carries zero risk of breaking other tests.
+
+### Remaining concerns (non-blocking, carried forward)
+
+**[RISK] (confidence: 7/10) — Task 7 test uses `require("./session-brain.schema")` inside a test body.** No existing test in the node pool uses CJS-style `require()`. The project uses ESM (`"type": "module"` or equivalent). In vitest 3.x with ESM, `require()` is not available in module scope and may not be available at runtime inside a test body. The correct pattern is `const { wsOutgoingMessageSchema } = await import("./session-brain.schema")` — or import it at the top of the file. Verify this is not a blocker by running Step 2 of Task 7. If `require is not defined`, change to a dynamic `await import(...)`.
+
+**[RISK] (confidence: 8/10) — Task 9 test is a shape test that passes without implementation.** Carried forward from all prior reviews. The test constructs its own result dict — it does not call `handler.__call__()`. The test will pass before the implementation in Task 9 Step 3 is done.
+
+**[RISK] (confidence: 7/10) — WASM target build not verified until Task 8.** `cargo test` runs natively; `cargo build --target wasm32-unknown-unknown` or `wasm-pack build` is never run in the plan until Task 8's Step 3. A wasm32-specific compilation failure in `chroma_dtw.rs` would hide until late. Add `wasm-pack build` to Task 1 Step 4 verification.
+
+**[RISK] (confidence: 7/10) — DTW memory usage on large scores.** 750 audio frames × 90,000 score frames (30-min score) × 4 bytes = 270 MB DTW matrix, exceeding CF Workers' 128 MB limit. Graceful degradation via try/catch exists, but a score-length guard in `chroma_dtw_native` would prevent silent OOM panics.
+
+**[RISK] (confidence: 6/10) — `raw.chroma_frames` truthy check silently drops zero-frame chroma.** In `parseMuqResponse` (Task 4), the condition `raw.chroma_b64 !== undefined && raw.chroma_frames !== undefined && raw.chroma_frames !== null` uses `!== null` but the TypeScript type is `number | undefined`, so `null` cannot appear at runtime — the redundant `!== null` check is harmless, but the check does not guard against `raw.chroma_frames === 0` (falsy integer). Use `raw.chroma_frames > 0` instead to be explicit.
+
+### Summary
+
+| Category | Count |
+|----------|-------|
+| [BLOCKER] | 1 |
+| [RISK] | 5 |
+
+VERDICT: NEEDS_REWORK — Task 5's addition of `"src/do/**/*.test.ts"` to `vitest.node.config.ts` causes `session-brain.unit.test.ts` and `session-brain.test.ts` to fail with `Cannot find package 'cloudflare:workers'` (verified by running the glob). Fix: replace the glob with two explicit file entries: `"src/do/session-brain.schema.test.ts"` and `"src/do/session-brain.unit.test.ts"`. All three previously identified blockers from Loops 1 and 2 are confirmed resolved in the current plan text.

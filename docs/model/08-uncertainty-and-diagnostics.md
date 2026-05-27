@@ -109,12 +109,16 @@ player, do the model's predictions actually shift?" If d < 0.4 across all
 dims, the model isn't discriminating skill at all — that's an independent
 failure mode from collapse and is more urgent to fix.
 
-### gate_value_stats
+### stream_disagreement_stats
 
-For fusion models only (once MuQ+Aria fusion lands). Mean, std, and
-10-bin histogram of gate activations per dimension. If a dim's gate is always
-on one encoder, the other encoder is redundant for that dim. Stuck-at-0 or
-stuck-at-1 gates indicate the fusion didn't learn anything per-dim-specific.
+For dual-stream models (once MuQ + Aria parallel streams land — superseded
+gated fusion 2026-05-27). For each dimension d, compute distribution of
+`|audio_scores[d] - symbolic_scores[d]|` across chunks. High mean disagreement
+on a dimension means the streams are genuinely seeing different things —
+diagnostic value for the teacher LLM. Near-zero disagreement on a dimension
+across many recordings means one stream is redundant for that dim (consider
+dropping it). Tracked alongside per-stream score distributions, not as a
+fusion-gate replacement.
 
 ---
 

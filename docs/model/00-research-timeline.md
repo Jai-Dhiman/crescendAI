@@ -32,11 +32,13 @@ See `docs/model/03-encoders.md` for Aria rationale and benchmarks.
 
 All MuQ inference runs on the HuggingFace inference endpoint. No on-device ML / Core ML conversion planned. This simplifies the iOS architecture -- the app captures audio and sends chunks to the API worker, which forwards to HF and runs STOP classifier logic server-side.
 
-### Fusion Strategy: Separate-Then-Fuse (decided 2026-03-18)
+### Encoder-Combination Strategy: Parallel Streams (decided 2026-05-27, supersedes Separate-Then-Fuse)
 
-See `docs/model/03-encoders.md` for gated fusion architecture and training protocol.
+See `docs/model/03-encoders.md` for parallel-stream architecture and training protocol.
 
-Train MuQ (audio) and Aria (symbolic) independently. Measure error correlation on clean folds. Fuse with per-dimension learned gates. Previous attempt (ISMIR paper): fusion R2=0.524 < audio-only R2=0.537 (on leaked folds). Error correlation r=0.738. Aria's 820K-MIDI pretraining should break this correlation.
+Train MuQ (audio) and Aria (symbolic) independently. Each emits its own 6-dim quality scores via a small per-dimension head on its frozen backbone. **No learned fusion gates.** Both stream outputs — plus deterministic MPM-style features extracted from AMT + score alignment — go to the teacher LLM, which acts as the cross-modal reasoner in natural language. Disagreement between streams is a feature for the teacher to communicate ("perceptually solid but technically loose"), not a signal to be collapsed away.
+
+**Why this pivot (2026-05-27):** The empirical case for *combining* MuQ + Aria still holds — phi=0.043 error correlation means the two encoders make independent mistakes, so each contributes genuinely independent information. What changed is *how* we combine: (1) labeled data scale doesn't justify training robust per-dim fusion gates; (2) disagreement is more useful to the teacher LLM than a single fused score; (3) failure isolation — an Aria bug can't corrupt audio judgments; (4) interpretability — the teacher cites stream outputs, not gate weights; (5) the product metric (ASCF, 1.387/3.0) is bottlenecked on teacher signal richness, not per-dim score precision. Historical: ISMIR paper fusion R2=0.524 < audio-only R2=0.537 on leaked folds (r=0.738 error correlation). Aria broke that correlation but we no longer need to fuse to exploit it. See [[project_parallel_streams_decision]] in memory.
 
 ### Aria Validation Complete -- Phase A (2026-03-19)
 
@@ -48,7 +50,7 @@ Linear probe on frozen embeddings, 4-fold piece-stratified CV on PercePiano (cle
 | Aria-Base (1536d) | 59.6% | -4.78 | 62.5% | 58.0% | 60.7% | 54.3% | 54.8% | 62.3% |
 | MuQ (1024d, mean-pooled) | 62.2% | -1.90 | 72.4% | 67.5% | 66.6% | 54.7% | 60.9% | 63.9% |
 
-**Error correlation phi = 0.043** (near-zero). This dramatically validates the fusion strategy: S2's correlation was r=0.738 (redundant), Aria's is 0.043 (independent). The 18x reduction in error correlation means fusion should produce substantial gains.
+**Error correlation phi = 0.043** (near-zero). This dramatically validates the dual-encoder strategy: S2's correlation was r=0.738 (redundant), Aria's is 0.043 (independent). The 18x reduction in error correlation means MuQ and Aria genuinely see different things — which justifies parallel streams (post-2026-05-27 decision) just as well as it would have justified fusion. Independent errors = independent information, whether you fuse with gates or expose both to the teacher LLM.
 
 **Interpretation:**
 - Both Aria variants perform identically (59.6%). Contrastive fine-tuning for the embedding variant neither helped nor hurt quality sensitivity.
@@ -56,7 +58,7 @@ Linear probe on frozen embeddings, 4-fold piece-stratified CV on PercePiano (cle
 - MuQ dominates on dynamics and timing. Aria's advantage should emerge after quality-aware training.
 - Negative R2 values indicate frozen embeddings predict poorly in absolute terms (expected for a linear probe on representations not trained for this task).
 
-**Decision:** Proceed to Phase B (contrastive pretraining) and Phase C (LoRA fine-tuning). The marginal frozen performance combined with near-zero error correlation confirms Aria is worth investing in for fusion.
+**Decision:** Proceed to Phase B (contrastive pretraining) and Phase C (LoRA fine-tuning). The marginal frozen performance combined with near-zero error correlation confirms Aria is worth investing in as a parallel stream alongside MuQ.
 
 Scripts: `model/src/model_improvement/aria_embeddings.py`, `aria_linear_probe.py`. Results: `model/data/results/aria_validation.json`.
 
@@ -93,7 +95,7 @@ The YouTube AMT validation (79.9% agreement on 50 mediocre recordings) serves as
 
 **Symbolic path (Aria):** Aria 650M frozen or LoRA-adapted. Takes performance MIDI + score MIDI as dual input. Outputs z_perf, z_score, and delta = z_perf - z_score. Contrastive pretrain on T2+T5 (using AMT MIDI), then fine-tune.
 
-**Fusion:** See `docs/model/03-encoders.md` for gated fusion architecture and training protocol.
+**Stream combination:** See `docs/model/03-encoders.md` for parallel-stream architecture and training protocol (replaced gated fusion 2026-05-27).
 
 ### Evaluation Framework
 
@@ -101,7 +103,7 @@ The YouTube AMT validation (79.9% agreement on 50 mediocre recordings) serves as
 2. **Within-level pairwise (secondary):** Pairwise accuracy on PercePiano (piece-stratified folds) and within-bucket YouTube pairs.
 3. **Per-dimension skill sensitivity:** Which dims show strongest skill-level signal?
 4. **Cross-piece generalization:** Hold out entire pieces from training -- does skill discrimination transfer?
-5. **Error decorrelation (fusion):** Measure error correlation between MuQ and Aria paths. Fusion is only worth pursuing if correlation drops below ~0.5 (was 0.738 with S2). **Phase A result: phi=0.043 -- gate passed decisively.**
+5. **Error decorrelation (dual-encoder viability):** Measure error correlation between MuQ and Aria paths. Combining encoders is only worth pursuing if correlation drops below ~0.5 (was 0.738 with S2). **Phase A result: phi=0.043 — gate passed decisively.** Note (2026-05-27): this validation now justifies parallel streams rather than gated fusion, but the underlying error-decorrelation test is unchanged.
 
 ### Timeline (5-6 weeks)
 
@@ -117,16 +119,16 @@ The YouTube AMT validation (79.9% agreement on 50 mediocre recordings) serves as
 - Aria fine-tune on all tiers (performance MIDI + score MIDI input)
 - Skill discrimination checkpoint after each
 
-**Week 5: Fusion + evaluation**
+**Week 5: Parallel-stream heads + MPM extraction + evaluation** [updated 2026-05-27]
 
-- Measure error correlation between MuQ and Aria
-- If decorrelated: train per-dimension gates on T1
-- Full evaluation: skill discrimination, pairwise, cross-piece generalization
+- Train small per-dimension heads on top of frozen MuQ and Aria backbones (no learned gates)
+- Build MPM-style extraction on AMT output (split tempo/rubato, fit dynamics transition curves, structured serialization)
+- Full evaluation: skill discrimination, pairwise, cross-piece generalization, **per-dimension stream-disagreement statistics**
 
 **Week 6: Deploy + iterate**
 
-- Deploy best model (single or fused) to HF endpoint
-- Run pipeline evals with new model
+- Deploy MuQ + Aria parallel-stream endpoints + extraction module
+- Run pipeline evals with new model; re-run ASCF eval with enriched teacher briefing
 - ISMIR paper update with clean-fold results
 
 ---
@@ -254,11 +256,12 @@ See "Model v2 Plan" section above for full details.
 - MuQ: LoRA fine-tune on T1+T2+T3+T5 (piece-stratified CV)
 - Aria: LoRA fine-tune on T1+T2+T3+T5 (performance MIDI + score MIDI)
 
-**0e. Fusion evaluation**
+**0e. Dual-stream evaluation** [updated 2026-05-27]
 
-- Measure error correlation between MuQ and Aria
-- If decorrelated: per-dimension learned gates
-- If still correlated: ship best single encoder, revisit fusion later
+- Measure error correlation between MuQ and Aria streams (validates that both contribute independent information)
+- If decorrelated: ship parallel streams; both feed teacher LLM
+- If still correlated: ship best single encoder, revisit dual-stream value
+- Note: original plan was "fusion gates if decorrelated." Replaced with parallel streams 2026-05-27; the decorrelation gate itself is unchanged.
 
 ### Phase 1: Score Infrastructure (COMPLETE)
 
@@ -366,12 +369,13 @@ The original Wave 2 (new data + robustness) and Wave 3 (score-conditioned model)
 - **Does masterclass feedback transfer to intermediate students?** Partially yes. LLM generates good intermediate-level feedback from 6-dim scores without modification.
 - **Does symbolic signal survive AMT?** Yes. Studio: 0% drop. YouTube mediocre audio: 79.9% A1-vs-S2 agreement. AMT is production-viable.
 - **Does the model work on phone/mediocre audio?** Pseudo-validated. YouTube AMT test (50 recordings from phone/home setups) shows 79.9% cross-encoder agreement, all dimensions > 72%.
-- **Does audio-symbolic fusion help?** No, with S2. ISMIR paper: fusion R2=0.524 < audio-only 0.537. Error correlation r=0.738. Revisiting with Aria (pretrained symbolic FM should decorrelate errors).
+- **Does audio-symbolic fusion help?** No, with S2. ISMIR paper: fusion R2=0.524 < audio-only 0.537. Error correlation r=0.738. With Aria, error correlation dropped to phi=0.043. *However* (2026-05-27): we replaced fusion entirely with parallel streams — disagreement between MuQ and Aria becomes a feature for the teacher LLM rather than something to collapse via gates. The "does fusion help" question is now moot; the relevant question is "does the teacher LLM produce better feedback when given both streams + MPM-style features rather than a single fused score." Tracked via ASCF eval (1.387/3.0 baseline).
 - **Do we need to build our own symbolic FM?** No. Aria (EleutherAI, 650M params, 820K MIDIs, Apache 2.0) is SOTA on 6 MIR benchmarks. Phase 3 eliminated.
 
 ### Open
 
-- **Aria error decorrelation:** Does Aria's pretrained representation produce errors decorrelated from MuQ? If correlation stays >0.6, fusion still won't help. Critical experiment in Week 5 of model v2 plan.
+- **Aria error decorrelation:** Does Aria's pretrained representation produce errors decorrelated from MuQ? If correlation stays >0.6, both fusion AND parallel-stream-disagreement-as-signal lose value. Critical experiment in Week 5 of model v2 plan. (Phase A frozen-probe result phi=0.043 is encouraging but needs to hold after LoRA fine-tuning.)
+- **MPM bucket enrichment (hypothesis, 2026-05-27):** Can per-bar MPM-style features extracted from T5 recordings act as auxiliary supervision to give the parallel-stream heads stronger per-bucket signals? Four-stage validation gates documented in [[project_mpm_bucket_enrichment]] (extraction stability → bucket-MPM correlation → discriminative power → aux-loss training benefit). Gated on completion of the MPM extraction enhancement work being designed in a separate brainstorm. Do not advance to aux-loss training until Gates 1-3 clear. Cargo-cult guardrail: MPM features are auxiliary supervision only, never primary inputs at inference.
 - ~~**Clean-fold baseline:**~~ **ANSWERED (2026-03-19).** A1-Max on clean piece-stratified folds: 77.5% pairwise with original weights, **79.85% with optimized weights** (4-fold mean). R2 improved from 0.119 to 0.336. Optimized: contrastive=0.6, regression=0.8. Best-checkpoint loading fix also contributed. Only ~1pp below leaked 80.8%, confirming leak inflation was modest (~1pp, not the feared ~3pp).
 - **Rubato detection algorithm:** Compensatory return analysis designed (see `04-north-star.md`). Decision: confidence threshold + silence (only flag timing when clearly NOT rubato). Needs validation on real student recordings. Phase 2.
 - **Dynamics "amount" vs "appropriateness":** Competition correlation is inverted (rho=-0.917). Aria's score conditioning (delta = z_perf - z_score) should fix this at the model level. Phase 1's bar-aligned analysis partially addresses via LLM reasoning ("score says pp").

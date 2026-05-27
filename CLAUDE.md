@@ -7,7 +7,7 @@ Multi-platform (iOS + web) practice companion for pianists.
 ## What CrescendAI Does
 
 - Evaluates *how* a piano performance sounds (tone, dynamics, phrasing, pedaling) -- not just note accuracy like MIDI-based apps
-- Uses dual encoders -- MuQ (audio, finetuned) and Aria (symbolic, 650M-param pretrained from EleutherAI) -- with gated fusion, outputting 6 teacher-grounded dimensions: dynamics, timing, pedaling, articulation, phrasing, interpretation
+- Uses dual encoders -- MuQ (audio, finetuned) and Aria (symbolic, 650M-param pretrained from EleutherAI) -- as parallel streams (not gated fusion); each emits its own 6-dim quality scores plus a deterministic MPM-style feature extraction from AMT. The teacher LLM is the cross-modal reasoner; disagreement between streams is signal, not noise.
 - Target users: self-learners (B2C), music educators (B2B), institutions (B2B)
 - Competitors (Simply Piano, Flowkey, Piano Marvel) check note accuracy via MIDI; CrescendAI evaluates musical expression from audio
 
@@ -18,7 +18,7 @@ See `docs/architecture.md` for the full system design. Key points:
 
 ## Model Strategy
 
-- **Model v2:** MuQ (audio, pretrained on 160K hrs) + Aria (symbolic, pretrained on 820K MIDIs) with gated fusion
+- **Model v2:** MuQ (audio, pretrained on 160K hrs) + Aria (symbolic, pretrained on 820K MIDIs) as parallel streams; both stream outputs + MPM-style extracted features go to the teacher LLM
 - **Score conditioning:** delta = z_perf - z_score when score MIDI available
 - **Training:** PercePiano anchor (20%) + ordinal-dominated (80%) with T2 competition + T5 YouTube Skill data
 

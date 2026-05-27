@@ -2,7 +2,7 @@
 
 Vision document for the ideal piano performance evaluation system, from recording to actionable feedback. Captures the complete 8-stage pipeline, phased implementation roadmap, and the rationale behind every architectural decision.
 
-> **Status (2026-03-19):** Vision document. **Phase 1 (score infrastructure) COMPLETE.** Phase 0+3 collapsed into "Model v2" (Aria + MuQ + gated fusion). Clean-fold baseline optimized: **A1-Max 79.85% pairwise, R2=0.336** (4-fold mean, optimized weights). E1 audio gate PASSED (>75%). See `03-encoders.md` for encoder details and Aria architecture.
+> **Status (2026-05-27):** Vision document. **Phase 1 (score infrastructure) COMPLETE.** Phase 0+3 collapsed into "Model v2" (Aria + MuQ as parallel streams + MPM-style extracted features, replacing earlier gated fusion plan — see [[project_parallel_streams_decision]]). Clean-fold baseline optimized: **A1-Max 79.85% pairwise, R2=0.336** (4-fold mean, optimized weights). E1 audio gate PASSED (>75%). See `03-encoders.md` for encoder details and Aria architecture.
 
 ---
 
@@ -10,7 +10,7 @@ Vision document for the ideal piano performance evaluation system, from recordin
 
 The current system evaluates performance quality in absolute terms. The perfect system evaluates quality *relative to what the score asks for.* This single shift fixes the dynamics inversion (rho=-0.917 in competition -- the model captures "amount" not "appropriateness"), enables rubato detection, and transforms feedback from "dynamics score 0.35" to "the crescendo in bars 12-16 doesn't reach the forte Chopin marked."
 
-80% of the user-facing improvement comes from the harness giving the LLM better context (bar-aligned musical facts, reference comparisons, resolved entities, evidence chains from signals to facts), not from changing the model itself. The remaining 20% comes from Aria + MuQ gated fusion with score conditioning that evaluates relative to the score at the architecture level.
+80% of the user-facing improvement comes from the harness giving the LLM better context (bar-aligned musical facts, reference comparisons, resolved entities, evidence chains from signals to facts), not from changing the model itself. The remaining 20% comes from Aria + MuQ as parallel streams (each emitting its own 6-dim quality scores) with Aria's stream score-conditioned via delta = z_perf - z_score, plus MPM-style features extracted deterministically from AMT + score alignment. The teacher LLM consumes all three signals and uses disagreement between audio and symbolic streams as diagnostic information.
 
 The "better context" phrase is load-bearing: it does not mean larger prompts. It means a harness that resolves identity before reasoning, carries evidence chains from signals to claims, and loads atomic pedagogical skills on demand rather than running a monolithic teacher prompt. See `docs/harness.md` for the layer where that 80% is built.
 
@@ -39,7 +39,7 @@ USER PRESSES RECORD
    z_perf   = Aria (performance MIDI embedding)
    z_score  = Aria (score MIDI embedding)
    delta    = z_perf - z_score (deviation from written intent)
-   Per-dimension gated fusion with learned routing
+   Per-dimension parallel-stream heads + MPM-style feature extraction (no learned fusion gates; teacher LLM is cross-modal reasoner)
    Output: 6 relative dimension assessments (quality vs. what was written)
         |
         v
@@ -93,7 +93,7 @@ The model v2 system targets 8 perceptual capabilities, from immediate inference 
 |---|-----------|-------------|---------|--------|
 | 1 | **AMT** | Automatic music transcription (audio -> MIDI) | ByteDance piano transcription | DEPLOYED |
 | 2 | **Piece identification** | Fuzzy matching against score library | Score following (DTW) | COMPLETE |
-| 3 | **Quality assessment** | 6-dimension relative quality scoring | MuQ + Aria (gated fusion) | BASELINE ESTABLISHED (clean folds: 77.5% pairwise, optimized weights found) |
+| 3 | **Quality assessment** | 6-dimension relative quality scoring | MuQ + Aria (parallel streams + MPM extraction, supersedes gated fusion 2026-05-27) | BASELINE ESTABLISHED (clean folds: 77.5% pairwise, optimized weights found) |
 | 4 | **Skill level** | Beginner/intermediate/advanced classification | MuQ + Aria (ordinal training) | NOT STARTED (A1-Max has zero discrimination) |
 | 5 | **STOP detection** | "Would a teacher stop here?" | Logistic regression on scores | COMPLETE (needs retrain on clean folds) |
 | 6 | **Difficulty estimation** | Per-passage technical difficulty | Score analysis + reference stats | COMPLETE (score infrastructure) |
@@ -102,9 +102,9 @@ The model v2 system targets 8 perceptual capabilities, from immediate inference 
 
 ---
 
-## Aria + MuQ Gated Fusion (Stage 2 Detail)
+## Aria + MuQ Parallel Streams (Stage 2 Detail) [updated 2026-05-27]
 
-See `docs/model/03-encoders.md` for gated fusion architecture and training protocol.
+See `docs/model/03-encoders.md` for parallel-stream architecture and training protocol. The Aria + MuQ pair now emits two parallel `quality_scores[6]` outputs (audio_scores from MuQ, symbolic_scores from Aria with score conditioning) rather than a single fused score per dimension. Stream disagreement is exposed to the teacher LLM. Replaces gated fusion; see [[project_parallel_streams_decision]] for the rationale.
 
 ### What Score Conditioning Fixes
 
@@ -124,7 +124,7 @@ See `docs/model/03-encoders.md` for gated fusion architecture and training proto
 | Tier | Metric | Requirement | Purpose |
 |------|--------|-------------|---------|
 | **E1** | T5 skill discrimination (pairwise, val split) | > 70% cross-bucket accuracy | Primary metric: can model rank skill levels? Single train/val/test split. |
-| **E2** | Per-dimension error correlation | r < 0.5 between audio and symbolic | Fusion viability gate |
+| **E2** | Per-dimension error correlation | r < 0.5 between audio and symbolic | Dual-encoder viability gate (was "fusion viability" pre-2026-05-27; same test, same threshold, parallel-stream interpretation now) |
 | **E3** | Skill-level discrimination | Cohen's d > 0.8 between adjacent levels | Multi-tier training validation |
 
 ### Deployment Validation (E4-E6)
@@ -261,7 +261,7 @@ Built: score MIDI library (242 pieces), cloud AMT service, score following (DTW)
 
 Result: Same A1-Max scores, but teacher says "In bars 12-16, the crescendo is timid" instead of "dynamics score 0.35."
 
-### Model v2: Aria + MuQ + Gated Fusion (2-4 months, engineering + ML)
+### Model v2: Aria + MuQ Parallel Streams + MPM Extraction (2-4 months, engineering + ML) [updated 2026-05-27]
 
 *Collapses previous Phase 0 (A2 multi-tier) and Phase 3 (Symbolic FM) into a single effort.*
 
@@ -270,13 +270,13 @@ Build:
 - ~~Retrain A1-Max on clean piece-stratified folds (establish valid baselines)~~ DONE (2026-03-19): 77.5% pairwise (4-fold, original weights). Loss weights optimized via autoresearch: contrastive=0.6, regression=0.8.
 - Fine-tune Aria on PercePiano (performance MIDI + score MIDI)
 - Quality-aware contrastive pretraining for both encoders
-- Per-dimension gated fusion with score conditioning (delta = z_perf - z_score)
+- Per-dimension parallel-stream heads on frozen MuQ + LoRA-adapted Aria backbones (no learned fusion gates); score conditioning baked into the Aria stream via delta = z_perf - z_score; MPM-style features (split tempo/rubato, dynamics curve fitting, articulation ratios) extracted deterministically from AMT output and passed to teacher LLM alongside both stream scores
 - Ordinal-dominated training (80% competition data, 20% PercePiano)
 - Skill-level discrimination via multi-tier training data
 
-Result: Score-conditioned dual-encoder scoring. Dynamics inversion fixed. Skill-level separation. Fusion viable because both encoders now have comparable pretraining scale.
+Result: Score-conditioned dual-encoder scoring exposed as parallel streams. Dynamics inversion fixed (via Aria's score conditioning). Skill-level separation. Disagreement between streams becomes a teacher-LLM input rather than a value to be collapsed. Both encoders contribute independent information (phi=0.043 error correlation validates this), which justifies parallel streams without needing learned fusion gates.
 
-Eval gates: E1-E3 (see Eval Tier Requirements above). Error correlation r < 0.5 required before fusion ships. **Phase A validation (2026-03-19): phi=0.043 -- gate passed. Frozen Aria 59.6% pairwise (marginal), frozen MuQ 62.2% (confirmed). Proceed to contrastive pretraining + LoRA fine-tuning.**
+Eval gates: E1-E3 (see Eval Tier Requirements above). Error correlation r < 0.5 required before dual-encoder shipping. **Phase A validation (2026-03-19): phi=0.043 -- gate passed. Frozen Aria 59.6% pairwise (marginal), frozen MuQ 62.2% (confirmed). Proceed to contrastive pretraining + LoRA fine-tuning.** (Same gate threshold under 2026-05-27 parallel-stream architecture; only the *use* of decorrelated errors changed, from fusion gates to parallel exposure.)
 
 ### Phase 2: Temporal + Practice Intelligence (2-3 months, engineering)
 
@@ -321,7 +321,7 @@ Depends on Model v2 (architecture to retrain). Cost: ~$50-100K for annotation ca
 | 1: AMT | <1s (parallel with MuQ) | ~$0.01 |
 | 2: MuQ scoring | <2s | ~$0.02 |
 | 2: Aria scoring (perf + score) | <1s (parallel with MuQ) | ~$0.01 |
-| 2: Gated fusion | <100ms | Negligible |
+| 2: Parallel streams (MuQ + Aria heads) | <100ms each, run concurrently | Negligible |
 | 3-5: Analysis + selection | <500ms total | Negligible |
 | 6: Subagent | <500ms | ~$0.001 |
 | 7: Teacher | <1.5s | ~$0.01 |
@@ -337,9 +337,9 @@ Aria inference runs in parallel with MuQ on the same HF endpoint (or a separate 
 |----------|--------|-----------|
 | Symbolic encoder | Aria (EleutherAI, 650M) | SOTA on 6 benchmarks, 820K MIDI pretraining, Apache 2.0, eliminates 6-12mo custom FM research |
 | Score conditioning | Immediate (via Aria delta) | Aria encodes both perf and score MIDI natively; no reason to defer |
-| Fusion strategy | Separate-then-fuse with learned gates | Measure error correlation before committing; per-dimension routing |
+| Encoder-combination strategy | Parallel streams (updated 2026-05-27, replaces gated fusion) | Measure error correlation as viability gate; both stream outputs + MPM extraction feed the teacher LLM; disagreement is signal, not noise |
 | Training data mix | 20% PercePiano + 80% ordinal | Expert annotations as anchor, competition data for scale |
-| Contrastive pretraining | Symmetric (both MuQ and Aria) | Both encoders get quality-aware embeddings before fusion |
+| Contrastive pretraining | Symmetric (both MuQ and Aria) | Both encoders get quality-aware embeddings to make their independent per-stream quality scores more reliable |
 | Data strategy | Reference-anchored (MAESTRO) | No new annotation needed; ranking signal from multiple performers of same piece |
 | Temporal focus | Rubato + passage repetition | Highest user value; concrete, testable; skip harder narrative-arc problem |
 | Sequencing | Score infrastructure first, then Model v2 | 80% of user-facing improvement from better LLM context |
@@ -353,7 +353,7 @@ Aria inference runs in parallel with MuQ on the same HF endpoint (or a separate 
 
 | Component | Status | Role in Perfect Pipeline |
 |-----------|--------|-------------------------|
-| A1-Max (deployed, numbers invalid) | DEPLOYED (needs retrain) | Audio encoder for gated fusion |
+| A1-Max (deployed, numbers invalid) | DEPLOYED (needs retrain) | Audio stream encoder (parallel-stream architecture, 2026-05-27) |
 | MuQ backbone (160K hrs) | DEPLOYED | Pretrained audio foundation |
 | Aria base + embedding | AVAILABLE (HuggingFace) | Symbolic encoder, score encoder |
 | STOP classifier (AUC 0.649) | COMPLETE (needs retrain) | Upgraded with score context |
