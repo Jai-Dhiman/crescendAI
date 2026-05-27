@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { buildV6WsPayload } from "./session-brain";
 import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
+import { parseMuqResponse } from "../services/inference";
+import { wsOutgoingMessageSchema } from "./session-brain.schema";
 
 const HEADLINE =
 	"You showed up and put in real work today. The session was short but focused, and we'll keep building from here. There is plenty to dig into next time, and I'll be ready when you are. Keep listening for the shape of each phrase as you play. " +
@@ -57,5 +59,85 @@ describe("buildV6WsPayload", () => {
 		const payload = buildV6WsPayload(ARTIFACT_WITH_LOOP, [loopComp]);
 		expect(payload.components).toHaveLength(1);
 		expect(payload.components[0]?.type).toBe("segment_loop");
+	});
+});
+
+describe("parseMuqResponse chroma extraction", () => {
+	it("returns chromaBytes=null when response has no chroma_b64", () => {
+		const raw = {
+			predictions: {
+				dynamics: 0.6,
+				timing: 0.7,
+				pedaling: 0.5,
+				articulation: 0.8,
+				phrasing: 0.65,
+				interpretation: 0.72,
+			},
+		};
+		const result = parseMuqResponse(raw);
+		expect(result.chromaBytes).toBeNull();
+		expect(result.chromaFrames).toBe(0);
+	});
+
+	it("returns decoded chromaBytes when chroma_b64 present", () => {
+		const nFrames = 5;
+		const buf = new Uint8Array(12 * nFrames * 4).fill(127);
+		const b64 = btoa(String.fromCharCode(...buf));
+		const raw = {
+			predictions: {
+				dynamics: 0.6,
+				timing: 0.7,
+				pedaling: 0.5,
+				articulation: 0.8,
+				phrasing: 0.65,
+				interpretation: 0.72,
+			},
+			chroma_b64: b64,
+			chroma_frames: nFrames,
+			chroma_frame_rate_hz: 50.0,
+		};
+		const result = parseMuqResponse(raw);
+		expect(result.chromaBytes).not.toBeNull();
+		expect(result.chromaBytes!.byteLength).toBe(12 * nFrames * 4);
+		expect(result.chromaFrames).toBe(nFrames);
+		expect(result.chromaFrameRateHz).toBe(50.0);
+	});
+
+	it("throws InferenceError when MuQ response missing a dimension", () => {
+		const raw = {
+			predictions: {
+				dynamics: 0.6,
+				// timing missing
+				pedaling: 0.5,
+				articulation: 0.8,
+				phrasing: 0.65,
+				interpretation: 0.72,
+			},
+		};
+		expect(() => parseMuqResponse(raw as Parameters<typeof parseMuqResponse>[0])).toThrow(
+			"MuQ response missing dimensions: timing",
+		);
+	});
+});
+
+describe("chunk_bar_map WebSocket message", () => {
+	it("DO sends chunk_bar_map message with correct shape after successful chroma alignment", () => {
+		const barMapMsg = {
+			type: "chunk_bar_map",
+			chunk_index: 2,
+			bar_min: 5,
+			bar_max: 9,
+			bar_per_frame: [5, 6, 7, 8, 9],
+		};
+
+		// Should parse without throwing — asserts the schema accepts the new variant.
+		expect(() => wsOutgoingMessageSchema.parse(barMapMsg)).not.toThrow();
+
+		const parsed = wsOutgoingMessageSchema.parse(barMapMsg);
+		expect(parsed.type).toBe("chunk_bar_map");
+		expect(parsed.chunk_index).toBe(2);
+		expect(parsed.bar_min).toBe(5);
+		expect(parsed.bar_max).toBe(9);
+		expect(parsed.bar_per_frame).toEqual([5, 6, 7, 8, 9]);
 	});
 });
