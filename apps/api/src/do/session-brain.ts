@@ -32,6 +32,7 @@ import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
 import type { SegmentLoopArtifact } from "../harness/artifacts/segment-loop";
 import type {
 	FollowerState,
+	ChunkAnalysis,
 	NgramIndex,
 	NoteAlignment,
 	PerfNote,
@@ -43,6 +44,7 @@ import type {
 } from "../services/wasm-bridge";
 // WASM bridge — imported at top level (bridge handles missing pkg gracefully)
 import * as wasm from "../services/wasm-bridge";
+import { buildBarAnalysisFacts } from "../services/bar-analysis-facts";
 import {
 	createInitialState,
 	type SessionState,
@@ -583,6 +585,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 		// 6b. Bar analysis: align chunk + analyze (WASM; skip gracefully if not built)
 		let chunkAnalysisTier = 3;
 		let chunkBarRange: [number, number] | null = null;
+		let chunkAnalysis: ChunkAnalysis | null = null;
 		let barMapAlignments: import("../services/wasm-bridge").NoteAlignment[] = [];
 
 		if (perfNotes.length > 0) {
@@ -618,6 +621,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 							scoresArray,
 							scoreCtx,
 						);
+						chunkAnalysis = analysis;
 						chunkAnalysisTier = analysis.tier;
 						const barStr = analysis.bar_range;
 						if (barStr !== null) {
@@ -637,6 +641,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 							perfPedal,
 							scoresArray,
 						);
+						chunkAnalysis = analysis;
 						chunkAnalysisTier = analysis.tier;
 						const barStr = analysis.bar_range;
 						if (barStr !== null) {
@@ -653,6 +658,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 				} else {
 					// No score context: Tier 2 (MIDI only)
 					const analysis = wasm.analyzeTier2(perfNotes, perfPedal, scoresArray);
+					chunkAnalysis = analysis;
 					chunkAnalysisTier = analysis.tier;
 					const barStr = analysis.bar_range;
 					if (barStr !== null) {
@@ -971,7 +977,15 @@ export class SessionBrain extends DurableObject<Bindings> {
 						barRange: chunkBarRange,
 						analysisTier: chunkAnalysisTier,
 						timestampMs: Date.now(),
-						llmAnalysis: null,
+						llmAnalysis:
+							chunkAnalysis !== null
+								? buildBarAnalysisFacts(
+										chunkAnalysis,
+										scoresArray,
+										baselines,
+										momentDim,
+									)
+								: null,
 					};
 
 					if (!dimSuppressed) {
@@ -1061,6 +1075,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 		// Bar analysis (same WASM path as real chunks)
 		let chunkAnalysisTier = 3;
 		let chunkBarRange: [number, number] | null = null;
+		let chunkAnalysis: ChunkAnalysis | null = null;
 		let barMapAlignments: import("../services/wasm-bridge").NoteAlignment[] = [];
 
 		if (perfNotes.length > 0) {
@@ -1079,6 +1094,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 					if (alignResult.bar_map !== null) {
 						barMapAlignments = alignResult.bar_map.alignments;
 						const analysis = wasm.analyzeTier1(alignResult.bar_map, perfNotes, perfPedal, scoresArray, scoreCtx);
+						chunkAnalysis = analysis;
 						chunkAnalysisTier = analysis.tier;
 						const barStr = analysis.bar_range;
 						if (barStr !== null) {
@@ -1089,6 +1105,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 						}
 					} else {
 						const analysis = wasm.analyzeTier2(perfNotes, perfPedal, scoresArray);
+						chunkAnalysis = analysis;
 						chunkAnalysisTier = analysis.tier;
 						const barStr = analysis.bar_range;
 						if (barStr !== null) {
@@ -1100,6 +1117,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 					}
 				} else {
 					const analysis = wasm.analyzeTier2(perfNotes, perfPedal, scoresArray);
+					chunkAnalysis = analysis;
 					chunkAnalysisTier = analysis.tier;
 					const barStr = analysis.bar_range;
 					if (barStr !== null) {
@@ -1237,7 +1255,15 @@ export class SessionBrain extends DurableObject<Bindings> {
 						barRange: chunkBarRange,
 						analysisTier: chunkAnalysisTier,
 						timestampMs: Date.now(),
-						llmAnalysis: null,
+						llmAnalysis:
+							chunkAnalysis !== null
+								? buildBarAnalysisFacts(
+										chunkAnalysis,
+										scoresArray,
+										baselines,
+										momentDim,
+									)
+								: null,
 					};
 					acc.accumulateMoment(accMoment);
 
