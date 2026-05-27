@@ -49,7 +49,7 @@ interface MuqResponseRaw {
 }
 
 interface AmtResponseRaw {
-	notes: PerfNote[];
+	midi_notes: PerfNote[];
 	pedal_events: PerfPedalEvent[];
 }
 
@@ -218,7 +218,7 @@ export async function callAmtEndpoint(
 	const raw = (await response.json()) as AmtResponseRaw;
 
 	return {
-		notes: raw.notes,
+		notes: raw.midi_notes,
 		pedalEvents: raw.pedal_events,
 	};
 }

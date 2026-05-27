@@ -61,7 +61,7 @@ async def health():
     return {"status": "ok", "model": "aria-amt", "loaded": _handler is not None}
 
 
-@app.post("/")
+@app.post("/transcribe")
 async def inference(request: Request):
     """Run Aria-AMT transcription.
 
