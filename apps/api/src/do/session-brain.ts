@@ -31,7 +31,7 @@ import {
 import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
 import type { SegmentLoopArtifact } from "../harness/artifacts/segment-loop";
 import type {
-	FollowerState,
+	BarMapChroma,
 	NgramIndex,
 	NoteAlignment,
 	PerfNote,
@@ -533,7 +533,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 			return;
 		}
 
-		const { scores: muqScores, confidences: muqConfidences } = muqResult.value;
+		const { scores: muqScores, confidences: muqConfidences, chromaBytes, chromaFrames, chromaFrameRateHz } = muqResult.value;
 		const scoresArray: [number, number, number, number, number, number] = [
 			muqScores.dynamics,
 			muqScores.timing,
@@ -594,32 +594,43 @@ export class SessionBrain extends DurableObject<Bindings> {
 					: null;
 
 				if (scoreCtx !== null) {
-					// Try Tier 1/2 via WASM
-					const followerState: FollowerState = {
-						last_known_bar: currentState.followerState.lastKnownBar,
-					};
+					// Chroma DTW alignment (replaces note-level alignChunk)
+					const chromaResult: BarMapChroma | null =
+						chromaBytes !== null
+							? (() => {
+									try {
+										return wasm.alignChunkChroma(
+											chromaBytes,
+											chromaFrames,
+											scoreCtx.score.bars,
+											chromaFrameRateHz,
+											5.0,
+										);
+									} catch (e) {
+										console.log(
+											JSON.stringify({
+												level: "warn",
+												message: "alignChunkChroma failed",
+												error: e instanceof Error ? e.message : String(e),
+											}),
+										);
+										return null;
+									}
+								})()
+							: null;
 
-					const alignResult = wasm.alignChunk(
-						index,
-						perfNotes,
-						scoreCtx.score.bars,
-						followerState,
-					);
+					if (chromaResult !== null) {
+						chunkBarRange = [chromaResult.bar_min, chromaResult.bar_max];
+						chunkAnalysisTier = 1;
+					}
 
-					currentState.followerState.lastKnownBar =
-						alignResult.state.last_known_bar;
-
-					if (alignResult.bar_map !== null) {
-						barMapAlignments = alignResult.bar_map.alignments;
-						const analysis = wasm.analyzeTier1(
-							alignResult.bar_map,
-							perfNotes,
-							perfPedal,
-							scoresArray,
-							scoreCtx,
-						);
-						chunkAnalysisTier = analysis.tier;
-						const barStr = analysis.bar_range;
+					// Tier 2 analysis (note-level; Tier 1 expression analysis deferred until AMT redeploy)
+					// Only invoke when chroma alignment failed; if chroma succeeded, tier is already
+					// promoted to 1 and bar_range is already set from chromaResult.
+					if (chromaResult === null) {
+						const analysis2 = wasm.analyzeTier2(perfNotes, perfPedal, scoresArray);
+						chunkAnalysisTier = analysis2.tier;
+						const barStr = analysis2.bar_range;
 						if (barStr !== null) {
 							const parts = barStr.split("-").map(Number);
 							if (
@@ -630,25 +641,18 @@ export class SessionBrain extends DurableObject<Bindings> {
 								chunkBarRange = [parts[0], parts[1]];
 							}
 						}
-					} else {
-						// Bar map failed, try Tier 2
-						const analysis = wasm.analyzeTier2(
-							perfNotes,
-							perfPedal,
-							scoresArray,
-						);
-						chunkAnalysisTier = analysis.tier;
-						const barStr = analysis.bar_range;
-						if (barStr !== null) {
-							const parts = barStr.split("-").map(Number);
-							if (
-								parts.length === 2 &&
-								parts[0] !== undefined &&
-								parts[1] !== undefined
-							) {
-								chunkBarRange = [parts[0], parts[1]];
-							}
-						}
+					}
+
+					// Send bar map to client for cursor following in a separate message because
+					// chroma alignment runs after the initial chunk_processed scores send.
+					if (chromaResult !== null) {
+						this.sendWs(ws, {
+							type: "chunk_bar_map",
+							chunk_index: index,
+							bar_min: chromaResult.bar_min,
+							bar_max: chromaResult.bar_max,
+							bar_per_frame: chromaResult.bar_per_frame,
+						});
 					}
 				} else {
 					// No score context: Tier 2 (MIDI only)
@@ -1070,32 +1074,14 @@ export class SessionBrain extends DurableObject<Bindings> {
 					: null;
 
 				if (scoreCtx !== null) {
-					const followerState: FollowerState = {
-						last_known_bar: state.followerState.lastKnownBar,
-					};
-					const alignResult = wasm.alignChunk(index, perfNotes, scoreCtx.score.bars, followerState);
-					state.followerState.lastKnownBar = alignResult.state.last_known_bar;
-
-					if (alignResult.bar_map !== null) {
-						barMapAlignments = alignResult.bar_map.alignments;
-						const analysis = wasm.analyzeTier1(alignResult.bar_map, perfNotes, perfPedal, scoresArray, scoreCtx);
-						chunkAnalysisTier = analysis.tier;
-						const barStr = analysis.bar_range;
-						if (barStr !== null) {
-							const parts = barStr.split("-").map(Number);
-							if (parts.length === 2 && parts[0] !== undefined && parts[1] !== undefined) {
-								chunkBarRange = [parts[0], parts[1]];
-							}
-						}
-					} else {
-						const analysis = wasm.analyzeTier2(perfNotes, perfPedal, scoresArray);
-						chunkAnalysisTier = analysis.tier;
-						const barStr = analysis.bar_range;
-						if (barStr !== null) {
-							const parts = barStr.split("-").map(Number);
-							if (parts.length === 2 && parts[0] !== undefined && parts[1] !== undefined) {
-								chunkBarRange = [parts[0], parts[1]];
-							}
+					// Chroma DTW alignment — no real audio in eval path; falls through to Tier 2.
+					const analysis2 = wasm.analyzeTier2(perfNotes, perfPedal, scoresArray);
+					chunkAnalysisTier = analysis2.tier;
+					const barStr = analysis2.bar_range;
+					if (barStr !== null) {
+						const parts = barStr.split("-").map(Number);
+						if (parts.length === 2 && parts[0] !== undefined && parts[1] !== undefined) {
+							chunkBarRange = [parts[0], parts[1]];
 						}
 					}
 				} else {
@@ -1317,7 +1303,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 		const state = await this.readState();
 		state.pieceLocked = true;
 		state.pieceIdentification = null; // will be resolved on next chunk
-		state.followerState = { lastKnownBar: null };
 		state.version++;
 		await this.writeState(state);
 

@@ -102,6 +102,13 @@ export type PracticeWsEvent =
 			assignment_id: string;
 			attempts_completed: number;
 			completed_now: boolean;
+	  }
+	| {
+			type: "chunk_bar_map";
+			chunk_index: number;
+			bar_min: number;
+			bar_max: number;
+			bar_per_frame: number[];
 	  };
 
 export const practiceApi = {

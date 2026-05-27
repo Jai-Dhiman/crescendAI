@@ -1,0 +1,10 @@
+{
+  "bar_min_lo": 1,
+  "bar_min_hi": 5,
+  "bar_max_lo": 20,
+  "bar_max_hi": 45,
+  "n_frames": 6001,
+  "decim_n": 601,
+  "cost_hi": 0.3,
+  "frame_rate_hz": 50.0
+}

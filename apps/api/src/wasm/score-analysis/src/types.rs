@@ -122,12 +122,6 @@ pub struct BarMap {
     pub is_reanchored: bool,
 }
 
-/// Persistent state across chunks.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct FollowerState {
-    pub last_known_bar: Option<u32>,
-}
-
 // --- Teaching moment types ---
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -194,10 +188,18 @@ pub struct ChunkAnalysis {
     pub dimensions: Vec<DimensionAnalysis>,
 }
 
-// --- align_chunk return type ---
+// --- Chroma DTW output ---
 
+/// Output of align_chunk_chroma: bar range + per-decimated-frame bar mapping.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AlignChunkResult {
-    pub bar_map: Option<BarMap>,
-    pub state: FollowerState,
+pub struct BarMapChroma {
+    /// Minimum bar number touched by the warping path.
+    pub bar_min: u32,
+    /// Maximum bar number touched by the warping path.
+    pub bar_max: u32,
+    /// Mean cosine distance along the warping path (lower = better alignment).
+    pub cost: f32,
+    /// Bar number for each decimated frame (at decim_hz, e.g. 5 Hz).
+    /// Length = ceil(n_audio_frames / decim_step).
+    pub bar_per_frame: Vec<u32>,
 }
