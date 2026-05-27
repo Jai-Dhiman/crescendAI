@@ -37,30 +37,7 @@ describe("alignChunkChroma", () => {
 		).toThrow("score-analysis WASM not initialized");
 	});
 
-	it("mock factory accepts 5-arg call shape matching align_chunk_chroma signature (end-to-end forwarding is verified by chroma_dtw_roundtrip Rust cargo test)", async () => {
-		// The WASM module path is mocked above, but scoreAnalysisModule (a module-level
-		// const in wasm-bridge.ts) is set to null at declaration time before any mock
-		// intercepts the import. requireScoreAnalysis() therefore always throws in this
-		// env, making it impossible to exercise the forwarding path from here.
-		//
-		// This test documents the intended contract instead:
-		//   alignChunkChroma(bytes, 750, bars, 50, 5)
-		//   -> align_chunk_chroma(bytes, 750, bars, 50, 5)
-		//   -> returns BarMapChroma unchanged
-		//
-		// The mockAlignChunkChroma spy declared at the top of this file is the stub that
-		// WOULD be reached if the module could be initialized. Wiring it proves the mock
-		// factory is correct; the Rust cargo test (chroma_dtw_roundtrip) is the
-		// canonical end-to-end proof of argument forwarding.
-		const audioBytes = new Uint8Array(12 * 4 * 750); // 750 frames * 12 pitches * 4 bytes
-		const bars: never[] = [];
-		const expectedResult = { bar_min: 2, bar_max: 5, cost: 0.12, bar_per_frame: [2, 3] };
-		mockAlignChunkChroma.mockReturnValueOnce(expectedResult);
-
-		// Verify the mock itself is correctly shaped (align_chunk_chroma spy is callable).
-		mockAlignChunkChroma(audioBytes, 750, bars, 50, 5);
-		expect(mockAlignChunkChroma).toHaveBeenCalledOnce();
-		expect(mockAlignChunkChroma).toHaveBeenCalledWith(audioBytes, 750, bars, 50, 5);
-		expect(mockAlignChunkChroma.mock.results[0].value).toEqual(expectedResult);
-	});
+	// TS wrapper argument forwarding (alignChunkChroma -> align_chunk_chroma, 5 args) is
+	// verified end-to-end by `chroma_dtw_roundtrip` in apps/api/src/wasm/score-analysis/src/chroma_dtw.rs,
+	// because scoreAnalysisModule cannot be initialized in the vitest node env.
 });
