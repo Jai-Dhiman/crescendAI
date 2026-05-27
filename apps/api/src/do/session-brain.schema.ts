@@ -109,6 +109,22 @@ export type WsSetPiece = z.infer<typeof wsSetPieceSchema>;
 export type WsEvalChunk = z.infer<typeof wsEvalChunkSchema>;
 export type WsIncomingMessage = z.infer<typeof wsIncomingMessageSchema>;
 
+/** WebSocket outgoing message schemas */
+export const wsChunkBarMapSchema = z.object({
+	type: z.literal("chunk_bar_map"),
+	chunk_index: z.number().int(),
+	bar_min: z.number().int(),
+	bar_max: z.number().int(),
+	bar_per_frame: z.array(z.number().int()),
+});
+
+export const wsOutgoingMessageSchema = z.discriminatedUnion("type", [
+	wsChunkBarMapSchema,
+]);
+
+export type WsChunkBarMap = z.infer<typeof wsChunkBarMapSchema>;
+export type WsOutgoingMessage = z.infer<typeof wsOutgoingMessageSchema>;
+
 /** Helper to create initial state */
 export function createInitialState(
 	sessionId: string,
