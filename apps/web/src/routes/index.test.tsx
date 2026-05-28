@@ -40,7 +40,9 @@ describe("LandingPage structure", () => {
 
 	it("shows the glimpse with the Nocturne and an app frame", async () => {
 		await renderLanding();
-		expect(screen.getByText(/See what your playing sounds like/)).not.toBeNull();
+		expect(
+			screen.getByText(/See what your playing sounds like/),
+		).not.toBeNull();
 		expect(screen.getByText(/Nocturne Op\. 9 No\. 2/)).not.toBeNull();
 		expect(screen.getByAltText(/iOS app/i)).not.toBeNull();
 	});

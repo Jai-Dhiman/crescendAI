@@ -21,7 +21,7 @@ export const Route = createFileRoute("/")({
 });
 
 // Real, renderable score: Chopin Nocturne Op.9 No.2. The annotation illustrates
-// the feedback style — labelled so we never imply it's analysis of the visitor.
+// the feedback style, labelled so we never imply it's analysis of the visitor.
 const NOCTURNE_HIGHLIGHT: ScoreHighlightConfig = {
 	pieceId: "chopin.nocturnes.9-2",
 	highlights: [
@@ -29,7 +29,7 @@ const NOCTURNE_HIGHLIGHT: ScoreHighlightConfig = {
 			bars: [1, 4],
 			dimension: "phrasing",
 			annotation:
-				"The opening line should breathe as one long phrase — let it lift toward the high point rather than arriving there too soon.",
+				"The opening line should breathe as one long phrase. Let it lift toward the high point rather than arriving there too soon.",
 		},
 	],
 };
@@ -42,8 +42,8 @@ function LandingPage() {
 	return (
 		<div data-landing="">
 			<HeroSection />
-			<GlimpseSection />
 			<CascadingQuoteSection />
+			<GlimpseSection />
 			<WaitlistSection />
 		</div>
 	);
@@ -94,14 +94,14 @@ function HeroSection() {
 
 function GlimpseSection() {
 	return (
-		<section className="py-24 lg:py-32 bg-surface/40 overflow-hidden">
+		<section className="py-24 lg:py-32 overflow-hidden">
 			<div className="max-w-6xl mx-auto px-6 lg:px-12">
 				<div className="text-center mb-16">
 					<h2 className="font-display text-display-md lg:text-display-lg text-cream">
 						See what your playing sounds like.
 					</h2>
 					<p className="mt-4 text-body-md text-text-secondary">
-						Record on your phone. Get back the exact bars to focus on — and why.
+						Record on your phone. Get back the exact bars to focus on, and why.
 					</p>
 				</div>
 
@@ -181,7 +181,7 @@ function CascadingQuoteSection() {
 						<div className="w-[55%] self-start">
 							<img
 								src="/Image2.jpg"
-								alt="Practicing alone -- the struggle of hearing your own mistakes"
+								alt="Practicing alone, the struggle of hearing your own mistakes"
 								className="w-full object-cover"
 								style={{ aspectRatio: "3/2" }}
 							/>
@@ -189,7 +189,7 @@ function CascadingQuoteSection() {
 						<div className="w-[55%] self-center">
 							<img
 								src="/Image3.jpg"
-								alt="A moment of guidance -- focused attention on the score"
+								alt="A moment of guidance, focused attention on the score"
 								className="w-full object-cover"
 								style={{ aspectRatio: "3/2" }}
 							/>
@@ -197,7 +197,7 @@ function CascadingQuoteSection() {
 						<div className="w-[55%] self-end">
 							<img
 								src="/Image4.jpg"
-								alt="The breakthrough -- playing with confidence"
+								alt="The breakthrough, playing with confidence"
 								className="w-full object-cover"
 								style={{ aspectRatio: "3/2" }}
 							/>
@@ -245,7 +245,7 @@ function WaitlistForm() {
 		e.preventDefault();
 		if (state === "submitting") return;
 		if (website) {
-			// Bot filled the honeypot — pretend success, do nothing.
+			// Bot filled the honeypot, pretend success, do nothing.
 			setState("success");
 			return;
 		}
@@ -278,7 +278,7 @@ function WaitlistForm() {
 			onSubmit={handleSubmit}
 			className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto"
 		>
-			{/* Honeypot — hidden from humans, catches bots */}
+			{/* Honeypot: hidden from humans, catches bots */}
 			<input
 				type="text"
 				name="website"
@@ -300,12 +300,12 @@ function WaitlistForm() {
 				onChange={(e) => setEmail(e.target.value)}
 				placeholder="you@example.com"
 				disabled={state === "submitting"}
-				className="flex-1 bg-surface border border-border rounded-lg px-4 py-3 text-body-sm text-cream placeholder:text-text-tertiary focus:outline-none focus:border-accent transition disabled:opacity-60"
+				className="flex-1 bg-surface border border-border px-4 py-3 text-body-sm text-cream placeholder:text-text-tertiary focus:outline-none focus:border-accent transition disabled:opacity-60"
 			/>
 			<button
 				type="submit"
 				disabled={state === "submitting"}
-				className="bg-accent text-cream px-6 py-3 rounded-lg text-body-sm font-medium hover:brightness-110 transition disabled:opacity-60 whitespace-nowrap"
+				className="bg-accent text-cream px-6 py-3 text-body-sm font-medium hover:brightness-110 transition disabled:opacity-60 whitespace-nowrap"
 			>
 				{state === "submitting" ? "Joining…" : "Join the waitlist"}
 			</button>
