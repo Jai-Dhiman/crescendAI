@@ -1,6 +1,7 @@
 """SQLite catalog for exercise primitives with embedding storage."""
 
 import sqlite3
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,42 +57,39 @@ def write_primitives(
     db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone.utc).isoformat()
-    conn = sqlite3.connect(str(db_path))
-    try:
-        conn.execute(_DDL)
-        for p in primitives:
-            if p.primitive_id not in embeddings:
-                raise KeyError(
-                    f"No embedding found for primitive_id={p.primitive_id!r}"
+    with closing(sqlite3.connect(str(db_path))) as conn:
+        with conn:
+            conn.execute(_DDL)
+            for p in primitives:
+                if p.primitive_id not in embeddings:
+                    raise KeyError(
+                        f"No embedding found for primitive_id={p.primitive_id!r}"
+                    )
+                emb = embeddings[p.primitive_id]
+                if emb.ndim != 1:
+                    raise ValueError(
+                        f"Embedding for {p.primitive_id!r} must be 1-D, got shape {emb.shape}"
+                    )
+                emb_blob = emb.numpy().astype(np.float32).tobytes()
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO primitives
+                    (primitive_id, source, source_exercise_number, title,
+                     musicxml_path, midi_path, embedding, n_notes, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        p.primitive_id,
+                        p.source,
+                        p.source_exercise_number,
+                        p.title,
+                        str(p.musicxml_path),
+                        str(p.midi_path),
+                        emb_blob,
+                        p.n_notes,
+                        now,
+                    ),
                 )
-            emb = embeddings[p.primitive_id]
-            if emb.ndim != 1:
-                raise ValueError(
-                    f"Embedding for {p.primitive_id!r} must be 1-D, got shape {emb.shape}"
-                )
-            emb_blob = emb.numpy().astype(np.float32).tobytes()
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO primitives
-                (primitive_id, source, source_exercise_number, title,
-                 musicxml_path, midi_path, embedding, n_notes, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    p.primitive_id,
-                    p.source,
-                    p.source_exercise_number,
-                    p.title,
-                    str(p.musicxml_path),
-                    str(p.midi_path),
-                    emb_blob,
-                    p.n_notes,
-                    now,
-                ),
-            )
-        conn.commit()
-    finally:
-        conn.close()
 
 
 def read_primitives(db_path: Path) -> list[CatalogRow]:
