@@ -78,4 +78,14 @@ Decisions locked so far:
 6. **Location (REVISED from apps/corpus/):** `model/src/exercise_corpus/`. Reason: the entire Aria dependency chain (weights, ariautils, aria pkg, paths.py, embedding code) lives in `model/`. Corpus *construction* is model-side; corpus *serving* (slice C) will be api-side.
 7. **Aria embedding reuse:** Reuse `model/src/model_improvement/aria_embeddings.py`. Use `variant="embedding"` (512-dim, EOS-pooled global embedding). Fits our short primitives (tens of notes, < 300-note chunk threshold) exactly as it already handles PercePiano segments. Outputs to `model/data/` following existing conventions.
 
-Open questions remaining for slice A: (a) segmentation granularity (what counts as one primitive), (b) auto-tagger scope (which tags in slice A vs deferred), (c) success criteria (concrete pass/fail bar for "embeddings cluster pedagogically").
+Resolved during build: (a) granularity = whole-exercise (Hanon split on Repeat-barline spans; Czerny/Burgmuller whole-part); (b) auto-tagger CUT from slice A (deferred post-validation); (c) success = two-tier (k-NN source purity >= 0.70 @ k=5 AND >= 11/15 within-source neighbor pairs judged pedagogically sensible).
+
+### Slice A first-run results (2026-05-28, partial data)
+
+Acquired only a partial baseline from MuseScore: Hanon premiere partie (exercises 1-20) + Czerny op.299 no.1 + Burgmuller op.100 no.1 = **20/1/1 = 22 primitives**. Pipeline ran end-to-end (segment -> embed -> catalog -> validate, commit `79ed69ac`).
+
+- **Segmentation bug found + fixed:** the shipped segmenter split one primitive *per partitura part*, but real method-book MusicXML is ONE part with internal structure. Hanon collapsed to 1 primitive instead of 20. Fix: per-source boundary strategy — Hanon splits on Repeat-barline spans (rebuilds each exercise as a valid sub-Part), single-piece sources use whole-part. Build's 3-part fixtures were unrealistic; regenerated to single-part reality.
+- **Gate NOT evaluable on this data.** Purity reported 0.909 PASS but that is a **class-imbalance mirage** (20/22 are Hanon; threshold was calibrated for ~60/40/25). Within-source pairs collapsed to 5 Hanon-only (Czerny/Burgmuller are singletons). No real verdict yet.
+- **Yellow flag on embedding resolution:** all 20 Hanon embeddings sit in a tiny cosine ball (distances 0.006-0.017); UMAP shows Czerny/Burgmuller embedded *inside* the Hanon cloud, not separated. Caveat: Hanon premiere partie is the most homogeneous music in the canon (worst-case for within-source resolution) and n=1 singletons make cross-source unreadable — so this is a caution, not a verdict.
+
+**Gate blocker is now explicitly DATA SOURCING.** Need >= 6 each of Czerny + Burgmuller (ideally Hanon parts 2-3 for within-Hanon spread) before the gate can be judged. MuseScore free-tier only allowed downloading the first exercise of multi-piece books — hence the partial baseline.
