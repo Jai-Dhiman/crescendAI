@@ -7,6 +7,15 @@ vi.mock("../lib/landing-analytics", () => ({
 	trackLandingEvent: vi.fn(),
 }));
 
+// Score rendering hits the network; in jsdom we let it reject so the score
+// degrades gracefully (no throw).
+vi.mock("../lib/score-renderer", () => ({
+	scoreRenderer: {
+		load: vi.fn().mockRejectedValue(new Error("no network in test")),
+		getClip: vi.fn().mockRejectedValue(new Error("no network in test")),
+	},
+}));
+
 vi.mock("../lib/api", () => ({
 	api: { waitlist: { join: vi.fn().mockResolvedValue({ ok: true }) } },
 }));
@@ -29,18 +38,11 @@ describe("LandingPage structure", () => {
 		).not.toBeNull();
 	});
 
-	it("shows the feature animation cards", async () => {
-		const { container } = await renderLanding();
-		expect(screen.getByText(/Record yourself playing/)).not.toBeNull();
-		expect(screen.getByText(/Exercises built for you/)).not.toBeNull();
-		expect(screen.getByText(/A teacher who knows your playing/)).not.toBeNull();
-		expect(container.querySelectorAll("video").length).toBe(3);
-	});
-
-	it("shows both device frames (desktop and mobile)", async () => {
+	it("shows the glimpse with the Nocturne and an app frame", async () => {
 		await renderLanding();
-		expect(screen.getByAltText(/desktop app/i)).not.toBeNull();
-		expect(screen.getByAltText(/mobile app/i)).not.toBeNull();
+		expect(screen.getByText(/See what your playing sounds like/)).not.toBeNull();
+		expect(screen.getByText(/Nocturne Op\. 9 No\. 2/)).not.toBeNull();
+		expect(screen.getByAltText(/iOS app/i)).not.toBeNull();
 	});
 
 	it("renders the waitlist capture with an email field and submit", async () => {
@@ -54,9 +56,10 @@ describe("LandingPage structure", () => {
 		).not.toBeNull();
 	});
 
-	it("no longer shows the removed sample-analysis copy", async () => {
+	it("no longer shows the removed mock-video or Ballade copy", async () => {
 		await renderLanding();
-		expect(screen.queryByText(/Sample analysis/i)).toBeNull();
+		expect(screen.queryByText(/Record yourself playing/)).toBeNull();
+		expect(screen.queryByText(/Ballade No\. 1/)).toBeNull();
 		expect(screen.queryByText(/Be first to play/)).toBeNull();
 	});
 });

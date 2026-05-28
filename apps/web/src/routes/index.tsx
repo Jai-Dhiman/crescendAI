@@ -1,9 +1,13 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
+import { ScoreHighlightCard } from "../components/cards/ScoreHighlightCard";
+import { BrowserFrame, PhoneFrame } from "../components/landing/DeviceFrames";
 import { authQueryOptions } from "../hooks/useAuth";
 import { api } from "../lib/api";
 import { trackLandingEvent } from "../lib/landing-analytics";
 import { queryClient } from "../lib/query-client";
+import { scoreRenderer } from "../lib/score-renderer";
+import type { ScoreHighlightConfig } from "../lib/types";
 
 export const Route = createFileRoute("/")({
 	beforeLoad: async () => {
@@ -16,6 +20,20 @@ export const Route = createFileRoute("/")({
 	component: LandingPage,
 });
 
+// Real, renderable score: Chopin Nocturne Op.9 No.2. The annotation illustrates
+// the feedback style — labelled so we never imply it's analysis of the visitor.
+const NOCTURNE_HIGHLIGHT: ScoreHighlightConfig = {
+	pieceId: "chopin.nocturnes.9-2",
+	highlights: [
+		{
+			bars: [1, 4],
+			dimension: "phrasing",
+			annotation:
+				"The opening line should breathe as one long phrase — let it lift toward the high point rather than arriving there too soon.",
+		},
+	],
+};
+
 function scrollToWaitlist() {
 	document.getElementById("waitlist")?.scrollIntoView({ behavior: "smooth" });
 }
@@ -24,9 +42,8 @@ function LandingPage() {
 	return (
 		<div data-landing="">
 			<HeroSection />
-			<FeatureCardsSection />
+			<GlimpseSection />
 			<CascadingQuoteSection />
-			<DeviceMockupSection />
 			<WaitlistSection />
 		</div>
 	);
@@ -75,61 +92,84 @@ function HeroSection() {
 	);
 }
 
-function FeatureCardsSection() {
-	const cards = [
-		{
-			id: "listen",
-			title: "Record yourself playing.",
-			description:
-				"When you pause, your teacher is ready with the one thing that matters most.",
-		},
-		{
-			id: "annotate",
-			title: "Exercises built for you.",
-			description:
-				"Targeted practice for the specific passage and skill your teacher identified.",
-		},
-		{
-			id: "exercises",
-			title: "A teacher who knows your playing.",
-			description:
-				"Your teacher remembers what you've been working on, notices when you improve, and adapts.",
-		},
-	];
-
+function GlimpseSection() {
 	return (
-		<section className="py-24 lg:py-32">
-			<div className="max-w-7xl mx-auto px-6 lg:px-12">
-				<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-					{cards.map((card) => (
-						<div
-							key={card.id}
-							className="bg-surface border border-border rounded-xl overflow-hidden"
-						>
-							<div className="aspect-[4/3] bg-surface-2 overflow-hidden">
-								<video
-									src={`/anim-${card.id}.mp4`}
-									autoPlay
-									loop
-									muted
-									playsInline
-									className="w-full h-full object-cover"
-								/>
-							</div>
-							<div className="p-6 lg:p-8">
-								<h3 className="font-display text-display-sm text-cream mb-3">
-									{card.title}
-								</h3>
-								<p className="text-body-md text-text-secondary">
-									{card.description}
-								</p>
-							</div>
-						</div>
-					))}
+		<section className="py-24 lg:py-32 bg-surface/40 overflow-hidden">
+			<div className="max-w-6xl mx-auto px-6 lg:px-12">
+				<div className="text-center mb-16">
+					<h2 className="font-display text-display-md lg:text-display-lg text-cream">
+						See what your playing sounds like.
+					</h2>
+					<p className="mt-4 text-body-md text-text-secondary">
+						Record on your phone. Get back the exact bars to focus on — and why.
+					</p>
 				</div>
+
+				{/* Overlapping device frames: web (score) + phone (capture) */}
+				<div className="relative max-w-4xl mx-auto pb-16 lg:pb-0">
+					<BrowserFrame className="w-full lg:w-[78%]">
+						<div className="p-4 lg:p-6">
+							<div className="flex items-center gap-2 mb-3">
+								<span className="text-label-sm uppercase tracking-wide text-text-tertiary">
+									Sample
+								</span>
+								<span className="text-body-xs text-text-tertiary">
+									· Chopin, Nocturne Op. 9 No. 2
+								</span>
+							</div>
+							<NocturneScore config={NOCTURNE_HIGHLIGHT} />
+						</div>
+					</BrowserFrame>
+
+					<PhoneFrame className="absolute bottom-0 right-0 w-[42%] sm:w-[34%] lg:w-[26%] translate-y-6 lg:translate-y-12">
+						<img
+							src="/landing/app-ios.png"
+							alt="CrescendAI iOS app"
+							className="w-full h-full object-cover object-top"
+						/>
+					</PhoneFrame>
+				</div>
+
+				<p className="mt-8 lg:mt-20 text-center text-body-xs text-text-tertiary">
+					Real score rendering from CrescendAI. Full performance analysis
+					arrives with the app.
+				</p>
 			</div>
 		</section>
 	);
+}
+
+// ScoreHighlightCard calls scoreRenderer.getClip directly, which needs the piece
+// bytes loaded first. On a cold landing nothing loads them, so we do it here.
+function NocturneScore({ config }: { config: ScoreHighlightConfig }) {
+	const [status, setStatus] = useState<"loading" | "ready" | "error">(
+		"loading",
+	);
+
+	useEffect(() => {
+		let cancelled = false;
+		scoreRenderer
+			.load(config.pieceId)
+			.then(() => {
+				if (!cancelled) setStatus("ready");
+			})
+			.catch(() => {
+				if (!cancelled) setStatus("error");
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [config.pieceId]);
+
+	if (status === "error") return null;
+	if (status === "loading") {
+		return (
+			<div className="h-40 flex items-center justify-center">
+				<div className="w-4 h-4 rounded-full border-2 border-text-tertiary/50 border-t-transparent animate-spin" />
+			</div>
+		);
+	}
+	return <ScoreHighlightCard config={config} />;
 }
 
 function CascadingQuoteSection() {
@@ -168,27 +208,6 @@ function CascadingQuoteSection() {
 							"What's the one thing that sounds off that I can't hear myself?"
 						</blockquote>
 					</div>
-				</div>
-			</div>
-		</section>
-	);
-}
-
-function DeviceMockupSection() {
-	return (
-		<section className="py-24 lg:py-32">
-			<div className="max-w-5xl mx-auto px-6 lg:px-12">
-				<div className="relative">
-					<img
-						src="/MacbookMockup.png"
-						alt="CrescendAI desktop app showing a practice session with score analysis"
-						className="w-full"
-					/>
-					<img
-						src="/iphonemockup.png"
-						alt="CrescendAI mobile app showing exercise recommendations"
-						className="absolute bottom-[-8%] right-[-4%] w-[28%] lg:w-[25%]"
-					/>
 				</div>
 			</div>
 		</section>

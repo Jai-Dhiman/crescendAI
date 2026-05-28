@@ -10,6 +10,7 @@ PyTorch Lightning pipeline for piano performance evaluation.
 - MuQ (audio foundation model)
 - nnAudio for GPU-accelerated spectrograms
 - **MIDI**: mido, pretty_midi
+- **Symbolic / MusicXML**: always use **partitura** (CPJKU) for MusicXML<->MIDI conversion, score parsing, note arrays, and score graphs. Never use `music21`. (partitura is from the same lab as ASAP, which `score_library` is built around.)
 - **Training**: HF Jobs (L4 $0.80/hr default, A100 $2.50/hr for Aria fine-tuning)
 - **Experiment tracking**: Trackio (syncs to HF Space dashboard)
 - **Training data**: HF Bucket (private, ~92GB, mounted in HF Jobs)

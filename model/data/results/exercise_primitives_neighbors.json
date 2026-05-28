@@ -1,0 +1,37 @@
+[
+  {
+    "query_id": "hanon_001",
+    "neighbor_id": "hanon_007",
+    "source_a": "hanon",
+    "source_b": "hanon",
+    "cosine_distance": 0.016948580741882324
+  },
+  {
+    "query_id": "hanon_002",
+    "neighbor_id": "hanon_004",
+    "source_a": "hanon",
+    "source_b": "hanon",
+    "cosine_distance": 0.0065805912017822266
+  },
+  {
+    "query_id": "hanon_003",
+    "neighbor_id": "hanon_011",
+    "source_a": "hanon",
+    "source_b": "hanon",
+    "cosine_distance": 0.011130094528198242
+  },
+  {
+    "query_id": "hanon_004",
+    "neighbor_id": "hanon_002",
+    "source_a": "hanon",
+    "source_b": "hanon",
+    "cosine_distance": 0.0065805912017822266
+  },
+  {
+    "query_id": "hanon_005",
+    "neighbor_id": "hanon_010",
+    "source_a": "hanon",
+    "source_b": "hanon",
+    "cosine_distance": 0.012023687362670898
+  }
+]
