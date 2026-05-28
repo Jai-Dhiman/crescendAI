@@ -4,7 +4,6 @@ import sys
 import pytest
 import torch
 from pathlib import Path
-from unittest.mock import patch
 
 from exercise_corpus import Primitive
 from exercise_corpus.run import run_pipeline
