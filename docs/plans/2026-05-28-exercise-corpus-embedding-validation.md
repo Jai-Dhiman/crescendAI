@@ -35,7 +35,7 @@ Group D (sequential, depends on C): Task 7
 - Modify: `model/pyproject.toml`
 - Test: `model/tests/exercise_corpus/test_fixtures.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/exercise_corpus/test_fixtures.py
@@ -67,14 +67,14 @@ def test_package_importable():
     import exercise_corpus  # noqa: F401
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/model && uv run pytest tests/exercise_corpus/test_fixtures.py -v
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'exercise_corpus'` (package not created yet) and `ModuleNotFoundError: No module named 'partitura'` (not in deps).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 **3a. Update `model/pyproject.toml`** — add `partitura>=1.8.0`, `scikit-learn>=1.3.0`, `umap-learn>=0.5.0`, and `matplotlib>=3.7.0` to the `dependencies` list (scikit-learn, umap-learn, and matplotlib are used in validate.py and must be explicit deps — they are currently transitive but not guaranteed), and add `"src/exercise_corpus"` to `[tool.hatch.build.targets.wheel] packages`:
 
@@ -339,14 +339,14 @@ class Primitive:
 </score-partwise>
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/model && uv run pytest tests/exercise_corpus/test_fixtures.py -v
 ```
 Expected: PASS (4 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/exercise_corpus/__init__.py model/tests/exercise_corpus/__init__.py model/tests/exercise_corpus/fixtures/ model/tests/exercise_corpus/test_fixtures.py model/pyproject.toml && git commit -m "feat(exercise-corpus): scaffold package with Primitive dataclass, add MusicXML fixtures, add explicit deps"
@@ -366,7 +366,7 @@ git add model/src/exercise_corpus/__init__.py model/tests/exercise_corpus/__init
 - Create: `model/src/exercise_corpus/sources.toml`
 - Test: `model/tests/exercise_corpus/test_sources.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/exercise_corpus/test_sources.py
@@ -403,14 +403,14 @@ def test_source_names_match_expected():
     assert names == {"hanon", "czerny", "burgmuller"}
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/model && uv run pytest tests/exercise_corpus/test_sources.py -v
 ```
 Expected: FAIL — `AssertionError: sources.toml not found at ...` (file doesn't exist yet).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `model/src/exercise_corpus/sources.toml`:
 
@@ -448,14 +448,14 @@ license = "public_domain"
 musicxml_path = "data/scores/exercise_primitives/raw/burgmuller_op100.xml"
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/model && uv run pytest tests/exercise_corpus/test_sources.py -v
 ```
 Expected: PASS (4 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/exercise_corpus/sources.toml model/tests/exercise_corpus/test_sources.py && git commit -m "feat(exercise-corpus): add sources.toml manifest with 3 public-domain sources"
@@ -475,7 +475,7 @@ git add model/src/exercise_corpus/sources.toml model/tests/exercise_corpus/test_
 - Create: `model/src/exercise_corpus/catalog.py`
 - Test: `model/tests/exercise_corpus/test_catalog.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/exercise_corpus/test_catalog.py
@@ -534,14 +534,14 @@ def test_created_at_is_populated(tmp_path: Path):
     assert len(rows[0].created_at) > 0
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/model && uv run pytest tests/exercise_corpus/test_catalog.py -v
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'exercise_corpus.catalog'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `model/src/exercise_corpus/catalog.py`:
 
@@ -688,14 +688,14 @@ def read_primitives(db_path: Path) -> list[CatalogRow]:
         conn.close()
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/model && uv run pytest tests/exercise_corpus/test_catalog.py -v
 ```
 Expected: PASS (2 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/exercise_corpus/catalog.py model/tests/exercise_corpus/test_catalog.py && git commit -m "feat(exercise-corpus): add catalog.py with SQLite embedding round-trip"
@@ -715,7 +715,7 @@ git add model/src/exercise_corpus/catalog.py model/tests/exercise_corpus/test_ca
 - Create: `model/src/exercise_corpus/segment.py`
 - Test: `model/tests/exercise_corpus/test_segment.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/exercise_corpus/test_segment.py
@@ -809,14 +809,14 @@ def test_zero_parts_raises_segmentation_error(tmp_path: Path):
         segment_source(empty_xml, "hanon", tmp_path / "s", tmp_path / "m")
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/model && uv run pytest tests/exercise_corpus/test_segment.py -v
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'exercise_corpus.segment'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `model/src/exercise_corpus/segment.py`:
 
@@ -945,14 +945,14 @@ def segment_source(
     return primitives
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/model && uv run pytest tests/exercise_corpus/test_segment.py -v
 ```
 Expected: PASS (5 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/exercise_corpus/segment.py model/tests/exercise_corpus/test_segment.py && git commit -m "feat(exercise-corpus): add segment.py with partitura-based primitive extraction"
@@ -972,7 +972,7 @@ git add model/src/exercise_corpus/segment.py model/tests/exercise_corpus/test_se
 - Create: `model/src/exercise_corpus/validate.py`
 - Test: `model/tests/exercise_corpus/test_validate.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/exercise_corpus/test_validate.py
@@ -1100,14 +1100,14 @@ def test_run_validation_verdict_pass_for_tight_clusters(tmp_path: Path):
     assert result.purity >= 0.70
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/model && uv run pytest tests/exercise_corpus/test_validate.py -v
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'exercise_corpus.validate'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `model/src/exercise_corpus/validate.py`:
 
@@ -1277,14 +1277,14 @@ def run_validation(db_path: Path, output_dir: Path) -> ValidationResult:
     )
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/model && uv run pytest tests/exercise_corpus/test_validate.py -v
 ```
 Expected: PASS (6 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/exercise_corpus/validate.py model/tests/exercise_corpus/test_validate.py && git commit -m "feat(exercise-corpus): add validate.py with k-NN purity, UMAP, and review artifact"
@@ -1304,7 +1304,7 @@ git add model/src/exercise_corpus/validate.py model/tests/exercise_corpus/test_v
 - Create: `model/src/exercise_corpus/embed.py`
 - Test: `model/tests/exercise_corpus/test_embed.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/exercise_corpus/test_embed.py
@@ -1349,14 +1349,14 @@ def test_embed_primitives_propagates_file_not_found(tmp_path: Path):
             embed_primitives(tmp_path)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/model && uv run pytest tests/exercise_corpus/test_embed.py -v
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'exercise_corpus.embed'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `model/src/exercise_corpus/embed.py`:
 
@@ -1389,14 +1389,14 @@ def embed_primitives(midi_dir: Path) -> dict[str, torch.Tensor]:
     return extract_all_embeddings(Path(midi_dir), variant="embedding")
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/model && uv run pytest tests/exercise_corpus/test_embed.py -v
 ```
 Expected: PASS (2 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/exercise_corpus/embed.py model/tests/exercise_corpus/test_embed.py && git commit -m "feat(exercise-corpus): add embed.py adapter over aria_embeddings"
@@ -1416,7 +1416,7 @@ git add model/src/exercise_corpus/embed.py model/tests/exercise_corpus/test_embe
 - Create: `model/src/exercise_corpus/run.py`
 - Test: `model/tests/exercise_corpus/test_run.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/exercise_corpus/test_run.py
@@ -1502,14 +1502,14 @@ def test_run_pipeline_validate_only_reads_existing_catalog(tmp_path: Path):
     assert result.verdict == "PASS"
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/model && uv run pytest tests/exercise_corpus/test_run.py -v
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'exercise_corpus.run'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `model/src/exercise_corpus/run.py`:
 
@@ -1681,21 +1681,21 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/model && uv run pytest tests/exercise_corpus/test_run.py -v
 ```
 Expected: PASS (3 tests)
 
-- [ ] **Step 5: Run the full exercise_corpus test suite**
+- [x] **Step 5: Run the full exercise_corpus test suite**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/model && uv run pytest tests/exercise_corpus/ -v
 ```
 Expected: All tests PASS. No tests referencing Aria weights should run against the real model.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add model/src/exercise_corpus/run.py model/tests/exercise_corpus/test_run.py && git commit -m "feat(exercise-corpus): add run.py CLI orchestrator, all pipeline tests pass"
@@ -1877,6 +1877,68 @@ All failures are visible (explicit raises, logger.exception in aria_embeddings).
 [BLOCKER] (confidence: 9/10) — `test_catalog.py` imports `from exercise_corpus.segment import Primitive` at module level. Task 3 (catalog) runs in Group A parallel with Tasks 1 and 2, but Task 4 (which creates `segment.py`) is in Group B and has not run yet. When the build agent runs Task 3's Step 2 ("verify test FAILS"), the test file itself will fail to import — raising `ModuleNotFoundError: No module named 'exercise_corpus.segment'` rather than the expected `ModuleNotFoundError: No module named 'exercise_corpus.catalog'`. Step 4 ("verify test PASSES") will also fail. Fix before executing: promote `Primitive` to `model/src/exercise_corpus/__init__.py` (created in Task 1, which is in the same Group A), import `Primitive` from `exercise_corpus` in both `segment.py` and `test_catalog.py`. This keeps Group A parallelism intact.
 
 VERDICT: NEEDS_REWORK — [BLOCKER: test_catalog.py imports exercise_corpus.segment.Primitive which does not exist during Group A parallel execution; fix by defining Primitive in exercise_corpus.__init__ in Task 1 and importing from there]
+
+---
+
+## Challenge Review (Re-review 2026-05-28)
+
+This is a second pass following targeted fixes to the single BLOCKER and two RISKs flagged in the prior review.
+
+### Fix Verification
+
+**BLOCKER (Primitive cross-dependency) — RESOLVED.**
+`test_catalog.py` line 487 now imports `from exercise_corpus import Primitive` (package root `__init__.py`), not `from exercise_corpus.segment import Primitive`. Task 1 Step 3b defines `Primitive` in `__init__.py`. Task 4's `segment.py` imports `from exercise_corpus import Primitive`. Group A parallelism is intact and no task imports a module created by another Group A peer.
+
+**RISK 1 (scikit-learn explicit dep) — RESOLVED.**
+Task 1 Step 3a now explicitly adds `"scikit-learn>=1.3.0"` to `model/pyproject.toml` alongside `partitura`, `umap-learn`, and `matplotlib`. All four are now explicit deps, not transitive.
+
+**RISK 2 (dry_run RuntimeError semantics) — RESOLVED.**
+`run.py` lines 1602-1605: when `dry_run=True` and all source files are present, the function logs, prints a confirmation, and returns `None` cleanly. No RuntimeError. `--dry-run` flag semantics are now correct ("check files exist → exit 0").
+
+### CEO Pass
+
+No change to strategic framing. Premise, scope, and 12-month alignment findings from the prior review stand. All remain valid.
+
+[OBS] — The pyproject.toml already has `matplotlib>=3.7.0` and `umap-learn>=0.5.11` in the current file (lines 30, 59). Task 1 Step 3a's instruction to add them is harmless (they already satisfy the version constraint), but the build agent should be aware that a duplicate dep addition will be a no-op or cause a duplicate key warning in some toml tools. The plan should ideally say "add if not already present" or "upgrade the version pin." Not a blocker — `uv add` handles idempotency.
+
+### Engineering Pass
+
+**Architecture** — unchanged, still clean. Data flow verified: `sources.toml → segment → embed → catalog → validate`. No new coupling introduced by the fixes.
+
+**Module Depth** — unchanged. All verdicts from prior review stand.
+
+**Code Quality**
+
+[OBS] — `test_run.py` `test_run_pipeline_dry_run_raises_on_missing_musicxml` only covers the missing-file path. There is still no test for `dry_run=True` + all files present → returns `None`. This is a minor gap (the happy path of a dev-convenience flag), not a blocker. The behavior is correct in the implementation.
+
+[OBS] — `test_sources.py` path construction: `Path(__file__).parents[3] / "src" / "exercise_corpus" / "sources.toml"`. `__file__` is `model/tests/exercise_corpus/test_sources.py`. `parents[3]` resolves to the directory three levels up from `model/tests/exercise_corpus/`, which is `model/`. This resolves to `model/src/exercise_corpus/sources.toml` — correct. Verify once: `parents[0]` = `model/tests/exercise_corpus/`, `parents[1]` = `model/tests/`, `parents[2]` = `model/`, `parents[3]` = the crescendai root. That would resolve to `crescendai/src/exercise_corpus/sources.toml`, not `model/src/`. This is a concrete path bug.
+
+[RISK] (confidence: 8/10) — `test_sources.py` uses `Path(__file__).parents[3]` to locate `sources.toml`. With `__file__` at `model/tests/exercise_corpus/test_sources.py`: `parents[0]` = `model/tests/exercise_corpus/`, `parents[1]` = `model/tests/`, `parents[2]` = `model/`, `parents[3]` = crescendai project root. The constructed path becomes `crescendai/src/exercise_corpus/sources.toml`, which does not exist. The correct index is `parents[2]` (= `model/`), giving `model/src/exercise_corpus/sources.toml`. This will cause `test_sources_toml_exists` to FAIL even after `sources.toml` is created. Fallback: change `parents[3]` to `parents[2]` before running Task 2 tests.
+
+**Test Philosophy** — all tests verify behavior through public interfaces. No change since prior review.
+
+**Vertical Slice Audit** — the BLOCKER fix preserves the vertical-slice structure. Each task is still one test → one implementation → one commit.
+
+**Test Coverage** — no change from prior review gaps. All gaps remain non-critical (error paths on a pure validation pipeline).
+
+**Failure Modes** — no new failure modes introduced by the fixes.
+
+### Presumption Inventory (delta only)
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `Primitive` in `__init__.py` is importable before `segment.py` exists | SAFE | `__init__.py` defines it inline; no circular import |
+| `uv add scikit-learn>=1.3.0` is idempotent when version already satisfied by transitive dep | SAFE | uv merges constraints correctly |
+| `Path(__file__).parents[2]` in `test_sources.py` resolves to `model/` | SAFE (if fixed) | Three-level traversal from `model/tests/exercise_corpus/` lands at `model/` |
+
+### Summary
+
+[BLOCKER] count: 0
+[RISK]    count: 1 (test_sources.py path index off-by-one; will fail `test_sources_toml_exists`)
+[QUESTION] count: 0
+[OBS]     count: 3
+
+VERDICT: PROCEED_WITH_CAUTION — [RISK: test_sources.py uses `parents[3]` which resolves one level too high; change to `parents[2]` before running Task 2 tests]
 
 ---
 
