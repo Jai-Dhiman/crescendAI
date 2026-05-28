@@ -52,6 +52,28 @@ Tier-1 (mapped) coverage in the eval cache is therefore ~4/17 piece slugs.
 
 Per scope override from the operator, Task 12 (the multi-hour full 513-recording eval lift verification) was NOT executed. It is a measurement gate, not an implementation task, and will be handled separately after /review by the operator. Branch is ready for /review independent of Task 12.
 
+## Production-fidelity verification (2026-05-28) — DO NOT run Task 12 yet
+
+After ship, the feature was exercised end-to-end against local dev (eval WebSocket path via `pipeline_client.py`, and `run_eval.py --dry-run`). Findings:
+
+- **Plumbing verified.** `bar_analysis` reaches the teacher prompt in both tiers, e.g. Tier-1 `{"tier":1,"bar_range":null,"selected":{"dimension":"pedaling","analysis":"14 pedal events across chunk."}}`, Tier-2 with a populated `correlated[]`.
+- **Payload is too coarse to move ASCF.** `bar_range` is `null` in every reachable path and the `analysis` strings are chunk-level aggregates ("14 pedal events across chunk", "Velocity range 65, IOI std 0.186s") — no bars, no per-note onset_deviation_ms. Both dry-run syntheses stayed generic (no bar/ms citations).
+- **Root cause — bars and expression facts never join:**
+  - `handleProcessChunk` (real audio): chroma DTW sets `chunkBarRange` + `tier=1` but **never sets `chunkAnalysis`** (see "Tier 1 expression analysis deferred until AMT redeploy" comment near session-brain.ts ~625-647) → `buildBarAnalysisFacts` receives null → no facts. The chroma-fail branch yields Tier-2 facts but null bar_range.
+  - `handleEvalChunk` (eval WS): always Tier-2, null bar_range.
+  - `bar_analysis_local.py:168`: hardcodes `bar_range: None`, never aligns.
+
+**Therefore: do NOT run the Task 12 full eval until bar-aligned facts actually flow.** It would measure the coarse-fact ceiling and read as a feature failure.
+
+**The unlock (post AMT redeploy):**
+1. Populate `chunkAnalysis` on the chroma-success path in `handleProcessChunk` — combine chroma `bar_min/bar_max` with expression facts (re-enable note-level `analyzeTier1`, or merge bar ranges into `analyzeTier2` output).
+2. Make `bar_analysis_local.py` align to bars instead of hardcoding `bar_range: None`.
+3. Then run Task 12 and compare ASCF against the locked 1.387 baseline.
+
+The `buildBarAnalysisFacts` module, `llmAnalysis` field, synthesis injection, and eval mirror all work and need no further plumbing once facts carry bars.
+
+**Local-dev note:** the eval WebSocket path suffers a wrangler-dev DO state race (28 chunks → 3 persisted; baselines fail to load), so `run_eval.py` (no DO) is the reliable verification path. 6 baseline observations were seeded for `debug@crescend.ai` in `crescendai_dev` to let eval-WS teaching-moment selection fire.
+
 ## Follow-up: reasoning_trace format audit
 
 The `observations.reasoning_trace` column is now polymorphic:
