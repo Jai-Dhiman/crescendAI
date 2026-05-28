@@ -76,11 +76,14 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'exercise_corpus'` (pac
 
 - [ ] **Step 3: Implement**
 
-**3a. Update `model/pyproject.toml`** — add `partitura>=1.8.0` to the `dependencies` list, and add `"src/exercise_corpus"` to `[tool.hatch.build.targets.wheel] packages`:
+**3a. Update `model/pyproject.toml`** — add `partitura>=1.8.0`, `scikit-learn>=1.3.0`, `umap-learn>=0.5.0`, and `matplotlib>=3.7.0` to the `dependencies` list (scikit-learn, umap-learn, and matplotlib are used in validate.py and must be explicit deps — they are currently transitive but not guaranteed), and add `"src/exercise_corpus"` to `[tool.hatch.build.targets.wheel] packages`:
 
 In the `dependencies` list, after `"dtw-python>=1.7.4"`, add:
 ```toml
     "partitura>=1.8.0",
+    "scikit-learn>=1.3.0",
+    "umap-learn>=0.5.0",
+    "matplotlib>=3.7.0",
 ```
 
 In `[tool.hatch.build.targets.wheel]`, change:
@@ -91,6 +94,20 @@ packages = ["src/score_alignment", "src/audio_experiments", "src/model_improveme
 **3b. Create `model/src/exercise_corpus/__init__.py`:**
 ```python
 """Exercise corpus construction and embedding validation pipeline."""
+
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass
+class Primitive:
+    primitive_id: str
+    source: str
+    source_exercise_number: int
+    title: str
+    musicxml_path: Path
+    midi_path: Path
+    n_notes: int
 ```
 
 **3c. Create `model/tests/exercise_corpus/__init__.py`:**
@@ -332,7 +349,7 @@ Expected: PASS (4 tests)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add model/src/exercise_corpus/__init__.py model/tests/exercise_corpus/__init__.py model/tests/exercise_corpus/fixtures/ model/tests/exercise_corpus/test_fixtures.py model/pyproject.toml && git commit -m "feat(exercise-corpus): scaffold package, add MusicXML fixtures, add partitura dep"
+git add model/src/exercise_corpus/__init__.py model/tests/exercise_corpus/__init__.py model/tests/exercise_corpus/fixtures/ model/tests/exercise_corpus/test_fixtures.py model/pyproject.toml && git commit -m "feat(exercise-corpus): scaffold package with Primitive dataclass, add MusicXML fixtures, add explicit deps"
 ```
 
 ---
@@ -467,8 +484,8 @@ import pytest
 import torch
 from pathlib import Path
 
+from exercise_corpus import Primitive
 from exercise_corpus.catalog import write_primitives, read_primitives, CatalogRow
-from exercise_corpus.segment import Primitive
 
 
 def _make_primitive(n: int) -> Primitive:
@@ -707,7 +724,8 @@ import partitura
 import pytest
 from pathlib import Path
 
-from exercise_corpus.segment import segment_source, Primitive, SegmentationError
+from exercise_corpus import Primitive
+from exercise_corpus.segment import segment_source, SegmentationError
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -814,28 +832,18 @@ Supported source names: "hanon", "czerny", "burgmuller"
 """
 
 import logging
-from dataclasses import dataclass
 from pathlib import Path
 
 import partitura
 import partitura.score as pt_score
+
+from exercise_corpus import Primitive
 
 logger = logging.getLogger(__name__)
 
 
 class SegmentationError(Exception):
     """Raised when a source MusicXML does not match the expected boundary pattern."""
-
-
-@dataclass
-class Primitive:
-    primitive_id: str
-    source: str
-    source_exercise_number: int
-    title: str
-    musicxml_path: Path
-    midi_path: Path
-    n_notes: int
 
 
 _SOURCE_CONFIGS: dict[str, dict] = {
@@ -974,9 +982,9 @@ import pytest
 import torch
 from pathlib import Path
 
+from exercise_corpus import Primitive
 from exercise_corpus.validate import source_purity, run_validation, ValidationResult
 from exercise_corpus.catalog import write_primitives
-from exercise_corpus.segment import Primitive
 
 
 def _make_synthetic_primitives_and_embeddings(
@@ -1419,9 +1427,9 @@ import torch
 from pathlib import Path
 from unittest.mock import patch
 
+from exercise_corpus import Primitive
 from exercise_corpus.run import run_pipeline
 from exercise_corpus.catalog import write_primitives
-from exercise_corpus.segment import Primitive
 
 
 def _make_primitive(source: str, n: int) -> Primitive:
@@ -1537,7 +1545,7 @@ def run_pipeline(
     dry_run: bool = False,
     validate_only: bool = False,
     db_path: Path | None = None,
-) -> ValidationResult:
+) -> ValidationResult | None:
     """Run the full exercise corpus pipeline or a subset.
 
     Args:
@@ -1545,14 +1553,14 @@ def run_pipeline(
         output_dir: root output directory. Scores go to output_dir/scores/exercise_primitives/,
             MIDI to output_dir/midi/exercise_primitives/, catalog to
             output_dir/exercise_primitives.db, results to output_dir/results/.
-        dry_run: if True, raise FileNotFoundError for the first missing MusicXML
-            without running segmentation.
+        dry_run: if True, check that all source MusicXML files exist and return None
+            (no segmentation or embedding). Raises FileNotFoundError for any missing file.
         validate_only: if True, skip segment/embed and run only validate against
             an existing db_path.
         db_path: required when validate_only=True.
 
     Returns:
-        ValidationResult from validate.run_validation.
+        ValidationResult from validate.run_validation, or None when dry_run=True.
 
     Raises:
         FileNotFoundError: if any source MusicXML is missing (dry_run or normal run).
@@ -1592,9 +1600,9 @@ def run_pipeline(
             )
 
     if dry_run:
-        logger.info("dry_run=True: all source files present, stopping before segmentation.")
-        # Return a placeholder — dry_run is only used in tests to check the missing-file raise
-        raise RuntimeError("dry_run completed without error (all sources present)")
+        logger.info("dry_run=True: all %d source files present. OK.", len(sources))
+        print(f"dry_run OK: all {len(sources)} source MusicXML files found.")
+        return None
 
     all_primitives = []
     for source in sources:
@@ -1651,7 +1659,7 @@ def main() -> None:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Check that all source MusicXML files exist without running the pipeline.",
+        help="Check that all source MusicXML files exist and exit cleanly (no segmentation or embedding).",
     )
     args = parser.parse_args()
 
@@ -1692,6 +1700,183 @@ Expected: All tests PASS. No tests referencing Aria weights should run against t
 ```bash
 git add model/src/exercise_corpus/run.py model/tests/exercise_corpus/test_run.py && git commit -m "feat(exercise-corpus): add run.py CLI orchestrator, all pipeline tests pass"
 ```
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise Challenge**
+
+Right problem: Yes. The exercise-proposal molecule is confirmed rule-based with no real corpus (18 string templates, verified in spec). Without this validation step, slices B-D (Postgres schema, matcher, briefing integration) rest on an untested bet that Aria embeddings carry pedagogy signal. This is the cheapest possible proof — run it before investing in production infrastructure.
+
+Real pain: If Aria purity < 0.70 on real data, the entire multi-slice rebuild plan pivots. That's a multi-week save. This slice is justified precisely because it can falsify the premise at low cost.
+
+Direct path: Yes. The plan is the shortest path to "Aria embeddings cluster by source → purity metric printed → human reviews 15 pairs". No unnecessary indirection.
+
+Existing coverage: `model/src/model_improvement/aria_embeddings.py` already implements `extract_all_embeddings`. The plan correctly reuses it via `embed.py` adapter. No duplication.
+
+**Scope Check**
+
+The plan is well-scoped. 7 tasks, 6 new source files, 1 modified file. The spec explicitly excludes auto-tagger, Postgres schema, matcher, MEI — and the plan respects these exclusions. The deliverable is pipeline code + tests against committed fixtures. Complexity is proportionate.
+
+[OBS] — `partitura` is not currently installed in the uv environment (verified: `uv run python -c "import partitura"` raises ModuleNotFoundError). It is not listed in `model/pyproject.toml`. Task 1 Step 3a adds it, which is correct — but Step 2 (verify test FAILS) will fail with a *different* error than expected: partitura will not be importable because the dep hasn't been added yet. The build agent must run Step 3a (add partitura to pyproject.toml + `uv sync`) before the test-fail step is meaningful for fixture tests. This ordering is implied but not explicit in the plan. Not a blocker — build agent will handle it — but worth flagging.
+
+**Twelve-Month Alignment**
+
+```
+CURRENT STATE                     THIS PLAN                          12-MONTH IDEAL
+Rule-based template engine    →   Aria purity validation pipeline →   Production corpus with
+(18 string templates, no           (offline, code + tests only)        retrieval matcher backed
+real corpus, no retrieval)                                             by real Aria embeddings
+```
+
+This plan moves toward the ideal. It does not create tech debt.
+
+**Alternatives Check**
+
+The spec documents key decisions with alternatives considered: partitura vs music21, SQLite vs Postgres, whole-exercise vs phrase-level granularity, purity vs silhouette/Davies-Bouldin. Reasoning is captured. No gap here.
+
+---
+
+### Engineering Pass
+
+**Architecture**
+
+Data flow verified against actual code:
+
+```
+sources.toml → run.py
+    → segment_source() [partitura parse + per-part export → Primitive list]
+    → embed_primitives() [adapter → extract_all_embeddings(midi_dir, variant="embedding")]
+    → write_primitives() [SQLite blob write]
+    → run_validation() [read_primitives → k-NN → UMAP → JSON]
+```
+
+All component boundaries are clean. `embed.py` correctly wraps `aria_embeddings.extract_all_embeddings` — verified against the real function signature `extract_all_embeddings(midi_dir: Path, variant: str = "embedding") -> dict[str, torch.Tensor]`.
+
+No N+1 queries, no unbounded loops beyond the per-primitive iteration (bounded by corpus size). No security concerns (no user input flows to SQL — all parameters are path-bound from TOML).
+
+**Module Depth Audit**
+
+- `segment.py` — Interface: 1 function + 2 dataclasses + 1 exception. Implementation: partitura parse, per-source dispatch, MusicXML/MIDI export, note-count. **DEEP.**
+- `catalog.py` — Interface: 2 functions + 2 dataclasses. Hides SQLite DDL, blob serialization, connection lifecycle. **DEEP.**
+- `embed.py` — Interface: 1 function, 1 line of implementation. **SHALLOW by design** (acknowledged in spec as intentional boundary adapter). Justified.
+- `validate.py` — Interface: 1 function + 2 dataclasses. Hides k-NN, UMAP, matplotlib, JSON, purity math. **DEEP.**
+- `run.py` — Thin orchestrator. **SHALLOW by design** (acknowledged in spec). Justified.
+- `sources.toml` — Config manifest, not a module. Not applicable.
+
+**Code Quality**
+
+[RISK] (confidence: 9/10) — `scikit-learn` is used in `validate.py` (`sklearn.neighbors.NearestNeighbors`) but is **not listed as an explicit dependency in `model/pyproject.toml`**. It is currently installed as a transitive dependency (verified: `uv pip list` shows `scikit-learn 1.7.2`), but transitive deps are not guaranteed. The plan adds `partitura>=1.8.0` to deps but does not add `scikit-learn`. If the transitive dependency chain changes, `validate.py` silently breaks. Add `scikit-learn>=1.3.0` to `model/pyproject.toml` in Task 1 Step 3a alongside partitura. Fallback: it works today, but fragile.
+
+[RISK] (confidence: 8/10) — `run.py` `dry_run` behavior is semantically odd. When `dry_run=True` AND all source files are present, the function raises `RuntimeError("dry_run completed without error (all sources present)")` — but the only test for `dry_run` (`test_run_pipeline_dry_run_raises_on_missing_musicxml`) only tests the missing-file path. The `dry_run=True` + all-files-present code path raises an unhandled `RuntimeError` that the CLI will propagate unhandled. This is a minor design inconsistency (no production user ever hits this in the intended workflow) but the `--dry-run` flag documentation says "check that source MusicXML files exist" — successfully checking them should exit 0, not raise. No test covers this path. Fallback: document the limitation; the failing path (the only meaningful one) is tested.
+
+[OBS] — `validate.py` uses `matplotlib.use("Agg")` at module import time. If other code in the same process has already imported matplotlib with a different backend, this call is a no-op and may cause a display error in non-headless environments. This is a known matplotlib limitation — the `use()` call must precede the first import of `matplotlib.pyplot`. The plan's placement (before `import matplotlib.pyplot as plt`) is correct. Safe in CI/headless. Low risk.
+
+[OBS] — `test_catalog.py` imports `from exercise_corpus.segment import Primitive` in its Step 1 test file — but Task 3 (catalog) is in Group A (parallel with Task 4 which creates segment.py). At the time Task 3 runs, `segment.py` does not exist yet. The test will fail with `ModuleNotFoundError: No module named 'exercise_corpus.segment'` rather than `ModuleNotFoundError: No module named 'exercise_corpus.catalog'`. The build agent must be aware that Group A tasks cannot be dispatched in strict parallel if they import each other's not-yet-created modules. **This is a concrete build-agent ordering issue.** The fix: move the `Primitive` import in `test_catalog.py` to use a locally defined minimal `Primitive`-like object (or define `Primitive` in `__init__.py` rather than `segment.py`), OR make catalog tests not depend on `segment.Primitive` by defining `Primitive` before `segment.py` exists.
+
+**Test Philosophy Audit**
+
+All tests exercise behavior through public interfaces. No tests call private methods. No internal mocking except `embed.py` tests (where `extract_all_embeddings` is an *external* boundary — the Aria model weights — appropriately patched at the import boundary). No shape-only tests — every test asserts on behavior (round-trip equality, count assertions, file existence + content validity, error raises).
+
+[BLOCKER] (confidence: 9/10) — `test_catalog.py` imports `from exercise_corpus.segment import Primitive` at the top of the test file. Task 3 (catalog) is in Group A (parallel with Task 4 which creates `segment.py`). When Task 3 runs in isolation (parallel with Task 2 and Task 1, but before Task 4), `segment.py` does not exist. The Step 2 "verify test FAILS" check will fail with `ModuleNotFoundError: No module named 'exercise_corpus.segment'` — wrong module, wrong failure. Step 4 "verify test PASSES" will also fail for the same reason. **Fix:** Define `Primitive` in `model/src/exercise_corpus/__init__.py` (created in Task 1) and have `segment.py` import it from there, OR define a minimal `Primitive` dataclass locally in `test_catalog.py` for the test helper, OR restructure so `catalog.py`'s test only passes dicts/tuples and converts internally. The cleanest fix is to promote `Primitive` to `exercise_corpus.__init__` as the shared dataclass, since both `segment.py` and `catalog.py` reference it.
+
+**Vertical Slice Audit**
+
+Each task is structured as one test → one implementation → one commit. No horizontal slicing. No test-scaffolding-only tasks. Task groups A, B, C, D respect the dependency order. The only issue (catalog importing segment's Primitive before segment exists) is called out above as a BLOCKER.
+
+**Test Coverage Gaps**
+
+```
+[+] segment.py
+    └── segment_source()
+        ├── [TESTED] happy path, 3 primitives — test_hanon_fixture_yields_three_primitives ★★
+        ├── [TESTED] field population — test_primitive_fields_are_populated ★★
+        ├── [TESTED] MIDI/XML pitch consistency — test_midi_pitch_set_matches_musicxml ★★
+        ├── [TESTED] unknown source name — test_bad_source_name_raises_segmentation_error ★★★
+        ├── [TESTED] zero parts — test_zero_parts_raises_segmentation_error ★★
+        └── [GAP]   part with zero notes — no test (raises SegmentationError per code; not tested)
+
+[+] catalog.py
+    ├── write_primitives()
+    │   ├── [TESTED] round-trip preserves all fields — test_round_trip_preserves_all_fields ★★★
+    │   ├── [TESTED] created_at populated — test_created_at_is_populated ★★
+    │   ├── [GAP]   missing primitive_id in embeddings dict — KeyError not tested
+    │   └── [GAP]   non-1D embedding tensor — ValueError not tested
+    └── read_primitives()
+        └── [GAP]   db_path does not exist — FileNotFoundError not tested
+
+[+] validate.py
+    ├── source_purity()
+    │   ├── [TESTED] perfect separation → 1.0 ★★★
+    │   ├── [TESTED] random embeddings → near-floor ★★★
+    │   └── [GAP]   n <= k raises ValueError — not tested
+    └── run_validation()
+        ├── [TESTED] 15 within-source pairs — test_run_validation_emits_15_pairs ★★★
+        ├── [TESTED] UMAP file created ★★
+        ├── [TESTED] pairs JSON valid ★★
+        ├── [TESTED] PASS verdict for tight clusters ★★★
+        └── [GAP]   empty catalog raises ValueError — not tested
+
+[+] embed.py
+    ├── [TESTED] variant passed through, dict returned ★★★
+    └── [TESTED] FileNotFoundError propagated ★★★
+
+[+] run.py
+    ├── [TESTED] --help exits 0 ★★
+    ├── [TESTED] dry_run missing MusicXML raises FileNotFoundError ★★★
+    └── [TESTED] validate_only reads existing catalog ★★
+```
+
+All gaps are non-critical paths (error paths on a pure validation pipeline). Not blockers.
+
+[OBS] — `test_zero_parts_raises_segmentation_error` writes a malformed MusicXML (empty `<part-list>`, no `<part>` elements). Whether partitura raises internally or returns an empty parts list is implementation-dependent. The test relies on `segment_source` propagating a `SegmentationError` — which the implementation raises if `len(parts) == 0`. This is correct, but if partitura raises its own parse error on empty-part-list XML, the test catches the wrong exception type. Verify this is actually an issue once partitura is installed.
+
+**Failure Modes**
+
+- Task 1 fixture tests: failure leaves nothing in corrupt state (pure file creation).
+- Task 3 catalog: SQLite `connect()` + `commit()` in a `try/finally` — connection always closed. Write failure is explicit (KeyError/ValueError raised). No partial writes persist because SQLite is transactional.
+- Task 4 segment: partitura export failure propagates as-is (no swallowing). `output_score_dir.mkdir(parents=True, exist_ok=True)` — safe.
+- Task 5 validate: `run_validation` does not raise on FAIL verdict — returns it. Correct for a validation pipeline.
+- Task 7 run.py: CLI has no signal handling. A mid-pipeline kill (e.g. between `write_primitives` and `run_validation`) leaves a valid catalog on disk but no results. Re-running `--validate-only` recovers. Not a failure mode in a batch offline tool.
+
+All failures are visible (explicit raises, logger.exception in aria_embeddings). Zero silent failures.
+
+---
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `partitura` is available after adding to pyproject.toml | SAFE | Standard PyPI package; no known install issues on M4 Mac |
+| `partitura.utils.iter_parts(score)` returns one element per `<part>` in MusicXML | VALIDATE | Partitura's part iteration is standard but behavior on multi-part fixture not verified without installing |
+| `partitura.save_midi(part, path)` produces valid MIDI readable by mido | VALIDATE | Used in test_midi_pitch_set_matches_musicxml; correct if partitura's MIDI export preserves note pitches |
+| `aria_embeddings.extract_all_embeddings` uses filename stem as key | SAFE | Verified in source: `segment_id = midi_path.stem` (line 201 of aria_embeddings.py) |
+| `extract_all_embeddings` accepts `variant="embedding"` | SAFE | Verified in source (line 182); "embedding" is the default |
+| `scikit-learn` remains a transitive dep | RISKY | Not in pyproject.toml explicitly; transitive via umap-learn or hdbscan; can be broken by dep update |
+| Hanon/Czerny/Burgmuller real MusicXML uses one `<part>` per exercise | VALIDATE | This is an open question in the spec; segment.py raises SegmentationError if assumption fails |
+| `tomllib` is available (Python stdlib) | SAFE | stdlib since Python 3.11; pyproject.toml requires `>=3.11` |
+| UMAP `fit_transform` on 125 embeddings of dim 512 completes in reasonable time | SAFE | UMAP on N=125 is near-instant (milliseconds) |
+| `matplotlib.use("Agg")` before pyplot import prevents display errors | SAFE | Standard headless pattern; correct placement in validate.py |
+| Tight Gaussian clusters (noise=0.01) at orthogonal unit vectors produce purity=1.0 at k=2 | SAFE | Geometrically guaranteed — nearest neighbors of near-orthogonal tight clusters are within-cluster |
+| `test_purity_shuffled_near_random_floor` bound 0.20-0.70 is stable | VALIDATE | With seed 42 and n=125 random embeddings in 512 dims, random floor is ~0.43; the generous range should hold but RNG behavior should be verified once |
+
+---
+
+### Summary
+
+[BLOCKER] count: 1
+[RISK]    count: 2
+[QUESTION] count: 0
+[OBS]     count: 5
+
+**BLOCKER:**
+
+[BLOCKER] (confidence: 9/10) — `test_catalog.py` imports `from exercise_corpus.segment import Primitive` at module level. Task 3 (catalog) runs in Group A parallel with Tasks 1 and 2, but Task 4 (which creates `segment.py`) is in Group B and has not run yet. When the build agent runs Task 3's Step 2 ("verify test FAILS"), the test file itself will fail to import — raising `ModuleNotFoundError: No module named 'exercise_corpus.segment'` rather than the expected `ModuleNotFoundError: No module named 'exercise_corpus.catalog'`. Step 4 ("verify test PASSES") will also fail. Fix before executing: promote `Primitive` to `model/src/exercise_corpus/__init__.py` (created in Task 1, which is in the same Group A), import `Primitive` from `exercise_corpus` in both `segment.py` and `test_catalog.py`. This keeps Group A parallelism intact.
+
+VERDICT: NEEDS_REWORK — [BLOCKER: test_catalog.py imports exercise_corpus.segment.Primitive which does not exist during Group A parallel execution; fix by defining Primitive in exercise_corpus.__init__ in Task 1 and importing from there]
 
 ---
 
