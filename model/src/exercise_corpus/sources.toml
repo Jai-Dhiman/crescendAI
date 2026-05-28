@@ -1,0 +1,31 @@
+# Exercise corpus source manifest.
+# Each entry points to a locally acquired MusicXML file.
+# The user must place the acquired MusicXML at musicxml_path before running the pipeline.
+# All sources are unambiguously public domain globally.
+
+[[sources]]
+name = "hanon"
+title = "The Virtuoso Pianist (Hanon)"
+composer = "Charles-Louis Hanon"
+opus = ""
+license = "public_domain"
+# Acquire from IMSLP: https://imslp.org/wiki/The_Virtuoso_Pianist_(Hanon,_Charles-Louis)
+musicxml_path = "data/scores/exercise_primitives/raw/hanon_op599.xml"
+
+[[sources]]
+name = "czerny"
+title = "The School of Velocity op.299 (Czerny)"
+composer = "Carl Czerny"
+opus = "299"
+license = "public_domain"
+# Acquire from IMSLP: https://imslp.org/wiki/School_of_Velocity%2C_Op.299_(Czerny%2C_Carl)
+musicxml_path = "data/scores/exercise_primitives/raw/czerny_op299.xml"
+
+[[sources]]
+name = "burgmuller"
+title = "25 Progressive Studies op.100 (Burgmuller)"
+composer = "Johann Friedrich Burgmuller"
+opus = "100"
+license = "public_domain"
+# Acquire from IMSLP: https://imslp.org/wiki/25_Progressive_Studies%2C_Op.100_(Burgm%C3%BCller%2C_Johann_Friedrich)
+musicxml_path = "data/scores/exercise_primitives/raw/burgmuller_op100.xml"
