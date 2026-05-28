@@ -108,7 +108,7 @@ def run_pipeline(
         f"\nValidation complete: purity={result.purity:.4f} -- {result.verdict} "
         f"(threshold 0.70)\n"
         f"UMAP: {result.umap_path}\n"
-        f"Review artifact (15 pairs): {result.pairs_path}\n"
+        f"Review artifact ({len(result.pairs)} pairs): {result.pairs_path}\n"
     )
     return result
 
