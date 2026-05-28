@@ -966,6 +966,15 @@ wheels = [
 ]
 
 [[package]]
+name = "elementpath"
+version = "5.1.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/95/eeb61a2a917bf506d1402748e71c62399d8dcdd8cdccd64c81962832c260/elementpath-5.1.1.tar.gz", hash = "sha256:c4d1bd6aed987258354d0ea004d965eb0a6818213326bd4fd9bde5dacdb20277", size = 375378, upload-time = "2026-01-20T21:42:27.175Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/14/5a/4ddfd9aeecdc75a78b5d85d882abc2b822115caae2c00a4d0eb23cc101fc/elementpath-5.1.1-py3-none-any.whl", hash = "sha256:57637359065e60654422d8474c1749b09bb21348012b7197f868027e3c09c9b9", size = 259962, upload-time = "2026-01-20T21:42:24.127Z" },
+]
+
+[[package]]
 name = "executing"
 version = "2.2.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2030,6 +2039,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/1d/37/a13baf0135f348af608c667633cbe5d13aa2c5c15a56ae9ad3e6cba45ae3/lark-1.3.0.tar.gz", hash = "sha256:9a3839d0ca5e1faf7cfa3460e420e859b66bcbde05b634e73c369c8244c5fa48", size = 259551, upload-time = "2025-09-22T13:45:05.072Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a8/3e/1c6b43277de64fc3c0333b0e72ab7b52ddaaea205210d60d9b9f83c3d0c7/lark-1.3.0-py3-none-any.whl", hash = "sha256:80661f261fb2584a9828a097a2432efd575af27d20be0fd35d17f0fe37253831", size = 113002, upload-time = "2025-09-22T13:45:03.747Z" },
+]
+
+[[package]]
+name = "lark-parser"
+version = "0.12.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/5a/ee/fd1192d7724419ddfe15b6f17d1c8742800d4de917c0adac3b6aaf22e921/lark-parser-0.12.0.tar.gz", hash = "sha256:15967db1f1214013dca65b1180745047b9be457d73da224fcda3d9dd4e96a138", size = 235029, upload-time = "2021-08-30T09:14:44.484Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/76/00/90f05db333fe1aa6b6ffea83a35425b7d53ea95c8bba0b1597f226cf1d5f/lark_parser-0.12.0-py2.py3-none-any.whl", hash = "sha256:0eaf30cb5ba787fe404d73a7d6e61df97b21d5a63ac26c5008c78a494373c675", size = 103498, upload-time = "2021-08-30T13:01:01.603Z" },
 ]
 
 [[package]]
@@ -3320,6 +3338,24 @@ wheels = [
 ]
 
 [[package]]
+name = "partitura"
+version = "1.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "lark-parser" },
+    { name = "lxml" },
+    { name = "mido" },
+    { name = "numpy" },
+    { name = "scipy" },
+    { name = "typing-extensions" },
+    { name = "xmlschema" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/91/2f/c8dbdfe2192a8930fd8c0d33398c5567adebe053ae556306e1626b5b9e26/partitura-1.9.0.tar.gz", hash = "sha256:feb1042de1bbdeee8ebae8440cd3655596b0c01df2c4a7ae174a00349049df9d", size = 404685, upload-time = "2026-05-25T01:48:11.702Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c6/62/85f327f02c0558c458f6d00ea661b3f22305a836d6dbfc92044f002117c8/partitura-1.9.0-py3-none-any.whl", hash = "sha256:d7e7f73259379dc73d38b31db558763b6c3b59256b189268889fbac90ec5e0d0", size = 363910, upload-time = "2026-05-25T01:48:10.31Z" },
+]
+
+[[package]]
 name = "pathspec"
 version = "0.12.1"
 source = { registry = "https://pypi.org/simple" }
@@ -3440,6 +3476,7 @@ dependencies = [
     { name = "omegaconf" },
     { name = "openai" },
     { name = "pandas" },
+    { name = "partitura" },
     { name = "pedalboard" },
     { name = "peft" },
     { name = "pretty-midi" },
@@ -3451,6 +3488,7 @@ dependencies = [
     { name = "resampy" },
     { name = "rich" },
     { name = "safetensors" },
+    { name = "scikit-learn" },
     { name = "scipy" },
     { name = "seaborn" },
     { name = "sentence-transformers" },
@@ -3524,6 +3562,7 @@ requires-dist = [
     { name = "omegaconf", specifier = ">=2.3.0" },
     { name = "openai", specifier = ">=1.0.0" },
     { name = "pandas", specifier = ">=2.0.0" },
+    { name = "partitura", specifier = ">=1.8.0" },
     { name = "pedalboard", specifier = ">=0.9.0" },
     { name = "peft", specifier = ">=0.7.0" },
     { name = "piano-transcription-inference", marker = "extra == 'layer1'" },
@@ -3539,6 +3578,7 @@ requires-dist = [
     { name = "rich", specifier = ">=14.2.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.0.270" },
     { name = "safetensors", specifier = ">=0.6.2" },
+    { name = "scikit-learn", specifier = ">=1.3.0" },
     { name = "scipy", specifier = ">=1.10.0" },
     { name = "seaborn", specifier = ">=0.12.0" },
     { name = "sentence-transformers", specifier = ">=2.2.0" },
@@ -5831,6 +5871,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/f3/d7/f056e8e114b85df6f30f7c22fd75fb273182306ea95b36c6f2089c8ff52a/x-clip-0.14.4.tar.gz", hash = "sha256:e2539953f1c81a2ab892843c2bc02c218f4ac410cf10ce37495830f6a0e259c6", size = 1355000, upload-time = "2023-10-16T15:04:08.619Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c6/41/44c4b2336824263ebcbfa16e8fd7fd4ca010183aa7587779a405ee5ab2b5/x_clip-0.14.4-py3-none-any.whl", hash = "sha256:2e9842330bc4539916e54a22c1d4352b60b838507e0736e98e4fb74fd9972f7a", size = 1374025, upload-time = "2023-10-16T15:04:06.814Z" },
+]
+
+[[package]]
+name = "xmlschema"
+version = "4.3.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "elementpath" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/da/c4/ef78a231be72349fd6677b989ff80e276ef62e28054c36c4fea3b4db9611/xmlschema-4.3.1.tar.gz", hash = "sha256:853effdfaf127849d4724368c17bd669e7f1486e15a0376404ad7954ec31a338", size = 646611, upload-time = "2026-01-17T23:01:04.422Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/dd/7b/3471405875d0b5fac642e9a879b2c7db63642370799b2e9eea8297ffbad0/xmlschema-4.3.1-py3-none-any.whl", hash = "sha256:9560314d70ae87be0aecb8712cfebed636f867707ccf9758d4b0645d607f64b9", size = 469891, upload-time = "2026-01-17T23:01:00.39Z" },
 ]
 
 [[package]]
