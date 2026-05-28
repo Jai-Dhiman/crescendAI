@@ -1,43 +1,95 @@
 // apps/api/src/services/wasm-bridge.test.ts
 import { describe, expect, it, vi } from "vitest";
 
-// scoreAnalysisModule is a module-level const initialized to null in wasm-bridge.ts.
-// There is no exported setter, so the null guard cannot be bypassed from the test
-// environment. vi.mock replaces the WASM import path but that assignment never
-// propagates to scoreAnalysisModule because it happens before any dynamic import.
-//
-// Argument-forwarding contract for alignChunkChroma:
-//   alignChunkChroma(audioChromaBytes, chromaFrames, scoreBars, frameRateHz, decimHz)
-//   => requireScoreAnalysis().align_chunk_chroma(audioChromaBytes, chromaFrames, scoreBars, frameRateHz, decimHz)
-//
-// This forwarding is verified end-to-end by the Rust cargo test:
-//   apps/api/src/wasm/score-analysis/src/chroma_dtw.rs :: chroma_dtw_roundtrip
-// That test calls align_chunk_chroma with known fixtures and asserts bar_min/bar_max/cost.
-// It is the canonical contract for argument order and return-value pass-through.
+// Argument-forwarding contract for the TS wrappers. Math correctness is covered
+// by the Rust cargo test `chroma_dtw_roundtrip` in
+// apps/api/src/wasm/score-analysis/src/chroma_dtw.rs. This file pins only the
+// TS wrapper's forwarding behavior — that the bridge actually loads its WASM
+// imports and passes arguments through without rearrangement.
 
 const mockAlignChunkChroma = vi.fn();
+const mockAnalyzeTier1 = vi.fn();
+const mockAnalyzeTier2 = vi.fn();
+const mockSelectTeachingMoment = vi.fn();
+const mockNgramRecall = vi.fn();
+const mockRerankCandidates = vi.fn();
+const mockDtwConfirm = vi.fn();
 
 vi.mock("../wasm/score-analysis/pkg/score_analysis", () => ({
 	align_chunk_chroma: mockAlignChunkChroma,
+	analyze_tier1: mockAnalyzeTier1,
+	analyze_tier2: mockAnalyzeTier2,
+	select_teaching_moment: mockSelectTeachingMoment,
+}));
+
+vi.mock("../wasm/piece-identify/pkg/piece_identify", () => ({
+	ngram_recall: mockNgramRecall,
+	rerank_candidates: mockRerankCandidates,
+	dtw_confirm: mockDtwConfirm,
 }));
 
 describe("alignChunkChroma", () => {
-	it("is exported as a function from wasm-bridge", async () => {
+	it("forwards all five arguments to align_chunk_chroma and returns its result", async () => {
 		const { alignChunkChroma } = await import("./wasm-bridge");
-		expect(typeof alignChunkChroma).toBe("function");
-	});
+		const fakeResult = {
+			bar_min: 0,
+			bar_max: 4,
+			cost: 0.1,
+			bar_per_frame: [0, 0, 1, 1, 2, 2, 3, 3],
+		};
+		mockAlignChunkChroma.mockReturnValue(fakeResult);
 
-	it("throws 'score-analysis WASM not initialized' when called without WASM init", async () => {
-		// scoreAnalysisModule is always null in the test environment since
-		// it is never initialized. Calling alignChunkChroma must throw.
-		const { alignChunkChroma } = await import("./wasm-bridge");
-		const audioBytes = new Uint8Array(12 * 4); // 1 frame, 12 pitches
-		expect(() =>
-			alignChunkChroma(audioBytes, 1, [], 50.0, 5.0),
-		).toThrow("score-analysis WASM not initialized");
-	});
+		const audioBytes = new Uint8Array(12 * 4);
+		const bars: never[] = [];
+		const result = alignChunkChroma(audioBytes, 1, bars, 50.0, 5.0);
 
-	// TS wrapper argument forwarding (alignChunkChroma -> align_chunk_chroma, 5 args) is
-	// verified end-to-end by `chroma_dtw_roundtrip` in apps/api/src/wasm/score-analysis/src/chroma_dtw.rs,
-	// because scoreAnalysisModule cannot be initialized in the vitest node env.
+		expect(mockAlignChunkChroma).toHaveBeenCalledWith(
+			audioBytes,
+			1,
+			bars,
+			50.0,
+			5.0,
+		);
+		expect(result).toBe(fakeResult);
+	});
+});
+
+describe("selectTeachingMoment", () => {
+	it("forwards chunks, baselines, and recent observations", async () => {
+		const { selectTeachingMoment } = await import("./wasm-bridge");
+		mockSelectTeachingMoment.mockReturnValue(null);
+		const chunks = [
+			{ chunk_index: 0, scores: [1, 2, 3, 4, 5, 6] as const },
+		];
+		const baselines = {
+			dynamics: 1,
+			timing: 1,
+			pedaling: 1,
+			articulation: 1,
+			phrasing: 1,
+			interpretation: 1,
+		};
+		const recent = [{ dimension: "phrasing" }];
+
+		selectTeachingMoment(chunks as never, baselines, recent);
+
+		expect(mockSelectTeachingMoment).toHaveBeenCalledWith(
+			chunks,
+			baselines,
+			recent,
+		);
+	});
+});
+
+describe("ngramRecall", () => {
+	it("forwards notes and index to ngram_recall", async () => {
+		const { ngramRecall } = await import("./wasm-bridge");
+		mockNgramRecall.mockReturnValue([]);
+		const notes = [{ pitch: 60, onset: 0, offset: 0.5, velocity: 80 }];
+		const index = { "60,62,64": [["piece-a", 1] as [string, number]] };
+
+		ngramRecall(notes, index);
+
+		expect(mockNgramRecall).toHaveBeenCalledWith(notes, index);
+	});
 });

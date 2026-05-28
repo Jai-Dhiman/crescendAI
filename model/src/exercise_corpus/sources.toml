@@ -10,7 +10,8 @@ composer = "Charles-Louis Hanon"
 opus = ""
 license = "public_domain"
 # Acquire from IMSLP: https://imslp.org/wiki/The_Virtuoso_Pianist_(Hanon,_Charles-Louis)
-musicxml_path = "data/scores/exercise_primitives/raw/hanon_op599.xml"
+# Acquired: exercises 1-20 only (premiere partie) from MuseScore.
+musicxml_path = "data/scores/exercise_primitives/raw/hanon_virtuoso_no1-20.mxl"
 
 [[sources]]
 name = "czerny"
@@ -19,7 +20,8 @@ composer = "Carl Czerny"
 opus = "299"
 license = "public_domain"
 # Acquire from IMSLP: https://imslp.org/wiki/School_of_Velocity%2C_Op.299_(Czerny%2C_Carl)
-musicxml_path = "data/scores/exercise_primitives/raw/czerny_op299.xml"
+# Acquired: no.1 only from MuseScore (rest not available for download yet).
+musicxml_path = "data/scores/exercise_primitives/raw/czerny_op299_no1.mxl"
 
 [[sources]]
 name = "burgmuller"
@@ -28,4 +30,5 @@ composer = "Johann Friedrich Burgmuller"
 opus = "100"
 license = "public_domain"
 # Acquire from IMSLP: https://imslp.org/wiki/25_Progressive_Studies%2C_Op.100_(Burgm%C3%BCller%2C_Johann_Friedrich)
-musicxml_path = "data/scores/exercise_primitives/raw/burgmuller_op100.xml"
+# Acquired: no.1 only from MuseScore (rest not available for download yet).
+musicxml_path = "data/scores/exercise_primitives/raw/burgmuller_op100_no1.mxl"

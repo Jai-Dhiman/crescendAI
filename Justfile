@@ -23,8 +23,10 @@ dev:
 
 # Start MuQ inference server (quality scoring, port 8000)
 # Note: uv run (without python) triggers PEP 723 inline dependency resolution
+# Checkpoint override: real ablation/optimized_weights heads are absent locally;
+# point at the r32 sweep folds so all 4 heads load.
 muq:
-    cd apps/inference && uv run muq/muq_local_server.py
+    cd apps/inference && uv run muq/muq_local_server.py --checkpoint-dir ../../model/data/checkpoints/a1_max_sweep/A1max_r32_L7-12_ls0.1
 
 # Start Aria-AMT inference server (transcription, port 8001)
 amt:
@@ -114,7 +116,7 @@ check-web:
 
 # Deploy API worker to production
 deploy-api:
-    cd apps/api && wrangler deploy
+    cd apps/api && bun run deploy
 
 # --- AMT Container ---
 

@@ -12,6 +12,8 @@ export default defineConfig({
 			"src/services/**/*.test.ts",
 			"src/do/session-brain.schema.test.ts",  // explicit entry; do NOT use src/do/**/*.test.ts glob
 		],
+		// workerd-only tests (real WASM, real bindings) must not run under node
+		exclude: ["src/services/*.workerd.test.ts"],
 		globalSetup: ["./scripts/test-setup-node.ts"],
 	},
 });

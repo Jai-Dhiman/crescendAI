@@ -12,8 +12,10 @@
 		"migrate-d1": "bun run scripts/migrate-d1.ts",
 		"codegen:catalog": "bun scripts/catalog-codegen.ts",
 		"test:scripts": "vitest --config vitest.node.config.ts",
-		"prebuild": "bun run codegen:catalog",
-		"predeploy": "bun run codegen:catalog"
+		"build:wasm": "cd src/wasm/score-analysis && wasm-pack build --target bundler --release && cd ../piece-identify && wasm-pack build --target bundler --release && cd ../../.. && bun run scripts/patch-wasm-shims.ts",
+		"prebuild": "bun run codegen:catalog && bun run build:wasm",
+		"predeploy": "bun run codegen:catalog && bun run build:wasm",
+		"deploy": "wrangler deploy"
 	},
 	"dependencies": {
 		"@hono/zod-validator": "^0.4",

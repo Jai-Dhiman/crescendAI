@@ -161,7 +161,15 @@ export async function callMuqEndpoint(
 }
 
 function encodeBase64(buffer: ArrayBuffer): string {
-	return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+	const bytes = new Uint8Array(buffer);
+	// Encode in fixed-size blocks; spreading the whole array into
+	// String.fromCharCode overflows the call stack for real-sized audio (~720KB).
+	const BLOCK = 0x8000;
+	let binary = "";
+	for (let i = 0; i < bytes.length; i += BLOCK) {
+		binary += String.fromCharCode(...bytes.subarray(i, i + BLOCK));
+	}
+	return btoa(binary);
 }
 
 /** Parse a raw MuQ JSON response into a typed MuqResult. Exported for unit testing. */
