@@ -1942,7 +1942,58 @@ Expected: FAIL — `sessionStateSchema` does not have `expectedScoreFrame` yet (
 
 **Step 3: Implement DO wiring in session-brain.ts**
 
-In `apps/api/src/do/session-brain.ts`, at the chroma alignment call site (~line 601), replace the existing block:
+First, add a small pure exported function near the top of `apps/api/src/do/session-brain.ts` (before the class definition). This function encapsulates the status-dispatch decision so Task 12 can import and test it directly — the DO method stays thin and calls this instead of inlining the ternary:
+
+```typescript
+export interface ChromaDispatch {
+  expectedScoreFrame: number;
+  emitBarMap: boolean;
+  tier: 1 | 3;
+  barRange: [number, number] | null;
+}
+
+export function chromaStatusDispatch(
+  result: { status: string; end_score_frame: number; bar_min: number; bar_max: number } | null,
+  prevExpectedScoreFrame: number,
+): ChromaDispatch {
+  if (result !== null && result.status !== "abstained") {
+    return {
+      expectedScoreFrame: result.end_score_frame,
+      emitBarMap: true,
+      tier: 1,
+      barRange: [result.bar_min, result.bar_max],
+    };
+  }
+  return {
+    expectedScoreFrame: prevExpectedScoreFrame,
+    emitBarMap: false,
+    tier: 3,
+    barRange: null,
+  };
+}
+```
+
+The DO method at the chroma dispatch site then becomes:
+
+```typescript
+const dispatch = chromaStatusDispatch(chromaResult, currentState.expectedScoreFrame);
+currentState.expectedScoreFrame = dispatch.expectedScoreFrame;
+if (dispatch.tier === 1) {
+  chunkBarRange = dispatch.barRange;
+  chunkAnalysisTier = 1;
+}
+if (dispatch.emitBarMap && chromaResult !== null) {
+  this.sendWs(ws, {
+    type: "chunk_bar_map",
+    chunk_index: index,
+    bar_min: chromaResult.bar_min,
+    bar_max: chromaResult.bar_max,
+    bar_per_frame: chromaResult.bar_per_frame,
+  });
+}
+```
+
+Now, at the chroma alignment call site (~line 601), replace the existing block:
 
 ```typescript
 const chromaResult: BarMapChroma | null =
@@ -2012,26 +2063,32 @@ const chromaResult: BarMapChroma | null =
       })()
     : null;
 
-if (chromaResult !== null && chromaResult.status !== "abstained") {
-  chunkBarRange = [chromaResult.bar_min, chromaResult.bar_max];
+const dispatch = chromaStatusDispatch(chromaResult, currentState.expectedScoreFrame);
+currentState.expectedScoreFrame = dispatch.expectedScoreFrame;
+if (dispatch.tier === 1) {
+  chunkBarRange = dispatch.barRange;
   chunkAnalysisTier = 1;
-  currentState.expectedScoreFrame = chromaResult.end_score_frame;
-  console.log(JSON.stringify({
-    level: "debug",
-    message: "chroma DTW aligned",
-    status: chromaResult.status,
+}
+console.log(JSON.stringify({
+  level: "debug",
+  message: dispatch.emitBarMap ? "chroma DTW aligned" : "chroma DTW abstained — silence or ambiguous; Tier 3",
+  status: chromaResult?.status ?? "null",
+  confidence: chromaResult?.confidence ?? null,
+  end_score_frame: chromaResult?.end_score_frame ?? null,
+}));
+```
+
+Also update the `chunk_bar_map` send to call `chromaStatusDispatch`'s result (the dispatch block above replaces the prior conditional send):
+
+```typescript
+if (dispatch.emitBarMap && chromaResult !== null) {
+  this.sendWs(ws, {
+    type: "chunk_bar_map",
+    chunk_index: index,
     bar_min: chromaResult.bar_min,
     bar_max: chromaResult.bar_max,
-    confidence: chromaResult.confidence,
-    end_score_frame: chromaResult.end_score_frame,
-  }));
-} else if (chromaResult?.status === "abstained") {
-  // Abstained: preserve expectedScoreFrame, fall through to Tier 3
-  console.log(JSON.stringify({
-    level: "debug",
-    message: "chroma DTW abstained — silence or ambiguous; Tier 3",
-    confidence: chromaResult.confidence,
-  }));
+    bar_per_frame: chromaResult.bar_per_frame,
+  });
 }
 ```
 
@@ -2069,20 +2126,6 @@ if (identified !== null) {
 }
 ```
 
-Also update the `chunk_bar_map` WebSocket send to only fire on non-abstained:
-
-```typescript
-if (chromaResult !== null && chromaResult.status !== "abstained") {
-  this.sendWs(ws, {
-    type: "chunk_bar_map",
-    chunk_index: index,
-    bar_min: chromaResult.bar_min,
-    bar_max: chromaResult.bar_max,
-    bar_per_frame: chromaResult.bar_per_frame,
-  });
-}
-```
-
 **Step 4: Run test — verify it PASSES**
 
 ```bash
@@ -2105,146 +2148,88 @@ Expected: no errors.
 cd /Users/jdhiman/Documents/crescendai && \
 git add apps/api/src/do/session-brain.ts \
         apps/api/src/do/session-brain.unit.test.ts && \
-git commit -m "feat(session-brain): wire expectedScoreFrame continuity; dispatch on DTW status aligned/relocalized/abstained"
+git commit -m "feat(session-brain): extract chromaStatusDispatch pure fn; wire expectedScoreFrame continuity via it"
 ```
 
 ---
 
-## Task 12: DO Unit Tests — Frame Continuity, Abstain Preserves Frame, Reset on Piece Re-ID
+## Task 12: Unit Tests — chromaStatusDispatch Pure Function
 
 **Group:** E (sequential within Group E, after Task 11)
 
-**Behavior being verified:** The expectedScoreFrame state contract matches the DO logic: frame advances on aligned, stays on abstained, resets on piece re-identification.
+**Behavior being verified:** The pure exported `chromaStatusDispatch` function (introduced in Task 11) returns the correct `ChromaDispatch` object for each status branch: abstained preserves `expectedScoreFrame` and sets `emitBarMap: false / tier: 3 / barRange: null`; aligned advances `expectedScoreFrame` and sets `emitBarMap: true / tier: 1 / barRange` set.
 
-**Interface under test:** `sessionStateSchema` + `createInitialState` state transitions (schema-level contract, not DO internals).
+**Interface under test:** `chromaStatusDispatch` exported from `session-brain.ts` — production code, not a re-implementation.
 
 **Files:**
 - Modify: `apps/api/src/do/session-brain.unit.test.ts`
 
-Note: The schema-level tests added in Task 11 already cover the `expectedScoreFrame` state contract at the schema layer. This task adds a genuine behavior test: the DO's `processAmtResult` / status-dispatch path maps `status="abstained"` to Tier 3 with no bar range and leaves `expectedScoreFrame` unchanged. This tests new DO behavior introduced by this plan, and must be RED before Task 11's implementation lands.
-
 **Step 1: Write the failing test**
 
-Add to `apps/api/src/do/session-brain.unit.test.ts`. The test exercises the helper that maps a chroma DTW result to the chunk's analysis tier and `expectedScoreFrame` update rule. Use the existing mock harness pattern from the file (mock `alignChunkChroma` in the WASM mock, call the DO via the fake WebSocket, observe the outgoing messages).
+Add to `apps/api/src/do/session-brain.unit.test.ts`:
 
 ```typescript
-describe("chroma DTW abstained: no chunk_bar_map emitted, expectedScoreFrame unchanged", () => {
-  it("does not send chunk_bar_map when alignChunkChroma returns status=abstained", async () => {
-    // Arrange: mock alignChunkChroma to return abstained
-    mockAlignChunkChroma.mockReturnValue({
-      bar_min: 0,
-      bar_max: 0,
-      cost: 0.0,
-      bar_per_frame: [],
-      end_score_frame: 0,
-      confidence: 0.005,
-      status: "abstained",
-    });
+import { chromaStatusDispatch } from "./session-brain";
 
-    // Set up a session with a known expectedScoreFrame prior
-    await initSessionWithPiece({ expectedScoreFrame: 400 });
+describe("chromaStatusDispatch", () => {
+  it("abstained result: expectedScoreFrame unchanged, emitBarMap false, Tier 3, no barRange", () => {
+    const result = chromaStatusDispatch(
+      {
+        status: "abstained",
+        end_score_frame: 0,
+        bar_min: 0,
+        bar_max: 0,
+      },
+      400,
+    );
 
-    // Act: deliver a chunk_ready message so the DO runs chroma alignment
-    await sendChunkReady({ chunkIndex: 5 });
-
-    // Assert: no chunk_bar_map message was sent for this chunk
-    const sent = getSentMessages();
-    const barMapMessages = sent.filter((m) => m.type === "chunk_bar_map");
-    expect(barMapMessages).toHaveLength(0);
-
-    // Assert: expectedScoreFrame is still 400 (abstained must not advance the cursor)
-    const state = await readDoState();
-    expect(state.expectedScoreFrame).toBe(400);
+    expect(result.expectedScoreFrame).toBe(400);
+    expect(result.emitBarMap).toBe(false);
+    expect(result.tier).toBe(3);
+    expect(result.barRange).toBeNull();
   });
 
-  it("sends chunk_bar_map and advances expectedScoreFrame when alignChunkChroma returns status=aligned", async () => {
-    // Arrange: mock alignChunkChroma to return aligned
-    mockAlignChunkChroma.mockReturnValue({
-      bar_min: 5,
-      bar_max: 12,
-      cost: 0.18,
-      bar_per_frame: [5, 5, 6, 7, 8, 9, 10, 11, 12, 12],
-      end_score_frame: 820,
-      confidence: 0.04,
-      status: "aligned",
-    });
+  it("null result (WASM error): expectedScoreFrame unchanged, emitBarMap false, Tier 3, no barRange", () => {
+    const result = chromaStatusDispatch(null, 200);
 
-    await initSessionWithPiece({ expectedScoreFrame: -1 });
-    await sendChunkReady({ chunkIndex: 1 });
-
-    const sent = getSentMessages();
-    const barMapMessages = sent.filter((m) => m.type === "chunk_bar_map");
-    expect(barMapMessages).toHaveLength(1);
-    expect(barMapMessages[0].bar_min).toBe(5);
-
-    const state = await readDoState();
-    expect(state.expectedScoreFrame).toBe(820);
-  });
-});
-```
-
-If the full DO send harness (`initSessionWithPiece`, `sendChunkReady`, `getSentMessages`, `readDoState`) is not available in the existing `session-brain.unit.test.ts` setup, use the smallest equivalent: mock the status-dispatch helper directly and assert it maps `status="abstained"` → Tier 3 with no bar range and unchanged `expectedScoreFrame`:
-
-```typescript
-describe("chroma DTW status dispatch behavior", () => {
-  it("abstained result produces Tier 3, no bar range, and does not advance expectedScoreFrame", () => {
-    // This mirrors the DO dispatch logic added in Task 11:
-    //   if (chromaResult !== null && chromaResult.status !== "abstained") { ... update ... }
-    // We test that contract via the state transitions the schema allows.
-    const stateBefore = sessionStateSchema.parse({
-      ...createInitialState("s1", "u1", null),
-      expectedScoreFrame: 400,
-    });
-
-    // Simulate the DO's abstained branch: do NOT update expectedScoreFrame
-    const abstainedResult = {
-      status: "abstained" as const,
-      bar_min: 0,
-      bar_max: 0,
-      bar_per_frame: [] as number[],
-      end_score_frame: 0,
-      confidence: 0.005,
-      cost: 0.0,
-    };
-
-    // The dispatch rule from Task 11:
-    const newFrame =
-      abstainedResult.status !== "abstained"
-        ? abstainedResult.end_score_frame
-        : stateBefore.expectedScoreFrame;
-
-    expect(newFrame).toBe(400); // unchanged
-
-    // No bar range emitted on abstain (the DO condition: status !== "abstained")
-    const shouldEmitBarMap = abstainedResult.status !== "abstained";
-    expect(shouldEmitBarMap).toBe(false);
+    expect(result.expectedScoreFrame).toBe(200);
+    expect(result.emitBarMap).toBe(false);
+    expect(result.tier).toBe(3);
+    expect(result.barRange).toBeNull();
   });
 
-  it("aligned result advances expectedScoreFrame to end_score_frame", () => {
-    const stateBefore = sessionStateSchema.parse({
-      ...createInitialState("s1", "u1", null),
-      expectedScoreFrame: -1,
-    });
+  it("aligned result: expectedScoreFrame advanced to end_score_frame, emitBarMap true, Tier 1, barRange set", () => {
+    const result = chromaStatusDispatch(
+      {
+        status: "aligned",
+        end_score_frame: 820,
+        bar_min: 5,
+        bar_max: 12,
+      },
+      -1,
+    );
 
-    const alignedResult = {
-      status: "aligned" as const,
-      bar_min: 5,
-      bar_max: 12,
-      bar_per_frame: [5, 6, 7, 8, 9, 10, 11, 12],
-      end_score_frame: 820,
-      confidence: 0.04,
-      cost: 0.18,
-    };
+    expect(result.expectedScoreFrame).toBe(820);
+    expect(result.emitBarMap).toBe(true);
+    expect(result.tier).toBe(1);
+    expect(result.barRange).toEqual([5, 12]);
+  });
 
-    const newFrame =
-      alignedResult.status !== "abstained"
-        ? alignedResult.end_score_frame
-        : stateBefore.expectedScoreFrame;
+  it("relocalized result: treated as non-abstained, advances frame and emits bar map", () => {
+    const result = chromaStatusDispatch(
+      {
+        status: "relocalized",
+        end_score_frame: 500,
+        bar_min: 3,
+        bar_max: 8,
+      },
+      200,
+    );
 
-    expect(newFrame).toBe(820);
-
-    const shouldEmitBarMap = alignedResult.status !== "abstained";
-    expect(shouldEmitBarMap).toBe(true);
+    expect(result.expectedScoreFrame).toBe(500);
+    expect(result.emitBarMap).toBe(true);
+    expect(result.tier).toBe(1);
+    expect(result.barRange).toEqual([3, 8]);
   });
 });
 ```
@@ -2252,14 +2237,14 @@ describe("chroma DTW status dispatch behavior", () => {
 **Step 2: Run test — verify it FAILS**
 
 ```bash
-cd /Users/jdhiman/Documents/crescendai/apps/api && bun run test -- --run --reporter=verbose 2>&1 | grep -A5 "abstained result"
+cd /Users/jdhiman/Documents/crescendai/apps/api && bun run test -- --run --reporter=verbose 2>&1 | grep -A5 "chromaStatusDispatch"
 ```
 
-Expected: FAIL — `sessionStateSchema` does not yet have `expectedScoreFrame` (fails before Task 10 is merged) OR the dispatch logic in `session-brain.ts` does not yet implement the status-conditional update (fails before Task 11 is merged). Either failure mode is a genuine red test.
+Expected: FAIL — `chromaStatusDispatch` is not exported from `session-brain.ts` yet (Task 11 has not landed). This is a genuine red test: the import fails or the function does not exist.
 
-**Step 3: Implement — verify dispatch logic is correct**
+**Step 3: Implement — already done in Task 11**
 
-No new schema code is needed beyond what Tasks 10 and 11 already produce. The tests above encode the DO's dispatch contract. Once Task 11 wires `currentState.expectedScoreFrame = chromaResult.end_score_frame` (only on non-abstained), these tests pass.
+No new implementation code is needed in this task. Once Task 11 exports `chromaStatusDispatch` with the correct logic, all four tests above pass.
 
 **Step 4: Run test — verify it PASSES**
 
@@ -2272,7 +2257,7 @@ cd /Users/jdhiman/Documents/crescendai/apps/api && bun run test -- --run 2>&1 | 
 ```bash
 cd /Users/jdhiman/Documents/crescendai && \
 git add apps/api/src/do/session-brain.unit.test.ts && \
-git commit -m "test(session-brain): schema contract tests for abstained chunk_bar_map path"
+git commit -m "test(session-brain): unit-test chromaStatusDispatch pure fn (abstained, null, aligned, relocalized)"
 ```
 
 ---
@@ -2544,3 +2529,62 @@ Neither (a) nor (b) is validated or implemented in this plan. The plan's headlin
 **[BLOCKER] 2** — Task 12 tests would PASS before any implementation exists (the existing `wsOutgoingMessageSchema` already handles empty `bar_per_frame` and rejects non-numbers). These are shape tests, not behavior tests. Either remove them or replace with a test that exercises new behavior added by this plan.
 
 VERDICT: NEEDS_REWORK — Fix the Task 10 `async it` syntax error and replace the Task 12 shape tests with genuine failing tests before executing. Additionally, Task 0's gating probe should be extended with a third check: assert that the amateur recording's CORRECT cold-start alignment (argmin at bars 1–15, not the teleport at bar 261) produces margin >= margin_min. Without this check, the probe's PASS does not guarantee the plan achieves the spec's bootstrapping goal.
+
+---
+
+## Challenge Re-Review (2026-05-28, re-review after NEEDS_REWORK)
+
+This re-review verifies the three claimed fixes against the actual source code:
+1. Task 10 `async` callback fix
+2. Task 12 genuine behavior tests replacing shape tests
+3. Task 0 third gating assertion
+
+All source files were read before forming conclusions.
+
+### Prior Blocker 1 — Task 10 `async` callback: RESOLVED
+
+Line 1735 in the plan now reads `it("createInitialState includes expectedScoreFrame = -1", async () => {`. The `async` keyword is present. The test will not throw a SyntaxError. This blocker is fully resolved.
+
+### Prior Blocker 2 — Task 12 shape tests: PARTIALLY RESOLVED
+
+The plan now offers two alternatives for Task 12:
+
+**Preferred (harness-based):** Uses `initSessionWithPiece`, `sendChunkReady`, `getSentMessages`, `readDoState`. These helpers do NOT exist in the current `session-brain.unit.test.ts` (verified by reading the file — the test file has no such setup). If the build agent chooses this path and the helpers are not present, the test file will not compile.
+
+**Fallback (schema + inline logic):** The fallback tests at lines 2188–2249 call `sessionStateSchema.parse({...})` and then assert a hand-written ternary expression inline in the test body:
+
+```typescript
+const newFrame =
+  abstainedResult.status !== "abstained"
+    ? abstainedResult.end_score_frame
+    : stateBefore.expectedScoreFrame;
+expect(newFrame).toBe(400);
+```
+
+This ternary is written inside the test, not imported from `session-brain.ts`. It does not call any production code. The test asserts that `"abstained" !== "abstained"` is `false`, which is always true regardless of what `session-brain.ts` does. After Task 10 merges (giving `sessionStateSchema` the `expectedScoreFrame` field), these fallback tests will pass even if Task 11 is never implemented.
+
+[BLOCKER] (confidence: 9/10) — **Task 12 fallback tests are still logic-echo tests, not behavior tests.** The dispatch ternary in the test is written by the plan author, not imported from production code. A bug in `session-brain.ts` where `currentState.expectedScoreFrame` is updated on abstained (the actual regression being prevented) would not be caught by these tests. The fallback tests pass once `sessionStateSchema` has `expectedScoreFrame` (Task 10), regardless of Task 11's correctness. To make this a genuine red-before-green test: the test must call the actual DO dispatch function or import the condition from `session-brain.ts` and assert against it. The preferred harness-based path is correct but requires `initSessionWithPiece` etc. to be scaffolded. The plan must either (a) mandate the harness helpers are created, or (b) import and call an extracted helper from `session-brain.ts` that contains the dispatch logic, testing the real function.
+
+### Prior Blocker 3 — Task 0 third gating assertion: RESOLVED
+
+The probe now includes an `opening_hi` region check (line 300: `int(n_score * 0.08)`), finds the argmin restricted to the opening region (line 303: `np.argmin(last_row_000[:opening_hi])`), computes its margin (line 304: `separation_margin(last_row_000, opening_best_000)`), and gates on it (lines 319–323: `if margin_opening_000 < MARGIN_MIN: ... sys.exit(1)`). The third assertion is genuine and would fail Task 0 if a correct amateur cold-start cannot achieve margin >= 0.02. This blocker is fully resolved.
+
+### New Findings During Re-Review
+
+[RISK] (confidence: 8/10) — **Task 2's note about parallel conflict on `types.rs` remains unresolved.** Tasks 1 and 2 both modify `BarMapChroma` in `types.rs`. The plan's advisory note "Task 1 already extends BarMapChroma and must be checked in first" is still advisory-only, not enforced by the group structure. The build agent dispatches Group A tasks simultaneously. The plan should either move the `BarMapChroma` struct extension into a pre-step in Group 0, or explicitly make Task 2 depend on Task 1 by listing them sequentially within Group A. As written, both tasks remain in Group A (parallel), and the conflict note is advisory. Fallback: the build agent must serialize the `types.rs` commit manually.
+
+[OBS] — The `wsOutgoingMessageSchema` in `session-brain.schema.ts` (current source, line 121) already includes `wsChunkBarMapSchema` as a discriminated union member. This means `chunk_bar_map` is already a known outgoing message type in the schema. Task 2 of the prior review noted this would cause Task 12's old shape tests to pass trivially. The fallback tests in the new Task 12 no longer test `wsOutgoingMessageSchema` directly, so this specific concern is gone.
+
+[OBS] — `BarMapChroma` in `types.rs` (current source, lines 194–205) does not yet have `end_score_frame`, `confidence`, or `status` fields. The `chroma_dtw_native` return at line 234 also does not include them. This confirms Task 2 will genuinely fail its test before implementation — the struct extension is real new work.
+
+[OBS] — The `ballade1_forward_2min` fixture exists (verified) and `expected.json` shows `bar_min_lo=1, bar_min_hi=5, bar_max_lo=20, bar_max_hi=45`. Task 7's relocalize test asserts `result.bar_min <= expected.bar_max_hi` (i.e., `result.bar_min <= 45`), not `result.bar_min <= bar_min_hi` (5). This means even a relocalize that lands at bar 40 passes the test. The assertion is loose but acceptable: the goal is just to confirm the result is not near bar 240 (the far_expected region).
+
+### Summary
+
+[BLOCKER] count: 1
+[RISK]    count: 2 (carried from prior review: double DP fill for relocalize + parallel types.rs conflict)
+[QUESTION] count: 0
+
+**[BLOCKER]** — Task 12 fallback dispatch tests are logic-echo tests that pass once Task 10 merges regardless of Task 11's implementation. The plan must mandate either (a) creation of harness helpers (`initSessionWithPiece`, `sendChunkReady`, `getSentMessages`, `readDoState`) so the preferred test form can run, or (b) extraction of the status-dispatch condition into an importable pure function from `session-brain.ts` that the fallback test calls directly — making it possible for a bug in the production dispatch code to fail the test.
+
+VERDICT: NEEDS_REWORK — Task 12 fallback tests remain logic-echo tests that do not exercise production code. Fix: mandate harness helper scaffolding (preferred) or extract the dispatch condition into a pure function callable from tests (fallback). Tasks 1 and 2 parallel conflict on types.rs should also be sequenced to prevent merge conflicts during build dispatch.
