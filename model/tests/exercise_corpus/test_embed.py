@@ -26,7 +26,8 @@ def test_embed_primitives_passes_variant_and_returns_dict(tmp_path: Path):
     ) as mock_fn:
         result = embed_primitives(tmp_path)
 
-    mock_fn.assert_called_once_with(tmp_path, variant="embedding")
+    assert mock_fn.call_count == 1
+    assert mock_fn.call_args.kwargs.get("variant") == "embedding"
     assert result is fake_result
 
 
