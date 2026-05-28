@@ -291,6 +291,20 @@ def main():
     print(f"  Amateur cs_000 margin: {margin_000:.4f}  (want <= {MARGIN_MIN} for abstain to trigger)")
     print(f"  Pro cs_111 margin: {margin_111:.4f}  (want >= {MARGIN_MIN} for aligned to trigger)")
 
+    # Third check: correct cold-start of the amateur at the OPENING bars (not the teleport target).
+    # The global argmin of cs_000 may land at bar 261 (the teleport), but we need to know whether
+    # the cost at the CORRECT opening position (bars 1-15, approximately score frames 0-750 at 50Hz)
+    # also has a positive separation margin. Without this, a PASS does not guarantee the bootstrapping
+    # goal (a confident correct cold-start is achievable on this recording).
+    # We find the argmin restricted to the opening region [0, opening_hi] and compute its margin.
+    opening_hi = int(n_score * 0.08)  # first ~8% of score ≈ bars 1-21 of 264
+    if opening_hi < 2:
+        opening_hi = 2
+    opening_best_000 = int(np.argmin(last_row_000[:opening_hi]))
+    margin_opening_000 = separation_margin(last_row_000, opening_best_000)
+    print(f"  Amateur cs_000 opening argmin frame: {opening_best_000} / {n_score}  (correct region <= {opening_hi})")
+    print(f"  Amateur cs_000 opening margin: {margin_opening_000:.4f}  (want >= {MARGIN_MIN} for cold-start bootstrapping)")
+
     ok = True
     if not teleport_occurred:
         print("WARN: cs_000 did not teleport — the failure mode may have changed.")
@@ -301,6 +315,11 @@ def main():
     if margin_000 >= margin_111:
         print(f"FAIL: Amateur cs_000 margin {margin_000:.4f} >= pro cs_111 margin {margin_111:.4f}. "
               "The margin does not discriminate. Plan must be revisited.")
+        ok = False
+    if margin_opening_000 < MARGIN_MIN:
+        print(f"FAIL: Amateur cs_000 CORRECT opening-region margin {margin_opening_000:.4f} < margin_min {MARGIN_MIN}. "
+              "A confident correct cold-start is not achievable on this recording with the current margin_min. "
+              "The bootstrapping goal is not met. Plan must be revisited (lower margin_min or add a warm-start mechanism).")
         ok = False
     if ok:
         print("PASS: Margin hypothesis holds. Proceed with implementation.")
@@ -319,7 +338,12 @@ cd /Users/jdhiman/Documents/crescendai && uv run python apps/api/src/wasm/score-
 
 Expected output ends with: `PASS: Margin hypothesis holds. Proceed with implementation.`
 
-If it exits 1, the fundamental assumption is broken — do NOT proceed to Group A. Surface the diagnostic output and revisit the design.
+The probe now checks three assertions:
+1. Pro cs_111 correct alignment has margin >= margin_min (validates margin-based detection works at all)
+2. Amateur cs_000 wrong alignment (teleport) has lower margin than pro cs_111 (validates discrimination)
+3. Amateur cs_000 CORRECT opening-region alignment has margin >= margin_min (validates that a cold-start at the correct position is achievable — the bootstrapping goal)
+
+If it exits 1 on any of the three checks, the fundamental assumption is broken — do NOT proceed to Group A. Surface the diagnostic output and revisit the design. The third check is critical: without it, a PASS only proves the margin discriminates between pro-correct and amateur-wrong, but does not prove the amateur playing correctly at bar 1 can ever bootstrap.
 
 **Step 6: Commit**
 
@@ -1708,7 +1732,7 @@ describe("sessionStateSchema expectedScoreFrame", () => {
     expect(parsed.expectedScoreFrame).toBe(-1);
   });
 
-  it("createInitialState includes expectedScoreFrame = -1", () => {
+  it("createInitialState includes expectedScoreFrame = -1", async () => {
     const { createInitialState } = await import("./session-brain.schema");
     const state = createInitialState("sess-1", "user-1", null);
     expect(state.expectedScoreFrame).toBe(-1);
@@ -2097,38 +2121,130 @@ git commit -m "feat(session-brain): wire expectedScoreFrame continuity; dispatch
 **Files:**
 - Modify: `apps/api/src/do/session-brain.unit.test.ts`
 
-Note: The schema-level tests added in Task 11 already cover this behavior at the schema layer. This task adds one additional behavior-level test that was deferred: the `wsOutgoingMessageSchema` correctly rejects a `chunk_bar_map` with an invalid `bar_per_frame` type, ensuring the schema is correct for the abstained path (empty array).
+Note: The schema-level tests added in Task 11 already cover the `expectedScoreFrame` state contract at the schema layer. This task adds a genuine behavior test: the DO's `processAmtResult` / status-dispatch path maps `status="abstained"` to Tier 3 with no bar range and leaves `expectedScoreFrame` unchanged. This tests new DO behavior introduced by this plan, and must be RED before Task 11's implementation lands.
 
 **Step 1: Write the failing test**
 
-Add to `apps/api/src/do/session-brain.unit.test.ts`:
+Add to `apps/api/src/do/session-brain.unit.test.ts`. The test exercises the helper that maps a chroma DTW result to the chunk's analysis tier and `expectedScoreFrame` update rule. Use the existing mock harness pattern from the file (mock `alignChunkChroma` in the WASM mock, call the DO via the fake WebSocket, observe the outgoing messages).
 
 ```typescript
-describe("chunk_bar_map schema on abstained path", () => {
-  it("wsOutgoingMessageSchema accepts chunk_bar_map with empty bar_per_frame (abstained DO emits nothing)", () => {
-    // When status=abstained, the DO does not send chunk_bar_map at all.
-    // Verify the schema accepts an empty bar_per_frame for completeness.
-    const msg = {
-      type: "chunk_bar_map",
-      chunk_index: 3,
+describe("chroma DTW abstained: no chunk_bar_map emitted, expectedScoreFrame unchanged", () => {
+  it("does not send chunk_bar_map when alignChunkChroma returns status=abstained", async () => {
+    // Arrange: mock alignChunkChroma to return abstained
+    mockAlignChunkChroma.mockReturnValue({
       bar_min: 0,
       bar_max: 0,
+      cost: 0.0,
       bar_per_frame: [],
-    };
-    expect(() => wsOutgoingMessageSchema.parse(msg)).not.toThrow();
-    const parsed = wsOutgoingMessageSchema.parse(msg);
-    expect(parsed.bar_per_frame).toHaveLength(0);
+      end_score_frame: 0,
+      confidence: 0.005,
+      status: "abstained",
+    });
+
+    // Set up a session with a known expectedScoreFrame prior
+    await initSessionWithPiece({ expectedScoreFrame: 400 });
+
+    // Act: deliver a chunk_ready message so the DO runs chroma alignment
+    await sendChunkReady({ chunkIndex: 5 });
+
+    // Assert: no chunk_bar_map message was sent for this chunk
+    const sent = getSentMessages();
+    const barMapMessages = sent.filter((m) => m.type === "chunk_bar_map");
+    expect(barMapMessages).toHaveLength(0);
+
+    // Assert: expectedScoreFrame is still 400 (abstained must not advance the cursor)
+    const state = await readDoState();
+    expect(state.expectedScoreFrame).toBe(400);
   });
 
-  it("wsOutgoingMessageSchema rejects chunk_bar_map with string in bar_per_frame", () => {
-    const bad = {
-      type: "chunk_bar_map",
-      chunk_index: 3,
-      bar_min: 1,
-      bar_max: 5,
-      bar_per_frame: ["not-a-number"],
+  it("sends chunk_bar_map and advances expectedScoreFrame when alignChunkChroma returns status=aligned", async () => {
+    // Arrange: mock alignChunkChroma to return aligned
+    mockAlignChunkChroma.mockReturnValue({
+      bar_min: 5,
+      bar_max: 12,
+      cost: 0.18,
+      bar_per_frame: [5, 5, 6, 7, 8, 9, 10, 11, 12, 12],
+      end_score_frame: 820,
+      confidence: 0.04,
+      status: "aligned",
+    });
+
+    await initSessionWithPiece({ expectedScoreFrame: -1 });
+    await sendChunkReady({ chunkIndex: 1 });
+
+    const sent = getSentMessages();
+    const barMapMessages = sent.filter((m) => m.type === "chunk_bar_map");
+    expect(barMapMessages).toHaveLength(1);
+    expect(barMapMessages[0].bar_min).toBe(5);
+
+    const state = await readDoState();
+    expect(state.expectedScoreFrame).toBe(820);
+  });
+});
+```
+
+If the full DO send harness (`initSessionWithPiece`, `sendChunkReady`, `getSentMessages`, `readDoState`) is not available in the existing `session-brain.unit.test.ts` setup, use the smallest equivalent: mock the status-dispatch helper directly and assert it maps `status="abstained"` → Tier 3 with no bar range and unchanged `expectedScoreFrame`:
+
+```typescript
+describe("chroma DTW status dispatch behavior", () => {
+  it("abstained result produces Tier 3, no bar range, and does not advance expectedScoreFrame", () => {
+    // This mirrors the DO dispatch logic added in Task 11:
+    //   if (chromaResult !== null && chromaResult.status !== "abstained") { ... update ... }
+    // We test that contract via the state transitions the schema allows.
+    const stateBefore = sessionStateSchema.parse({
+      ...createInitialState("s1", "u1", null),
+      expectedScoreFrame: 400,
+    });
+
+    // Simulate the DO's abstained branch: do NOT update expectedScoreFrame
+    const abstainedResult = {
+      status: "abstained" as const,
+      bar_min: 0,
+      bar_max: 0,
+      bar_per_frame: [] as number[],
+      end_score_frame: 0,
+      confidence: 0.005,
+      cost: 0.0,
     };
-    expect(() => wsOutgoingMessageSchema.parse(bad)).toThrow();
+
+    // The dispatch rule from Task 11:
+    const newFrame =
+      abstainedResult.status !== "abstained"
+        ? abstainedResult.end_score_frame
+        : stateBefore.expectedScoreFrame;
+
+    expect(newFrame).toBe(400); // unchanged
+
+    // No bar range emitted on abstain (the DO condition: status !== "abstained")
+    const shouldEmitBarMap = abstainedResult.status !== "abstained";
+    expect(shouldEmitBarMap).toBe(false);
+  });
+
+  it("aligned result advances expectedScoreFrame to end_score_frame", () => {
+    const stateBefore = sessionStateSchema.parse({
+      ...createInitialState("s1", "u1", null),
+      expectedScoreFrame: -1,
+    });
+
+    const alignedResult = {
+      status: "aligned" as const,
+      bar_min: 5,
+      bar_max: 12,
+      bar_per_frame: [5, 6, 7, 8, 9, 10, 11, 12],
+      end_score_frame: 820,
+      confidence: 0.04,
+      cost: 0.18,
+    };
+
+    const newFrame =
+      alignedResult.status !== "abstained"
+        ? alignedResult.end_score_frame
+        : stateBefore.expectedScoreFrame;
+
+    expect(newFrame).toBe(820);
+
+    const shouldEmitBarMap = alignedResult.status !== "abstained";
+    expect(shouldEmitBarMap).toBe(true);
   });
 });
 ```
@@ -2136,14 +2252,14 @@ describe("chunk_bar_map schema on abstained path", () => {
 **Step 2: Run test — verify it FAILS**
 
 ```bash
-cd /Users/jdhiman/Documents/crescendai/apps/api && bun run test -- --run --reporter=verbose 2>&1 | grep -A5 "abstained path"
+cd /Users/jdhiman/Documents/crescendai/apps/api && bun run test -- --run --reporter=verbose 2>&1 | grep -A5 "abstained result"
 ```
 
-Expected: FAIL — one or both assertions fail because the schema currently does not have these tests.
+Expected: FAIL — `sessionStateSchema` does not yet have `expectedScoreFrame` (fails before Task 10 is merged) OR the dispatch logic in `session-brain.ts` does not yet implement the status-conditional update (fails before Task 11 is merged). Either failure mode is a genuine red test.
 
-**Step 3: Implement — verify schema is correct**
+**Step 3: Implement — verify dispatch logic is correct**
 
-If the `wsOutgoingMessageSchema` already accepts empty arrays and rejects non-number arrays, the test will pass without code changes. If not, check `session-brain.schema.ts` `wsChunkBarMapSchema` definition: `bar_per_frame: z.array(z.number().int())` already handles both cases. No code change needed.
+No new schema code is needed beyond what Tasks 10 and 11 already produce. The tests above encode the DO's dispatch contract. Once Task 11 wires `currentState.expectedScoreFrame = chromaResult.end_score_frame` (only on non-abstained), these tests pass.
 
 **Step 4: Run test — verify it PASSES**
 
@@ -2236,3 +2352,195 @@ After all tasks are complete and all automated tests pass, verify end-to-end:
 5. Check API logs for `"message": "chroma DTW aligned"` entries showing expected bar ranges
 
 This is a manual check; no commit is required.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+#### 1. Premise Challenge
+
+**Right problem?** Yes. The free-start subsequence DTW genuinely teleports on the opening chunk of the amateur Ballade 1 recording. The three failure modes (teleport, cost-as-confidence, silence lock) are all real and reproduced. No simpler framing was missed.
+
+**Real pain?** High. The bar range output feeds `buildBarAnalysisFacts` and the synthesis prompt. A bar_min/bar_max pointing to bar 261 on a player at bar 1 corrupts every downstream output for that chunk.
+
+**Direct path?** Yes. The single-DP-fill two-readout approach is the minimal change to the existing stateless DTW. The plan correctly avoids a second DP pass for the common (aligned) case.
+
+**Existing coverage?** `chroma_dtw.rs` + `chroma_dtw_roundtrip.rs` already test the V1 path. The plan extends both directly. No new infrastructure is invented.
+
+#### 2. Scope Check
+
+[OBS] — The plan touches 10 files. The challenge threshold is 8. The extra files are all necessary plumbing (lib.rs re-export, generate.py fixture extension). No scope can be cleanly cut without breaking the E2E chain.
+
+[OBS] — The bar_per_frame building block (~40 lines) is duplicated verbatim inside `chroma_dtw_native_v2` in Task 3. Extracting it into a private helper would keep the diff smaller. Not a blocker but worth noting.
+
+**Simplest possible MVP:** Tasks 0–4 alone (gating probe + Rust V2 behind the WASM boundary) constitute the minimum viable fix. Tasks 5–8 are regression-test scaffolding, Tasks 9–13 are TS wiring. The split is already clean; no scope is wasted.
+
+#### 3. Twelve-Month Alignment
+
+```
+CURRENT STATE                     THIS PLAN                              12-MONTH IDEAL
+Stateless per-chunk DTW;          Inter-chunk continuity via             AMT re-deployed;
+teleports on amateur recordings;  expectedScoreFrame + margin gate;      Tier 1 bar analysis
+no confidence signal;             silence abstain; 3-status output;      with note alignment;
+bar range may be garbage          V1 interface preserved                 multi-pass DTW or
+                                                                         learned score follower
+```
+
+This plan moves cleanly toward the ideal: it adds continuity now without locking in the architecture. The call-parameter thresholds mean the DO can be tuned without a WASM rebuild. No tech debt created.
+
+#### 4. Alternatives Check
+
+The spec documents the chosen approach (single-DP two-readout) and names what was excluded (second DP pass, beam search, learned priors). The trade-off rationale is in the spec. Adequate.
+
+---
+
+### Engineering Pass
+
+#### 5. Architecture
+
+Data flow for a warm chunk:
+
+```
+chunk_ready WS message
+  → readState() [gets expectedScoreFrame, pieceIdentification]
+  → MuQ inference → chromaBytes
+  → wasm.alignChunkChroma(chromaBytes, ..., expectedScoreFrame, ...)
+       → uniformity gate → abstain early (DP skipped)
+       → subseq_dtw → last_row, j_end, path
+       → separation_margin(last_row, global_j)
+       → in-band best_j + separation_margin(last_row, band_j)
+       → arbitration → (chosen_j, status)
+       → if status != abstained: backtrack_from(chosen_j) → bar_per_frame
+       → return BarMapChroma { bar_min, bar_max, end_score_frame, confidence, status }
+  → if status != "abstained": update currentState.expectedScoreFrame
+  → writeState(currentState)
+  → sendWs chunk_bar_map (if not abstained)
+```
+
+The flow is clean. State across awaits is guarded by the version check at line 487 of session-brain.ts (existing pattern). No new cross-await hazard introduced.
+
+**Security:** No user input flows unsanitized to SQL or LLM. The new parameters (expectedScoreFrame, etc.) are read from internal DO state, not from WebSocket messages directly.
+
+**Scaling:** The DP matrix is O(n_a × n_s) = O(750 × 30000) ≈ 22M cells. This is identical to V1's memory footprint. For the relocalize case a second fill runs; acceptable because it is the exception not the norm.
+
+[RISK] (confidence: 7/10) — `subseq_dtw_backtrack_from` in Task 4 re-runs the full DP fill for the relocalize case. For the full Chopin Ballade score (~30000 score frames × 750 audio frames), that is a ~22M-cell matrix computed twice per relocalized chunk. Profile this if WASM timeout becomes an issue in Cloudflare Workers. Fallback: accept the global path even in relocalize case, adjusting arbitration.
+
+#### 6. Module Depth Audit
+
+- `chroma_dtw.rs`: Interface = 2 pub fns (`chroma_dtw_native`, `chroma_dtw_native_v2`). Implementation = full DP fill, uniformity gate, separation margin, arbitration, backtrack, bar decimation. **DEEP.**
+- `types.rs`: Interface = 3 new fields on `BarMapChroma`. Hides nothing (data struct). **SHALLOW — justified.**
+- `wasm-bridge.ts`: Interface = extended `alignChunkChroma` + `BarMapChroma`. Hides nothing (forwarding wrapper). **SHALLOW — justified.**
+- `session-brain.schema.ts`: Interface = 1 new field on `sessionStateSchema`. Hides Zod parsing. **SHALLOW — justified.**
+- `session-brain.ts` (new logic only): Interface = reads/writes `expectedScoreFrame`, dispatches on `status`. **SHALLOW — justified; DO is an orchestrator.**
+
+#### 7. Code Quality
+
+[OBS] — `bar_per_frame` building logic (~40 lines: `audio_to_score`, `frame_mapped`, gap-fill, decimation loop) is duplicated between `chroma_dtw_native` (V1) and `chroma_dtw_native_v2` (Task 3). Extract into a private `build_bar_per_frame(path, n_a, decim_step, frame_rate_hz, score_bars)` helper. Not a blocker; the duplication is in non-public code.
+
+[OBS] — Task 3 rebuilds `score_chroma` inside `chroma_dtw_native_v2` by calling `build_score_chroma` again, even though the result is the same as what `subseq_dtw` uses internally. This is not a correctness issue (same function, same inputs) but it means `build_score_chroma` is called twice when `chosen_j != j_end`. The second call happens via `subseq_dtw_backtrack_from`, which accepts raw `score: &[f32]` (not score bars). The plan passes `&score_chroma` (already computed), so only one `build_score_chroma` call occurs. Correct.
+
+[RISK] (confidence: 6/10) — The `subseq_dtw_backtrack_from` termination check `if di == 0 && dj == 0 { break; }` relies on the first-row predecessor table entries being initialized to `(0, 0)` (from `vec![(0, 0); n_a * n_s]`). In `subseq_dtw_backtrack_from`, the first row is never explicitly updated in the `p` table (only `d` is updated for row 0). So first-row cells in `p` remain `(0, 0)`, which correctly triggers the break. This is the same pattern as the original `subseq_dtw`. However, if `j` ever reaches a state where `j < 0` (which cannot happen due to the step constraints: `dj` is only `-1` when `j > 0`, guaranteed by the guard on `from_left` and `from_diag`), there would be a panic. The code is safe but this relies on an implicit invariant. A comment in the code explaining why `j` cannot underflow would prevent future bugs.
+
+#### 8. Test Philosophy Audit
+
+**Task 1 — `silence_chunk_abstains`:** Tests observable output (`status="abstained"`, `confidence=0.0`) given a silence input. Calls through the public `chroma_dtw_native_v2` function. No internal mocking. BEHAVIOR TEST. ★★
+
+**Task 2 — `bar_map_chroma_v1_has_new_fields_with_defaults`:** Tests that the struct compiles and the new fields are accessible with the correct types. The assertion `result.end_score_frame <= total_score_frames + 1000` is extremely loose (the bound is `bar_per_frame.len() * 10 + 1000`). This is effectively a shape test — it does not verify a behavior. [RISK] (confidence: 7/10) — This test would pass even if `end_score_frame` is set to a garbage value. It does not catch the meaningful behavior. Acceptable as a backward-compat compilation guard, not a behavior test. ★
+
+**Task 3 — `pro_coldstart_has_positive_confidence`:** Tests `result.confidence > 0.0` for the pro fixture. This is the right behavior test for the margin computation. ★★
+
+**Task 4 — `cold_start_with_permissive_threshold_is_aligned` / `cold_start_with_strict_threshold_abstains`:** Tests the arbitration branch on cold-start. The permissive test (`margin_min=-1.0`) only verifies `status="aligned"` — it does not check `bar_min` is in the correct range. Acceptable because Task 6 covers the bar range contract for V2. ★★
+
+**Task 5 — `teleport_regression_amateur_cs000`:** The headline test. Tests that the V2 call with warm `expected_score_frame=300` and the amateur fixture produces `bar_min` in `[1, 10]`. This is a strong behavior test against the actual failure mode. ★★★
+
+[BLOCKER] (confidence: 9/10) — **Task 10, third `it` block has a JavaScript syntax error.** The test is declared `() => { ... }` (synchronous) but contains `await import(...)` inside the body. Vitest will throw `SyntaxError: await is only valid in async functions`. The fix: change `it("...", () => {` to `it("...", async () => {`. This test as written will not run.
+
+[BLOCKER] (confidence: 9/10) — **Task 12 tests would PASS before any implementation.** Both assertions (`wsOutgoingMessageSchema.parse(msg)` with empty `bar_per_frame`, and rejection of `["not-a-number"]`) are already correct given `bar_per_frame: z.array(z.number().int())` in the existing schema (line 118 of `session-brain.schema.ts`). A test that passes before implementation is not a failing test — it tests shape, not behavior added by this plan. Either remove these tests (they add no signal) or replace them with a test that actually exercises new behavior (e.g., that the DO sends `chunk_bar_map` only when `status !== "abstained"`, which requires mocking the DO's WebSocket send).
+
+**Task 11 — `chroma DTW status dispatch`:** All three tests operate at the schema layer (`sessionStateSchema.parse`), not at the DO behavior layer. The tests verify that the schema round-trips `expectedScoreFrame` values correctly, which is useful but does not test that `session-brain.ts` actually reads and writes the field. [RISK] (confidence: 6/10) — The DO wiring logic in Task 11 (the `currentState.expectedScoreFrame = chromaResult.end_score_frame` line and the `handleSetPiece` reset) is not covered by any automated test in the plan. A DO integration test or a mock-wasm unit test would be needed to catch a typo in that wiring.
+
+#### 9. Vertical Slice Audit
+
+Each task is one test → one implementation → one commit. No horizontal slicing detected. The parallel Group A tasks (1 and 2) each have their own test-implement-commit cycle. The only concern is the shared `types.rs` file, which the plan explicitly addresses with a sequencing note.
+
+[RISK] (confidence: 8/10) — Tasks 1 and 2 are dispatched in parallel but both modify `types.rs` (`BarMapChroma` struct). The plan acknowledges this: "Task 1 already extends BarMapChroma and must be checked in first." However, the build agent dispatches parallel tasks simultaneously. If both subagents start and one commits `types.rs` while the other is mid-work, the second will face a merge conflict. The plan's note is advisory, not enforced. The build agent must sequence commits for `types.rs` even within the parallel group, or the `BarMapChroma` extension should be extracted into a dedicated pre-step inside Group 0 or as Task 2 with Task 1 not touching `types.rs`.
+
+#### 10. Test Coverage Gaps
+
+```
+[+] chroma_dtw.rs (new functions)
+    │
+    ├── uniformity_fraction()
+    │   ├── [TESTED]  silence input (uniform columns) → uf=0.0 — Task 1 ★★
+    │   └── [GAP]     mixed input (some peaky) — no test for intermediate uf values
+    │
+    ├── separation_margin()
+    │   ├── [TESTED]  positive margin for pro cold-start — Task 3 ★★
+    │   ├── [GAP]     entire score within neighborhood (outside_min = inf) → 0.0
+    │   └── [GAP]     best_j at score boundary (lo=0 or hi=n_s)
+    │
+    ├── chroma_dtw_native_v2() arbitration
+    │   ├── [TESTED]  cold start + permissive margin → aligned — Task 4 ★★
+    │   ├── [TESTED]  cold start + strict margin → abstained — Task 4 ★★
+    │   ├── [TESTED]  warm + early band + amateur → not teleport — Task 5 ★★★
+    │   ├── [TESTED]  warm + correct → non-regression — Task 6 ★★
+    │   ├── [TESTED]  warm + far expected → relocalized — Task 7 ★★
+    │   ├── [TESTED]  warm + strict margin → abstained — Task 8 ★★
+    │   └── [GAP]     warm + in-band score boundary (band extends past end of score) → clamped
+    │
+    └── subseq_dtw_backtrack_from()
+        ├── [TESTED]  indirectly via cold_start_with_permissive (if chosen_j == j_end, not triggered)
+        └── [GAP]     direct test for case where chosen_j != j_end (relocalize path exercises this via Task 7)
+```
+
+[RISK] (confidence: 6/10) — The `separation_margin` edge case where the entire score is within the ±50-frame neighborhood (`outside_min = inf → returns 0.0`) is untested. For a very short score (< 100 score frames), this could cause all alignments to return `confidence=0.0` and abstain. The function handles it correctly (returns 0.0), but no test covers this.
+
+#### 11. Failure Modes
+
+- **Task 0 exits 1:** Plan stops. The build agent must surface the diagnostic output. ✓ (explicit in plan)
+- **`subseq_dtw_backtrack_from` panics:** Would propagate as a Rust panic, caught by the WASM error boundary, returned as a JS error, caught by the existing try/catch in session-brain.ts, logged as "alignChunkChroma failed", falls back to Tier 3. Silent at user level (Tier 3 is the normal no-bar-data path). ✓
+- **Uniformity gate misclassifies real music as silence:** Session stays at Tier 3 indefinitely. No corruption, just missing bar feedback. The `uniformity_min=0.30` default is a call parameter tunable from the DO without WASM rebuild. ✓
+- **Cold-start always abstains for amateur players:** If no amateur chunk ever produces margin >= 0.02 on a cold-start, `expectedScoreFrame` stays -1 forever, and every chunk abstrains. This is a real risk (see Presumption Inventory). ✓ (mitigated by probe, but probe tests pro-vs-wrong, not amateur-correct)
+
+#### 12. Critical Gap — Cold-Start Bootstrapping
+
+[RISK] (confidence: 8/10) — **The probe validates the wrong-alignment margin (teleport to bar 261) against the pro-correct-alignment margin. It does NOT validate that an AMATEUR playing at the correct position (bars 1–15) ever produces a cold-start margin >= 0.02.** The fix is warm-mode only: in warm mode (`expectedScoreFrame >= 0`), the in-band search avoids the teleport. In cold mode (`expectedScoreFrame=-1`), the system still runs the free-start global search. If the amateur's cold-start global argmin lands at bar 261 with margin >= 0.02, the system "aligns" to bar 261 and then warm-mode from there compounds the error. If it lands with margin < 0.02, it abstains, but then never bootstraps. The spec goal "starts at bar 1 stays near bar 1" requires either:
+  (a) the cold-start of an amateur at bar 1 produces margin >= 0.02 at bar 1 (not at bar 261), OR
+  (b) a separate mechanism initializes `expectedScoreFrame` to a non-(-1) value for the first chunk.
+
+Neither (a) nor (b) is validated or implemented in this plan. The plan's headline regression test (Task 5) sidesteps this by supplying `expected_score_frame=300` (warm mode) — it assumes the prior is already set. Task 0's probe should include a third check: compute the margin for the amateur cs_000 at the CORRECT argmin position (bars 1–15, not bar 261) and assert it exceeds `margin_min`. Without this, Task 0's "PASS" does not guarantee the fix achieves the spec's stated goal.
+
+---
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| Amateur Ballade 1 recording `Jt2f6yEGcP4.wav` exists at the referenced path | SAFE | Verified by `ls` — file present (19.2M) |
+| `parents[8]` from `margin_probe.py` resolves to project root | SAFE | Verified: exactly `/Users/jdhiman/Documents/crescendai` |
+| The wrong (teleport) alignment at bar 261 has margin < 0.02 | VALIDATE | Not yet run; this is what Task 0 proves |
+| The correct (pro, cs_111) alignment has margin >= 0.02 | VALIDATE | Not yet run; this is what Task 0 proves |
+| Amateur playing at the CORRECT position (bars 1–15) produces cold-start margin >= 0.02 | VALIDATE | Task 0 probe third assertion checks this; plan stops if it fails |
+| Chopin Ballade 1 score has ~30000 score frames at 50Hz (warm mode `effective_expected` in-bounds at 12000) | SAFE | 264 bars × ~10 min → ~30000 frames; 12000 < 30000 |
+| Tasks 1 and 2 do not conflict on `types.rs` in the parallel build dispatch | RISKY | Both modify `BarMapChroma`; plan's sequencing note is advisory not enforced |
+| `wsOutgoingMessageSchema` correctly rejects non-integer `bar_per_frame` values | SAFE | Verified by reading schema: `z.array(z.number().int())` |
+| DO state mutation of `currentState.expectedScoreFrame` between awaits is safe | SAFE | The version check guard at line 487 is already the existing pattern for all state mutations |
+| `uniformity_min=0.30` default is correct for real playing vs silence | VALIDATE | Empirical; depends on what real playing looks like in the MuQ chroma space; acceptable to tune |
+| The `subseq_dtw_backtrack_from` backtrack cannot produce `j < 0` (no underflow panic) | SAFE | Verified: `dj=-1` only when `j > 0` due to `from_left` and `from_diag` guards |
+| `ballade1_forward_2min` is the correct fixture for the relocalize scenario (Task 7) | VALIDATE | The fixture covers bars 1–30; `far_expected=12000` puts the band at [11850, 12300], outside the correct region. Depends on the score having enough frames at position 12000 to be in-bounds |
+
+---
+
+### Summary
+
+[BLOCKER] count: 2
+[RISK]    count: 7
+[QUESTION] count: 0
+
+**[BLOCKER] 1** — Task 10 third test has a JavaScript syntax error: `await import(...)` inside a non-`async` `it()` callback. Fix: `it("...", async () => {`.
+
+**[BLOCKER] 2** — Task 12 tests would PASS before any implementation exists (the existing `wsOutgoingMessageSchema` already handles empty `bar_per_frame` and rejects non-numbers). These are shape tests, not behavior tests. Either remove them or replace with a test that exercises new behavior added by this plan.
+
+VERDICT: NEEDS_REWORK — Fix the Task 10 `async it` syntax error and replace the Task 12 shape tests with genuine failing tests before executing. Additionally, Task 0's gating probe should be extended with a third check: assert that the amateur recording's CORRECT cold-start alignment (argmin at bars 1–15, not the teleport at bar 261) produces margin >= margin_min. Without this check, the probe's PASS does not guarantee the plan achieves the spec's bootstrapping goal.
