@@ -23,6 +23,29 @@ def _make_primitive(source: str, n: int) -> Primitive:
     )
 
 
+def test_run_pipeline_validate_only_requires_db_path():
+    with pytest.raises(ValueError, match="db_path is required"):
+        run_pipeline(validate_only=True, db_path=None, output_dir=Path("/tmp/out"))
+
+
+def test_run_pipeline_validate_only_requires_output_dir(tmp_path: Path):
+    db = tmp_path / "exercise_primitives.db"
+    with pytest.raises(ValueError, match="output_dir is required"):
+        run_pipeline(validate_only=True, db_path=db, output_dir=None)
+
+
+def test_run_pipeline_requires_sources_path():
+    with pytest.raises(ValueError, match="sources_path is required"):
+        run_pipeline(validate_only=False, sources_path=None, output_dir=Path("/tmp/out"))
+
+
+def test_run_pipeline_requires_output_dir(tmp_path: Path):
+    sources = tmp_path / "sources.toml"
+    sources.write_text('[[sources]]\n')
+    with pytest.raises(ValueError, match="output_dir is required"):
+        run_pipeline(validate_only=False, sources_path=sources, output_dir=None)
+
+
 def test_cli_help_exits_zero():
     result = subprocess.run(
         [sys.executable, "-m", "exercise_corpus.run", "--help"],
