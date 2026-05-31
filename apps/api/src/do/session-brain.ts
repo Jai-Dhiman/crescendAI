@@ -141,8 +141,39 @@ export function toEnrichedChunk(
 	};
 }
 
+/**
+ * Decide the synthesis alarm delay (ms from now) at a session-ending convergence point.
+ * Shared by webSocketClose and the handleChunkReady completion path (Fix B / Finding 3).
+ * Exported for unit testing.
+ *
+ *  - session ending, no chunks in flight    -> 1ms: synthesize immediately.
+ *  - session ending, chunks still in flight  -> deferredWindowMs: a backstop in case the
+ *    in-flight inference hangs or the DO is evicted mid-chunk. In the normal case the last
+ *    chunk to drain fires the 1ms alarm itself (chunksInFlight reaches 0), so this window
+ *    only governs the genuine-hang case and is sized longer than worst-case inference to
+ *    avoid firing synthesis on incomplete accumulator state.
+ *  - not ending -> idleWindowMs: extend the idle session window on activity (existing behavior).
+ */
+export function nextSynthesisAlarmDelayMs(opts: {
+	sessionEnding: boolean;
+	chunksInFlight: number;
+	deferredWindowMs: number;
+	idleWindowMs: number;
+}): number {
+	if (opts.sessionEnding) {
+		return opts.chunksInFlight === 0 ? 1 : opts.deferredWindowMs;
+	}
+	return opts.idleWindowMs;
+}
+
 export class SessionBrain extends DurableObject<Bindings> {
 	private readonly ALARM_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+
+	// Backstop window when the WS closes (or end_session arrives) while chunks are still
+	// in flight: long enough for worst-case inference to complete (dense-AMT ~53s per the
+	// 2026-05-31 pipeline audit), short enough not to feel hung. The normal path fires a
+	// 1ms alarm the instant the last in-flight chunk drains; this only catches a true hang.
+	private readonly DEFERRED_SYNTHESIS_ALARM_MS = 90 * 1000; // 90 seconds
 
 	// ─── WebSocket Lifecycle ───────────────────────────────────────────────────
 
@@ -357,19 +388,30 @@ export class SessionBrain extends DurableObject<Bindings> {
 		code: number,
 		reason: string,
 	): Promise<void> {
-		// Mark session as ending and schedule immediate alarm for synthesis
+		// Mark session as ending and schedule the synthesis alarm, guarded on chunksInFlight
+		// so a mid-inference disconnect does not fire synthesis on incomplete accumulator state
+		// (Fix B / Finding 3). NOTE: do NOT bump state.version here — an in-flight chunk that
+		// re-reads state after inference would otherwise hit the version-change bail and discard
+		// its output. Leaving version unchanged lets that chunk complete, drain chunksInFlight to
+		// 0, and fire the immediate alarm itself with its data included.
+		let delayMs = 1;
 		try {
 			const state = await this.readState();
 			if (!state.sessionEnding) {
 				state.sessionEnding = true;
 				await this.writeState(state);
 			}
+			delayMs = nextSynthesisAlarmDelayMs({
+				sessionEnding: true,
+				chunksInFlight: state.chunksInFlight,
+				deferredWindowMs: this.DEFERRED_SYNTHESIS_ALARM_MS,
+				idleWindowMs: this.ALARM_DURATION_MS,
+			});
 		} catch {
-			// Storage may not be initialized yet
+			// Storage not initialized yet — no known in-flight work, synthesize promptly.
 		}
 
-		// Schedule immediate synthesis (1ms alarm)
-		await this.ctx.storage.setAlarm(Date.now() + 1);
+		await this.ctx.storage.setAlarm(Date.now() + delayMs);
 
 		try {
 			ws.close(code, reason);
@@ -1031,8 +1073,19 @@ export class SessionBrain extends DurableObject<Bindings> {
 		currentState.version++;
 		await this.writeState(currentState);
 
-		// Reset alarm (extend session window on activity)
-		await this.ctx.storage.setAlarm(Date.now() + this.ALARM_DURATION_MS);
+		// Schedule the next alarm (Fix B / Finding 3): if the session is ending, synthesize as
+		// soon as the last in-flight chunk drains (1ms) instead of waiting the 30-min idle
+		// window; if chunks are still in flight, keep the deferred backstop; otherwise extend
+		// the idle session window on activity.
+		await this.ctx.storage.setAlarm(
+			Date.now() +
+				nextSynthesisAlarmDelayMs({
+					sessionEnding: currentState.sessionEnding,
+					chunksInFlight: currentState.chunksInFlight,
+					deferredWindowMs: this.DEFERRED_SYNTHESIS_ALARM_MS,
+					idleWindowMs: this.ALARM_DURATION_MS,
+				}),
+		);
 	}
 
 	// ─── Eval Chunk (bypass HF inference, feed cached results into accumulation path) ───
