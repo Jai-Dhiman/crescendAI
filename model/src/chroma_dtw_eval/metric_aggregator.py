@@ -51,11 +51,12 @@ def aggregate(
     synth = [r for r in results if r.kind == "synthetic_practice" and r.stitch_error_frames is not None]
     real_practice = [r for r in results if r.kind == "real_practice"]
 
-    primary = _pct([abs(r.error_frames) <= tol_frames for r in gold]) if gold else 0.0
+    # gold is already filtered to error_frames is not None above; Pyright can't narrow through list comprehension
+    primary = _pct([abs(r.error_frames) <= tol_frames for r in gold]) if gold else 0.0  # type: ignore[arg-type]
 
     g1 = _pct([(r.bar_distance_from_forward or 0.0) > 5.0 for r in amateur]) if amateur else 0.0
     if gold:
-        labels = np.array([abs(r.error_frames) > tol_frames for r in gold], dtype=int)
+        labels = np.array([abs(r.error_frames) > tol_frames for r in gold], dtype=int)  # type: ignore[arg-type]
         costs = np.array([r.cost for r in gold], dtype=float)
         g2 = _auc(costs, labels)
     else:
