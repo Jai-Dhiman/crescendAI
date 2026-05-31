@@ -1,5 +1,38 @@
 # Teaching Knowledge Eval -- Baseline Runbook
 
+## Prereqs
+
+Two eval entrypoints, two different prereq sets. Get these right before running, or you'll burn 30 minutes diagnosing auth errors that look like pipeline bugs.
+
+### Synthesis-quality eval (`run_eval.py`) — no wrangler dependency
+- `ANTHROPIC_API_KEY` set (teacher) and either `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` (Workers AI judge) or `OPENROUTER_API_KEY` (OpenRouter judge).
+- Inference cache present at `model/data/eval/inference_cache/auto-t5_http/`.
+- Does **not** require `wrangler dev` running. Runs entirely Python-side.
+
+### DO-level integration eval (`pipeline/practice_eval/eval_practice.py`) — needs local wrangler
+This path drives the real `SessionBrain` Durable Object over WebSocket on `localhost:8787`. Before invoking:
+
+1. **Cloudflare auth must be fresh.** Either:
+   - Run `wrangler login` (browser SSO; persists in `~/.config/.wrangler/config/default.toml`), OR
+   - Export a current `CLOUDFLARE_API_TOKEN` with Workers + AI + R2 + D1/Hyperdrive scopes.
+
+   Stale auth manifests as a boot failure at `/accounts/.../workers/subdomain/edge-preview` because `env.AI` is a `remote` binding. The wrangler error is unhelpful — "edge-preview" failures almost always mean reauth, not a code problem.
+
+2. **Boot wrangler dev:** `just api` (or `cd apps/api && bun run dev`). Wait for `Ready on http://localhost:8787` before invoking the harness.
+
+3. **Verify the WebSocket is reachable:**
+   ```bash
+   curl -sf http://localhost:8787/health | head
+   ```
+
+4. **Then run the harness:**
+   ```bash
+   cd apps/evals
+   uv run python -m pipeline.practice_eval.eval_practice --scenarios t5 --max-recordings 1
+   ```
+
+   Expected on a healthy run: `synthesis (N chars)` with N > 0 in stdout; `synthesis_latency_ms` in `reports/practice_eval_details.json` > 500 (real Anthropic call, not a short-circuit).
+
 ## What's shipped
 
 All infrastructure for producing a locked Sonnet 4.6 baseline is in place as of 2026-04-15 (`feat/eval-baseline-readiness`). The eval pipeline is:
