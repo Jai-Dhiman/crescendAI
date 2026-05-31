@@ -13,8 +13,6 @@ import json
 import sys
 from pathlib import Path
 
-import numpy as np
-
 from chroma_dtw_eval.metric_aggregator import (
     Baseline, ChunkResult, GuardSet, aggregate,
 )

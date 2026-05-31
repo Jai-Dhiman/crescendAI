@@ -31,14 +31,16 @@ def test_verify_cli_exits_nonzero_when_baseline_above_current(tmp_path):
         "primary": 100.0,
         "guards": {"g1": 0.0, "g2": 0.99, "g3": 0.0, "g4": 100.0, "g5": 0.0},
     }))
+    sidecar_path = tmp_path / "sidecar.json"
     result = subprocess.run(
         [sys.executable, "-m", "chroma_dtw_eval.verify",
-         "--baseline", str(baseline), "--fixtures", str(FIXTURES)],
+         "--baseline", str(baseline), "--fixtures", str(FIXTURES),
+         "--sidecar", str(sidecar_path)],
         capture_output=True, text=True, timeout=120,
     )
     assert result.returncode != 0, (
         f"expected non-zero, got {result.returncode}; stdout={result.stdout}; stderr={result.stderr}"
     )
-    sidecar = json.loads((Path(__file__).resolve().parents[2] / "data/evals/chroma_dtw/last_run.json").read_text())
+    sidecar = json.loads(sidecar_path.read_text())
     assert sidecar["regressed"], "sidecar must list regressed guards"
     assert "g3" in sidecar["regressed"]
