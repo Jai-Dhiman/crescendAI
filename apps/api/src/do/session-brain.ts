@@ -77,9 +77,6 @@ export function buildV6WsPayload(
 // Used only for AMT overlap context: previous chunk audio bytes
 const previousChunkAudio = new WeakMap<SessionBrain, ArrayBuffer | null>();
 
-// Per-instance PassageLoopDetector (non-persisted — recreated on hibernation restore)
-const detectorMap = new WeakMap<SessionBrain, PassageLoopDetector>();
-
 // Minimum notes before attempting piece identification
 const MIN_NOTES_FOR_IDENTIFICATION = 30;
 
@@ -689,10 +686,14 @@ export class SessionBrain extends DurableObject<Bindings> {
 			}
 		}
 
-		// Passage-loop detection: if an active assignment is set, check if this chunk is in bounds
+		// Passage-loop detection: if an active assignment is set, check if this chunk is in bounds.
+		// Debounce state is persisted in SessionState (like modeDetector) so it survives DO
+		// hibernation/reconstruction — a reconnecting student cannot re-trigger a suppressed loop.
 		if (currentState.activeAssignment && chunkBarRange) {
-			const detector = detectorMap.get(this) ?? new PassageLoopDetector();
-			detectorMap.set(this, detector);
+			const detector =
+				currentState.passageLoopDetector !== null
+					? PassageLoopDetector.fromJSON(currentState.passageLoopDetector)
+					: new PassageLoopDetector();
 			const attempt = detector.processPosition(
 				{ startBar: chunkBarRange[0], endBar: chunkBarRange[1], durationMs: 15000 },
 				{
@@ -704,6 +705,9 @@ export class SessionBrain extends DurableObject<Bindings> {
 					status: "active",
 				},
 			);
+			// Persist mutated debounce state regardless of whether an attempt fired; carried to
+			// whichever writeState runs below (the inner ValidationError path or the final one).
+			currentState.passageLoopDetector = detector.toJSON();
 			if (attempt?.inBounds) {
 				const db = createDb(this.env.HYPERDRIVE);
 				const assignmentId = currentState.activeAssignment.id;

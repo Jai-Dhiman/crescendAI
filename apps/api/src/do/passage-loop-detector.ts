@@ -15,6 +15,11 @@ export interface LoopAttempt {
 const TOLERANCE_BARS = 1;
 const DEBOUNCE_MS = 2000;
 
+export interface SerializedPassageLoopDetector {
+  lastEventTs: number;
+  lastPassageKey: string;
+}
+
 export class PassageLoopDetector {
   private lastEventTs = 0;
   private lastPassageKey = "";
@@ -54,5 +59,20 @@ export class PassageLoopDetector {
   reset(): void {
     this.lastEventTs = 0;
     this.lastPassageKey = "";
+  }
+
+  toJSON(): SerializedPassageLoopDetector {
+    return {
+      lastEventTs: this.lastEventTs,
+      lastPassageKey: this.lastPassageKey,
+    };
+  }
+
+  static fromJSON(data: unknown): PassageLoopDetector {
+    const d = data as SerializedPassageLoopDetector;
+    const det = new PassageLoopDetector();
+    det.lastEventTs = d.lastEventTs;
+    det.lastPassageKey = d.lastPassageKey;
+    return det;
   }
 }

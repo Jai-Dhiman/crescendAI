@@ -31,6 +31,7 @@ export const sessionStateSchema = z.object({
 		.nullable()
 		.default(null),
 	modeDetector: z.unknown().default(null),
+	passageLoopDetector: z.unknown().default(null),
 	identificationNoteCount: z.number().int().default(0),
 	activeAssignment: z
 		.object({
@@ -148,6 +149,7 @@ export function createInitialState(
 		pieceLocked: false,
 		pieceIdentification: null,
 		modeDetector: null,
+		passageLoopDetector: null,
 		identificationNoteCount: 0,
 		activeAssignment: null,
 		isEvalSession: false,
