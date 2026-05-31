@@ -3,7 +3,7 @@
 **Goal:** Provide a single CLI that scores the production chroma-DTW score follower on a frozen multi-piece test set and exits non-zero if any guard regresses, so `/autoresearch` can keep-or-revert DTW changes mechanically.
 
 **Not in scope:**
-- Any change to `apps/api/src/wasm/score-analysis/src/chroma_dtw.rs` or its callers (the DTW is the system being measured, not modified).
+- Any change to `apps/api/src/wasm/score-analysis/src/chroma_dtw.rs` beyond ONE additive change: expose the per-audio-frame warping path (which DTW already computes internally as `audio_to_score`) as an additional field on `BarMapChroma`. The DTW algorithm itself, its callers, and existing fields (`bar_min`, `bar_max`, `cost`, `bar_per_frame`) are unchanged — production behavior is not altered, the new field is purely additive output.
 - Rehearsal-acquisition logic (multi-chunk agreement) — measured by G5 but not implemented.
 - AMT note-level symbolic alignment (future eval extension).
 - Decoupling chroma alignment from the AMT gate in `apps/api/src/do/session-brain.ts`.
@@ -68,7 +68,7 @@ Architecture: **primary scalar + hard guards, not a weighted composite.** The fa
 | `dtw_runner` | `run_dtw(audio_chroma, score_bars_path, frame_rate, decim) -> DtwResult` | subprocess management of `dtw_chunk_cli`, stdin marshalling, stderr → exception, JSON parse | DEEP |
 | `metric_aggregator` | `aggregate(per_chunk_results, baseline) -> Metrics` | primary scalar formula, all 5 guard formulas, baseline-delta diff, JSON sidecar shape | DEEP |
 | `verify_cli` | `python -m chroma_dtw_eval.verify` | argparse, single-number stdout, exit-code policy, baseline file I/O | SHALLOW by design — it is the assembly of the deep modules and nothing else; thin glue is correct here |
-| `dtw_chunk_cli` (Rust) | stdin: raw float32 chroma; argv: score json, frame_rate, decim; stdout: JSON `{bar_min, bar_max, cost, bar_per_frame, predicted_score_frame}` | release-mode Rust binary calling existing `chroma_dtw_native` plus the trivial path→frame conversion | DEEP — wraps the production function unchanged, isolates the WASM-free boundary |
+| `dtw_chunk_cli` (Rust) | stdin: raw float32 chroma; argv: score json, frame_rate, decim; stdout: JSON `{bar_min, bar_max, cost, bar_per_frame, score_frame_per_audio_frame, predicted_score_frame}` | release-mode Rust binary calling `chroma_dtw_native` and emitting the per-audio-frame warping path now exposed on `BarMapChroma` | DEEP — wraps the production function (unchanged DTW algorithm; one additive output field on `BarMapChroma`), isolates the WASM-free boundary |
 
 All Python modules live under `model/src/chroma_dtw_eval/`. Tests under `model/tests/chroma_dtw_eval/`. The single Rust binary lives under `apps/api/src/wasm/score-analysis/src/bin/dtw_chunk_cli.rs` (same crate as the DTW, no new Cargo manifest).
 

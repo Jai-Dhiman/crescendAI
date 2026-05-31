@@ -4,7 +4,7 @@
 
 **Goal:** Provide a single CLI that scores the production chroma-DTW score follower on a frozen multi-piece test set and exits non-zero if any guard regresses, so `/autoresearch` can keep-or-revert DTW changes mechanically.
 **Spec:** docs/specs/2026-05-31-chroma-dtw-eval-harness-design.md
-**Style:** Follow CLAUDE.md (uv, partitura over music21, explicit exceptions, no emojis, Trackio for tracking). No `pip`. No silent fallbacks. The Rust binary lives in the same crate as the production DTW; do NOT modify `chroma_dtw.rs` or `lib.rs` beyond adding the binary entry.
+**Style:** Follow CLAUDE.md (uv, partitura over music21, explicit exceptions, no emojis, Trackio for tracking). No `pip`. No silent fallbacks. The Rust binary lives in the same crate as the production DTW. `chroma_dtw.rs` and `types.rs` receive ONE additive change (Task A5): expose the per-audio-frame warping path on `BarMapChroma`. The DTW algorithm itself and existing fields are unchanged.
 
 ---
 
@@ -33,6 +33,32 @@ Each task is one test → one impl → one commit.
 - Create: `model/data/evals/chroma_dtw_fixtures/README.md`
 - Create: `model/tests/chroma_dtw_eval/__init__.py` (empty)
 - Test: `model/tests/chroma_dtw_eval/test_verify_cli_smoke.py`
+
+- [ ] **Step 0: Verify packaging + dependency install**
+
+Before writing any test, confirm the package is discoverable and dependencies are in place. This blocker was raised by /challenge: `chroma_dtw_eval` must be in `[tool.hatch.build.targets.wheel].packages` and `parangonar` must be installed (used in Task B2).
+
+```bash
+# Verify pyproject.toml entries (no edits needed — already applied at plan-rework time):
+grep -n "chroma_dtw_eval\|parangonar" model/pyproject.toml
+# Expected output:
+#   "parangonar>=3.3,<4",
+#   packages = [..., "src/chroma_dtw_eval"]
+
+# Sync deps and editable-install the model package:
+cd model && uv sync && cd ..
+
+# Confirm the package imports cleanly:
+uv run --project model python -c "import chroma_dtw_eval; import parangonar; print(parangonar.__version__)"
+# Expected: prints "3.3.2" (or a 3.3.x / 3.x version), no ModuleNotFoundError.
+```
+
+If `import chroma_dtw_eval` fails after `uv sync`, the hatch packages list is missing the entry — apply this diff to `model/pyproject.toml` under `[tool.hatch.build.targets.wheel]`:
+```diff
+-packages = ["src/score_alignment", "src/audio_experiments", "src/model_improvement", "src/masterclass_experiments", "src/score_library", "src/exercise_corpus"]
++packages = ["src/score_alignment", "src/audio_experiments", "src/model_improvement", "src/masterclass_experiments", "src/score_library", "src/exercise_corpus", "src/chroma_dtw_eval"]
+```
+Then re-run `uv sync`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -703,17 +729,19 @@ git add model/src/chroma_dtw_eval/practice_compose.py model/tests/chroma_dtw_eva
 
 ---
 
-## Task A5: dtw_chunk_cli (Rust)
+## Task A5: dtw_chunk_cli (Rust) + additive warping-path field on BarMapChroma
 **Group:** A (parallel with A1, A2, A3, A4)
 
-**Behavior being verified:** A release-mode Rust binary in the score-analysis crate reads raw float32 chroma from stdin and a score-bars JSON path from argv, calls the existing `chroma_dtw_native`, and prints one JSON object on stdout with `bar_min`, `bar_max`, `cost`, `bar_per_frame`, `predicted_score_frame`.
+**Behavior being verified:** (a) `BarMapChroma` exposes a new field `score_frame_per_audio_frame: Vec<u32>` carrying the per-audio-frame score-frame index that `chroma_dtw_native` already computes internally; existing fields and the DTW algorithm itself are unchanged. (b) A release-mode Rust binary in the score-analysis crate reads raw float32 chroma from stdin and a score-bars JSON path from argv, calls `chroma_dtw_native`, and prints one JSON object on stdout with `bar_min`, `bar_max`, `cost`, `bar_per_frame`, `score_frame_per_audio_frame`, `predicted_score_frame`.
 
-**Interface under test:** `cargo run --release --bin dtw_chunk_cli -- <score_json> <frame_rate> <decim>` reading chroma from stdin.
+**Interface under test:** (a) `chroma_dtw_native(...) -> BarMapChroma` with the new field populated and shape-correct; (b) `cargo run --release --bin dtw_chunk_cli -- <score_json> <frame_rate> <decim>` reading chroma from stdin.
 
 **Files:**
+- Modify: `apps/api/src/wasm/score-analysis/src/types.rs` (add field `score_frame_per_audio_frame: Vec<u32>` to `BarMapChroma`)
+- Modify: `apps/api/src/wasm/score-analysis/src/chroma_dtw.rs` (populate the new field from the existing `audio_to_score` vec; convert `usize` → `u32`)
 - Create: `apps/api/src/wasm/score-analysis/src/bin/dtw_chunk_cli.rs`
 - Modify: `apps/api/src/wasm/score-analysis/Cargo.toml` (add `[[bin]]` entry)
-- Test: `apps/api/src/wasm/score-analysis/tests/dtw_chunk_cli_smoke.rs`
+- Test: `apps/api/src/wasm/score-analysis/tests/dtw_chunk_cli_smoke.rs` (covers both behaviors via the binary's stdout)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -774,6 +802,10 @@ fn dtw_chunk_cli_prints_expected_json_fields() {
     assert!(v.get("bar_max").is_some());
     assert!(v.get("cost").is_some());
     assert!(v.get("bar_per_frame").is_some());
+    assert!(v.get("score_frame_per_audio_frame").is_some());
+    let sfpaf = v.get("score_frame_per_audio_frame").unwrap().as_array().unwrap();
+    // 2 audio frames in, 2 score-frame indices out.
+    assert_eq!(sfpaf.len(), 2, "expected one score-frame index per audio frame");
     assert!(v.get("predicted_score_frame").is_some());
 }
 ```
@@ -786,6 +818,42 @@ cd /Users/jdhiman/Documents/crescendai/apps/api/src/wasm/score-analysis && cargo
 Expected: FAIL — `error: no bin target named dtw_chunk_cli`.
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
+
+**Step 3a — Expose the warping path on `BarMapChroma` (additive).**
+
+Edit `apps/api/src/wasm/score-analysis/src/types.rs` — append one field to `BarMapChroma`:
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BarMapChroma {
+    pub bar_min: u32,
+    pub bar_max: u32,
+    pub cost: f32,
+    pub bar_per_frame: Vec<u32>,
+    /// Per-audio-frame score-frame index from the DTW warping path.
+    /// Length = n_audio (full frame rate, NOT decimated). Additive output;
+    /// existing consumers of bar_per_frame are unaffected.
+    pub score_frame_per_audio_frame: Vec<u32>,
+}
+```
+
+Edit `apps/api/src/wasm/score-analysis/src/chroma_dtw.rs` — in `chroma_dtw_native`, the local `audio_to_score: Vec<usize>` is already computed (line ~204). After it is gap-filled (line ~221) and before constructing `BarMapChroma`, convert and attach it:
+```rust
+let score_frame_per_audio_frame: Vec<u32> =
+    audio_to_score.iter().map(|&sf| sf as u32).collect();
+
+// existing bar_per_frame computation stays unchanged ...
+
+Ok(BarMapChroma {
+    bar_min,
+    bar_max,
+    cost: mean_cost,
+    bar_per_frame,
+    score_frame_per_audio_frame,
+})
+```
+Do not touch `subseq_dtw`, `build_score_chroma`, `cosine_dist`, or `frame_to_bar`. The DTW algorithm is unchanged; only the output struct grows.
+
+**Step 3b — Cargo manifest.**
 
 Add to `apps/api/src/wasm/score-analysis/Cargo.toml` (append at end, do not reorder existing entries):
 ```toml
@@ -861,21 +929,22 @@ fn main() -> ExitCode {
         Err(e) => { eprintln!("dtw: {e}"); return ExitCode::from(3); }
     };
 
-    // predicted_score_frame: bar_per_frame is at decim_hz; for the verify CLI we want the
-    // mid-chunk score-side frame at the audio frame rate. Use the bar's start_seconds of the
-    // first frame in bar_per_frame (closest to chunk start) converted to a score frame index.
-    let mid_decim = result.bar_per_frame.len() / 2;
-    let predicted_bar = result.bar_per_frame.get(mid_decim).copied().unwrap_or(result.bar_min);
-    let predicted_bar_start_s = score_bars
-        .iter().find(|b| b.bar_number == predicted_bar)
-        .map(|b| b.start_seconds as f32).unwrap_or(0.0);
-    let predicted_score_frame = (predicted_bar_start_s * frame_rate).round() as i64;
+    // predicted_score_frame: mid-chunk score-side frame at the audio frame rate, read
+    // directly from the warping path now exposed on BarMapChroma. This is the 50ms-resolution
+    // measurement the primary scalar needs (one bar would be far too coarse).
+    let mid_audio = result.score_frame_per_audio_frame.len() / 2;
+    let predicted_score_frame: i64 = result
+        .score_frame_per_audio_frame
+        .get(mid_audio)
+        .copied()
+        .unwrap_or(0) as i64;
 
     let out = serde_json::json!({
         "bar_min": result.bar_min,
         "bar_max": result.bar_max,
         "cost": result.cost,
         "bar_per_frame": result.bar_per_frame,
+        "score_frame_per_audio_frame": result.score_frame_per_audio_frame,
         "predicted_score_frame": predicted_score_frame,
     });
     println!("{}", out);
@@ -883,9 +952,15 @@ fn main() -> ExitCode {
 }
 ```
 
-If the crate's `lib.rs` does not already publicly re-export `chroma_dtw` and `types`, add `pub use` lines for `chroma_dtw_native` and `ScoreBar`. **Do not modify** `chroma_dtw.rs` itself.
+If the crate's `lib.rs` does not already publicly re-export `chroma_dtw` and `types`, add `pub use` lines for `chroma_dtw_native` and `ScoreBar`. The only edits to `chroma_dtw.rs` are the two lines in Step 3a (collect `score_frame_per_audio_frame` from `audio_to_score`, attach to the returned `BarMapChroma`). The DTW algorithm — `subseq_dtw`, scoring, gap-fill logic — is unchanged.
 
 Also add to `Cargo.toml` (under `[dependencies]` if missing): `serde_json = "1"`.
+
+Before running the integration test, sanity-check the existing in-crate unit tests still pass — the new field must not break `n_audio_zero_returns_error` or `valid_score_frame_zero_not_overwritten_by_gap_fill`:
+```bash
+cd /Users/jdhiman/Documents/crescendai/apps/api/src/wasm/score-analysis && cargo test --lib --release chroma_dtw
+```
+Expected: PASS (existing tests construct `BarMapChroma` only via `chroma_dtw_native`'s return value, so they pick up the new field transparently).
 
 - [ ] **Step 4: Run test — verify it PASSES**
 
@@ -897,7 +972,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/api/src/wasm/score-analysis/src/bin/dtw_chunk_cli.rs apps/api/src/wasm/score-analysis/Cargo.toml apps/api/src/wasm/score-analysis/tests/dtw_chunk_cli_smoke.rs && git commit -m "feat(chroma-eval): add dtw_chunk_cli release binary wrapping chroma_dtw_native"
+git add apps/api/src/wasm/score-analysis/src/types.rs apps/api/src/wasm/score-analysis/src/chroma_dtw.rs apps/api/src/wasm/score-analysis/src/bin/dtw_chunk_cli.rs apps/api/src/wasm/score-analysis/Cargo.toml apps/api/src/wasm/score-analysis/tests/dtw_chunk_cli_smoke.rs && git commit -m "feat(chroma-eval): expose warping path on BarMapChroma + add dtw_chunk_cli release binary"
 ```
 
 ---
@@ -1139,27 +1214,46 @@ Expected: FAIL — `ModuleNotFoundError`.
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
 
+First, ensure `parangonar` is installed (it was added to `model/pyproject.toml` at plan-rework time — pinned `parangonar>=3.3,<4`):
+```bash
+cd /Users/jdhiman/Documents/crescendai/model && uv sync
+uv run python -c "import parangonar as pa; print(pa.__version__); print(type(pa.AutomaticNoteMatcher()))"
+# Expected: prints a 3.3.x version and the class repr; no ModuleNotFoundError.
+```
+
+Then create the module. The two API facts verified against the installed environment (parangonar 3.3.2, partitura 1.9.0):
+1. `parangonar` exposes `AutomaticNoteMatcher` at the top level: `import parangonar as pa; matcher = pa.AutomaticNoteMatcher()`. Calling the instance with `(score_note_array, performance_note_array)` returns `List[Dict[str, Any]]` of alignment entries.
+2. partitura's score `note_array()` does NOT carry `onset_sec` (only `onset_beat`, `onset_quarter`, `onset_div`). To get score-side seconds, project the score note array through `partitura.utils.music.performance_notearray_from_score_notearray(snote_array, bpm=...)`, which returns a performance-style note array WITH `onset_sec` aligned by index to the input score note array.
+
 ```python
 # model/src/chroma_dtw_eval/gold_truth_builder.py
 """parangonar-based audio↔score ground truth map for the gold-truth slice.
 
 MAESTRO audio ↔ MAESTRO MIDI is zero-error (Disklavier simultaneous capture);
-(n)ASAP gives MIDI↔score at ~6ms via parangonar; the composition is
-audio_seconds → MIDI_seconds (identity) → score_beat → score_frame.
+(n)ASAP gives MIDI↔score at ~6ms via parangonar's AutomaticNoteMatcher; the
+composition is audio_seconds → MIDI_seconds (identity) → score_seconds → score_frame.
 
-Cache keyed by (midi sha256, score sha256). No silent fallbacks — raises
-GoldMapMissingDataError when inputs are missing.
+Score-side seconds come from projecting the score note array through partitura's
+`performance_notearray_from_score_notearray` at a fixed reference tempo. This
+turns score beats into a monotone seconds timeline that is consistent across the
+piece — parangonar's match pairs (by score id) then give us perf_seconds ↔
+score_seconds pairs that the GoldMap interpolates over.
+
+Cache keyed by (midi sha256, score sha256). Stored as JSON (NOT pickle — JSON
+round-trips across Python minor versions and removes the pickle code-exec risk).
+No silent fallbacks — raises GoldMapMissingDataError when inputs are missing.
 """
 from __future__ import annotations
 
 import hashlib
 import json
-import pickle
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+import parangonar as pa
 import partitura
+from partitura.utils.music import performance_notearray_from_score_notearray
 
 
 class GoldMapMissingDataError(FileNotFoundError):
@@ -1200,28 +1294,50 @@ def build_gold_map(midi_path: Path, score_path: Path, cache_root: Path) -> GoldM
     if not score_path.exists():
         raise GoldMapMissingDataError(f"score not found: {score_path}")
     cache_root.mkdir(parents=True, exist_ok=True)
-    key = f"{_sha(midi_path)}_{_sha(score_path)}.pkl"
+    key = f"{_sha(midi_path)}_{_sha(score_path)}.json"
     cache_file = cache_root / key
     if cache_file.exists():
-        with open(cache_file, "rb") as f:
-            data = pickle.load(f)
-        return GoldMap(np.asarray(data["perf_seconds"]), np.asarray(data["score_seconds"]))
+        data = json.loads(cache_file.read_text())
+        return GoldMap(
+            np.asarray(data["perf_seconds"], dtype=np.float64),
+            np.asarray(data["score_seconds"], dtype=np.float64),
+        )
 
     perf = partitura.load_performance_midi(midi_path)
     score = partitura.load_score(score_path)
     perf_na = perf.note_array()
     score_na = score.note_array()
-    aligner = partitura.musicanalysis.AutomaticNoteMatcher
-    matcher = aligner()
+
+    # Project score beats → seconds via a synthetic constant-tempo performance.
+    # 100 bpm is the partitura default; choice is immaterial because the GoldMap
+    # only needs score_seconds to be MONOTONE in score time — the absolute scale
+    # cancels out when interpolating perf_seconds → score_seconds → score_frame.
+    score_perf_na = performance_notearray_from_score_notearray(score_na, bpm=100.0)
+    if "onset_sec" not in score_perf_na.dtype.names:
+        raise GoldMapMissingDataError(
+            "performance_notearray_from_score_notearray did not produce onset_sec — "
+            f"got fields {score_perf_na.dtype.names}"
+        )
+
+    # parangonar 3.x: AutomaticNoteMatcher is exposed at top-level.
+    # Calling signature: matcher(score_note_array, performance_note_array) -> List[Dict].
+    matcher = pa.AutomaticNoteMatcher()
     alignment = matcher(score_na, perf_na)
 
+    # Lookups keyed by note id; score-side seconds come from the projected array
+    # (parallel to score_na by index, so we zip them).
+    score_lookup = {
+        str(s["id"]): float(p["onset_sec"])
+        for s, p in zip(score_na, score_perf_na)
+    }
+    perf_lookup = {str(n["id"]): float(n["onset_sec"]) for n in perf_na}
+
     pairs: list[tuple[float, float]] = []
-    score_lookup = {n["id"]: float(n["onset_sec"]) for n in score_na}
-    perf_lookup = {n["id"]: float(n["onset_sec"]) for n in perf_na}
     for entry in alignment:
         if entry.get("label") != "match":
             continue
-        s_id = entry.get("score_id"); p_id = entry.get("performance_id")
+        s_id = str(entry.get("score_id"))
+        p_id = str(entry.get("performance_id"))
         if s_id in score_lookup and p_id in perf_lookup:
             pairs.append((perf_lookup[p_id], score_lookup[s_id]))
     if not pairs:
@@ -1231,12 +1347,12 @@ def build_gold_map(midi_path: Path, score_path: Path, cache_root: Path) -> GoldM
     pairs.sort()
     perf_arr = np.array([p[0] for p in pairs], dtype=np.float64)
     score_arr = np.array([p[1] for p in pairs], dtype=np.float64)
-    with open(cache_file, "wb") as f:
-        pickle.dump({"perf_seconds": perf_arr.tolist(), "score_seconds": score_arr.tolist()}, f)
+    cache_file.write_text(json.dumps({
+        "perf_seconds": perf_arr.tolist(),
+        "score_seconds": score_arr.tolist(),
+    }))
     return GoldMap(perf_arr, score_arr)
 ```
-
-If the `AutomaticNoteMatcher` import path differs in the installed parangonar/partitura version, replace the alignment block with `import parangonar; matcher = parangonar.AutomaticNoteMatcher()` and adjust the field names accordingly — but DO NOT silently swallow errors. The test will catch it.
 
 - [ ] **Step 4: Run test — verify it PASSES**
 
@@ -1807,3 +1923,216 @@ The harness is now /autoresearch-ready against the **committed fixture** (3 chun
 That follow-up is intentionally NOT in this plan — Group 0 + A + B + C delivers the verify-CLI contract and every deep module with isolated tests, which is the minimum needed to start the autoresearch loop against the committed fixture and to keep `/autoresearch` building behind a green CI signal while the full corpus wiring lands.
 
 After Task C4, the natural next step is to run /autoresearch against the parked branch `feat/continuity-aware-chroma-follower` to confirm the local-margin candidate's generalization on the fixture tier; the real-corpus tier will sharpen that signal once it lands.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise.** Right problem. The /brainstorm postmortem at `docs/implementation/2026-05-31-chroma-dtw-eval-pivot.md` correctly identified the bottleneck as "no eval, can't accept-or-reject DTW change," and a verify-CLI returning one scalar + exit code is the minimum mechanical interface /autoresearch needs. No simpler framing is on the table — running /autoresearch without a frozen multi-piece evaluator is what already failed last week.
+
+**Direct path?** Mostly. Group 0 + A + B + C delivers the verify-CLI contract end-to-end against a 3-chunk *committed fixture* whose results are entirely *simulated* from manifest-encoded numbers — no real DTW is run by the verify path at the end of this plan. The "deep modules" (chroma_cache, chunk_sampler, gold_truth_builder, dtw_runner, practice_compose, silence_synth) ship with unit tests but are NEVER assembled by the verify CLI inside this plan. That assembly is deferred to a follow-up `corpus_runner.py` that this plan calls out at the bottom. So the immediate output of this plan is a CLI that reads stub numbers from a manifest, not a CLI that measures the DTW. /autoresearch would have a green metric to keep-or-revert against but the metric would be invariant to DTW changes. This is *defensible* TDD scaffolding but the plan does not flag this clearly in the goal — the goal sentence claims the harness "scores the production chroma-DTW score follower on a frozen multi-piece test set," which is false until the follow-up corpus_runner lands.
+
+**Scope.** The plan touches 11 new Python files + 1 Rust file + Cargo.toml + justfile = ~13 files. Just at the spec's complexity-smell threshold. Of these, only `verify.py`, `metric_aggregator.py`, `ratchet.py`, and the fixture are exercised end-to-end by the integration tests at plan end; the other 6 deep modules are unit-tested in isolation and orphaned at plan-completion time. Cutting Tasks A1/A2/A3/A4/B1/B2 and shipping only Task 0 + C1 + C2 + C3 + C4 would deliver an identical "/autoresearch green signal against committed fixture" outcome with half the code. The deep modules are pre-built infrastructure for the deferred corpus_runner, not load-bearing for this plan's stated goal.
+
+**12-Month Alignment.**
+```
+TODAY: chroma-DTW broken (teleport, silence locks, cost!=confidence),     →   THIS PLAN: a verify-CLI scoring against simulated   →   12-MONTH IDEAL: verify-CLI scoring 1,100 real chunks
+       brainstorm halted Task 0, parked branch                                  fixture numbers, plus 6 isolated deep modules            against MAESTRO/skill/practice, /autoresearch
+                                                                                ready for corpus_runner                                  iterates DTW changes daily
+```
+Moves toward ideal. Tech debt: the deep modules ship with green tests but no integration coverage; an interface-breaking change in any of them between this plan and the corpus_runner plan would not be caught.
+
+**Alternatives.** Spec does not document alternatives considered. See [QUESTION] below.
+
+---
+
+### Engineering Pass
+
+#### 5. Architecture
+- Data flow at plan end: `verify --baseline X --fixtures Y` → `_load_fixture_chunks` reads `manifest.json`, materializes `ChunkResult`s from `simulated_*` fields → `aggregate(...)` → primary/guards → exit code + sidecar JSON. The DTW is never called. This is a *contract test* of the CLI shape, not a measurement of the DTW. Acceptable for /autoresearch scaffolding; misleading per the plan's stated goal.
+- Real data flow (post-corpus_runner): `chunk_sampler` → `chroma_cache` → `dtw_runner` (subprocess to Rust binary) → `gold_truth_builder` (parangonar) → `metric_aggregator` → sidecar. This pipeline is *designed* by this plan but not *exercised* until the follow-up.
+- Rust subprocess boundary is sound (no maturin/PyO3, no WASM in tests). Score-bars-on-path-not-stdin is the right call given 900 chunks × 264 bars.
+
+#### 6. Module Depth Audit
+
+| Module | Iface | Impl | Verdict |
+|---|---|---|---|
+| `chroma_cache.get_chroma` | 1 function, 2 dataclasses | ~60 LOC hashing + librosa + atomic write + meta-file format | DEEP |
+| `chunk_sampler.sample_chunks` | 1 function, 2 dataclasses | ~40 LOC stratification | DEEP enough |
+| `silence_synth.generate_silence_chunks` | 1 function, 1 dataclass | ~25 LOC | SHALLOW — interface ≈ impl. Could be a one-liner in the test that uses it. Not load-bearing. |
+| `practice_compose.compose_batch` + `compose_practice_sequence` | 2 functions, 1 dataclass | ~80 LOC of pattern-stitching | DEEP |
+| `dtw_runner.run_dtw` | 1 function, 1 exception, 1 dataclass | ~60 LOC subprocess management + auto-build | DEEP |
+| `metric_aggregator.aggregate` | 1 function, 4 dataclasses | ~80 LOC formulas + AUC | DEEP |
+| `gold_truth_builder.build_gold_map` | 1 function, 1 exception, 1 dataclass | ~80 LOC parangonar invocation + cache | DEEP (in spec); BROKEN in plan (see BLOCKER below) |
+| `verify` (CLI) | one main() | thin glue | SHALLOW BY DESIGN — OK |
+| `ratchet` (CLI) | one main() | trivial | SHALLOW BY DESIGN — OK |
+| `dtw_chunk_cli` (Rust) | argv + stdin → stdout JSON | wraps `chroma_dtw_native` | DEEP |
+
+`silence_synth` is shallow — flagged as RISK below, not a blocker.
+
+#### 7. Code Quality
+
+- `cosine_dist` / `subseq_dtw` are NOT modified — good, spec is honored.
+- Task A5's CLI computes `predicted_score_frame` from `result.bar_per_frame[mid]` → bar's `start_seconds` × `frame_rate`. This is **score-frame-of-the-middle-bar-start**, not score-frame-of-mid-chunk. For G2/primary tolerance comparison (50ms ≈ 2.5 frames at 50 Hz), this is wrong by potentially many bars. The native DTW *already produces a per-frame audio→score map* (`audio_to_score`), but `chroma_dtw_native` returns `BarMapChroma` which discards that map and only exposes `bar_per_frame` at decim rate. The plan's CLI then reconstructs a coarse frame estimate from bar-start, losing all within-bar precision. **The primary scalar (% within 50ms) cannot be measured with bar-level granularity.** This is a substantive architectural gap.
+- Task A1 chroma cache: meta file is text-CSV (`f"{shape[1]},{frame_rate_hz}"`). Two-field CSV is fine, but cache_file lives at `.bin` and meta at `.with_suffix(".meta")` → for filename `abc.bin`, meta is `abc.meta`. Test `cache_root.rglob("*.bin")` counts cache files but ignores `.meta` files, so if a `.bin` exists without its `.meta`, the next call would silently recompute (mtime check would still hit "cache file was rewritten" → test FAIL). Possible flake.
+- Task A1 `_hash_audio` truncates SHA to 16 hex chars (64 bits). Collision probability is negligible at scale, but in code review terms it is a silent hash-truncation that the test doesn't surface.
+- Task B2 `build_gold_map`: the call sites depend on a `parangonar.musicanalysis.AutomaticNoteMatcher` import path that does not exist in the installed environment. The plan has a hedging paragraph ("If the path differs, replace with `import parangonar; matcher = parangonar.AutomaticNoteMatcher()`") — but `parangonar` is not in `model/pyproject.toml` and is not installed. See BLOCKERs.
+- Task C1 `_auc`: implementation accumulates `auc += cum_pos` whenever it sees a negative example. This is the count of (pos, neg) ordered pairs where pos is ranked higher than neg — correct for the discrete AUC formula. But sorting is `np.argsort(-scores)` with no tiebreak, and `dtw_cost` is a continuous float with no expected ties at this scale — acceptable. The single-class fallback returns 0.5, which is fine.
+- Task C2 `verify.py` re-import path: `from chroma_dtw_eval.corpus_runner import run_corpus  # built later if/when needed`. This import is gated behind `args.corpus is not None`, so it does not fail at module-load time. OK.
+
+#### 8. Test Philosophy Audit
+
+- Every test invokes its module through the public function or via subprocess. No mocking of internal collaborators. No internal-state assertions. Good.
+- `test_chroma_cache.test_get_chroma_caches_after_first_call`: asserts `cached_files[0].stat().st_mtime_ns == mtime`. This is a **filesystem-state assertion**, not a behavior assertion. The behavior is "second call is cheap and returns same data" — the mtime check is a proxy for "did we re-write the cache file." A behavior-level alternative: assert `second.data is not first.data` (different object — proves it was loaded from disk not memoized) while `np.array_equal(first.data, second.data)`. Acceptable as written but borderline (★★).
+- `test_gold_truth_builder.test_build_gold_map_caches_and_supports_lookup`: uses a `time.monotonic()` wallclock ratio `t_second * 4 < t_first + 1e-6` to detect cache hit. **Wallclock timing is flaky on CI.** A behavior-level alternative: delete a non-cache dependency between calls (e.g., move/rename the source MIDI) and prove the second call still works. Or assert that the second call does not invoke parangonar (monkeypatch and count calls — but that's internal mocking). The timing ratio is fragile.
+- `test_just_wiring.test_just_chroma_eval_verify_exits_zero` requires `just` installed — gracefully skipped when missing. OK.
+- `test_verify_cli_smoke.test_verify_cli_exits_nonzero_when_baseline_above_current`: relies on the *manifest-encoded simulated numbers* producing g3=100.0. Once corpus_runner replaces fixture mode for real measurements, this test's predicate will continue to test the fixture path. Acceptable.
+
+#### 9. Vertical Slice Audit
+
+Each task has Step 1 (write failing test) → Step 2 (run it, see it fail) → Step 3 (implement) → Step 4 (run it, see it pass) → Step 5 (commit). One test, one impl, one commit per task. No horizontal slicing detected.
+
+Task C2 appends one new test function to the existing test file from Task 0 (rather than creating a new test file). The plan explicitly says "extend — same file, one new test function." That's a clean vertical slice on top of Task 0's commit.
+
+Task A5's commit bundles `dtw_chunk_cli.rs` + `Cargo.toml` edits + integration test. Acceptable single behavior.
+
+#### 10. Test Coverage Gaps
+
+```
+[+] chroma_dtw_eval/chroma_cache.py
+    └── get_chroma()
+        ├── [TESTED] cache miss → compute → cache (★★)
+        ├── [TESTED] cache hit → no rewrite (★★ — proxy assertion on mtime)
+        ├── [GAP]    audio_path missing → FileNotFoundError
+        ├── [GAP]    cache file truncated/corrupt → RuntimeError
+        └── [GAP]    sr mismatch → resample path
+
+[+] chroma_dtw_eval/chunk_sampler.py
+    └── sample_chunks()
+        ├── [TESTED] determinism + 5-bucket coverage (★★)
+        ├── [GAP]    n_per_piece < n_buckets → ValueError
+        └── [GAP]    piece shorter than chunk_len → ValueError
+
+[+] chroma_dtw_eval/silence_synth.py
+    └── generate_silence_chunks()
+        ├── [TESTED] both kinds present, RMS bound (★★)
+        └── [GAP]    n < 2 → ValueError
+
+[+] chroma_dtw_eval/practice_compose.py
+    └── compose_batch()
+        ├── [TESTED] all 4 patterns + stitch points + shapes (★★)
+        ├── [GAP]    source shorter than chunk_len → padding path
+        └── [GAP]    pattern not in PATTERNS → ValueError
+
+[+] chroma_dtw_eval/dtw_runner.py
+    └── run_dtw()
+        ├── [TESTED] valid input → DtwResult (★★)
+        ├── [TESTED] missing score → DtwRunnerError
+        ├── [GAP]    wrong chroma shape → DtwRunnerError (raised but not tested)
+        ├── [GAP]    wrong dtype → DtwRunnerError
+        └── [GAP]    binary not built and cargo build fails → DtwRunnerError
+
+[+] chroma_dtw_eval/metric_aggregator.py
+    └── aggregate()
+        ├── [TESTED] primary formula at 50Hz (★★)
+        ├── [TESTED] primary regression detected (★)
+        ├── [GAP]    every guard regression branch — g1, g3, g4, g5 each have ONE comparison
+        │            line not exercised by a regression-true case. Plan adds no test asserting
+        │            "g3 regression detected" — yet C2 depends on that exact path.
+        ├── [GAP]    silence kind with mixed loud_failure values
+        ├── [GAP]    AUC single-class fallback (0.5)
+        └── [GAP]    empty results → all-zeros, no NaN
+
+[+] chroma_dtw_eval/verify.py
+    ├── [TESTED] fixture mode happy path → exit 0, one float (Task 0) (★★)
+    ├── [TESTED] fixture mode regression → exit non-zero, g3 in sidecar (Task C2) (★★)
+    ├── [GAP]    --baseline missing → FileNotFoundError surfaces cleanly
+    ├── [GAP]    --corpus path → run_corpus import (deferred — acceptable)
+    └── [GAP]    sidecar write path missing → mkdir works (covered transitively)
+
+[+] chroma_dtw_eval/ratchet.py
+    ├── [TESTED] writes when regressed=[] (★★)
+    ├── [TESTED] refuses when regressed=["g2"] (★★)
+    └── [GAP]    sidecar shape malformed → KeyError (raise vs. exit 3)
+
+[+] chroma_dtw_eval/gold_truth_builder.py
+    ├── [BROKEN] happy path test relies on parangonar + nonexistent partitura matcher
+    ├── [TESTED] missing input → GoldMapMissingDataError (★★)
+    └── [GAP]    cache key collision across different scores (sha-truncated)
+```
+
+Iron-rule check: This plan adds *new* modules. No existing test suite is being modified. No regression-test obligation triggered by Iron Rule.
+
+#### 11. Failure Modes
+
+- Task 0 stub `verify.py` writes `args.sidecar.parent.mkdir(parents=True, exist_ok=True)` — but the test passes `tmp_path` for fixtures and a default `Path("model/data/evals/chroma_dtw/last_run.json")` for sidecar. When `pytest` runs, the working dir is the repo root, so a side-effect file appears at `model/data/evals/chroma_dtw/last_run.json` even from the unit test. Not a corruption risk (it gets overwritten by every real run), but the test pollutes the repo's data tree. Should be parameterized to `tmp_path`.
+- Task A1: atomic write via `tmp.replace(cache_file)` — correct. Concurrent writes from two pytest workers writing the same hash key would race but result is identical bytes; OK.
+- Task B1 `_ensure_binary` shells out to `cargo build` on cache miss. On a fresh machine, this can take 2-5 minutes for first build. The verify CLI will appear to "hang" on first invocation. Should be documented.
+- Task B2 cache load with `pickle.load` on user-controlled cache files is a code-execution sink. Cache root is local (`tmp_path` or `model/data/evals/chroma_dtw/gold_cache/`), so not a real attack vector, but pickling internal structures when JSON would suffice is unnecessary fragility (pickle breaks across Python minor versions). Plan stores `perf_seconds.tolist()` + `score_seconds.tolist()` — should be JSON.
+
+#### 12. Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `parangonar` is importable from `model/.venv` | **RISKY** | Verified absent: `ModuleNotFoundError: No module named 'parangonar'`. Not in `model/pyproject.toml`. |
+| `partitura.musicanalysis.AutomaticNoteMatcher` exists | **RISKY** | Verified absent in installed partitura 1.9.0: `[a for a in dir(partitura.musicanalysis) if 'Match' in a]` returns `[]`. |
+| `score.note_array()` has `id` and `onset_sec` fields | **RISKY** | Verified: score `note_array` dtype is `('onset_beat','duration_beat','onset_quarter',...,'pitch','voice','id','divs_pq')` — NO `onset_sec`. Performance note_array DOES have `onset_sec`. Plan's `score_lookup = {n["id"]: float(n["onset_sec"]) for n in score_na}` will KeyError on the first row. |
+| ASAP folders pair `midi.mid` with sibling `*.musicxml` | VALIDATE | Real layout: `xml_score.musicxml` + `score_xml.mid` (no shared stem). The test's `midi.with_name(f"{ext}")` logic produces nonsense filenames like `xml_score.musicxml.musicxml`. Falls back to glob, which would work. |
+| `dtw_chunk_cli` can compute a frame-level `predicted_score_frame` from `BarMapChroma.bar_per_frame` | **RISKY** | `BarMapChroma` discards the audio→score warping path; the CLI reconstructs a frame from bar-start-seconds, losing within-bar resolution. Primary metric (50ms = 2.5 frames at 50 Hz) cannot be measured against bar-level outputs — bar 1 vs bar 2 in Chopin Op.9 No.2 is ~3 seconds apart, swamping any 50ms tolerance. |
+| `chroma_dtw_native` is `pub` from the crate | SAFE | Verified in `lib.rs` line 16: `pub use chroma_dtw::chroma_dtw_native;`. |
+| `ScoreBar` is `pub` from the crate | VALIDATE | `pub mod types;` in `lib.rs` re-exports the module; `score_analysis::types::ScoreBar` path used in the CLI is reachable. OK. |
+| Cargo.toml `[dev-dependencies]` block does not exist | VALIDATE | Verified: current Cargo.toml has no `[dev-dependencies]` section. Plan's "append" instruction works. |
+| `dtw_chunk_cli` smoke test will pass with a 1-bar 1-note score at 10 Hz | VALIDATE | The existing `valid_score_frame_zero_not_overwritten_by_gap_fill` test in `chroma_dtw.rs` uses the same shape and passes. The CLI's `predicted_score_frame` field formula will produce 0 here; the test only asserts the field exists, so it survives. |
+| `librosa.feature.chroma_cqt` produces same output as the production MuQ path | SAFE | Both use the same recipe (cqt + 1e-3 floor + L2 norm). |
+| `just` is available in the dev env | SAFE | CLAUDE.md mandates it; test skips gracefully if missing. |
+| `model/pyproject.toml` packaging treats `model/src/chroma_dtw_eval` as importable | VALIDATE | Need to confirm `model/pyproject.toml` includes `[tool.setuptools.packages.find]` or equivalent pointing at `model/src/`. Plan does not add this; if missing, `uv run python -m chroma_dtw_eval.verify` fails. |
+| Python 3.12 dict-list type syntax (`list[Chunk]`, `tuple[int, int]`) works | SAFE | `requires-python = ">=3.11"` per pyproject. |
+| `_load_fixture_chunks` map covers all fixture `kind` values | SAFE | Task 0 manifest has gold/amateur/silence; map covers all three. |
+
+---
+
+### Findings
+
+[BLOCKER] (confidence: 10/10) — **Task B2 will KeyError on real ASAP data.** Verified by reading the installed partitura 1.9.0: `score.note_array()` does NOT contain `onset_sec` (only `onset_beat`, `onset_quarter`, `onset_div`). The plan's line `score_lookup = {n["id"]: float(n["onset_sec"]) for n in score_na}` raises `KeyError: 'onset_sec'` on the first iteration. The test that exercises this path is skip-gated on ASAP being present (which it is in this repo), so the test would fail loudly — but the failure points at a real design hole: the spec claims "(n)ASAP gives MIDI↔score at ~6ms" but the score side is in *beats*, not seconds. To get score-side seconds you must either (a) load the score as a performance via partitura's `score_to_performed_part()` projection or (b) carry a beats→seconds map from the score's tempo track. The plan does neither.
+
+[BLOCKER] (confidence: 10/10) — **`parangonar` is not installed and not in `pyproject.toml`.** Verified: `python -c "import parangonar"` → `ModuleNotFoundError`. Also `partitura.musicanalysis.AutomaticNoteMatcher` does not exist in 1.9.0 (`[a for a in dir(partitura.musicanalysis) if 'Match' in a]` → `[]`). Task B2's import will fail at module load. The hedging paragraph at the bottom of Step 3 ("If the path differs, replace with `import parangonar; matcher = parangonar.AutomaticNoteMatcher()`") does not change the situation — parangonar is not in the venv. Either (a) add `parangonar>=...` to `model/pyproject.toml` and pin a tested version, or (b) acknowledge that B2's happy-path test will SKIP because ASAP is present but parangonar is not, which means the gold-truth path is entirely untested by the build pipeline.
+
+[BLOCKER] (confidence: 9/10) — **The primary scalar cannot actually be measured by `dtw_chunk_cli` as designed.** `chroma_dtw_native` returns `BarMapChroma { bar_min, bar_max, cost, bar_per_frame }` — there is no field carrying the per-audio-frame *score-side frame index*. The plan's CLI reconstructs `predicted_score_frame` from `bar.start_seconds × frame_rate`, which is bar-level (one bar ≈ 1-3 seconds in real piano repertoire) against a 50ms tolerance. The primary metric will look like noise at best, identically-zero at worst. Either (a) extend `BarMapChroma` to include the warping path or per-frame audio→score map (this contradicts the "do NOT modify `chroma_dtw.rs`" rule unless added as a separate function), or (b) drop the primary scalar from frame-level to bar-level and adjust tolerance to a whole-bar threshold, or (c) have the CLI expose the warping path via a sidecar return (extend `chroma_dtw.rs`, which the plan forbids). This needs an explicit decision before A5/B1.
+
+[BLOCKER] (confidence: 8/10) — **`model/src/chroma_dtw_eval` may not be importable.** `model/pyproject.toml` should configure setuptools/hatchling to discover the `src/` layout. I did not verify whether `[tool.setuptools.packages.find]` points at `model/src/` or whether the package is in editable-installed in `model/.venv`. If it isn't, `uv run python -m chroma_dtw_eval.verify` from inside `model/` will fail with `ModuleNotFoundError`, breaking every task's Step 4 run. Plan should add an explicit `uv pip install -e .` (or equivalent) verification step at the top of Task 0, or document the existing import path.
+
+[RISK] (confidence: 7/10) — `gold_truth_builder` cache uses `pickle`, which (a) breaks across Python minor versions, (b) is a code-execution sink. Plan stores `tolist()` output that round-trips through JSON cleanly; switch to JSON.
+
+[RISK] (confidence: 7/10) — `test_get_chroma_caches_after_first_call` asserts file mtime did not change. On some filesystems with second-granularity mtimes (e.g., older APFS, ext3) or atomic-replace semantics on Linux, the mtime check can be flaky. The behavior under test ("don't recompute") is better expressed by counting calls into `librosa.feature.chroma_cqt` (which would require monkeypatching, i.e., internal mocking) OR by storing a load-counter inside the cache file and asserting the counter does not increment. Acceptable as-is but borderline.
+
+[RISK] (confidence: 8/10) — `test_build_gold_map_caches_and_supports_lookup` uses `time.monotonic()` wallclock with a `t_second * 4 < t_first + 1e-6` ratio. This will flake on CI, fast machines (where first build is fast enough that 4× margin is hit by GC pauses), and slow machines (where second call has to do real work). Replace with a behavioral check: delete the source MIDI between calls and assert the second call still works.
+
+[RISK] (confidence: 7/10) — Task B1 `dtw_runner._ensure_binary` will silently trigger a 2-5 minute `cargo build` on first verify-CLI invocation. /autoresearch expects ≤120s per iteration per the spec. Document this in the spec's "Runtime budget" section or pre-build the binary in `chroma-eval-verify` justfile entry as a `cd apps/api/src/wasm/score-analysis && cargo build --release --bin dtw_chunk_cli` prelude.
+
+[RISK] (confidence: 6/10) — `silence_synth` module is shallow (one ~25-LOC function, one dataclass). Consider inlining into the eventual `corpus_runner` rather than as a standalone module + tests. Not a blocker.
+
+[RISK] (confidence: 7/10) — Task 0 verify.py writes sidecar to `Path("model/data/evals/chroma_dtw/last_run.json")` even from `tmp_path` fixture-driven tests, polluting the repo's data tree on every test invocation. Sidecar path should be passed via the test, not a default.
+
+[RISK] (confidence: 6/10) — `test_regressed_lists_only_regressing_guards` asserts `"primary" in m.regressed` but the test's data (5 gold chunks all 5 frames off, single-class AUC fallback returning 0.5 vs baseline 0.9) actually triggers BOTH primary AND g2 regression. The test passes but does not specify which regressions are expected — fragile to formula tweaks. Add explicit `assert "g2" in m.regressed` or use a baseline that isolates the primary regression.
+
+[OBS] — The plan delivers a verify-CLI that exits 0/non-zero against *simulated fixture numbers*, not against the real DTW. /autoresearch can be wired against this CLI for green-CI smoke purposes, but the metric will be invariant to DTW edits until the deferred corpus_runner plan ships. Update the plan's Goal sentence to clarify "against committed simulated fixture" vs. "against the production chroma-DTW score follower on a frozen multi-piece test set," or explicitly state that Phase 1 measures plumbing, Phase 2 measures the DTW.
+
+[OBS] — `score_xml.mid` in the ASAP repo is the *score-rendered MIDI* (notation playback), not the *performance MIDI*. Real MAESTRO performance MIDIs live elsewhere (e.g., `model/data/raw/maestro-v*/<year>/...`). The plan's test fixture `_find_asap_pair()` will happily pair `xml_score.musicxml` with `score_xml.mid` — both score-side artifacts — and parangonar will "match" them trivially (identity), producing a degenerate gold map. This is silent in the test (it passes if any match succeeds) but the gold truth is wrong. Real use needs `<maestro audio>.midi` ↔ `<asap>/xml_score.musicxml`, with a separate cross-corpus piece-id lookup. Not in scope for this plan but flagged for the follow-up corpus_runner plan.
+
+[QUESTION] — No alternative approaches documented in the spec. Specifically: was "extend `chroma_dtw_native` to return the warping path directly" considered as an alternative to the bar-start-seconds reconstruction in `dtw_chunk_cli`? Was "shell out to the existing wasm-pack JS test harness" considered as an alternative to the new Rust binary? The spec asserts one path without naming rejected alternatives.
+
+[QUESTION] — Should the verify CLI gate G2 (AUC) regression with the 0.02 tolerance documented in the spec, or with a CI-derived tolerance (e.g., bootstrap CI on the AUC over the gold set)? The fixed 0.02 number is a magic constant; if the AUC's natural variance across runs exceeds 0.02 the gate is permanently red.
+
+[QUESTION] — When `parangonar` is not installed (current state), should B2's tests SKIP cleanly or FAIL? Plan-level decision needed before /build dispatches A1–A5 in parallel — Task B2 depends on this answer.
+
+---
+
+### Summary
+
+[BLOCKER] count: 4
+[RISK]    count: 7
+[QUESTION] count: 3
+
+VERDICT: NEEDS_REWORK — (1) Task B2 uses partitura field `onset_sec` which doesn't exist on score note arrays in 1.9.0; (2) `parangonar` is neither installed nor in `pyproject.toml` and the named `AutomaticNoteMatcher` import path doesn't exist; (3) `predicted_score_frame` cannot be derived at 50ms resolution from `BarMapChroma`'s bar-level output without either modifying `chroma_dtw_native` (forbidden by spec) or changing the primary metric to bar-level; (4) `chroma_dtw_eval` package may not be importable from `model/` without explicit pyproject packaging — needs verification or an `uv pip install -e .` step in Task 0.
