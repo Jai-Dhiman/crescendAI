@@ -23,3 +23,22 @@ def test_verify_cli_returns_one_float_and_exits_zero(tmp_path):
     assert len(lines) == 1, f"expected exactly one stdout line, got {result.stdout!r}"
     value = float(lines[0])
     assert 0.0 <= value <= 100.0
+
+
+def test_verify_cli_exits_nonzero_when_baseline_above_current(tmp_path):
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(json.dumps({
+        "primary": 100.0,
+        "guards": {"g1": 0.0, "g2": 0.99, "g3": 0.0, "g4": 100.0, "g5": 0.0},
+    }))
+    result = subprocess.run(
+        [sys.executable, "-m", "chroma_dtw_eval.verify",
+         "--baseline", str(baseline), "--fixtures", str(FIXTURES)],
+        capture_output=True, text=True, timeout=120,
+    )
+    assert result.returncode != 0, (
+        f"expected non-zero, got {result.returncode}; stdout={result.stdout}; stderr={result.stderr}"
+    )
+    sidecar = json.loads(Path("model/data/evals/chroma_dtw/last_run.json").read_text())
+    assert sidecar["regressed"], "sidecar must list regressed guards"
+    assert "g3" in sidecar["regressed"]

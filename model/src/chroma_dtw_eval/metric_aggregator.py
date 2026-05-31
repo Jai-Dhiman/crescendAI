@@ -72,7 +72,7 @@ def aggregate(
         regressed.append("g1")
     if g2 < baseline.guards.g2 - 0.02:
         regressed.append("g2")
-    if g3 < baseline.guards.g3 - 1.0:
+    if g3 > baseline.guards.g3 + 1.0:
         regressed.append("g3")
     if g4 < baseline.guards.g4 - 1.0:
         regressed.append("g4")
