@@ -3329,6 +3329,22 @@ wheels = [
 ]
 
 [[package]]
+name = "parangonar"
+version = "3.3.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "joblib" },
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "partitura" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/45/11/b880ba876031d630545940e39ceba5f0a3b3f0d7e13f90b753a1cc2c6fbf/parangonar-3.3.2.tar.gz", hash = "sha256:d9f070866f50f5f170448dc59b63da60f413cd1b04e8a8b5e01bc546244cf704", size = 16497272, upload-time = "2026-05-21T08:50:43.802Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5d/b4/3fdd4ddc1f22c6cdd2c22124f97a85ff41b8d8ad1efca4b1405964cc1b74/parangonar-3.3.2-py3-none-any.whl", hash = "sha256:14e051877fe550ec53cab08eec0a1f53577ad4644fd574bfe6c796fe65929d9b", size = 16499801, upload-time = "2026-05-21T08:50:40.833Z" },
+]
+
+[[package]]
 name = "parso"
 version = "0.8.5"
 source = { registry = "https://pypi.org/simple" }
@@ -3476,6 +3492,7 @@ dependencies = [
     { name = "omegaconf" },
     { name = "openai" },
     { name = "pandas" },
+    { name = "parangonar" },
     { name = "partitura" },
     { name = "pedalboard" },
     { name = "peft" },
@@ -3563,6 +3580,7 @@ requires-dist = [
     { name = "omegaconf", specifier = ">=2.3.0" },
     { name = "openai", specifier = ">=1.0.0" },
     { name = "pandas", specifier = ">=2.0.0" },
+    { name = "parangonar", specifier = ">=3.3,<4" },
     { name = "partitura", specifier = ">=1.8.0" },
     { name = "pedalboard", specifier = ">=0.9.0" },
     { name = "peft", specifier = ">=0.7.0" },

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "chunks": [
+    {"id": "fix_001", "kind": "gold", "gold_frame": 0, "tolerance_frames": 3},
+    {"id": "fix_002", "kind": "amateur", "forward_bar": 4},
+    {"id": "fix_003", "kind": "silence", "expected_loud_failure": true}
+  ]
+}
