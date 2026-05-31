@@ -62,7 +62,7 @@ def aggregate(
     else:
         g2 = 0.5
     g3 = _pct([(r.silence_loud_failure is True) for r in silence]) if silence else 0.0
-    g4 = _pct([abs(r.stitch_error_frames) <= tol_frames for r in synth]) if synth else 0.0
+    g4 = _pct([abs(r.stitch_error_frames) <= tol_frames for r in synth if r.stitch_error_frames is not None]) if synth else 0.0  # type: ignore[arg-type]
     g5 = _pct([(r.bar_distance_from_forward or 0.0) > 5.0 for r in real_practice]) if real_practice else 0.0
 
     guards = GuardSet(g1=g1, g2=g2, g3=g3, g4=g4, g5=g5)
