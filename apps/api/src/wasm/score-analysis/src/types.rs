@@ -202,4 +202,8 @@ pub struct BarMapChroma {
     /// Bar number for each decimated frame (at decim_hz, e.g. 5 Hz).
     /// Length = ceil(n_audio_frames / decim_step).
     pub bar_per_frame: Vec<u32>,
+    /// Per-audio-frame score-frame index from the DTW warping path.
+    /// Length = n_audio (full frame rate, NOT decimated). Additive output;
+    /// existing consumers of bar_per_frame are unaffected.
+    pub score_frame_per_audio_frame: Vec<u32>,
 }
