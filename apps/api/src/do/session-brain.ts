@@ -1282,39 +1282,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 		state.version++;
 		await this.writeState(state);
 
-		// Eval mode: respond immediately with accumulator state, skip LLM synthesis
-		if (state.isEvalSession) {
-			const acc = SessionAccumulator.fromJSON(state.accumulator);
-			// Read scores from per-chunk keys (robust against wrangler dev serialization gaps)
-			const evalScoreMap = await this.ctx.storage.list<number[]>({ prefix: "eval_score:" });
-			const scoredChunks = Array.from(evalScoreMap.entries())
-				.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-				.map(([, scores]) => ({ scores }));
-			const evalContext = {
-				scored_chunks: scoredChunks.length > 0 ? scoredChunks : state.scoredChunks.map((c) => ({ scores: c.scores })),
-				teaching_moments: acc.teachingMoments,
-				baselines: state.baselines ?? {},
-				mode_transitions: acc.modeTransitions,
-				drilling_records: acc.drillingRecords,
-				timeline: acc.timeline,
-			};
-			const sockets = this.ctx.getWebSockets();
-			for (const sock of sockets) {
-				this.sendWs(sock, {
-					type: "synthesis",
-					text: "",
-					components: [],
-					isFallback: false,
-					eval_context: evalContext,
-				});
-			}
-			// Mark synthesis done so alarm only finalizes (no LLM call)
-			const latestState = await this.readState();
-			latestState.synthesisCompleted = true;
-			latestState.version++;
-			await this.writeState(latestState);
-		}
-
 		// If no chunks currently processing, trigger synthesis/finalize immediately
 		if (state.chunksInFlight === 0) {
 			await this.ctx.storage.setAlarm(Date.now() + 1);
@@ -1351,27 +1318,25 @@ export class SessionBrain extends DurableObject<Bindings> {
 					(acc.timeline[0]?.timestampMs ?? 0)
 				: 0;
 
-		// Eval shortcut: skip LLM entirely; send accumulator state as eval_context
+		// Eval mode: compute accumulator snapshot now, attach to synthesis payload below.
+		// Read scoredChunks from per-chunk keys as fallback (robust against wrangler dev serialization gaps).
+		let evalContext: Record<string, unknown> | null = null;
 		if (state.isEvalSession) {
-			const evalContext = {
-				scored_chunks: state.scoredChunks.map((c) => ({ scores: c.scores })),
+			const evalScoreMap = await this.ctx.storage.list<number[]>({ prefix: "eval_score:" });
+			const scoredFromKeys = Array.from(evalScoreMap.entries())
+				.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+				.map(([, scores]) => ({ scores }));
+			evalContext = {
+				scored_chunks:
+					scoredFromKeys.length > 0
+						? scoredFromKeys
+						: state.scoredChunks.map((c) => ({ scores: c.scores })),
 				teaching_moments: acc.teachingMoments,
 				baselines: state.baselines ?? {},
 				mode_transitions: acc.modeTransitions,
 				drilling_records: acc.drillingRecords,
 				timeline: acc.timeline,
 			};
-			const sockets = this.ctx.getWebSockets();
-			for (const sock of sockets) {
-				this.sendWs(sock, {
-					type: "synthesis",
-					text: "",
-					components: [],
-					isFallback: false,
-					eval_context: evalContext,
-				});
-			}
-			return;
 		}
 
 		const pieceCtx =
@@ -1494,9 +1459,11 @@ export class SessionBrain extends DurableObject<Bindings> {
 		};
 
 		// teacher.synthesize() throws on failure — try/catch handles it
-		// synthesisCompleted stays true but DB needsSynthesis remains true, enabling deferred retry
+		// synthesisCompleted stays true but DB needsSynthesis remains true, enabling deferred retry.
+		// Eval sessions bypass v6 (whose strict validation gates silently no-op on sparse accumulator
+		// state) and use the legacy teacher path — same path the locked ASCF baseline was measured on.
 		try {
-			if (this.env.HARNESS_V6_ENABLED === "true") {
+			if (this.env.HARNESS_V6_ENABLED === "true" && !state.isEvalSession) {
 				let artifact: SynthesisArtifact | null = null;
 				let validationError: string | null = null;
 				const phase1Results: Array<{ tool: string; output: unknown }> = [];
@@ -1575,9 +1542,11 @@ export class SessionBrain extends DurableObject<Bindings> {
 					}),
 				);
 				const wsPayload = buildV6WsPayload(artifact, loopComponents);
+				const wsPayloadWithEval =
+					evalContext !== null ? { ...wsPayload, eval_context: evalContext } : wsPayload;
 				const sockets = this.ctx.getWebSockets();
 				for (const sock of sockets) {
-					this.sendWs(sock, wsPayload);
+					this.sendWs(sock, wsPayloadWithEval);
 				}
 
 				if (state.conversationId !== null) {
@@ -1612,8 +1581,9 @@ export class SessionBrain extends DurableObject<Bindings> {
 					}
 				}
 
-				// Eval flywheel: sample ~5% of prod sessions into R2 eval queue
-				if (Math.random() < 0.05) {
+				// Eval flywheel: sample ~5% of prod sessions into R2 eval queue.
+				// Skip eval sessions themselves to avoid self-feeding the queue.
+				if (!state.isEvalSession && Math.random() < 0.05) {
 					this.ctx.waitUntil(
 						this.env.CHUNKS.put(
 							`eval-queue/${state.sessionId}.json`,
@@ -1651,12 +1621,14 @@ export class SessionBrain extends DurableObject<Bindings> {
 			const components = result.toolResults.flatMap((r) => r.componentsJson);
 			const sockets = this.ctx.getWebSockets();
 			for (const sock of sockets) {
-				this.sendWs(sock, {
+				const payload: Record<string, unknown> = {
 					type: "synthesis",
 					text: result.text,
 					components,
 					isFallback: false,
-				});
+				};
+				if (evalContext !== null) payload["eval_context"] = evalContext;
+				this.sendWs(sock, payload as Parameters<typeof this.sendWs>[1]);
 			}
 
 			// Persist to DB
