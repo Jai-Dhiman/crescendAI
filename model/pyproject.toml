@@ -49,6 +49,7 @@ dependencies = [
     "muq>=0.1.0",
     # Model improvement experiments
     "yt-dlp>=2024.0.0",
+    "ruamel.yaml>=0.18.0",
     "beautifulsoup4>=4.12.0",
     "lxml>=5.0.0",
     "peft>=0.7.0",

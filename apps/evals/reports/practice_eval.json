@@ -2,17 +2,80 @@
   "eval_name": "synthesis_eval",
   "eval_version": "1.0",
   "dataset": "practice_1",
-  "metrics": {},
+  "metrics": {
+    "synthesis_A_[Actionability]": {
+      "mean": 0.0,
+      "std": 0,
+      "n": 1,
+      "pass_threshold": null,
+      "passed": true
+    },
+    "synthesis_B_[Actionability]": {
+      "mean": 0.0,
+      "std": 0,
+      "n": 1,
+      "pass_threshold": null,
+      "passed": true
+    },
+    "synthesis_A_[Coherence]": {
+      "mean": 0.0,
+      "std": 0,
+      "n": 1,
+      "pass_threshold": null,
+      "passed": true
+    },
+    "synthesis_B_[Coherence]": {
+      "mean": 0.0,
+      "std": 0,
+      "n": 1,
+      "pass_threshold": null,
+      "passed": true
+    },
+    "synthesis_A_[Musical Grounding]": {
+      "mean": 0.0,
+      "std": 0,
+      "n": 1,
+      "pass_threshold": null,
+      "passed": true
+    },
+    "synthesis_B_[Musical Grounding]": {
+      "mean": 0.0,
+      "std": 0,
+      "n": 1,
+      "pass_threshold": null,
+      "passed": true
+    },
+    "synthesis_A_[Skill Calibration]": {
+      "mean": 1.0,
+      "std": 0,
+      "n": 1,
+      "pass_threshold": null,
+      "passed": true
+    },
+    "synthesis_B_[Skill Calibration]": {
+      "mean": 1.0,
+      "std": 0,
+      "n": 1,
+      "pass_threshold": null,
+      "passed": true
+    }
+  },
   "worst_cases": [],
   "cost": {
-    "judge_calls": 0,
-    "estimated_usd": 0.0
+    "judge_calls": 2,
+    "estimated_usd": 0.01
   },
   "metadata": {
-    "git_sha": "3156b98d3453c6977b9e9a5cd54070e0db97e2e0",
+    "git_sha": "f68e295a45d79d00f2a103eeae901857f1779b00",
     "git_dirty": true,
     "total_recordings": 1,
     "capabilities_judged": [
+      "differentiation",
+      "exercises",
+      "mode_detection",
+      "piece_id",
+      "score_following",
+      "synthesis",
       "teaching_moments"
     ],
     "mode_detection": {
@@ -21,9 +84,19 @@
       "mean_transitions_per_session": 0.0,
       "mean_spurious_per_session": 0.0
     },
+    "synthesis": {
+      "pass_a_count": 1,
+      "pass_b_count": 1,
+      "piece_context_delta": {
+        "[Actionability]": 0.0,
+        "[Coherence]": 0.0,
+        "[Musical Grounding]": 0.0,
+        "[Skill Calibration]": 0.0
+      }
+    },
     "efficiency": {
-      "mean_synthesis_latency_ms": 21,
-      "p90_synthesis_latency_ms": 28
+      "mean_synthesis_latency_ms": 4262,
+      "p90_synthesis_latency_ms": 7834
     },
     "inference_cache_fingerprints": [
       "auto-t5_http"

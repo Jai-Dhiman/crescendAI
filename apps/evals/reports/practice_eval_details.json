@@ -12,7 +12,50 @@
     }
   ],
   "score_following_data": [],
-  "synthesis_judge_results": [],
+  "synthesis_judge_results": [
+    {
+      "video_id": "E-MoLWi6aqo",
+      "piece": "bach_invention_1",
+      "skill_level": 1,
+      "pass": "A",
+      "scores": {
+        "[Musical Grounding]": false,
+        "[Actionability]": false,
+        "[Skill Calibration]": true,
+        "[Coherence]": false,
+        "[Drilling Acknowledgment]": null
+      },
+      "evidence": {
+        "[Musical Grounding]": "Once you begin playing, I'll be able to give you specific feedback on your dynamics, timing, articulation, and other musical elements\" \u2014 no specific passage, bar range, or musical event from bach_invention_1 is referenced at all.",
+        "[Actionability]": "What piece would you like to work on today? I'm here to listen and help you refine whatever you'd like to practice.\" \u2014 no concrete physical action at the piano is suggested; the synthesis contains only an offer to help in the future.",
+        "[Skill Calibration]": "The language is simple and accessible (\"dynamics, timing, articulation\"), avoiding advanced terminology, which is appropriate for a Level 1 student. However, this is a very low bar given the synthesis contains almost no musical content.",
+        "[Coherence]": "The synthesis has no narrative arc about a practice session because it acknowledges no session took place. It reads as a generic opening prompt (\"What piece would you like to work on today?\") rather than a cohesive teacher reflection on actual practice.",
+        "[Drilling Acknowledgment]": "drilling_detected is \"false\", so this criterion does not apply."
+      },
+      "latency_ms": 5874.172292067669
+    },
+    {
+      "video_id": "E-MoLWi6aqo",
+      "piece": "bach_invention_1",
+      "skill_level": 1,
+      "pass": "B",
+      "scores": {
+        "[Musical Grounding]": false,
+        "[Actionability]": false,
+        "[Skill Calibration]": true,
+        "[Coherence]": false,
+        "[Drilling Acknowledgment]": null
+      },
+      "evidence": {
+        "[Musical Grounding]": "Once you begin playing, I'll be able to give you specific feedback on your dynamics, timing, articulation, and other musical elements based on what I hear.\" \u2014 No specific musical passage, bar range, section, or musical event is referenced; the synthesis contains no performance data at all.",
+        "[Actionability]": "What piece would you like to work on today? I'm here to listen and help you refine whatever you'd like to practice.\" \u2014 There is no concrete physical action the student can take at the piano; the response is entirely a placeholder with no instructional content.",
+        "[Skill Calibration]": "The language is simple and accessible (\"dynamics, timing, articulation\"), with no advanced terminology, which is broadly appropriate for a Level 1 student. However, since there is no actual feedback content, calibration is minimally demonstrated rather than actively applied.",
+        "[Coherence]": "The synthesis has no narrative arc about a practice session \u2014 it acknowledges no session occurred and simply asks what to work on. It cannot be evaluated as a cohesive teacher's thought about practice because there is no practice content to synthesize.",
+        "[Drilling Acknowledgment]": "drilling_detected is \"false,\" so this criterion does not apply."
+      },
+      "latency_ms": 6351.725250016898
+    }
+  ],
   "exercise_data": [],
   "pass_a_syntheses": [
     {
@@ -26,16 +69,16 @@
     {
       "video_id": "E-MoLWi6aqo",
       "pass": "A",
-      "duration_ms": 365,
-      "chunk_send_ms": 46,
-      "synthesis_latency_ms": 28
+      "duration_ms": 8234,
+      "chunk_send_ms": 57,
+      "synthesis_latency_ms": 7834
     },
     {
       "video_id": "E-MoLWi6aqo",
       "pass": "B",
-      "duration_ms": 112,
-      "chunk_send_ms": 32,
-      "synthesis_latency_ms": 14
+      "duration_ms": 829,
+      "chunk_send_ms": 60,
+      "synthesis_latency_ms": 691
     }
   ]
 }

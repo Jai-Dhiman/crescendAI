@@ -146,6 +146,32 @@ These are available for continued Aria pretraining or contrastive training if ne
 
 **GigaMIDI notes** (arxiv.org/abs/2502.17726): Largest open symbolic music dataset (1.4M MIDIs, 1.8B note events; piano = 60.2% of note events). Ships with per-track expressivity classification via the **NOMML** heuristic (Note Onset Median Metric Level) — compares onset timing against dual duple/triplet grids to separate hand-played performances from quantized/sequenced MIDI. The curated "fully expressive" piano subset is ~990K tracks. NOMML is also usable as a standalone filter for any MIDI source (T2 AMT transcripts, masterclass transcriptions, future practice data) to gate out mechanically-quantized MIDI before training. Integrates with Symusic + MidiTok (same tooling as Aria).
 
+### Piano Dataset Landscape (MEC 2026 reference)
+
+Consolidated view of the named piano datasets in the field, mapped to CrescendAI's tier structure. Use this section to answer "do we use X?" without grepping. Status values: **Active** (in a current training/inference path), **Legacy** (loaders exist but consumer pipeline replaced), **Standby** (downloaded or accessible, not yet wired in), **Cited-only** (appears in research-corpus PDFs but not as data), **Proposed** (integration sketched, not started).
+
+| Dataset | Size / shape | License | CrescendAI status | Use case |
+|---|---|---|---|---|
+| **MAESTRO** (v3.0.0) | 1,276 recordings, ~300 pieces, 200h audio+MIDI | CC BY-NC-SA 4.0 | **Active** | T3 contrastive tier (same-piece/diff-performer pairs, 24,321 segments); also Aria-AMT's training corpus; practice-augmentation source. |
+| **ASAP** | 1,067 performances of 236 scores, audio + score MIDI + perf MIDI | MIT | **Active** | Score library V1 (242 pieces deployed to D1 + R2) for piece ID and score-conditioning `delta = z_perf - z_score`. Also 1,066 graphs in legacy corpus. |
+| **(n)ASAP** | Note-aligned variant of ASAP via parangonar | MIT | **Proposed** | Note-level alignment upgrade. Referenced in `docs/specs/2026-05-28-continuity-aware-chroma-follower-design.md` as the millisecond eval harness for the continuity-aware chroma follower; not yet wired into loaders. Drop-in alignment upgrade for the existing 242-piece library. |
+| **ATEPP** | ~11,700 transcribed expressive performances | Research-only | **Legacy** | MIDI loader exists (`datasets.py::load_atepp_midi_files`) and feeds the 24,220-graph S2 GNN pretraining corpus. Consumer (S2) was removed when Aria absorbed the symbolic-FM role (2026-03-18 decision). Re-use path is Aria CPT, not graph rebuild. |
+| **GiantMIDI-Piano** | ~10,800 piano MIDIs transcribed from YouTube | CC BY 4.0 | **Legacy** | 8,278 graphs in the legacy pretraining corpus + `archive/scripts/process_giantmidi_graphs.py`. Same story as ATEPP — feeds an archived pipeline. |
+| **Aria-MIDI** | 820K piano MIDI performances (~60K hours) | Apache 2.0 | **Standby** | Pretraining corpus for the Aria encoder we use. Encoder is active; the dataset is on standby for piano-specific continued-pretraining only if fine-tune signal proves insufficient. |
+| **Vienna 4x22** | 22 pianists × 4 pieces (Chopin/Mozart/Schubert), Bösendorfer SE measurements | Research-only | **Proposed** | Small, controlled T3 contrastive donor: dense same-piece/different-performer pairs with precise mechanical measurements. Best fit as a held-out validation set first (sanity-check that contrastive embeddings actually separate performers under controlled conditions), promote into training only if held-out behavior is clean. |
+| **Batik-plays-Mozart** | 12 Mozart sonatas, one performer (Roland Batik), score-aligned | Research-only | **Cited-only** (appears in `apps/evals/teacher_model/data/corpus/pdf_b222f630bf54.txt`) | Classical-era score-conditioning anchor (links performance and score). Single-performer = zero ordinal/contrastive value. Defer unless Classical-era coverage becomes a measured weakness (current eval shows Impressionist weakest, not Classical). |
+| **CrestMusePEDB** | ~400 performances with score-deviation annotations | Research-only (check commercial terms) | **Cited-only** (appears in `apps/evals/teacher_model/data/corpus/pdf_4ae30699778f.txt`) | Highest-value candidate for the ASCF weak dimension: per-bar expressive-deviation annotations map onto the MPM-bucket-enrichment hypothesis (`project_mpm_bucket_enrichment.md`) as a second auxiliary supervision source. **Gate on:** (1) commercial-use license review, (2) MPM-enrichment gates 1–2 passing on T5 first. |
+| **SMD** (Saarland Music Data, Müller et al.) | ~50 synchronized MIDI-audio piano performances | Research-only | **Cited-only** | High-quality MIDI-audio sync. Marginal value — MAESTRO already covers Aria-AMT validation at F1 0.86. Skip unless a specific AMT failure mode appears. |
+
+**Suggested integration order** (if adding any of the above):
+
+1. **nASAP** — alignment upgrade for the existing ASAP library; closes the loop with the chroma-follower spec. ~1–2 weeks, no new tier.
+2. **Vienna 4x22** — held-out T3 validation first, promote to training if clean. ~1 week.
+3. **CrestMusePEDB** — auxiliary expressive supervision, behind MPM-enrichment gates and license review.
+4. **Batik / SMD** — deferred; revisit only if a measured gap appears.
+
+**Anti-pattern:** Reviving ATEPP/GiantMIDI graph pipelines. The consumer (S2 GNN) is gone. Re-use path for raw MIDI is Aria continued-pretraining, not graph-corpus rebuild.
+
 ### LEGACY: Symbolic Pretraining Corpus (Replaced by Aria)
 
 > **LEGACY:** This graph pretraining corpus was built for CrescendAI's custom GNN symbolic encoders (S1, S2, S2H, S3). These encoders are replaced by Aria (650M params, pretrained on 820K MIDIs). The graph data is no longer needed for CrescendAI's own pretraining. Kept on disk for reference; training code archived under `model/archive/model_improvement/`.

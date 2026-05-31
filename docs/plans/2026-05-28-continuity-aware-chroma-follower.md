@@ -2588,3 +2588,54 @@ The probe now includes an `opening_hi` region check (line 300: `int(n_score * 0.
 **[BLOCKER]** — Task 12 fallback dispatch tests are logic-echo tests that pass once Task 10 merges regardless of Task 11's implementation. The plan must mandate either (a) creation of harness helpers (`initSessionWithPiece`, `sendChunkReady`, `getSentMessages`, `readDoState`) so the preferred test form can run, or (b) extraction of the status-dispatch condition into an importable pure function from `session-brain.ts` that the fallback test calls directly — making it possible for a bug in the production dispatch code to fail the test.
 
 VERDICT: NEEDS_REWORK — Task 12 fallback tests remain logic-echo tests that do not exercise production code. Fix: mandate harness helper scaffolding (preferred) or extract the dispatch condition into a pure function callable from tests (fallback). Tasks 1 and 2 parallel conflict on types.rs should also be sequenced to prevent merge conflicts during build dispatch.
+
+---
+
+## Challenge Re-Review 3 (2026-05-28, third review)
+
+This review verifies the single claimed fix: Task 12 logic-echo blocker resolved by extracting a pure exported `chromaStatusDispatch(result, prevExpectedScoreFrame)` function in `session-brain.ts` that the DO calls and the tests import directly.
+
+All relevant source files were read before forming conclusions.
+
+### Prior Blocker — Task 12 logic-echo tests: RESOLVED
+
+**Dispatch-function extraction is sound.** Task 11 (lines 1944–1973) defines:
+
+```typescript
+export interface ChromaDispatch { expectedScoreFrame: number; emitBarMap: boolean; tier: 1 | 3; barRange: [number, number] | null; }
+
+export function chromaStatusDispatch(
+  result: { status: string; end_score_frame: number; bar_min: number; bar_max: number } | null,
+  prevExpectedScoreFrame: number,
+): ChromaDispatch
+```
+
+This export does not exist in the current `session-brain.ts` (verified: only `buildV6WsPayload` and `toEnrichedChunk` are exported). The function will be absent until Task 11 runs.
+
+**Task 12 tests are genuinely red before Task 11.** The test file begins with `import { chromaStatusDispatch } from "./session-brain"`. When `chromaStatusDispatch` is not exported, Vitest will throw a module resolution / named-export error at import time. All four test cases will fail to run. This is a genuine red state, not a shape test.
+
+**Logic consistency verified.** The four test cases in Task 12:
+- `abstained` result + prev=400 → expects `{expectedScoreFrame:400, emitBarMap:false, tier:3, barRange:null}` — matches the `result.status !== "abstained"` false branch ✓
+- `null` result + prev=200 → expects `{expectedScoreFrame:200, emitBarMap:false, tier:3, barRange:null}` — matches `result !== null` false branch ✓
+- `aligned` result, end=820, bars=[5,12], prev=-1 → expects `{expectedScoreFrame:820, emitBarMap:true, tier:1, barRange:[5,12]}` ✓
+- `relocalized` result, end=500, bars=[3,8], prev=200 → expects `{expectedScoreFrame:500, emitBarMap:true, tier:1, barRange:[3,8]}` — `relocalized !== "abstained"` takes the non-abstained branch ✓
+
+All four assertions are consistent with the Task 11 implementation. A bug in the function (e.g., returning `prevExpectedScoreFrame` instead of `result.end_score_frame` on aligned) would fail the third test case.
+
+**DO method stays thin.** Task 11 replaces the DO's inline conditional with `const dispatch = chromaStatusDispatch(chromaResult, currentState.expectedScoreFrame)` and then reads `dispatch.expectedScoreFrame`, `dispatch.tier`, `dispatch.emitBarMap`. This is correct: the DO no longer contains the dispatch logic — it delegates entirely to the pure function. A mis-wiring in the DO (e.g., not calling `chromaStatusDispatch` at all, or ignoring `dispatch.expectedScoreFrame`) would not be caught by Task 12's tests, but that is the inherent tradeoff of pure-function extraction. The pure function itself is fully tested.
+
+**Residual (non-blocking) observation:** The DO's call to `chromaStatusDispatch` is not independently tested. However, extracting the logic into a pure function and testing that function is the correct and standard approach for DO orchestrators. The wiring is simple enough (one call, three reads from the result struct) that this residual risk is acceptable.
+
+### Carried Risks from Prior Reviews
+
+[RISK] (confidence: 8/10) — Tasks 1 and 2 parallel conflict on `types.rs` remains advisory-only (not resolved by this fix). The `BarMapChroma` struct extension is touched by both tasks. Build agent must serialize the `types.rs` commit manually within Group A.
+
+[RISK] (confidence: 7/10) — `subseq_dtw_backtrack_from` re-runs the full O(n_a × n_s) DP fill for the relocalize case. Acceptable but should be profiled under Cloudflare Workers WASM timeout if relocalize becomes frequent.
+
+### Summary
+
+[BLOCKER] count: 0
+[RISK]    count: 2 (carried: parallel types.rs conflict + double DP fill for relocalize)
+[QUESTION] count: 0
+
+VERDICT: PROCEED_WITH_CAUTION — risks to monitor: (1) Tasks 1 and 2 must not commit `types.rs` concurrently — build agent must serialize within Group A; (2) profile `subseq_dtw_backtrack_from` DP fill time on the full Ballade 1 score under WASM timeout constraints if relocalize path becomes hot.
