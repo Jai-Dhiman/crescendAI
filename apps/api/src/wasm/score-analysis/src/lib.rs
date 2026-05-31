@@ -9,6 +9,9 @@ mod dims;
 mod teaching_moments;
 pub mod types;
 
+#[cfg(test)]
+mod real_recording_test;
+
 // Re-export pure Rust core for integration tests (not wasm_bindgen — no JsValue in tests)
 pub use chroma_dtw::chroma_dtw_native;
 
