@@ -60,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--corpus", type=Path,
                         help="Root containing maestro/skill_eval/practice_eval (real run)")
     parser.add_argument("--sidecar", type=Path,
-                        default=Path("model/data/evals/chroma_dtw/last_run.json"))
+                        default=Path(__file__).resolve().parents[2] / "data/evals/chroma_dtw/last_run.json")
     args = parser.parse_args(argv)
 
     if not args.baseline.exists():

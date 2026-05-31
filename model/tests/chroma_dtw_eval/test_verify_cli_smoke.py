@@ -39,6 +39,6 @@ def test_verify_cli_exits_nonzero_when_baseline_above_current(tmp_path):
     assert result.returncode != 0, (
         f"expected non-zero, got {result.returncode}; stdout={result.stdout}; stderr={result.stderr}"
     )
-    sidecar = json.loads(Path("model/data/evals/chroma_dtw/last_run.json").read_text())
+    sidecar = json.loads((Path(__file__).resolve().parents[2] / "data/evals/chroma_dtw/last_run.json").read_text())
     assert sidecar["regressed"], "sidecar must list regressed guards"
     assert "g3" in sidecar["regressed"]
