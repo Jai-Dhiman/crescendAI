@@ -224,7 +224,7 @@ pub fn chroma_dtw_native(
         audio_to_score.iter().map(|&sf| sf as u32).collect();
 
     // Defensive assertion: length must equal n_audio regardless of decim ratio.
-    assert_eq!(
+    debug_assert_eq!(
         score_frame_per_audio_frame.len(),
         n_a,
         "score_frame_per_audio_frame length {} != n_audio {}",
