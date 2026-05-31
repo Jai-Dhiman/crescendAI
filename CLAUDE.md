@@ -34,6 +34,8 @@ Uses `just` (justfile) for dev commands. Install: `brew install just`.
 | `just muq` / `just amt` / `just api` / `just web` | Individual services |
 | `just fingerprint` | Generate N-gram index + rerank features from score library |
 | `just test-model` / `just test-api` / `just check-api` | Tests and checks |
+| `just chroma-eval-verify` | Run chroma-DTW eval harness; exits non-zero on guard regression |
+| `just chroma-eval-ratchet` | Commit updated baseline.json after a deliberate metric improvement |
 | `just deploy-api` | Deploy API worker to production |
 | `just migrate-generate` / `just migrate-prod` | Drizzle migrations (generate SQL / apply to prod) |
 

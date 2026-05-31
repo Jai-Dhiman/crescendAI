@@ -1,6 +1,6 @@
 # Chroma-DTW score follower — eval-driven pivot
 
-**Status:** spec/plan parked; pivoting to eval-first autoresearch. Pre-MEC-2026 papers + bucket-1 amateur experiment surfaced concrete failures and a validated partial fix; we are choosing not to ship the partial fix without first building a metric system that prevents future regressions and guides further work.
+**Status:** HARNESS SHIPPED (2026-05-31, merge `3305babf`). Eval harness is on main; `just chroma-eval-verify` and `just chroma-eval-ratchet` are live. Next step: `/autoresearch` loop on continuity-aware improvements. Pre-MEC-2026 papers + bucket-1 amateur experiment surfaced concrete failures and a validated partial fix; eval harness provides the metric system to safely iterate.
 
 **Last updated:** 2026-05-31. Picks up from the autopilot run that halted at the Task 0 gate.
 
