@@ -220,6 +220,18 @@ pub fn chroma_dtw_native(
         }
     }
 
+    let score_frame_per_audio_frame: Vec<u32> =
+        audio_to_score.iter().map(|&sf| sf as u32).collect();
+
+    // Defensive assertion: length must equal n_audio regardless of decim ratio.
+    debug_assert_eq!(
+        score_frame_per_audio_frame.len(),
+        n_a,
+        "score_frame_per_audio_frame length {} != n_audio {}",
+        score_frame_per_audio_frame.len(),
+        n_a
+    );
+
     let bar_per_frame: Vec<u32> = (0..decim_n)
         .map(|d| {
             let af = (d * decim_step).min(n_a - 1);
@@ -236,6 +248,7 @@ pub fn chroma_dtw_native(
         bar_max,
         cost: mean_cost,
         bar_per_frame,
+        score_frame_per_audio_frame,
     })
 }
 
