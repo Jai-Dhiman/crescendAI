@@ -2,3 +2,4 @@ node_modules/
 .wrangler/
 dist/
 src/harness/skills/__catalog__/index.gen.ts
+*.bin

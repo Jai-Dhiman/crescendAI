@@ -44,6 +44,60 @@ Uses `just` (justfile) for dev commands. Install: `brew install just`.
 - Python: `uv` (not pip)
 - JavaScript: `bun` (not npm)
 
+## Issue Tracking
+
+**GitHub Issues is the canonical backlog.** Repo: `Jai-Dhiman/crescendAI`. No other tracker.
+
+### Session rituals (required)
+
+- **At session start, before any work:** run `gh issue list --assignee @me --state open --json number,title,labels,updatedAt`. If the user's request matches an open issue, resume it (read its comments for the last `STATE:` line). If not, ask whether to open a new one.
+- **At session end with progress made:** post `gh issue comment N --body "STATE: <one-line current state> Next: <one-line concrete next step>"`. Future sessions grep for `STATE:` to resume.
+
+### Doc bloat rules
+
+- `docs/implementation/*.md` is for **ephemeral scratch only** — never permanent content. If `/ship` sees a new `docs/implementation/*.md` file in the diff without a linked issue number, fail and ask.
+- `docs/specs/` and `docs/plans/` are deleted by `/ship`. Anything that needs to outlive the merge belongs in `docs/apps/`, `docs/model/`, or `docs/architecture.md`.
+- `MEMORY.md` is for **durable facts only** (decisions, preferences, gotchas, architecture). Active-work entries belong in GitHub issues, not memory.
+
+### Labels in use
+
+- `epic:agentic-teacher` — agentic teacher redesign sub-issues
+- `epic:doc-cleanup` — documentation audit work
+- `epic:local-prototype` — work blocking a functional local prototype
+- `verification` — integration / end-to-end verification issues
+- `blocked` — cannot proceed; blocker in body
+- `needs-triage` — newly created, awaiting triage
+
+### Verified gh command suite
+
+```bash
+# Create (URL → number: ${URL##*/})
+URL=$(gh issue create --title "..." --body "..." --label "epic:X,needs-triage")
+N=${URL##*/}
+
+# Comment
+gh issue comment N --body "STATE: ..."
+
+# List filtered
+gh issue list --label epic:agentic-teacher --state open --json number,title
+
+# Native sub-issue (note: -F for typed int, NOT -f)
+gh api -X POST /repos/Jai-Dhiman/crescendAI/issues/PARENT/sub_issues \
+  -F "sub_issue_id=$(gh api /repos/Jai-Dhiman/crescendAI/issues/CHILD -q .id)"
+
+# List sub-issues
+gh api /repos/Jai-Dhiman/crescendAI/issues/N/sub_issues -q '.[] | "#\(.number) \(.title)"'
+
+# Close
+gh issue close N --reason completed --comment "Closed by <PR# or commit>"
+```
+
+### Branch ↔ issue mapping
+
+- One issue = one branch = one PR. Branch name: `issue-NNN-short-slug`.
+- PR body must include `Closes #NNN` so merge auto-closes the issue.
+- Local merges (no PR) require explicit `gh issue close NNN` in `/ship`.
+
 ## Coding Standards
 
 - ALWAYS use model: "Sonnet 4.6" when creating and using subagents for search, reivew, or subagent driven development
