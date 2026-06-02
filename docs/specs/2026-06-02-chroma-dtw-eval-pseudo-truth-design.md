@@ -113,7 +113,7 @@ All five hide substantial mechanism behind small APIs; none are shallow.
 
 - **Canonical success state:** `just chroma-eval-verify` exits 0 with a single float on stdout, within 120s wallclock on M4. Sidecar JSON validates against schema (`primary` float, `guards` object with exactly `g1`/`g2`/`g3`/`g5`, `regressed` list, `n_chunks` int). The committed `baseline.json` reflects a real measurement on `bach_prelude_c_wtc1` after the pivot.
 - **Automated check:** `cd model && uv run python -m chroma_dtw_eval.verify --baseline data/evals/chroma_dtw/baseline.json --corpus data/evals/`. CI/local invocation `just chroma-eval-verify` wraps it.
-- **Harness already exists:** the shipped verify CLI smoke test (`model/tests/chroma_dtw_eval/test_verify_cli_smoke.py`) is the in-process harness. It must be updated to assert (a) the new sidecar schema (no `g4`), (b) stdout is still exactly one float, (c) exit 0 on a known-good fixture. This is part of the metric_aggregator task group.
+- **Harness already exists:** the shipped verify CLI smoke test is the in-process harness. It is replaced by `model/tests/chroma_dtw_eval/test_verify_cli.py`, which asserts (a) the new sidecar schema (guards `{g1,g2,g3,g4,g5}` where `g4` is the consecutive-chunk continuity guard) plus `error_seconds_distribution` and `tolerance_sensitivity`, (b) stdout is still exactly one float, (c) exit 0 on a known-good fixture, (d) stderr WARNING when manifest has <2 distinct pieces, (e) numerical correctness of `error_seconds` within 0.1s on an identity-linear pseudo-truth fixture. This is part of the verify task.
 
 ## File Changes
 
@@ -130,8 +130,9 @@ All five hide substantial mechanism behind small APIs; none are shallow.
 | `model/src/chroma_dtw_eval/metric_aggregator.py` | Switch to seconds, drop G4, add `practice` kind | Modify |
 | `model/tests/chroma_dtw_eval/test_metric_aggregator.py` | Replace G4 case with practice cases | Modify |
 | `model/src/chroma_dtw_eval/verify.py` | Wire practice path through `sample_practice_chunks` + pseudo-truth | Modify |
-| `model/tests/chroma_dtw_eval/test_verify_cli_smoke.py` | Drop g4 expectations | Modify |
-| `model/data/evals/chroma_dtw/baseline.json` | Rewrite (no `g4`) after metric switch | Modify |
+| `model/tests/chroma_dtw_eval/test_verify_cli.py` | Replace smoke test with manifest-driven CLI test (numerical correctness + sidecar distribution/sensitivity + n<2 stderr WARNING) | Modify |
+| `model/data/evals/chroma_dtw/baseline.json` | Rewrite with g4=consecutive-chunk continuity + smoke-only `notes` field | Modify |
+| `model/data/evals/chroma_dtw_fixtures/manifest.json` | Committed practice-corpus chunk manifest with real per-chunk audio_sha256 | New |
 | `model/src/chroma_dtw_eval/gold_truth_builder.py` | Remove | Delete |
 | `model/tests/chroma_dtw_eval/test_gold_truth_builder.py` | Remove | Delete |
 | `model/src/chroma_dtw_eval/practice_compose.py` | Remove | Delete |
