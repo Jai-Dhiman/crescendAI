@@ -26,14 +26,25 @@
 ```
 Group A (parallel): Task 1, Task 2, Task 3
 Group B (sequential, depends on A): Task 4, Task 5
-Group C (sequential, depends on B): Task 6
+Group C (parallel, depends on B): Task 6, Task 9
 Group D (manual, depends on C): Task 7, Task 8
 ```
 
 - **Group A** — independent deletions of the thin-framing duplicates and their tests. Different files, no overlap, fully parallel. `[SHIPS INDEPENDENTLY]`: after Group A the divergent framing source is gone (the drift is deleted) even before the new baseline is measured.
 - **Group B** — build the new DO-path row-builder (Task 4) and the runner shell + CLI wiring (Task 5). Task 5 depends on Task 4's `build_do_row`. Both touch `run_eval.py`, so they are sequential, not parallel.
-- **Group C** — repoint `cli.py synthesis` onto the new runner (depends on Task 5's `run_do_baseline` existing).
+- **Group C** — repoint the two remaining `build_synthesis_user_msg` consumers onto the new DO path: `cli.py synthesis` (Task 6) and `regen_calibration_baseline.py` (Task 9). Both depend on Task 5's `run_do_baseline` / Task 4's `build_do_row` existing; they touch different files (`cli.py` vs `regen_calibration_baseline.py`) so they run in parallel.
 - **Group D** — the live-DO measurement (Task 7) and the baseline re-lock + checklist update (Task 8). Manual: requires `wrangler dev`. Task 8 depends on Task 7's output file.
+
+**Consumers of the deleted `build_synthesis_user_msg` (all four must be handled, none left silently broken):**
+
+| File | Consumes | Handled by |
+|---|---|---|
+| `apps/evals/teaching_knowledge/run_eval.py` | defines it + calls it in `run()` | Task 1 (remove) |
+| `apps/evals/teaching_knowledge/test_run_eval_blocks.py` | imports it | Task 3 (delete) |
+| `apps/evals/tests/test_run_eval_style_injection.py` | imports it | Task 3 (delete) |
+| `apps/evals/teacher_model/calibration/regen_calibration_baseline.py` | imports it (lines 64-67) + calls it (~line 119) | **Task 9 (repoint onto DO path)** |
+
+`apps/evals/teacher_model/stage0/run_synthesis.py` does **not** import `build_synthesis_user_msg` (it builds its own user message via the injected `teacher_client`); it is deleted in Task 3 because it is the *second* thin-framing holdout runner, and `cli.py:11` imports it (handled by Task 6).
 
 **Group A and Group B can run concurrently** (Group A deletes `bar_analysis_local.py`, `run_synthesis.py`, and 4 test files; Group B edits `run_eval.py`). The only shared file is `run_eval.py`, which Group A only touches in Task 1 (removing the `build_synthesis_user_msg` body + its imports). To avoid a write conflict, **Task 1 is the single owner of removing `build_synthesis_user_msg` from `run_eval.py`, and Group B Tasks 4/5 are sequenced after Task 1.** Therefore: Group A runs first (or Task 1 first within a merged A+B ordering); Tasks 4/5/6 follow.
 
@@ -42,7 +53,7 @@ Revised ordering to remove the `run_eval.py` write conflict:
 ```
 Group A (parallel): Task 1 (run_eval.py), Task 2 (delete bar_analysis_local + 2 tests), Task 3 (delete run_synthesis + its test)
 Group B (sequential, after A): Task 4 (run_eval.py: build_do_row), Task 5 (run_eval.py: run_do_baseline + CLI)
-Group C (sequential, after B): Task 6 (cli.py repoint)
+Group C (parallel, after B): Task 6 (cli.py repoint), Task 9 (regen_calibration_baseline.py repoint)
 Group D (manual, after C): Task 7 (live measure), Task 8 (re-lock + checklist)
 ```
 
@@ -836,9 +847,15 @@ git commit -m "feat(evals): run_do_baseline drives holdout through real DO synth
 
 ### Task 6: Repoint `cli.py synthesis` onto the DO-path runner
 
-**Group:** C (sequential, after Group B; depends on `run_do_baseline` existing)
+**Group:** C (parallel with Task 9, after Group B; depends on `run_do_baseline` existing)
 
-**Behavior being verified:** the stage0 `synthesis` subcommand no longer imports the deleted `run_synthesis`; invoking it routes through `run_do_baseline` (the real-framing path).
+**Behavior being verified:** the stage0 `synthesis` subcommand no longer imports the deleted `run_synthesis`; invoking it routes through `run_do_baseline` (the real-framing path), **preserving the 9-dim `judge_extended` judge** so the downstream `build_dossier` capability mapping is unchanged.
+
+> **Verified import structure (do not skip).** `cli.py` imports the deleted runner at **module top, line 11**: `from teacher_model.stage0.run_synthesis import run as run_synthesis` — NOT inside the dispatch branch. The current `synthesis` dispatch branch (~lines 133-147) calls `run_synthesis(holdout_path=..., out_path=args.out, teacher_client=client, judge_fn=judge_extended, system_prompt=_SYNTH_SYSTEM.read_text(), judge_provider=..., judge_model=..., limit=...)` — it uses `judge_extended` (the stage0 9-dim extended judge), **not** `judge_synthesis_v2`.
+>
+> **Sequencing consequence:** Task 3 deletes `run_synthesis.py`. From the moment Task 3 lands until this task (Task 6) lands, the module-top import at `cli.py:11` is unsatisfiable, so importing/collecting `cli.py` — and **any** test that imports it — fails. Two tests import `cli.py` at module top: the pre-existing `teacher_model/stage0/tests/test_cli.py` (`from teacher_model.stage0.cli import _build_parser, sample_main`) and the new `test_cli_synthesis_repointed.py` added here. For the new test this is exactly the intended Step-2 "verify it FAILS" (collection error). For the pre-existing `test_cli.py`, this is a **known, contained intermediate-state breakage**: under subagent-driven TDD each task runs only its own test command (Task 6 Step 2/4 run `test_cli_synthesis_repointed.py` only), and the first full-suite collection (`uv run pytest teaching_knowledge teacher_model/stage0`) is Task 8 Step 4 — which runs strictly **after** Task 6 has removed `cli.py:11` and restored collectability. The window therefore never overlaps a full-suite gate. **Guard for the build agent:** do not run the whole `teacher_model/stage0` suite between Task 3 and Task 6; if you must, expect `test_cli.py` + `test_cli_synthesis_repointed.py` collection errors until Task 6 lands.
+>
+> **Judge-swap resolution (BLOCKER 2):** do NOT swap to `judge_synthesis_v2`. The stage0 `synthesis` subcommand feeds `build_dossier`'s `synthesis_jsonl`, and `aggregator.py` reads 9-dim criteria including `Taste Defensibility` and `Adaptation Specificity` that only `judge_extended` emits (`judge_synthesis_v2` emits 7 dims and omits them, which would silently blank the Taste/Adaptation capability rows). `run_do_baseline`/`build_do_row` call the judge as `judge_fn(text, ctx, provider=, model=)`, and `judge_extended(synthesis_text, context, provider=, model=)` is call-compatible — so pass `judge_fn=judge_extended` explicitly to preserve the existing 9-dim measurement.
 
 **Interface under test:** `teacher_model.stage0.cli` import + its `synthesis` dispatch.
 
@@ -867,8 +884,9 @@ def test_cli_imports_without_run_synthesis() -> None:
     assert "run_do_baseline" in text
 
 
-def test_synthesis_subcommand_calls_run_do_baseline(tmp_path: Path) -> None:
+def test_synthesis_subcommand_calls_run_do_baseline_with_judge_extended(tmp_path: Path) -> None:
     import teacher_model.stage0.cli as cli
+    from teacher_model.stage0.judge_extended import judge_extended
 
     out = tmp_path / "synth.jsonl"
     argv = ["cli", "synthesis", "--provider", "anthropic",
@@ -879,6 +897,8 @@ def test_synthesis_subcommand_calls_run_do_baseline(tmp_path: Path) -> None:
     assert m.called
     kwargs = m.call_args.kwargs
     assert kwargs["out_path"] == out
+    # BLOCKER 2: preserve the 9-dim stage0 judge; do NOT swap to judge_synthesis_v2.
+    assert kwargs["judge_fn"] is judge_extended
 ```
 
 - [ ] **Step 2: Run test — verify it FAILS**
@@ -886,32 +906,32 @@ def test_synthesis_subcommand_calls_run_do_baseline(tmp_path: Path) -> None:
 ```bash
 cd apps/evals && uv run pytest teacher_model/stage0/tests/test_cli_synthesis_repointed.py -q
 ```
-Expected: FAIL — `cli.py` still imports `run_synthesis` (and the import itself fails because the module was deleted in Task 3), so collection/import errors out.
+Expected: FAIL — `cli.py` still has the module-top import at line 11 (`from teacher_model.stage0.run_synthesis import run as run_synthesis`), and because Task 3 already deleted `run_synthesis.py`, importing/collecting `cli.py` raises `ModuleNotFoundError` at line 11 before either test body runs. (This is the anticipated intermediate-state failure described in the Verified-import-structure note above.)
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/evals/teacher_model/stage0/cli.py`:
 
-1. Delete the top-level import `from teacher_model.stage0.run_synthesis import run as run_synthesis`.
-2. Replace the `synthesis` dispatch branch body with a `run_do_baseline` call:
+1. Remove the module-top import at **line 11** exactly: `from teacher_model.stage0.run_synthesis import run as run_synthesis`. (This is the line that breaks `cli.py` collection once Task 3 deletes `run_synthesis.py`; it is NOT an in-branch import.) Keep the existing `from teacher_model.stage0.judge_extended import judge_extended` import (line 8) — it is now used by the repointed branch, so do not remove it.
+2. Replace the `synthesis` dispatch branch body (~lines 133-147, the block guarded by `if args.cmd == "synthesis":` that currently constructs an `LLMClient` and calls `run_synthesis(...)`) with a `run_do_baseline` call that **preserves `judge_extended`**:
 
 ```python
     if args.cmd == "synthesis":
         from teaching_knowledge.run_eval import run_do_baseline
-        from shared.judge import judge_synthesis_v2
 
-        holdout = _DATA_DIR / "stage0_holdout.jsonl"
         run_do_baseline(
-            holdout_path=holdout,
+            holdout_path=_DATA_DIR / "stage0_holdout.jsonl",
             out_path=args.out,
             wrangler_url=getattr(args, "wrangler_url", "http://localhost:8787"),
-            judge_fn=judge_synthesis_v2,
+            judge_fn=judge_extended,  # BLOCKER 2: keep the 9-dim stage0 judge, not judge_synthesis_v2
             limit=args.limit,
             judge_provider=args.judge_provider,
             judge_model=args.judge_model,
         )
         return
 ```
+
+   The previous branch's `LLMClient` construction (`from teaching_knowledge.llm_client import LLMClient; client = LLMClient(...)`) and the `system_prompt=_SYNTH_SYSTEM.read_text()` / `teacher_client=client` arguments are dropped: the DO now owns the synthesis prompt (`buildSynthesisFraming`), so the local teacher client and `_SYNTH_SYSTEM` are no longer used by this branch. If removing this branch leaves `_SYNTH_SYSTEM` or the `LLMClient` import unused **anywhere else in `cli.py`**, leave them (other subcommands `tool`/`continuation` may use `LLMClient`); only remove an import this change orphans. Confirm by grepping `cli.py` for `_SYNTH_SYSTEM` and `LLMClient` after the edit.
 
 3. If the `synthesis` subparser lacks `--wrangler-url`, add it where that subparser is built (search for `sub.add_parser("synthesis"`):
 
@@ -920,7 +940,7 @@ In `apps/evals/teacher_model/stage0/cli.py`:
                     help="wrangler dev base URL (DO-path synthesis).")
 ```
 
-   The subparser already defines `--provider`, `--model`, `--out`, `--judge-provider`, `--judge-model`, `--limit` (confirm; keep them). Map `args.judge_provider`/`args.judge_model` through unchanged.
+   The subparser already defines `--provider`, `--model`, `--out`, `--judge-provider`, `--judge-model`, `--limit` (confirm; keep them — `--provider`/`--model` are now unused by this branch but harmless; do not remove them in this task to keep the diff surgical). Map `args.judge_provider`/`args.judge_model` through unchanged.
 
 - [ ] **Step 4: Run test — verify it PASSES**
 
@@ -977,12 +997,30 @@ Expected: 98 rows written (resume-safe; rerun to fill any error rows after fixin
 
 - [ ] **Step 3: Aggregate**
 
+> **Precondition (BLOCKER 3 — verify before aggregating).** `scripts/aggregate.py` calls `aggregate_run(jsonl, dataset_index_path)`, and `aggregate_run` calls `_load_index(dataset_index_path)` **unconditionally** (`aggregate.py:67`); `_load_index` does `path.read_text()`, so an absent index file hard-crashes the step. The `--dataset-index` flag defaults to the **CWD-relative** path `teaching_knowledge/data/dataset_index.jsonl`, so this command MUST be run from `apps/evals/` (as shown). Verified facts for this repo: that file exists (890 rows) and covers **all 98** holdout `recording_id`s with `composer_era` + `skill_bucket` tags, so the `by_era`/`by_skill` breakdowns will be populated (not silently blank). Run this guard first and abort if it does not print `missing: 0`:
+
+```bash
+cd apps/evals && test -f teaching_knowledge/data/dataset_index.jsonl || \
+  { echo "ABORT: dataset_index.jsonl missing — aggregate will crash"; exit 1; }
+cd apps/evals && python3 -c "
+import json
+h={json.loads(l)['recording_id'] for l in open('teacher_model/stage0/data/stage0_holdout.jsonl') if l.strip()}
+i={json.loads(l)['recording_id'] for l in open('teaching_knowledge/data/dataset_index.jsonl') if l.strip()}
+print('missing:', len(h - i))
+assert not (h - i), 'holdout ids missing from dataset_index -> era/skill breakdowns would be silently empty'
+"
+```
+
+Then aggregate (run from `apps/evals/` so the relative `--dataset-index` default resolves; the explicit flag is shown for clarity):
+
 ```bash
 cd apps/evals && uv run python -m teaching_knowledge.scripts.aggregate \
-    results/baseline_v2_do.jsonl --out results/baseline_v2_do_aggregate.json
+    results/baseline_v2_do.jsonl \
+    --dataset-index teaching_knowledge/data/dataset_index.jsonl \
+    --out results/baseline_v2_do_aggregate.json
 cat results/baseline_v2_do_aggregate.json
 ```
-Expected: a JSON object with `dimensions: [{ "name", "mean_outcome", "n", ... }]` and `composite_mean`. Record the `Audible-Specific Corrective Feedback` `mean_outcome` and `n` — these are the new locked ASCF numbers (may be above or below 1.387; either is success).
+Expected: a JSON object with `dimensions: [{ "name", "mean_outcome", "n", ... }]`, `composite_mean`, and **non-empty** `by_era`/`by_skill` (the precondition guarantees coverage). Record the `Audible-Specific Corrective Feedback` `mean_outcome` and `n` — these are the new locked ASCF numbers (may be above or below 1.387; either is success).
 
 - [ ] **Step 4: Commit the generated artifacts**
 
@@ -1045,10 +1083,124 @@ Expected: the eval suite collects and passes (no import errors from the deleted 
 
 ---
 
+### Task 9: Repoint `regen_calibration_baseline.py` onto the DO path
+
+**Group:** C (parallel with Task 6, after Group B; depends on `build_do_row`/`run_do_baseline` existing)
+
+**Behavior being verified (BLOCKER 1):** the calibration-baseline regenerator no longer imports or calls the deleted `build_synthesis_user_msg` / `extract_teacher_response`; it produces its calibration rows through the real DO framing (`run_recording` -> `SessionResult` -> `build_do_row`), keeping it functional and on the single source of truth instead of silently dead behind its `except ImportError -> sys.exit(1)` guard.
+
+> **Why repoint, not delete or scope-out (one line):** this is the calibration-baseline regenerator that feeds rubric calibration (r>=0.7, the teacher-finetune critical path); repointing it onto the DO path is the only option consistent with this plan's stated goal of "a single source of truth remains" — deleting it would drop a needed tool, and leaving it broken violates the project's orphan rule.
+>
+> **Judge note:** the calibration regen currently judges with `judge_synthesis_v2` (7-dim), NOT the stage0 9-dim `judge_extended`. This is intentional and preserved — the calibration baseline is the v2-rubric calibration corpus, separate from the stage0 dossier. So unlike Task 6, this task keeps `judge_synthesis_v2`.
+>
+> **DO-replay note:** like the original (which made real Anthropic synthesis calls), the repointed regen requires a live `wrangler dev`; the orchestration is verified with an injected fake driver (no live DO needed for the unit test), mirroring Task 5.
+
+**Interface under test:** `teacher_model.calibration.regen_calibration_baseline` module import + a `_regen_row(...)` helper extracted for testability.
+
+**Files:**
+- Modify: `apps/evals/teacher_model/calibration/regen_calibration_baseline.py`
+- Test: `apps/evals/teacher_model/calibration/tests/test_regen_calibration_repointed.py`
+
+- [ ] **Step 1: Write the failing test**
+
+```python
+# apps/evals/teacher_model/calibration/tests/test_regen_calibration_repointed.py
+from __future__ import annotations
+
+from pathlib import Path
+
+import teacher_model.calibration.regen_calibration_baseline as regen
+
+
+def test_regen_no_longer_uses_thin_framing_symbols() -> None:
+    text = Path(regen.__file__).read_text()
+    assert "build_synthesis_user_msg" not in text
+    assert "extract_teacher_response" not in text
+
+
+def test_regen_builds_row_through_build_do_row() -> None:
+    # The repointed regen routes synthesis through build_do_row (the DO path),
+    # so the module must reference it.
+    text = Path(regen.__file__).read_text()
+    assert "build_do_row" in text
+```
+
+- [ ] **Step 2: Run test — verify it FAILS**
+
+```bash
+cd apps/evals && uv run pytest teacher_model/calibration/tests/test_regen_calibration_repointed.py -q
+```
+Expected: FAIL — the module still imports/uses `build_synthesis_user_msg` and `extract_teacher_response` and does not reference `build_do_row`.
+
+- [ ] **Step 3: Implement the minimum to make the test pass**
+
+In `apps/evals/teacher_model/calibration/regen_calibration_baseline.py`:
+
+1. In the `try: from teaching_knowledge.run_eval import (...)` block (lines ~62-71), remove `build_synthesis_user_msg` and `extract_teacher_response` from the import list; add `build_do_row`. The DO path owns the prompt and computes its own signals, so the following also become orphaned by this change and must be removed: the `SESSION_SYNTHESIS_SYSTEM` import, the `aggregate_muq` import (DO path needs no MuQ means), the `LLMClient` import + the local `synthesis_client = LLMClient(...)` construction, and — once `build_do_row` replaces it — the `_build_row` import. Keep `load_manifests` (still used to resolve `meta`). After editing, grep the file for each removed name to confirm no dangling reference remains.
+2. Add a `--wrangler-url` arg (default `http://localhost:8787`) to the existing `argparse` parser, and a module-level default driver mirroring Task 5's `_default_driver` (or import `run_do_baseline`'s `_default_driver` from `run_eval` if exported). Replace the per-recording synthesis block (the `muq_means = aggregate_muq(...)` / `build_synthesis_user_msg(...)` / `synthesis_client.complete(...)` / `extract_teacher_response(...)` / judge / `_build_row(...)` sequence inside the `for rid in sorted(remaining):` loop) with:
+
+```python
+            data = json.loads(cache_path.read_text())
+            chunks = data.get("chunks", [])
+            if not chunks:
+                print(f"  SKIP {rid}: empty chunks")
+                continue
+
+            recording_cache = {"recording_id": rid, "chunks": chunks}
+            try:
+                session_result = driver(
+                    args.wrangler_url,
+                    recording_cache,
+                    "calibration-student-001",
+                    meta.get("piece_slug") or None,
+                )
+                row = build_do_row(
+                    session_result,
+                    meta,
+                    judge_synthesis_v2,
+                    provenance,
+                    dry_run=args.dry_run,
+                )
+            except Exception as exc:
+                print(f"  ERROR {rid}: {exc}")
+                continue
+
+            fout.write(json.dumps(row) + "\n")
+            fout.flush()
+            processed += 1
+            print(f"  [{processed}/{len(remaining)}] {rid} ({meta['title'][:30]})")
+```
+
+   `build_do_row`'s default `judge_provider="workers-ai"` / `judge_model="@cf/google/gemma-4-26b-a4b-it"` match the calibration regen's existing Gemma judge; pass explicit values only if the regen pinned a different judge model (confirm against the current `judge_synthesis_v2(...)` call — it used defaults, so no override needed).
+3. The `driver` is the injected/default DO-replay driver (same shape as Task 5: `driver(wrangler_url, recording_cache, student_id, piece_query) -> SessionResult`, default calls `shared.pipeline_client.run_recording` via `asyncio.run`). Define it at module level so the unit test can monkeypatch it if needed; the two tests above assert source content only, so the default driver need not run.
+
+- [ ] **Step 4: Run test — verify it PASSES**
+
+```bash
+cd apps/evals && uv run pytest teacher_model/calibration/tests/test_regen_calibration_repointed.py -q
+```
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/evals/teacher_model/calibration/regen_calibration_baseline.py \
+        apps/evals/teacher_model/calibration/tests/test_regen_calibration_repointed.py
+git commit -m "refactor(evals): repoint calibration baseline regen onto DO path (#22)"
+```
+
+---
+
 ## Open Questions
 
 - Q: Should `cli.py`'s `synthesis` subcommand be repointed to the DO-path runner, or removed?
   Resolved (autopilot default): **repointed** (Task 6) so the stage0 dossier flow keeps producing `synthesis_runs.jsonl` on real framing with the smallest blast radius.
+- Q (BLOCKER 2): Does repointing `cli.py synthesis` swap the judge from `judge_extended` (9-dim) to `judge_synthesis_v2` (7-dim)?
+  Resolved: **no swap.** `judge_extended` is preserved and passed explicitly to `run_do_baseline`. The stage0 `build_dossier` reads 9-dim criteria (`Taste Defensibility`, `Adaptation Specificity`) that only `judge_extended` emits; swapping to the 7-dim `judge_synthesis_v2` would silently blank the Taste/Adaptation capability rows. `judge_extended(text, ctx, provider=, model=)` is call-compatible with `build_do_row`'s judge invocation.
+- Q (BLOCKER 1): What happens to `regen_calibration_baseline.py`, the 4th consumer of `build_synthesis_user_msg`?
+  Resolved: **repointed onto the DO path** (Task 9), keeping it functional and on the single source of truth. It keeps its own `judge_synthesis_v2` (the v2-rubric calibration corpus is separate from the stage0 9-dim dossier).
+- Q (BLOCKER 3): Does Task 7's aggregate step need `--dataset-index`?
+  Resolved: **yes.** `aggregate_run` loads the index unconditionally; the default is CWD-relative, so the command must run from `apps/evals/`. Task 7 Step 3 now adds an existence + holdout-coverage precondition (verified: file present, all 98 ids covered) so `by_era`/`by_skill` are populated, not silently blank.
 - Q: The legacy synthesis WS payload uses `isFallback` (camelCase) but `pipeline_client.py` reads `is_fallback` (snake_case), so `is_fallback` always reads `False` on the legacy DO path.
   Resolved (autopilot default): **out of scope for #22.** Cold-start holdout runs always expect a real synthesis, so a false `is_fallback=False` does not corrupt the baseline. `build_do_row` keys off `synthesis is None or empty text`, not `is_fallback`, so the bug cannot mask a DO failure. Note left for a follow-up issue.
 - Q: Does the live-DO baseline land above or below 1.387?
@@ -1056,3 +1208,71 @@ Expected: the eval suite collects and passes (no import errors from the deleted 
 - Q: Task 7/8 require a live `wrangler dev`; in a headless build environment they may not be runnable.
   Resolved (autopilot default): Groups A–C (the code change + deletions) are fully unit-tested and land independently. If the build environment lacks a live DO, Tasks 7–8 are deferred to a maintainer with the exact commands provided here; the spec's success criterion (honest measurement + drift deleted) is met by Groups A–C deleting the drift and Task 7 producing the number. The plan flags Tasks 7–8 as the human-in-the-loop measurement step.
 ```
+
+---
+
+## Challenge Review
+
+Reviewed against actual source: `run_eval.py` (`build_synthesis_user_msg` 119-213, `run` 293-495, `main` 498-571, `load_completed_ids` 224-240, imports 19-55), `shared/pipeline_client.py` (`run_recording`, `SessionResult`), `teacher_model/stage0/cli.py` (synthesis dispatch), `scripts/aggregate.py` (`aggregate_run`), `test_aggregator.py` (`_SONNET_BASELINE`), the holdout JSONL + a briefing inference-cache file, and a full cross-repo grep for every soon-deleted symbol.
+
+### CEO Pass
+
+**Premise — sound.** The drift is real and verified. `build_synthesis_user_msg` injects a `bar_analysis` block (run_eval.py:150-165) and assembles `top_moments` from global `SCALER_MEAN` deviations, neither of which matches the production DO path. Re-measuring through `run_recording` (the already-proven DO-replay driver) and deleting the duplicate is the direct path. Approach B (gut-and-repoint) correctly refuses to keep two prompt implementations in sync.
+
+**Scope — one undocumented consumer breaks the "single source of truth" claim.** See BLOCKER 1. Otherwise scope is tight (8 modify/delete targets + generated artifacts), the hardest problem (live-DO measurement) is not avoided — it is correctly isolated behind a fixture-testable `build_do_row` with the orchestration shell `run_do_baseline` smoke-tested manually.
+
+**12-Month alignment — net positive.** Deleting three framing duplicates collapses a maintenance liability and makes the locked baseline an honest production measurement, which the teacher-finetune critical path (rubric calibration r>=0.7) depends on. The one debt it introduces: the baseline `n` drops from ~504-513 (train split) to <=98 (holdout) — see RISK 1.
+
+**Alternatives — documented.** The spec's "Why not patch build_synthesis_user_msg" section records the rejected alternative. Adequate.
+
+### Engineering Pass
+
+**Architecture — matches the code.** Data flow verified: holdout row -> `briefing_path` JSON -> `recording_cache{recording_id,chunks}` -> `run_recording(?eval=true -> set_piece -> eval_chunk xN -> end_session -> synthesis)` -> `SessionResult.synthesis.text` -> `judge_fn` -> aggregator row -> `aggregate_run` -> re-locked `_SONNET_BASELINE`. `SessionResult` exposes `recording_id`, `synthesis`, `errors`, `synthesis_latency_ms`, `piece_identification` exactly as the plan's "Context" block states (pipeline_client.py:52-66). No `apps/api/` production code is touched. Security: no new untrusted-input-to-sink path; holdout paths are maintainer-controlled local files.
+
+**Module depth.** `build_do_row` — interface 4 positional + 4 kw args, hides error-mapping/judge-flattening/provenance/piece_resolved/empty-guard. DEEP. `run_do_baseline` — interface 4 positional + 6 kw, hides iteration/cache-load/resume/asyncio.run orchestration. DEEP, with an injected `driver`/`judge_fn` seam that is the right testability boundary. No shallow modules.
+
+**Test philosophy — clean.** `test_do_row.py` and `test_run_do_baseline.py` exercise the public functions with fake `SessionResult`/judge/driver dataclasses, asserting user-observable row fields (`error`, `judge_dimensions`, `piece_resolved`, resume behavior), not internal state. Driver/judge are injected external boundaries — legitimate to fake. The deletion-guard tests (Tasks 1-3) assert filesystem/importability — appropriate for "this thing is gone" behavior. No internal-collaborator mocking, no shape-only tests.
+
+**Vertical-slice audit — passes.** Each task is one test -> one impl -> one commit. Task 5 writes two tests (writes-one-row + resumes-completed) in one commit; both exercise the single new `run_do_baseline` behavior and its resume branch — acceptable as one slice, not horizontal scaffolding. No task writes tests for a later task to implement.
+
+**Failure modes.** `run_do_baseline` wraps each recording in try/except, writes an `error` row, flushes per-row, and is resume-safe via `load_completed_ids` (which — verified, run_eval.py:236 — only counts a row complete when `recording_id` AND `synthesis_text` are present AND `error` is falsy, so error rows are correctly reprocessed on rerun). No silent failures: every failure path produces a visible `error` row + stdout `ERROR:` line. Task 7 gate (error rate <5%) is enforced by the dossier aggregator. Good.
+
+#### Findings
+
+[BLOCKER] (confidence: 10/10) — **`teacher_model/calibration/regen_calibration_baseline.py` is a fourth, undocumented consumer of the deleted symbols and is absent from the File Structure table.** It imports `build_synthesis_user_msg` and `extract_teacher_response` from `run_eval` (lines 64-67) and calls `build_synthesis_user_msg(...)` at line 119. Task 1 deletes `build_synthesis_user_msg`; after that, running this script hits its `except ImportError -> sys.exit(1)` guard and becomes permanently dead — silently. No test imports it (confirmed: not referenced under `teacher_model/calibration/tests/`), so the suite stays green and the breakage is invisible until someone runs the calibration regen. The plan's stated goal is "a single source of truth remains" — this leaves a broken duplicate. The plan must decide and document: delete `regen_calibration_baseline.py`, repoint it onto `run_do_baseline`/`build_do_row`, or explicitly scope it out with a note that it is knowingly left broken. Add it to the File Structure table and to the relevant task either way. (Per project rule: orphans created by your change must be handled, not left silently broken.)
+
+[BLOCKER] (confidence: 9/10) — **Task 6 misstates `cli.py`'s import structure, and its Step-3 edit instructions will not apply cleanly.** The plan says "Delete the top-level import `from teacher_model.stage0.run_synthesis import run as run_synthesis`" and "the `synthesis` dispatch ... imports `run_synthesis`" — but verified: cli.py imports it at module top (line 11, `from teacher_model.stage0.run_synthesis import run as run_synthesis`) AND the dispatch branch (lines 133-147) does NOT lazily import it; it calls `run_synthesis(...)` with a different signature (`teacher_client=`, `judge_fn=judge_extended`, `system_prompt=`, NOT `judge_fn=judge_synthesis_v2`). Two concrete consequences: (a) Task 3 deletes `run_synthesis.py`, so the module-top import at cli.py:11 breaks import/collection of cli.py the moment Task 3 lands and before Task 6 runs — any test that imports cli between Group A and Group C fails. Group ordering (A before C) does not save intermediate states; the `test_cli_synthesis_repointed.py` Step-2 "verify it FAILS" expects an import error, which is fine, but the plan must explicitly state that cli.py:11 (the module-top import) is the line removed, not a nonexistent in-branch import. (b) Task 6's replacement maps `args.judge_provider`/`args.judge_model` into `run_do_baseline`, but the current branch uses `judge_extended` (stage0's own judge), not `judge_synthesis_v2`. Switching the stage0 `synthesis` subcommand from `judge_extended` to `judge_synthesis_v2` silently changes what the stage0 dossier measures. The plan must either confirm `judge_synthesis_v2` is the intended judge for the repointed subcommand (and note the judge swap explicitly) or preserve `judge_extended`. Rewrite Task 6 Step 3 against the actual file: remove cli.py:11, replace the lines 133-147 branch body, and resolve the judge-swap question.
+
+[BLOCKER] (confidence: 8/10) — **Task 7 Step 3's aggregate command will silently drop the per-era / per-skill breakdowns and may mis-key on an absent index, because `aggregate_run(jsonl, dataset_index_path)` requires a dataset index the command omits.** Verified: `scripts/aggregate.py:main` defaults `--dataset-index` to `teaching_knowledge/data/dataset_index.jsonl`; `aggregate_run` calls `_load_index(dataset_index_path)` unconditionally (aggregate.py:67) and uses `tags = index.get(rec_id)` for `by_era`/`by_skill`. If that default index file does not exist, `_load_index` raises on `path.read_text()` and the aggregate step crashes; if it exists but lacks the 98 holdout DO recording_ids, the era/skill breakdowns are silently empty (the top-line `mean_outcome`/`composite_mean` the plan locks are still correct, since tagging is guarded by `if tags:`). The plan's Task 7 command (`aggregate.py results/baseline_v2_do.jsonl --out ...`) neither passes `--dataset-index` nor states the default-file precondition. Add an explicit check that `teaching_knowledge/data/dataset_index.jsonl` exists and covers the holdout ids (or pass the correct index path / document that breakdowns are intentionally empty for the holdout baseline). Without this the manual measurement step can hard-crash or produce a baseline whose tag breakdowns are silently blank, undetected.
+
+[RISK] (confidence: 9/10) — **The re-locked baseline `n` collapses from ~504-513 to <=98, ~5x less statistical power, and the plan does not flag it.** The old `_SONNET_BASELINE` was measured on the train split (n per dim 504-513); the DO-path runner drives only the 98-row holdout. Task 8 copies `n` verbatim, so this is correct mechanically, but the locked ASCF CI will widen materially and any downstream "did ASCF move" comparison against the old number is comparing different populations (train vs holdout) AND different framings simultaneously — two confounded variables. The spec explicitly says success is "honest measurement + drift deleted, NOT ASCF went up," which contains the damage, but the build/ship docs and `EVAL_CHECKLIST.md` update (Task 8 Step 3) must state plainly that the new baseline is holdout-only (n<=98) and is NOT numerically comparable to the old train-split 1.387. Fallback: if power matters, a follow-up can run the DO path over the train split too — but that is out of scope here.
+
+[RISK] (confidence: 7/10) — **The `judge_provider` autodetect duplicated into `main()` (Task 5 item 2) and `cli.py` (Task 6) re-implements run_eval.py:line-in-`run` logic a third time.** The string `"openrouter" if "/" in judge_model and not judge_model.startswith("@cf/") else "workers-ai"` now appears in the legacy `run()`, in the new `main()` `--do-path` branch, and the cli passes `args.judge_provider` separately. Three copies of one rule is the DRY smell the issue is otherwise trying to kill. Not a blocker (each is one line), but extract a `_judge_provider_for(model)` helper while you are in the file. Watch during execution: if Task 5 and Task 6 diverge on this rule, the stage0 dossier and the `run_eval --do-path` path could pick different judge providers for the same model.
+
+[OBS] — Task 5's `_default_driver` calls `asyncio.run(run_recording(...))` once per recording. `run_recording` caches an auth session via module-global `_auth_session` (pipeline_client.py:89), so per-recording `asyncio.run` is fine (no cross-loop reuse of an open ws). No action.
+
+[OBS] — The `isFallback`/`is_fallback` camel/snake mismatch (Open Question 2) is correctly scoped out: `build_do_row` keys the failure decision off `synthesis is None or not synthesis.text` (Task 4 impl), never `is_fallback`, so a wrong `is_fallback=False` cannot mask a DO failure on the cold-start holdout. Verified against pipeline_client.py:236 (`is_fallback=response.get("is_fallback", False)`).
+
+[OBS] — `test_aggregator.py` tests use `_SONNET_BASELINE` only as a fixture written to a temp file and fed to `build_dossier`; they assert dossier shape/gates (7 rows, error-rate gate, inconsistency flag), not the literal 1.387. Task 8's "copy verbatim, shape tests stay green" claim is verified correct — provided the DO aggregate yields all seven criterion names in the existing order (judge-dependent; acceptable for a manual step).
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| Only 3 thin-framing duplicates consume `build_synthesis_user_msg` | RISKY | `regen_calibration_baseline.py` is a 4th, undocumented (BLOCKER 1). |
+| cli.py imports `run_synthesis` in the synthesis branch | RISKY | It's a module-top import (line 11) with a different signature + `judge_extended` (BLOCKER 2). |
+| `aggregate.py jsonl --out` needs no index | RISKY | Requires `--dataset-index` (default file); crashes if absent, blanks breakdowns if uncovered (BLOCKER 3). |
+| `load_completed_ids` makes the runner resume-safe | SAFE | Verified run_eval.py:236 — needs recording_id+synthesis_text, error-free. |
+| `SessionResult` exposes the fields the plan lists | SAFE | Verified pipeline_client.py:52-66. |
+| `run_recording` passes `piece_slug` as `set_piece` query | SAFE | Verified pipeline_client.py:183-184. |
+| Re-locking `_SONNET_BASELINE` keeps test_aggregator green | SAFE | Tests assert shape/gates, not 1.387 (verified). |
+| Briefing inference-cache has `recording_id` + `chunks[].predictions` | SAFE | Verified on `-wyCOEoOBC4.json` (6 dims, midi_notes present). |
+| `_build_row`/`aggregate_muq`/`load_manifests` must be kept | SAFE | Still imported by tag_dataset, sampler, provenance test, calibration. |
+
+### Summary
+
+[BLOCKER] count: 3
+[RISK]    count: 2
+[QUESTION] count: 0
+
+VERDICT: NEEDS_REWORK — (1) `regen_calibration_baseline.py` is an undocumented 4th consumer of `build_synthesis_user_msg`/`extract_teacher_response` that Task 1 silently breaks; add it to the File Structure table and decide delete/repoint/scope-out. (2) Task 6 misdescribes cli.py's import structure (the `run_synthesis` import is at module top, line 11, not in the dispatch branch) and silently swaps the stage0 judge from `judge_extended` to `judge_synthesis_v2`; rewrite Task 6 against the actual file and resolve the judge swap. (3) Task 7 Step 3's `aggregate.py` command omits the required `--dataset-index`, which can hard-crash the manual measurement or silently blank the era/skill breakdowns; add the index precondition/flag.
