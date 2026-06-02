@@ -909,7 +909,7 @@ def _load_bach_json_score(score_path: Path) -> tuple[np.ndarray, list[dict], str
                 f"non-4/4 scores not supported in this rework; got "
                 f"time_signature numerator={beats_per_bar} in {score_path}"
             )
-        ticks_per_beat = (int(bars[1]["start_tick"]) - int(bars[0]["start_tick"])) // 4
+        ticks_per_beat = (int(bars[1]["start_tick"]) - int(bars[0]["start_tick"])) // beats_per_bar
     else:
         ticks_per_beat = 480
     if ticks_per_beat <= 0:
