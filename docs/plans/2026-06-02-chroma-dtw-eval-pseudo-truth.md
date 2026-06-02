@@ -274,7 +274,7 @@ def _payload() -> PseudoTruthPayload:
         audio_sha256="a" * 16,
         amt_checkpoint_hash="b" * 16,
         score_sha256="c" * 16,
-        parangonar_version="2.1.0",
+        parangonar_version="3.3.2",
         regen_source="local:test",
     )
 
@@ -290,7 +290,7 @@ def test_roundtrip_and_interpolation(tmp_path: Path) -> None:
     loaded = load_pseudo_truth(
         piece_id="bach_prelude_c_wtc1", video_id="VID000",
         audio_sha256="a" * 16, amt_checkpoint_hash="b" * 16,
-        score_sha256="c" * 16, parangonar_version="2.1.0",
+        score_sha256="c" * 16, parangonar_version="3.3.2",
         cache_root=tmp_path,
     )
     np.testing.assert_array_equal(loaded.perf_audio_sec, _payload().perf_audio_sec)
@@ -308,7 +308,7 @@ def test_missing_file_raises_with_path(tmp_path: Path) -> None:
         load_pseudo_truth(
             piece_id="nope", video_id="zzz",
             audio_sha256="x" * 16, amt_checkpoint_hash="y" * 16,
-            score_sha256="w" * 16, parangonar_version="2.1.0",
+            score_sha256="w" * 16, parangonar_version="3.3.2",
             cache_root=tmp_path,
         )
     msg = str(exc.value)
@@ -328,7 +328,7 @@ def test_key_mismatch_raises(tmp_path: Path, field: str, bad: str) -> None:
         "audio_sha256": "a" * 16,
         "amt_checkpoint_hash": "b" * 16,
         "score_sha256": "c" * 16,
-        "parangonar_version": "2.1.0",
+        "parangonar_version": "3.3.2",
     }
     kwargs[field] = bad
     with pytest.raises(PseudoTruthMismatchError) as exc:
@@ -541,7 +541,7 @@ Create `model/config/amt_version.json`:
 ```json
 {
   "checkpoint_hash": "aria_amt_v1_pilot_2026_06_01",
-  "parangonar_version": "2.1.0",
+  "parangonar_version": "3.3.2",
   "regen_source_default": "local:aria-amt",
   "model_name": "aria-amt",
   "pinned_at": "2026-06-02",
@@ -678,7 +678,7 @@ def test_regen_writes_cache_and_is_idempotent(
         score_path=BACH_SCORE, audio_path=tiny_audio,
         amt_url=stub_amt_server + "/transcribe",
         amt_checkpoint_hash="aria_amt_v1_pilot_2026_06_01",
-        parangonar_version="2.1.0",
+        parangonar_version="3.3.2",
         cache_root=cache_root,
     )
     assert first.wrote_cache is True
@@ -690,7 +690,7 @@ def test_regen_writes_cache_and_is_idempotent(
         score_path=BACH_SCORE, audio_path=tiny_audio,
         amt_url=stub_amt_server + "/transcribe",
         amt_checkpoint_hash="aria_amt_v1_pilot_2026_06_01",
-        parangonar_version="2.1.0",
+        parangonar_version="3.3.2",
         cache_root=cache_root,
     )
     assert second.wrote_cache is False, "second regen with identical inputs must be no-op"
@@ -700,7 +700,7 @@ def test_regen_writes_cache_and_is_idempotent(
         audio_sha256=first.audio_sha256,
         amt_checkpoint_hash="aria_amt_v1_pilot_2026_06_01",
         score_sha256=first.score_sha256,
-        parangonar_version="2.1.0",
+        parangonar_version="3.3.2",
         cache_root=cache_root,
     )
     assert loaded.perf_audio_sec.size >= 100
@@ -719,7 +719,7 @@ def test_regen_raises_low_coverage_on_sparse_match(
                 score_path=BACH_SCORE, audio_path=tiny_audio,
                 amt_url=stub_amt_server + "/transcribe",
                 amt_checkpoint_hash="aria_amt_v1_pilot_2026_06_01",
-                parangonar_version="2.1.0",
+                parangonar_version="3.3.2",
                 cache_root=tmp_path / "pseudo_truth",
             )
     finally:
@@ -900,8 +900,9 @@ def _load_bach_json_score(score_path: Path) -> tuple[np.ndarray, list[dict], str
     if len(bars) >= 2:
         # Infer ticks_per_beat from bar geometry. Bach prelude is 4/4; bar 2
         # starts exactly 4 beats after bar 1. For non-4/4 scores, parse
-        # time_signature; for now assert 4/4 and fail loud otherwise.
-        ts = body.get("time_signature") or {}
+        # time_signatures; for now assert 4/4 and fail loud otherwise.
+        ts_list = body.get("time_signatures") or []
+        ts = ts_list[0] if ts_list else {}
         beats_per_bar = int(ts.get("numerator", 4))
         if beats_per_bar != 4:
             raise AmtRegenError(
@@ -1197,7 +1198,7 @@ def _stage(corpus_root: Path) -> None:
             score_audio_sec=np.array([0.0, 90.0], dtype=np.float64),
             measure_table=[],
             audio_sha256="a" * 16, amt_checkpoint_hash="b" * 16,
-            score_sha256="c" * 16, parangonar_version="2.1.0",
+            score_sha256="c" * 16, parangonar_version="3.3.2",
             regen_source="local:test",
         ),
         cache_root=cache_root,
@@ -1808,7 +1809,7 @@ def _stage(tmp_path: Path, *, audio_sha256_for_chunks: list[str]) -> tuple[Path,
             audio_sha256=audio_sha256_for_chunks[0],
             amt_checkpoint_hash="aria_amt_v1_pilot_2026_06_01",
             score_sha256="deadbeefdeadbeef",
-            parangonar_version="2.1.0",
+            parangonar_version="3.3.2",
             regen_source="test",
         ),
         cache_root=cache_root,
@@ -1853,7 +1854,7 @@ def _stage(tmp_path: Path, *, audio_sha256_for_chunks: list[str]) -> tuple[Path,
             audio_sha256=audio_sha256_for_chunks[0],
             amt_checkpoint_hash="aria_amt_v1_pilot_2026_06_01",
             score_sha256=real_sha,
-            parangonar_version="2.1.0",
+            parangonar_version="3.3.2",
             regen_source="test",
         ),
         cache_root=cache_root,
@@ -2240,3 +2241,5 @@ git add model/data/evals/chroma_dtw/baseline.json && git commit -m "chore(chroma
 - Run `just chroma-eval-prebuild` once, then `just chroma-eval-verify` end-to-end, then `just chroma-eval-ratchet` to lift the primary from 0.0 to the measured value.
 - Source a 2nd piece's score (fur_elise via C4, OR a second public-domain piece) before dispatching `/autoresearch` so the primary scalar carries more than n=1 chunks worth of statistical signal.
 - Dispatch `/autoresearch` with the parked `feat/continuity-aware-chroma-follower` branch as the first candidate.
+
+---
