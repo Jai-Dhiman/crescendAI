@@ -2,12 +2,24 @@
 
 **Goal:** Repoint the chroma-DTW eval harness primary scalar from MAESTRO+parangonar gold-truth at 50ms tolerance to practice-corpus + AMT-pseudo-truth at +/-1.5s tolerance, with an on-disk pseudo-truth cache so `just chroma-eval-verify` runs in <=120s without calling AMT inline.
 
+**First baseline piece:** `bach_prelude_c_wtc1` (Bach Prelude in C, BWV 846). Single 120bpm tempo marking (see `model/data/scores/bach.prelude.bwv_846.json`). Constant-tempo score → score `onset_seconds` are the score-audio-time axis directly; no partitura projection is needed. 21 approved practice videos already labeled in `model/data/evals/practice_eval/bach_prelude_c_wtc1/candidates.yaml`.
+
 **Not in scope:**
-- Score sourcing for the other 15 practice_eval pieces (data work; first baseline runs against `chopin_ballade_1` only because it is the only piece with a committed MXL score).
+- Variable-tempo score support — see "Variable-tempo score support (future)" below.
+- Score sourcing for the other 14 practice_eval pieces beyond bach_prelude (opportunistic fur_elise pull is task C4, time-boxed 30 min, skipped if not findable).
 - HF AMT endpoint deploy (local AMT is sufficient for cache regen).
 - DTW improvements (those run via `/autoresearch` after this rework ships).
 - AMT model itself (we measure DTW under realistic AMT noise; AMT changes are a separate research track).
 - Wiring an end-to-end `--corpus` real-run path beyond the practice corpus; the fixture-based smoke path and the practice-corpus path are the only two supported.
+
+## Variable-tempo score support (future)
+
+This rework assumes single-tempo scores for the first baseline (bach prelude has one 120bpm marking). When a 2nd piece with variable tempo (e.g., chopin pieces with rubato/tempo markings) is added, one of the following must be implemented:
+1. **Per-piece tempo map reconciliation:** build a `(beat → score_audio_sec_dtw)` map from the score JSON's `tempo_markings`; project a synthetic perf-na using that piece-specific map.
+2. **Fixed-tempo score chroma renderer:** render the DTW score chroma at a fixed tempo, ignoring score tempo markings (loses musical intent; not recommended).
+3. **Beat-space cache (RECOMMENDED):** cache `(perf_audio_sec, score_beat)` pairs; the verify CLI converts `predicted_score_frame → score_audio_sec_dtw → score_beat` via the score JSON's `tempo_markings`, and matches against the cached score_beat.
+
+Option 3 is the recommended path because it decouples the cache from any specific tempo assumption; the conversion lives in the consumer (verify), the cache stores the most stable axis (beats). Implement when the 2nd piece lands.
 
 ## Problem
 
@@ -33,16 +45,21 @@ Primary = percent of practice chunks passing.
 
 ### Pseudo-truth cache (deep module)
 
-- **Interface:** `load_pseudo_truth(piece_id, video_id, cache_root) -> PseudoTruth` and `write_pseudo_truth(piece_id, video_id, payload, cache_root) -> Path`. `PseudoTruth` carries `perf_audio_sec: np.ndarray`, `score_div: np.ndarray`, `measure_table: list[dict]`, and the metadata used as the cache key. A single helper `audio_sec_to_score_div(t)` exposes the monotone interpolation; the inverse `score_div_to_audio_sec(s)` is its mirror.
-- **Hides:** on-disk JSON schema, cache-key construction from `(audio_sha256, amt_checkpoint_hash)`, schema validation, hash-mismatch invalidation, atomic write via tempfile-rename.
-- **Tested through:** writes payload via the public writer, reads it back via the public loader, asserts round-trip equality; loader raises `PseudoTruthMissingError` when the file is absent; loader raises `PseudoTruthMismatchError` when the requested key disagrees with the file's stored key.
+- **Interface:** `load_pseudo_truth(piece_id, video_id, *, audio_sha256, amt_checkpoint_hash, score_sha256, parangonar_version, cache_root) -> PseudoTruth` and `write_pseudo_truth(piece_id, video_id, payload, cache_root) -> Path` and `cache_path(cache_root, piece_id, video_id) -> Path` (PUBLIC, used by amt_regen and chunk_sampler). `PseudoTruth` carries `perf_audio_sec: np.ndarray`, `score_audio_sec: np.ndarray` (since bach prelude is single-tempo, these are score seconds, not divs), `measure_table: list[dict]`, and the metadata used as the cache key. Helpers `audio_sec_to_score_sec(t)` + inverse `score_sec_to_audio_sec(s)` expose monotone interpolation.
+- **Cache key:** `(audio_sha256, amt_checkpoint_hash, score_sha256, parangonar_version)`. All four are stored in the JSON body and checked on load; any mismatch raises `PseudoTruthMismatchError`. Score hash + parangonar version close the silent-staleness vector flagged in the challenge review.
+- **Hides:** on-disk JSON schema, cache-key construction, schema validation, hash-mismatch invalidation, atomic write via tempfile-rename.
+- **Tested through:** writes payload via the public writer, reads it back via the public loader, asserts round-trip equality; loader raises `PseudoTruthMissingError` when the file is absent; loader raises `PseudoTruthMismatchError` when any of the four key fields disagrees with the file's stored key.
 
 ### `amt_regen` orchestrator (deep module)
 
-- **Interface:** `regenerate_pseudo_truth(piece_id, video_id, *, score_path, audio_path, amt_url, amt_checkpoint_hash, cache_root, force=False) -> RegenResult`. CLI wrapper at `python -m chroma_dtw_eval.amt_regen --piece ... --video-id ... --amt-url ...`. `just amt-regen-pseudo-truth piece video_id` is a thin shim.
-- **Hides:** 27s non-overlapping chunking, base64 WAV encoding, AMT POST + skip-on-tokenizer-error per chunk, AMT note concatenation with `chunk_idx * 27` offset, partitura score load + measure-table extraction, parangonar `AutomaticNoteMatcher` invocation, label=='match' filtering, monotonic running-max on score_div, idempotence check via cache-key compare.
-- **Tested through:** an integration test that drives the orchestrator with a stub AMT URL (a local `httpserver` fixture returning canned `midi_notes`) on a tiny score (the smallest MXL fixture we can stand up) and asserts the cache file is created with the expected key, that a second call with the same inputs is a no-op, and that the loader returns interpolation arrays matching the orchestrator's in-memory output.
-- Reads `model/config/amt_version.json` for the committed `amt_checkpoint_hash`. If AMT `/health` exposes a `checkpoint_hash` field, the orchestrator refuses to write when they disagree (`AmtCheckpointMismatchError`). Today's `/health` does not expose it, so the orchestrator records the committed hash unconditionally and the cross-check is exercised only when AMT is upgraded to publish it.
+- **Interface:** `regenerate_pseudo_truth(piece_id, video_id, *, score_path, audio_path, amt_url, amt_checkpoint_hash, parangonar_version, cache_root, force=False) -> RegenResult`. CLI wrapper at `python -m chroma_dtw_eval.amt_regen --piece ... --video-id ... --amt-url ...`. `just amt-regen-pseudo-truth piece video_id` is a thin shim.
+- **Score loading:** the bach prelude JSON (`model/data/scores/bach.prelude.bwv_846.json`) is loaded directly — no partitura, no MXL→JSON build. The orchestrator iterates `bars[].notes[]` and builds a synthetic score note-array with `onset_sec`, `pitch`, and `onset_beat` (computed from `onset_tick / ticks_per_beat`, where `ticks_per_beat` is inferred from the JSON: the first bar's `start_tick` is 0, the second bar's `start_tick` is 4 beats later in 4/4, so `ticks_per_beat = (bars[1].start_tick - bars[0].start_tick) / 4`). `score_audio_sec` is read directly from each matched note's `onset_seconds` field (single-tempo identity, no projection bpm). The score's declared bpm (120 for bach prelude) is used only to provide parangonar's matcher with a `onset_beat` axis.
+- **Hides:** 27s non-overlapping chunking, base64 WAV encoding, AMT POST + skip-on-tokenizer-error per chunk, AMT note concatenation with `chunk_idx * 27` offset, JSON score load + measure-table extraction, parangonar `AutomaticNoteMatcher` invocation, label=='match' filtering, monotonic running-max on score_audio_sec, idempotence check via cache-key compare.
+- **Error discipline:** `requests.RequestException` on the AMT POST is fatal (`AmtRegenError`); a documented AMT tokenizer-error payload (200 with `error` field) is the only condition that skips a chunk. Minimum coverage gate: if final matched-pairs count < 100 OR `len(matched_pairs) / len(amt_notes) < 0.5`, raise `LowCoverageError` rather than writing a sparse pseudo-truth.
+- **Tested through:** an integration test that drives the orchestrator with a stub AMT URL (a local `httpserver` fixture returning canned `midi_notes`) against a tiny JSON score fixture and asserts the cache file is created with the expected key, that a second call with the same inputs is a no-op, and that the loader returns interpolation arrays matching the orchestrator's in-memory output.
+- Reads `model/config/amt_version.json` for the committed `amt_checkpoint_hash` AND `parangonar_version`. If AMT `/health` exposes a `checkpoint_hash` field, the orchestrator refuses to write when they disagree (`AmtCheckpointMismatchError`). Today's `/health` does not expose it, so the orchestrator records the committed hash unconditionally and the cross-check is exercised only when AMT is upgraded to publish it.
+
+**Note (implementation):** the legacy `gold_truth_builder.py` module had a latent variable-tempo bug (`bpm=100.0` hardcoded projection at line 86). Audit deferred — module is being removed in Group A.
 
 ### Chunk sampler (internals rewritten, public surface stable)
 
@@ -53,19 +70,21 @@ Primary = percent of practice chunks passing.
 ### Metric aggregator (modified)
 
 - **Interface drift:** `aggregate(results, baseline, *, frame_rate_hz, tolerance_s)` replaces `tolerance_ms`; the unit is seconds throughout, primary tolerance defaulting to 1.5. `ChunkResult.error_seconds: Optional[float]` replaces `error_frames` for the practice-pseudo path; existing fields (`bar_distance_from_forward`, `silence_loud_failure`) keep their semantics for G1/G3/G5.
-- **G4 removed:** `stitch_error_frames` deleted from `ChunkResult`, `GuardSet.g4` deleted, `Baseline.guards` loses `g4`, sidecar JSON drops `g4`. The "synthetic_practice" kind is removed.
-- **G1/G2:** unchanged formulas; G2's positive-label condition becomes `error_seconds > tolerance_s` (was frames).
+- **G4 repurposed → consecutive-chunk continuity guard:** `practice_compose.py` (synthetic-MAESTRO composition) is still deleted. A new G4-named guard replaces it: for the same `(piece_id, video_id)`, consecutive sampled chunks at offsets `t_n`, `t_{n+1}` must satisfy `|predicted_score_audio_sec(n+1) - predicted_score_audio_sec(n) - (t_{n+1} - t_n)| <= 5.0` seconds. Built from the practice corpus itself; no synthetic data needed. Catches the stitch-regression class the previous G4 caught.
+- **G1/G2:** unchanged formulas; G2's positive-label condition becomes `error_seconds > tolerance_s` (was frames). G2 regression threshold scales by `sqrt(50 / max(n_chunks, 1))` capped at 4× to widen tolerance when chunk counts are small.
 - **G3/G5:** unchanged.
-- **Tested through:** synthesize a `ChunkResult` list mixing `practice` (pass + fail by tolerance), `silence`, `amateur`, and `real_practice`; assert primary matches the percentage of practice passes; assert G2 is finite when costs split the error labels; assert that exceeding the primary baseline plus epsilon does NOT regress while dropping below DOES regress.
+- **Tested through:** synthesize a `ChunkResult` list mixing `practice` (pass + fail by tolerance), `silence`, `amateur`, and `real_practice`; assert primary matches the percentage of practice passes; assert G2 is finite when costs split the error labels; assert that exceeding the primary baseline plus epsilon does NOT regress while dropping below DOES regress; assert the consecutive-chunk continuity guard fires when predicted score-audio-sec for adjacent chunks diverges by > 5s from the audio-timeline delta.
 
 ### Verify CLI (contract unchanged)
 
 - Same flags: `--baseline`, `--fixtures`, `--corpus`, `--sidecar`.
 - Stdout: one float (the primary) on a single line; nothing else.
+- Stderr: when the practice manifest has < 2 pieces, emit a `WARNING: smoke-only baseline (n=<k> piece(s)); /autoresearch dispatch deferred until ≥ 2 pieces have scores` line. Documents n=1 as smoke signal, not research signal.
 - Exit: 0 iff no guard regressed; nonzero otherwise.
-- Sidecar JSON: `{primary, guards, baseline, regressed, n_chunks}` minus `g4`.
-- Internals: when `--corpus` is given and points to `model/data/evals/`, the CLI calls `sample_practice_chunks` + per-chunk DTW + per-chunk pseudo-truth lookup; when `--fixtures` is given, it keeps the existing simulated-fixture path with G4 and `stitch_error_frames` references stripped.
-- Baseline file at `model/data/evals/chroma_dtw/baseline.json` is rewritten to `{primary, guards: {g1, g2, g3, g5}}` (drops `g4`). One re-baseline commit follows the metric switch.
+- Sidecar JSON: `{primary, guards{g1,g2,g3,g5}, baseline, regressed, n_chunks, error_seconds_distribution: {p50, p90, p95, max, mean}, tolerance_sensitivity: {0.5: pct, 1.0: pct, 1.5: pct, 2.0: pct, 3.0: pct}}` — distribution + tolerance sweep derived from per-chunk error_seconds for tolerance calibration.
+- **Cache key construction:** the CLI computes the real `audio_sha256` (via `hashlib.sha256` on the wav file) for each chunk's `(piece_id, video_id)` and reads `amt_checkpoint_hash` + `parangonar_version` + `score_sha256` from `model/config/amt_version.json` + the score JSON before calling `load_pseudo_truth`. No `"z"*16` placeholders in the real path.
+- Internals: when `--corpus` is given and points to `model/data/evals/`, the CLI calls `sample_practice_chunks` + per-chunk DTW + per-chunk pseudo-truth lookup; when `--fixtures` is given, it keeps the existing simulated-fixture path with G4-synthetic and `stitch_error_frames` references stripped.
+- Baseline file at `model/data/evals/chroma_dtw/baseline.json` is rewritten to `{primary, guards: {g1, g2, g3, g4, g5}}` where g4 now stores the consecutive-chunk continuity pass-pct. One re-baseline commit follows the metric switch.
 
 ### Modules removed
 
@@ -82,8 +101,8 @@ Primary = percent of practice chunks passing.
 
 | Module | Interface | Hides | Depth |
 |---|---|---|---|
-| `pseudo_truth_cache.py` | `load_pseudo_truth`, `write_pseudo_truth`, `PseudoTruth.audio_sec_to_score_div`, `PseudoTruth.score_div_to_audio_sec` | JSON schema, cache-key construction from `(audio_sha256, amt_checkpoint_hash)`, monotone-arrays invariant, atomic write, hash-mismatch detection | DEEP |
-| `amt_regen.py` | `regenerate_pseudo_truth(...)` + `python -m chroma_dtw_eval.amt_regen` CLI | 27s chunking, base64 encoding, AMT POST + retry/skip, AMT-note concatenation with offset, partitura score load, measure-table extraction, parangonar invocation, label-filter + running-max, checkpoint mismatch | DEEP |
+| `pseudo_truth_cache.py` | `load_pseudo_truth`, `write_pseudo_truth`, `cache_path`, `PseudoTruth.audio_sec_to_score_sec`, `PseudoTruth.score_sec_to_audio_sec` | JSON schema, 4-field cache-key (audio_sha256, amt_checkpoint_hash, score_sha256, parangonar_version), monotone-arrays invariant, atomic write, hash-mismatch detection | DEEP |
+| `amt_regen.py` | `regenerate_pseudo_truth(...)` + `python -m chroma_dtw_eval.amt_regen` CLI | 27s chunking, base64 encoding, AMT POST (RequestException fatal; only documented tokenizer-error skips), AMT-note concatenation with offset, direct bach JSON score load (single-tempo), measure-table extraction, parangonar invocation, label-filter + running-max, min-coverage gate (matched≥100, match-rate≥0.5), checkpoint mismatch | DEEP |
 | `chunk_sampler.py` (extended) | `sample_chunks`, new `sample_practice_chunks` | YAML enumeration, pseudo-truth coverage check, per-clip duration discovery, position-bucket stratification | DEEP |
 | `metric_aggregator.py` (modified) | `aggregate(results, baseline, *, frame_rate_hz, tolerance_s) -> Metrics` | Per-kind aggregation, G2 AUC, regression thresholds | DEEP |
 | `verify.py` (modified) | `python -m chroma_dtw_eval.verify --baseline ... --corpus ...` | Real DTW dispatch, pseudo-truth lookup-and-interpolate, sidecar write | DEEP |
@@ -92,7 +111,7 @@ All five hide substantial mechanism behind small APIs; none are shallow.
 
 ## Verification Architecture
 
-- **Canonical success state:** `just chroma-eval-verify` exits 0 with a single float on stdout, within 120s wallclock on M4. Sidecar JSON validates against schema (`primary` float, `guards` object with exactly `g1`/`g2`/`g3`/`g5`, `regressed` list, `n_chunks` int). The committed `baseline.json` reflects a real measurement on `chopin_ballade_1` after the pivot.
+- **Canonical success state:** `just chroma-eval-verify` exits 0 with a single float on stdout, within 120s wallclock on M4. Sidecar JSON validates against schema (`primary` float, `guards` object with exactly `g1`/`g2`/`g3`/`g5`, `regressed` list, `n_chunks` int). The committed `baseline.json` reflects a real measurement on `bach_prelude_c_wtc1` after the pivot.
 - **Automated check:** `cd model && uv run python -m chroma_dtw_eval.verify --baseline data/evals/chroma_dtw/baseline.json --corpus data/evals/`. CI/local invocation `just chroma-eval-verify` wraps it.
 - **Harness already exists:** the shipped verify CLI smoke test (`model/tests/chroma_dtw_eval/test_verify_cli_smoke.py`) is the in-process harness. It must be updated to assert (a) the new sidecar schema (no `g4`), (b) stdout is still exactly one float, (c) exit 0 on a known-good fixture. This is part of the metric_aggregator task group.
 

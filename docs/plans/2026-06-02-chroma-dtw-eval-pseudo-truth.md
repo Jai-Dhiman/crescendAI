@@ -10,33 +10,318 @@
 
 ---
 
+## LOOP-1 CHALLENGE REWORK (2026-06-02) — read this before any task
+
+The challenge review returned `NEEDS_REWORK`. The fixes below are now binding. Where task bodies below still reference the old design (chopin score, `score_div`, `partitura.load_score`, `audio_sha256="z"*16`, etc.), defer to this section.
+
+### Piece pivot: chopin_ballade_1 → bach_prelude_c_wtc1
+
+**Why:** Bach Prelude in C (BWV 846) has a single 120 bpm tempo marking (verified `model/data/scores/bach.prelude.bwv_846.json` line 12-17). This dissolves BLOCKER 1 (score-frame → score-div conversion math). The score JSON is in the repo (no MXL→JSON build). 21 approved practice videos already labeled. Shorter clips → faster AMT regen.
+
+**Score loading change:** stop calling `partitura.load_score(mxl)`. Instead load `bach.prelude.bwv_846.json` directly. The bach JSON has, per note:
+- `pitch`, `pitch_name`, `onset_tick`, `onset_seconds`, `duration_ticks`, `duration_seconds`, `velocity`, `track`.
+- `bars[].start_tick`, `bars[].start_seconds`.
+- Top-level `tempo_markings: [{tick, tempo_usec, bpm}]`.
+
+`onset_seconds` is the score-audio-time axis directly (single tempo, identity-correct). `score_div` no longer exists in the rework's cache — replaced by `score_audio_sec` (np.ndarray of seconds). `score_sec_to_audio_sec(s)` is the consumer-facing inverse.
+
+**Parangonar `onset_beat`:** parangonar's matcher requires `onset_beat` on the score side. Compute `ticks_per_beat` by reading `bars[1].start_tick - bars[0].start_tick` in 4/4 and dividing by 4, OR by parsing `tempo_usec` (500000 usec/quarter at MIDI standard division). Build a synthetic score note-array with fields `(onset_sec, onset_beat, pitch, duration_sec, id)`.
+
+### Cache schema (B-cache / B1-collapsed)
+
+```python
+# pseudo_truth_cache.py — collapsed B1/B2/B3 into one task with three behavior tests.
+
+@dataclass
+class PseudoTruthPayload:
+    perf_audio_sec: np.ndarray      # AMT-derived performance audio time
+    score_audio_sec: np.ndarray     # Bach JSON onset_seconds for matched notes (single-tempo identity)
+    measure_table: list[dict]
+    audio_sha256: str
+    amt_checkpoint_hash: str
+    score_sha256: str               # NEW — SHA-256 of the score JSON file (first 16 hex chars)
+    parangonar_version: str         # NEW — pinned in amt_version.json
+    regen_source: str
+
+@dataclass
+class PseudoTruth:
+    perf_audio_sec: np.ndarray
+    score_audio_sec: np.ndarray
+    measure_table: list[dict]
+    audio_sha256: str
+    amt_checkpoint_hash: str
+    score_sha256: str
+    parangonar_version: str
+
+    def audio_sec_to_score_sec(self, t: float) -> float: ...
+    def score_sec_to_audio_sec(self, s: float) -> float: ...
+
+def cache_path(cache_root: Path, piece_id: str, video_id: str) -> Path:  # PUBLIC (was _cache_path)
+    return cache_root / piece_id / f"{video_id}.json"
+
+def load_pseudo_truth(
+    piece_id: str, video_id: str, *,
+    audio_sha256: str, amt_checkpoint_hash: str,
+    score_sha256: str, parangonar_version: str,
+    cache_root: Path,
+) -> PseudoTruth:
+    # raises PseudoTruthMissingError if file missing
+    # raises PseudoTruthMismatchError if any of the four hashes disagrees with the file
+```
+
+### B5 amt_regen — bach JSON loader (replaces `_load_score`)
+
+```python
+import hashlib, json
+from pathlib import Path
+import numpy as np
+
+def _sha256_file(p: Path) -> str:
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()[:16]
+
+def _load_bach_json_score(score_path: Path) -> tuple[np.ndarray, list[dict], str]:
+    """Load Bach prelude JSON. Returns (score_na, measure_table, score_sha256).
+
+    score_na fields: ("onset_sec", float), ("onset_beat", float),
+                     ("pitch", int), ("duration_sec", float), ("id", "U32").
+    Single-tempo identity: onset_sec IS the score-audio-time axis.
+    """
+    score_sha256 = _sha256_file(score_path)
+    body = json.loads(score_path.read_text())
+    tempos = body.get("tempo_markings") or []
+    if len(tempos) != 1:
+        raise AmtRegenError(
+            f"variable-tempo scores not supported in this rework; got {len(tempos)} tempo markings "
+            f"in {score_path}. See spec section 'Variable-tempo score support (future)'."
+        )
+    bpm = float(tempos[0]["bpm"])  # 120.0 for bach prelude
+    # Infer ticks_per_beat from the JSON. Bach prelude is 4/4; bar 2 should start exactly 4 beats
+    # after bar 1. If the JSON has >=2 bars use that; otherwise fall back to tempo_usec=500000 → 480
+    # (standard MIDI division, used by the project's score builder).
+    bars = body.get("bars") or []
+    if len(bars) >= 2:
+        ticks_per_beat = (int(bars[1]["start_tick"]) - int(bars[0]["start_tick"])) // 4
+    else:
+        ticks_per_beat = 480
+    if ticks_per_beat <= 0:
+        raise AmtRegenError(f"could not infer ticks_per_beat from {score_path}")
+
+    rows = []
+    nid = 0
+    for bar in bars:
+        for n in (bar.get("notes") or []):
+            rows.append((
+                float(n["onset_seconds"]),
+                float(n["onset_tick"]) / ticks_per_beat,
+                int(n["pitch"]),
+                float(n.get("duration_seconds", 0.001)),
+                f"s{nid}",
+            ))
+            nid += 1
+    if not rows:
+        raise AmtRegenError(f"no notes found in score: {score_path}")
+    dtype = [("onset_sec", float), ("onset_beat", float), ("pitch", int),
+             ("duration_sec", float), ("id", "U32")]
+    score_na = np.array(rows, dtype=dtype)
+    score_na.sort(order="onset_sec")
+
+    measure_table = [
+        {"bar_number": int(b["bar_number"]),
+         "start_sec": float(b["start_seconds"]),
+         "start_tick": int(b["start_tick"])}
+        for b in bars
+    ]
+    return score_na, measure_table, score_sha256
+```
+
+The legacy `_load_score(score_path)` partitura path and `perf_proj = performance_notearray_from_score_notearray(score_na, bpm=100.0)` line are DELETED. The bach JSON loader replaces both. The `_build_pairs` body changes correspondingly:
+
+```python
+def _build_pairs(score_na, amt_perf_na, matches):
+    score_id_to_audio_sec = {str(s["id"]): float(s["onset_sec"]) for s in score_na}
+    perf_id_to_audio_sec = {str(n["id"]): float(n["onset_sec"]) for n in amt_perf_na}
+    pairs = []
+    for entry in matches:
+        if entry.get("label") != "match":
+            continue
+        s_id = str(entry.get("score_id"))
+        p_id = str(entry.get("performance_id"))
+        if s_id in score_id_to_audio_sec and p_id in perf_id_to_audio_sec:
+            pairs.append((perf_id_to_audio_sec[p_id], score_id_to_audio_sec[s_id]))
+    if not pairs:
+        raise AmtRegenError("parangonar produced zero matches; cannot build pseudo-truth")
+    pairs.sort()
+    perf_arr = np.array([p[0] for p in pairs], dtype=np.float64)
+    score_arr = np.array([p[1] for p in pairs], dtype=np.float64)
+    score_arr = np.maximum.accumulate(score_arr)  # monotone running-max
+    return perf_arr, score_arr
+```
+
+### B5 amt_regen — other binding fixes
+
+1. **Idempotence check**: catch `PseudoTruthMismatchError` SPECIFICALLY, not bare `ValueError`. Other ValueErrors propagate.
+
+   ```python
+   try:
+       load_pseudo_truth(...)
+       return RegenResult(wrote_cache=False, ...)
+   except PseudoTruthMissingError:
+       pass
+   except PseudoTruthMismatchError:
+       pass  # regen below
+   ```
+
+2. **Per-chunk POST failures**: `RequestException` is FATAL → raise `AmtRegenError`. Only the documented 200-with-error-body case (`if "error" in body`) skips a chunk.
+
+3. **Minimum coverage gate**: after `_build_pairs`,
+
+   ```python
+   if score_arr.size < 100 or score_arr.size / max(len(amt_notes), 1) < 0.5:
+       raise LowCoverageError(
+           f"insufficient match coverage: matched={score_arr.size}, "
+           f"amt_notes={len(amt_notes)}, match_rate={score_arr.size/max(len(amt_notes),1):.3f}"
+       )
+   ```
+
+4. **Score declared bpm**: read from `tempo_markings[0].bpm` (120 for bach prelude). Pass to parangonar's matcher if it accepts a bpm arg; otherwise unused (we already converted to onset_beat).
+
+5. **Defaults anchored to `__file__`**: every CLI default path uses `Path(__file__).resolve().parents[N]` — not relative-to-CWD. (Feedback `feedback_anchor_default_paths_to_module.md`.)
+
+### Justfile prebuild + drift guard (A4)
+
+```make
+# Build dtw_chunk_cli release binary so chroma-eval-verify hits its 120s budget on warm cache.
+chroma-eval-prebuild:
+    cd apps/api/src/wasm/score-analysis && cargo build --release --bin dtw_chunk_cli
+
+# Run chroma-DTW eval harness against committed practice corpus (returns one float on stdout).
+# 120s budget assumes warm cache: run `just chroma-eval-prebuild` once after a clean checkout.
+chroma-eval-verify:
+    cd model && uv run python -m chroma_dtw_eval.verify \
+        --baseline data/evals/chroma_dtw/baseline.json \
+        --corpus data/evals/
+
+chroma-eval-ratchet:
+    cd model && uv run python -m chroma_dtw_eval.ratchet \
+        --from data/evals/chroma_dtw/last_run.json \
+        --to data/evals/chroma_dtw/baseline.json
+
+amt-regen-pseudo-truth piece video_id:
+    cd model && uv run python -m chroma_dtw_eval.amt_regen \
+        --piece {{piece}} --video-id {{video_id}}
+```
+
+A4 also adds `test_just_recipes_drift.py` — smoke test that asserts every recipe referenced in `CLAUDE.md` and `MEMORY.md` markdown sections is present in `Justfile`. Prevents recurrence of the silent-drift class.
+
+### C1 chunk_sampler — manifest stores real audio_sha256
+
+`Chunk` gains an optional `audio_sha256: str | None = None` field. `sample_practice_chunks` reads each approved video's WAV file, computes its SHA-256 (first 16 hex chars, matching amt_regen), and writes it into the returned `Chunk` so verify never hardcodes `"z"*16`.
+
+### D1 metric_aggregator — G4 repurposed (not deleted)
+
+`GuardSet.g4` is RESTORED with new semantics: consecutive-chunk continuity. For each `(piece_id, video_id)`, sort chunks by `start_s`, then for each adjacent pair `(n, n+1)`:
+
+```
+continuity_ok(n) iff |predicted_score_audio_sec(n+1) - predicted_score_audio_sec(n) - (start_s[n+1] - start_s[n])| <= 5.0
+```
+
+G4 = pct of valid adjacent pairs that are continuous. Higher is better (unlike G1/G3/G5 which are "% failure" metrics). G4 regression threshold: drop > 5pp from baseline.
+
+G2 regression threshold scales by `max(1.0, min(4.0, sqrt(50.0 / max(n_chunks, 1))))`. Documents in the sidecar.
+
+### D-verify (D2+D3 bundled) — real-corpus path
+
+- Compute `audio_sha256` per chunk from the WAV file (or read from the chunk-sampler's manifest entry).
+- Read `amt_checkpoint_hash` + `parangonar_version` from `model/config/amt_version.json`.
+- Read `score_sha256` from `model/data/scores/<piece>.json` via `_sha256_file`.
+- Pass all four to `load_pseudo_truth`.
+- Score path: `model/data/scores/bach.prelude.bwv_846.json`.
+- Predicted score time: DTW returns `predicted_score_frame` (integer index in score chroma frames at `decim_hz=50`). Convert to predicted score-audio-sec by `predicted_score_frame / decim_hz`. Since the score is single-tempo and the score chroma is rendered at the score's declared tempo (120 bpm for bach), the frame index → seconds conversion is `frame / decim_hz`. No `* 100.0` constant.
+- Error: `error_seconds = abs(predicted_audio_sec - pseudo_audio_sec)` where `predicted_audio_sec = pt.score_sec_to_audio_sec(predicted_score_audio_sec)`.
+- End-to-end behavior test (replaces RISK 9 D3): tiny real-bach-score + synthetic-linear pseudo-truth; assert `error_seconds` for the last-frame query is within 0.1s of the expected value. Asserts the numerical core, not just sidecar shape.
+- Stderr WARNING when `len(unique_pieces_in_manifest) < 2`.
+- Sidecar enriched with:
+  - `error_seconds_distribution: {p50, p90, p95, max, mean}`
+  - `tolerance_sensitivity: {"0.5": pct, "1.0": pct, "1.5": pct, "2.0": pct, "3.0": pct}`
+- `--skip-dtw` is an INTERNAL flag (used by the D2-era smoke test only); the user-facing CLI contract does not document it. Remove it from `--help` output via `argparse.SUPPRESS`.
+
+### Variable-tempo follow-up (not in scope)
+
+When a second piece with variable tempo lands, implement **beat-space cache** (Option 3 in the spec): cache `(perf_audio_sec, score_beat)` pairs; verify converts `predicted_score_frame → score_audio_sec_dtw → score_beat` via the score JSON's `tempo_markings`. This decouples cache from any tempo assumption.
+
+### gold_truth_builder.py latent variable-tempo bug
+
+The module's hardcoded `bpm=100.0` projection is structurally wrong for variable-tempo scores. **Audit deferred — module is being removed in Group A.** Do not fix or test the bug.
+
+### Smoke-baseline acknowledgement (RISK 1)
+
+The committed `baseline.json` after D4 reflects measurement against ONE piece. Per-chunk binomial CI on the primary scalar is ~±15-20pp at n=10 chunks. The baseline file's notes field reads:
+
+```json
+{
+  "primary": <measured>,
+  "guards": {"g1": ..., "g2": ..., "g3": ..., "g4": ..., "g5": ...},
+  "notes": "Smoke baseline (n=1 piece, bach_prelude_c_wtc1). /autoresearch dispatch deferred until 2nd piece score lands (see C4)."
+}
+```
+
+The verify CLI's stderr WARNING + the baseline.json `notes` field together document the limitation.
+
+---
+
+---
+
 ## Task Groups
 
 ```
 Group A (parallel, file-disjoint):
-  - A1: delete gold_truth_builder.py + test
-  - A2: delete practice_compose.py + test
-  - A3: delete amt_pseudo_truth_pilot.py
-  - A4: add Justfile recipes (chroma-eval-verify, chroma-eval-ratchet, amt-regen-pseudo-truth)
+  - A1: COLLAPSED — delete gold_truth_builder.py + practice_compose.py +
+        amt_pseudo_truth_pilot.py + their tests in one task.
+        No tautological "module-not-importable" shape tests; deletion is
+        verified by the remaining suite staying green.
+  - A4: add Justfile recipes (chroma-eval-verify, chroma-eval-ratchet,
+        amt-regen-pseudo-truth, chroma-eval-prebuild) + recipe-drift guard test
 
-Group B (parallel, file-disjoint, the new-surface group):
-  - B1: pseudo_truth_cache.py round-trip
-  - B2: pseudo_truth_cache.py missing-file behavior
-  - B3: pseudo_truth_cache.py hash-mismatch behavior
-  - B4: amt_version.json committed config
-  - B5: amt_regen.py orchestrator + CLI (depends on B1+B4)
+Group B (sequential in one subagent; new-surface group):
+  - B-cache: ONE bundled task — pseudo_truth_cache.py with three behavior tests
+             (round-trip, missing-file raises, key-mismatch raises) →
+             one impl → one commit. Cache key:
+             (audio_sha256, amt_checkpoint_hash, score_sha256, parangonar_version).
+             cache_path() is PUBLIC.
+  - B4: amt_version.json committed config (now includes parangonar_version)
+  - B5: amt_regen.py orchestrator + CLI (depends on B-cache + B4)
 
-Group C (sequential, depends on A1..A4 done):
-  - C1: chunk_sampler.py extends Chunk with video_id (backward compatible)
+Group C (sequential, depends on A done):
+  - C1: chunk_sampler.py extends Chunk with video_id + adds audio_sha256
+        field to the manifest entries (so verify reads real hashes, not "z"*16)
   - C2: chunk_sampler.py adds sample_practice_chunks happy path
   - C3: chunk_sampler.py adds sample_practice_chunks coverage-error path
+  - C4: opportunistic fur_elise score sourcing (30 min time-box; SKIP if not findable)
 
 Group D (sequential, depends on B + C):
-  - D1: metric_aggregator.py switches to seconds + drops G4
-  - D2: metric_aggregator.py adds practice kind + 1.5s primary
-  - D3: verify.py wires practice path + sidecar drops g4
-  - D4: re-baseline chopin_ballade_1 + commit baseline.json
+  - D1: metric_aggregator.py switches to seconds + repurposes G4 as
+        consecutive-chunk continuity guard. G2 regression threshold scales
+        by sqrt(50/max(n_chunks,1)) capped at 4×.
+  - D-verify: ONE bundled task (replaces D2+D3) — verify.py wires practice
+        path through pseudo-truth with real audio_sha256 from manifest;
+        end-to-end behavior test that error_seconds on a tiny real-score +
+        synthetic-pseudo-truth fixture is within an asserted bound.
+        Emits stderr WARNING when manifest has < 2 pieces. Sidecar includes
+        error_seconds_distribution + tolerance_sensitivity sweep.
+  - D4: re-baseline bach_prelude_c_wtc1 + commit baseline.json
 ```
+
+**Loop-1 challenge rework notes:**
+- A1/A2/A3 deletion-shape tests removed (TDD theater; deletion verified by suite green). Collapsed to one A1.
+- B1/B2/B3 bundled into B-cache (single task, three behavior tests, one impl, one commit). The prior split admitted it could not honor red-then-green and was a regression-lock pattern, not a vertical slice.
+- D2/D3 bundled into D-verify (the same subagent must ship a working CLI; D2 alone leaves the repo in a half-working state).
+- All "audio_sha256=`z`*16" placeholders removed from the real CLI path. Manifest now carries real SHA-256 per (piece, video_id).
+- Cache key extended to four fields; mismatch raises specific exception.
+- G4 repurposed to a real consecutive-chunk continuity guard derived from the practice corpus.
 
 Independence-ship audit: Group A ships independently (removes dead code, no behavior change). Group B ships independently (new modules with their own tests; nothing consumes them until C/D). Groups C and D do NOT ship independently of each other — the metric switch and the corpus path are co-dependent.
 
@@ -334,13 +619,13 @@ def test_roundtrip_and_interpolation(tmp_path: Path) -> None:
         regen_source="local:test",
     )
     written = write_pseudo_truth(
-        piece_id="chopin_ballade_1", video_id="VID000",
+        piece_id="bach_prelude_c_wtc1", video_id="VID000",
         payload=payload, cache_root=tmp_path,
     )
     assert written.exists()
 
     loaded = load_pseudo_truth(
-        piece_id="chopin_ballade_1", video_id="VID000",
+        piece_id="bach_prelude_c_wtc1", video_id="VID000",
         audio_sha256="a" * 16, amt_checkpoint_hash="b" * 16,
         cache_root=tmp_path,
     )
@@ -1989,7 +2274,7 @@ git add model/src/chroma_dtw_eval/verify.py model/tests/chroma_dtw_eval/test_ver
 
 **Group:** D (sequential after D2)
 
-**Behavior being verified:** `python -m chroma_dtw_eval.verify --baseline data/evals/chroma_dtw/baseline.json --corpus data/evals/` returns exit 0, prints one float, computes `error_seconds` per chunk by calling `dtw_runner.run_dtw` and converting the last-audio-frame predicted score frame to audio seconds via the pseudo-truth's inverse interpolation. The test stages a real (tiny) corpus with the committed `chopin_ballade_1` score, one cached pseudo-truth file, and one synthesized 60s audio file; the run completes inside the 120s budget.
+**Behavior being verified:** `python -m chroma_dtw_eval.verify --baseline data/evals/chroma_dtw/baseline.json --corpus data/evals/` returns exit 0, prints one float, computes `error_seconds` per chunk by calling `dtw_runner.run_dtw` and converting the last-audio-frame predicted score frame to audio seconds via the pseudo-truth's inverse interpolation. The test stages a real (tiny) corpus with the committed `bach_prelude_c_wtc1` score, one cached pseudo-truth file, and one synthesized 60s audio file; the run completes inside the 120s budget.
 
 **Interface under test:** `python -m chroma_dtw_eval.verify` CLI (no `--skip-dtw`).
 
@@ -2026,21 +2311,21 @@ COMMITTED_SCORE = REPO_ROOT / "model/scores/v1/chopin.ballades.1.mxl"
 @pytest.mark.skipif(not COMMITTED_SCORE.exists(), reason="committed score missing")
 def test_verify_real_dtw_smoke(tmp_path: Path) -> None:
     evals = tmp_path / "evals"
-    piece_dir = evals / "practice_eval" / "chopin_ballade_1"
+    piece_dir = evals / "practice_eval" / "bach_prelude_c_wtc1"
     (piece_dir / "audio").mkdir(parents=True)
     audio_path = piece_dir / "audio" / "VID0.wav"
     rng = np.random.default_rng(0)
     sf.write(audio_path, rng.standard_normal(16000 * 60).astype(np.float32) * 0.05,
              16000, subtype="FLOAT")
     (piece_dir / "candidates.yaml").write_text(yaml.safe_dump({
-        "piece": "chopin_ballade_1",
+        "piece": "bach_prelude_c_wtc1",
         "recordings": [{"video_id": "VID0", "approved": True}],
     }))
     # Stage pseudo-truth from a coarse linear map.
     perf = np.linspace(0.0, 60.0, num=60, dtype=np.float64)
     score_div = np.linspace(0.0, 240.0, num=60, dtype=np.float64)
     write_pseudo_truth(
-        piece_id="chopin_ballade_1", video_id="VID0",
+        piece_id="bach_prelude_c_wtc1", video_id="VID0",
         payload=PseudoTruthPayload(
             perf_audio_sec=perf, score_div=score_div,
             measure_table=[{"bar_number": i, "start_div": i * 4, "end_div": (i + 1) * 4}
@@ -2052,7 +2337,7 @@ def test_verify_real_dtw_smoke(tmp_path: Path) -> None:
     )
     # Drop the committed score into a path the runner can find.
     (evals / "scores").mkdir()
-    shutil.copy(COMMITTED_SCORE, evals / "scores" / "chopin_ballade_1.mxl")
+    shutil.copy(COMMITTED_SCORE, evals / "scores" / "bach_prelude_c_wtc1.mxl")
 
     baseline = tmp_path / "baseline.json"
     baseline.write_text(json.dumps({
@@ -2171,7 +2456,7 @@ git add model/src/chroma_dtw_eval/verify.py model/tests/chroma_dtw_eval/test_ver
 
 ---
 
-### Task D4: Rebase committed `baseline.json` against `chopin_ballade_1`
+### Task D4: Rebase committed `baseline.json` against `bach_prelude_c_wtc1`
 
 **Group:** D (sequential after D3)
 
@@ -2237,6 +2522,141 @@ git add model/data/evals/chroma_dtw/baseline.json model/tests/chroma_dtw_eval/te
 
 ## Post-merge follow-up (not in this plan)
 
-- Regenerate pseudo-truth for the three pilot clips of `chopin_ballade_1` via `just amt-regen-pseudo-truth` and commit those caches.
+- Regenerate pseudo-truth for the three pilot clips of `bach_prelude_c_wtc1` via `just amt-regen-pseudo-truth` and commit those caches.
 - Run `just chroma-eval-verify` end-to-end, then `just chroma-eval-ratchet` to lift the primary from 0.0 to the measured value.
 - Dispatch `/autoresearch` with the parked `feat/continuity-aware-chroma-follower` branch as the first candidate.
+
+---
+
+## Challenge Review
+
+Reviewed: 2026-06-02. Plan read in full (2243 lines). Spec read in full. Source files audited: `chunk_sampler.py`, `metric_aggregator.py`, `verify.py`, `dtw_runner.py`, `chroma_cache.py`, current `baseline.json`, current `test_chunk_sampler.py`, `Justfile`, practice_eval directory tree, scores/v1 directory.
+
+### CEO Pass
+
+**Premise.** Right problem, right framing. The pilot data (jitter ~60-80ms vs old 50ms tolerance) is dispositive: the old harness measures pseudo-truth noise floor + DTW error and cannot distinguish them. Pivot is correct. Confidence high.
+
+**Scope.** The plan is roughly the minimum that delivers the new primary scalar (cache + sampler + aggregator + CLI rewrite + Justfile fix + cleanup). Two scope flags below.
+
+[RISK] (confidence: 8/10) — **n=1 piece for first baseline is statistically uninformative for a percent-passing scalar.** With one piece × ~10 chunks the standard error on `primary` will be roughly +/-15-20 percentage points; `/autoresearch` candidates that move the metric by less than that magnitude are indistinguishable from noise. The plan acknowledges this implicitly (baseline primary set to 0.0 in D4) but does not say what minimum delta a candidate must beat to count, nor how that delta relates to n. Fallback: state in the plan that during the bach_prelude_c_wtc1-only phase, the primary scalar is a smoke signal, not a research signal, and `/autoresearch` should not be dispatched until a second piece's score is sourced. Or: weight by chunks not pieces and document the per-chunk CI on the sidecar.
+
+[RISK] (confidence: 7/10) — **Justfile recipe drift was silent for an unknown duration.** CLAUDE.md, MEMORY.md, and a commit message (`3305babf`) all claimed `just chroma-eval-verify` shipped; it never did. Group A4 fixes the recipe but the plan does not check whether any *other* claimed-shipped recipe (e.g., from the prior harness ship) is similarly absent, nor add a guard against this happening again. Fallback: add a single test in A4 that enumerates *all* recipes referenced in CLAUDE.md sections and asserts presence; otherwise the next phantom recipe is one CLAUDE.md edit away.
+
+**12-month alignment.** Plan moves toward the ideal (autoresearch-driven DTW improvement against a realistic target). DEEP modules and explicit-exception discipline are consistent with the rest of the codebase. No tech debt added that obviously conflicts with the 12-month direction.
+
+**Alternatives.** Spec does not document rejected alternatives (e.g., "stay on MAESTRO but loosen tolerance to 1.5s," "score-align MAESTRO subset to practice with shared interpolation," "use per-chunk warping-path variance as primary instead of point error"). The brainstorm doc covers some of this but the spec should reflect at least the strongest alternative + why rejected.
+
+[QUESTION] — Why is point-error-at-last-frame the right primary, vs. mean-over-chunk error or warping-path-distance-from-pseudo-truth? The current choice optimizes the *endpoint* of the warping path; a DTW candidate that gets the endpoint right but oscillates wildly across the chunk would pass. Document the rejection.
+
+### Engineering Pass
+
+**Architecture.**
+
+Data flow as planned:
+
+```
+practice_eval/<piece>/candidates.yaml ──┐
+practice_eval/<piece>/audio/<vid>.wav ──┼─► sample_practice_chunks ─► Chunk[]
+pseudo_truth/<piece>/<vid>.json ────────┘                                │
+                                                                          ▼
+                                              chroma_cache ─► run_dtw ─► DtwResult
+                                                                          │
+                pseudo_truth_cache.load + score_div_to_audio_sec ◄────────┘
+                                                                          ▼
+                                                              ChunkResult(error_seconds)
+                                                                          ▼
+                                                              aggregate ─► Metrics ─► sidecar
+```
+
+The flow is sound. The composition seam between `DtwResult.predicted_score_frame` (an integer frame index in score space) and `PseudoTruth.score_div_to_audio_sec` (a continuous score-divisions axis) is the architectural weak point — see D3 below.
+
+[BLOCKER] (confidence: 10/10) — **Task D3's score-frame-to-score-div conversion is mathematically wrong and the plan acknowledges it.** Line 2130: `predicted_score_div = predicted_score_frame * (1.0 / 50.0) * 100.0  # arbitrary scale baseline`. The pseudo-truth cache stores `score_div` from partitura's per-part divisions tick clock (typically 480 or 1024 PPQ; in the B5 stub MXL, `divisions=1` so 1 div = 1 quarter note). The DTW binary returns `predicted_score_frame` indexing the score chroma frames produced by chunking the projected MIDI at `decim_hz=50.0`. There is no `* 100.0` constant that converts between these spaces — the relationship is piece-specific (`score_div_per_audio_frame = (bpm/60) * divisions_per_quarter / decim_hz`). The plan's own comment ("arbitrary scale baseline ... first baseline run will calibrate") admits this. The test passes only because the staged pseudo-truth in the test uses a linear identity-ish mapping and the assertion checks only sidecar shape, not `error_seconds`. Result: the first real baseline measurement is garbage by construction. Either (a) change the pseudo-truth schema to store `(perf_audio_sec, predicted_score_frame_at_decim_hz)` pairs directly so the conversion is identity, or (b) wire `divisions_per_quarter` + `bpm` into the conversion explicitly and test it on a fixture with known geometry.
+
+[BLOCKER] (confidence: 9/10) — **The smoke test in D2 hardcodes audio_sha256="z"\*16 and so does the real DTW path in D3.** Lines 1907-1910 and 2106-2110: the verify CLI always passes `audio_sha256="z" * 16, amt_checkpoint_hash="z" * 16` to `load_pseudo_truth`. That defeats the entire cache-key contract enforced by B3 (hash mismatch raises). For the *staged test fixtures* the test writes `"z"*16` into the cache so this happens to work, but the **real corpus path will fail with `PseudoTruthMismatchError` on every chunk** because the on-disk cache (regenerated by `amt_regen` from real audio) stores the real sha256 of the audio. There is no path in `verify.py` that computes the audio sha256 from the file on disk before calling the loader. Fix: compute `_sha256_file(audio_path)` inside `_build_chunk_results` and pass it through; pass the pinned checkpoint hash from `read_pinned_checkpoint_hash(amt_version_config)` similarly.
+
+[BLOCKER] (confidence: 9/10) — **Cache key omits parangonar version and score hash.** The spec keys the cache on `(audio_sha256, amt_checkpoint_hash)`. But `regenerate_pseudo_truth` derives `score_div` and `measure_table` from the score file and the parangonar matcher. Silent-invalidation hazards: (a) the committed `chopin.ballades.1.mxl` is edited (e.g., a measure-number fix) — same audio, same AMT, but score_div table now wrong; the cache silently serves stale data; (b) parangonar is upgraded and the matcher produces different `label=="match"` sets — same key, different output. The plan explicitly rejects silent fallbacks in CLAUDE.md style yet introduces a silent-staleness vector here. Fix: extend the key to `(audio_sha256, amt_checkpoint_hash, score_sha256, parangonar_version)`. The amt_version.json is the natural place to also pin `parangonar_version`. Confidence 9 not 10 only because one could argue score+parangonar bumps should be handled by manual cache wipes; but that defeats the point of explicit hashing.
+
+[BLOCKER] (confidence: 9/10) — **`amt_regen.py` projection BPM is a hardcoded 100.0 (line 1107) and the projection output is computed but never used.** `perf_proj = performance_notearray_from_score_notearray(score_na, bpm=100.0)` is computed and then in `_build_pairs` it appears only inside an unused branch (`if "onset_div" in s.dtype.names`). The fallback path `float(p["onset_sec"])` reads from `perf_proj` not from anything tied to actual score positions. If the score's `note_array()` does not have `"onset_div"` (which partitura `note_array()` typically does, but is version-dependent), the cache silently records *seconds-from-100bpm projection* as `score_div`, which is then treated as the score axis by the loader and the DTW conversion. Result: pseudo-truth is wrong by a constant `bpm` factor at minimum, structurally wrong at worst. Fix: assert `"onset_div"` in `score_na.dtype.names` and remove the seconds fallback; or use `score_na["onset_div"]` directly indexed by the matched score_id. Also: write the projection bpm into the cache file and require it match on load if used.
+
+[BLOCKER] (confidence: 9/10) — **Task A4 Justfile recipes `cd model && uv run` from project root, but verify.py with `--corpus data/evals/` then resolves `practice_eval/<piece>` relative to the *model subdir*'s data/evals.** That happens to be correct for the committed layout. However, the test in D2/D3 invokes with `cwd=Path(__file__).resolve().parents[2]` which is `model/`, also correct. But the staged corpus in the test is at `tmp_path/evals`, an absolute path, so cwd doesn't matter there. The real failure mode: the recipe also requires `apps/api/src/wasm/score-analysis/target/release/dtw_chunk_cli`, which `dtw_runner._ensure_binary` builds on first use via `cargo build --release`. First `just chroma-eval-verify` invocation after a clean checkout will spend 1-3 minutes building the Rust binary and *count that against the 120s budget* in the plan's success criteria. Fix: either prebuild in a separate recipe (`chroma-eval-build-dtw`) that `chroma-eval-verify` depends on, or document the 120s budget as "steady state after binary is built."
+
+[RISK] (confidence: 8/10) — **Tolerance 1.5s is defensible but not derived.** Pilot shows internal jitter ~60-80ms at any anchor and structural variability of 5.6-31.2 bars per 30s window across clips. 1.5s sits ~20x above jitter and well below typical bar duration at moderate tempi (~2-4s/bar) but the plan never shows the work that picks 1.5 vs 1.0 vs 2.0. With n~10 chunks per piece, this choice dominates the primary scalar. Fallback: write a one-paragraph derivation in the spec citing the pilot numbers and the bar-duration distribution, OR commit a `tolerance_sensitivity.json` sidecar that reports primary at {0.5, 1.0, 1.5, 2.0, 3.0}s so candidates are evaluated at multiple tolerances and the choice can be revisited.
+
+[RISK] (confidence: 7/10) — **G2 cost-AUC is now structurally coupled to the same `tolerance_s` as the primary.** Primary = pct(error <= tol). G2 = AUC(cost predicting error > tol). They share the threshold. A DTW change that shifts the error distribution can lift primary while crashing G2 if costs no longer correlate around the new boundary. Conversely, a DTW change that lowers cost across the board (better confidence on everything) can lift G2 without changing primary at all. This is not necessarily wrong — the old harness had the same coupling at 50ms — but at n=1 piece × ~10 chunks the AUC is on 10 points, several of which will share labels; the AUC estimator returns 0.5 in any label-degenerate case (already coded). Practical risk: D1's `test_g2_uses_seconds_error_label` constructs perfectly-monotone cost-error pairs and asserts `g2 == 1.0`, which is fine for the lock; but in real measurement G2 will be a 4-or-5-point AUC noisily oscillating between 0.4 and 0.9 and triggering the 0.02 regression threshold spuriously. Fallback: widen G2's regression tolerance (e.g., 0.10) until n grows, or gate G2 entirely until a second piece is sourced.
+
+[RISK] (confidence: 7/10) — **Dropping G4 leaves a real coverage gap: cross-chunk stitching regressions are no longer caught.** G4 measured stitch error across synthesized boundary cases — explicitly the class of DTW bug where the warping path resets at chunk boundaries. Practice-corpus chunks are by construction independently sampled, so the new primary cannot exhibit a stitch failure. If a DTW candidate breaks chunk-boundary continuity (the exact failure mode the parked `feat/continuity-aware-chroma-follower` branch is attacking), the new harness will not flag it. Fallback: keep G4 with synthetic-MAESTRO composition, OR add an explicit "consecutive overlapping chunks from the same clip must produce continuous score-frame estimates" guard built from the practice corpus itself. The plan's deletion of `practice_compose.py` should be reversed if no replacement guard is added.
+
+**Module Depth Audit.**
+
+| Module | Interface | Impl LOC | Verdict |
+|---|---|---|---|
+| `pseudo_truth_cache.py` | 4 public symbols (write, load, two interpolators on dataclass) | ~70 LOC inc. validation + atomic write + two exception types | DEEP |
+| `amt_regen.py` | 1 public function + CLI | ~200 LOC (HTTP, base64, chunking, partitura, parangonar, monotonic running-max) | DEEP |
+| `chunk_sampler.sample_practice_chunks` | 1 new function | ~50 LOC (YAML, cross-ref, stratify) | DEEP |
+| `metric_aggregator.aggregate` | unchanged signature surface | ~80 LOC (per-kind aggregation, AUC, regression) | DEEP |
+| `verify.py` | unchanged CLI | ~120 LOC (CLI + DTW dispatch + cache lookup + sidecar) | DEEP |
+
+No shallow modules. The cache uses JSON not pickle (correct: forward-compat, human-debuggable). `audio_sec_to_score_div` + inverse are exposed on the dataclass, which is the right abstraction for the consumer.
+
+[RISK] (confidence: 6/10) — **`amt_regen._build_pairs` imports `_cache_path` from `pseudo_truth_cache` (private helper, leading underscore).** Cross-module use of underscore-prefixed names is a code smell and will break the moment `pseudo_truth_cache` is refactored. Fallback: expose `cache_path_for(piece_id, video_id, cache_root)` as a public helper.
+
+**Code Quality.**
+
+[BLOCKER] (confidence: 10/10) — **B5 idempotence check silently swallows ValueError including PseudoTruthMismatchError.** Lines 1176-1179: `except FileNotFoundError: pass; except ValueError: pass  # hash mismatch -> regen below`. Catching bare `ValueError` is the catch-all anti-pattern called out explicitly in CLAUDE.md ("Catch-all error handling ... is a code smell"). It catches not only `PseudoTruthMismatchError` but also any JSON decode error, `np.asarray` dtype error, etc., and silently triggers a regen. Fix: catch `PseudoTruthMismatchError` specifically and let other ValueErrors propagate.
+
+[RISK] (confidence: 8/10) — **B5 `_transcribe_clip` swallows `requests.RequestException` on per-chunk POST failures with bare `continue` (lines 1083-1084).** Documented as "skip-on-tokenizer-error", but `RequestException` is a much wider class than a tokenizer boundary bug — it includes connection-refused, timeout, 502, and SSL failures. A flaky AMT endpoint could silently produce a pseudo-truth file with 30% of notes missing, which is then cached and shipped to every downstream `verify` run. Fix: distinguish a server-reported tokenizer error (the documented 200-with-error-body case, already handled separately at line 1072) from network failures; reraise the latter as `AmtRegenError`.
+
+[RISK] (confidence: 7/10) — **Pilot reports ~8% chunk-skip rate from tokenizer boundary bug. The plan does not specify a minimum coverage gate.** `regenerate_pseudo_truth` raises only if AMT returned zero notes total. A clip whose AMT output is 92% complete passes silently; a clip whose middle 8s are missing passes silently with a sparse pseudo-truth that interpolates over a gap as though the performer played nothing. Fallback: track and emit `coverage_pct` in the cache; refuse to write when below threshold (say 80%).
+
+[OBS] — `verify.py:D2` line 1911 contains `load_pseudo_truth(...) if skip_dtw else None  # touch loader on skip path` — an expression statement used for side effect. Stylistically off and pyright will flag it. Make it a plain `if skip_dtw: load_pseudo_truth(...)`.
+
+[OBS] — `verify.py:D2` keeps the legacy `--fixtures` flag but the body is a no-op (`results = []`), silently producing primary=0 with no regression. Either delete the flag or make `--fixtures` raise NotImplementedError after the pivot.
+
+**Test Philosophy Audit.**
+
+[BLOCKER] (confidence: 9/10) — **Task A2 invents a parallel-safety workaround that is wrong.** Lines 115-117 say A2 "creates its surface test in a separate file" to avoid file overlap with A1's `test_module_surface.py`. This is the right instinct, but A2 then adds the new file *and also* claims to modify A1's file (line 115 says "Modify"). Re-read: the "Modify" line is then countermanded by the "to keep A2 parallel-safe" line, but the section header still lists "Modify". Decide and remove the contradiction. More importantly: writing surface-presence tests that import-and-expect-ModuleNotFoundError tests *nothing* about behavior — it locks the file deletion, not any user-visible contract. The deletion is verified by the existing test suite continuing to pass. These three "module not importable" tests in A1/A2/A3 are pure shape checks (★) and add maintenance burden. Fallback: delete A1/A2/A3 step-1 tests; the failing-test-then-pass cycle for a file deletion is theater. Use a single `git ls-files` assertion in a repo-level test if any.
+
+[BLOCKER] (confidence: 10/10) — **B2 and B3 explicitly admit they cannot do TDD red-then-green.** Lines 531-540 (B2) and 651-665 (B3) acknowledge "the test passes immediately, which is the test's purpose: lock behavior." This violates the plan's own vertical-slice TDD rule (one test → one impl → one commit, watch-it-fail discipline). The reason is correct (B1 already implements the behavior B2/B3 test), which means B1 has bundled three behaviors into one commit, and B2/B3 are not vertical slices but regression locks. Fallback: either (a) restructure B1 to implement only roundtrip, leaving B2 to add the missing-file raise and B3 to add the mismatch raises, with the worktree dispatcher controlling the ordering; or (b) merge B1+B2+B3 into one task with three assertions and acknowledge the bundled commit explicitly.
+
+[RISK] (confidence: 8/10) — **D3's smoke test asserts only sidecar shape, not error_seconds correctness.** Lines 2072-2074: `assert body["n_chunks"] >= 1; assert set(body["guards"].keys()) == {"g1", "g2", "g3", "g5"}`. With the BLOCKER above on the score-frame-to-score-div conversion, this test passes with arbitrarily wrong error values. The whole point of the new harness is to compute error_seconds correctly. Add an assertion that error_seconds for the staged corpus (where pseudo-truth is identity-linear) is within a small bound of the expected value.
+
+[RISK] (confidence: 7/10) — **D1 metric tests fabricate `ChunkResult` directly rather than driving them through the verify pipeline.** That is reasonable in isolation but leaves a gap: no test verifies that the verify CLI actually produces `ChunkResult.error_seconds` correctly from `DtwResult.predicted_score_frame` + pseudo-truth inverse. Combined with D3 not asserting numerical correctness, the entire mathematical core of the rework has no behavior test.
+
+[OBS] — A4's `test_recipe_listed` skips if `just` is not installed. CI will silently skip on a worker without `just`. Make the skip a hard fail in CI, or ensure `just` is in the project's dev dependencies / CI image.
+
+**Vertical Slice Audit.**
+
+Already flagged: B1 bundles three behaviors. A1/A2/A3 write tautological shape tests for file deletions. D1 bundles "switch to seconds tolerance" + "drop G4" + "rewrite ChunkResult fields" + "rewrite GuardSet" into one commit — at minimum two separable behaviors (tolerance unit change, G4 removal) that warrant separate red-green cycles.
+
+[RISK] (confidence: 7/10) — D2 and D3 are dependent commits that *together* deliver the working verify CLI. The D2 commit ships a verify CLI that requires `--skip-dtw` to function and explicitly NotImplementedErrors on the real path; if D3 lands later the repo is in a half-working state. Either fold D2+D3 or guard `--skip-dtw` as an internal flag not exposed in the CLI's external contract.
+
+**Failure Modes.**
+
+- `regenerate_pseudo_truth` failure mid-flight: writes via tempfile-rename are atomic in B1 (good). AMT POST failures during chunk transcription are silently dropped (BLOCKER above).
+- `verify.py` failure mid-flight: each chunk is independent; a single chunk's load failure currently propagates as `PseudoTruthMissingError` and crashes the CLI. With the audio_sha256="z"*16 BLOCKER above, *every* chunk fails on real corpus, so this is irrelevant until that's fixed. After fix: consider whether a single bad cache entry should crash the run or be reported and skipped.
+- `_build_score_bars` writes to `<corpus>/scores/<piece>.bars.json` lazily; concurrent verify runs against the same corpus race on this write. Low probability but real.
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| Pilot's ~60-80ms jitter generalizes to non-Ballade pieces | VALIDATE | Only bach_prelude_c_wtc1 pilot data exists; arpeggiated pieces showed different geometry in 2026-05-31 audit |
+| `(audio_sha256, amt_checkpoint_hash)` uniquely keys pseudo-truth | RISKY | Omits score hash, parangonar version, projection bpm — see BLOCKER above |
+| 1.5s tolerance is defensible | VALIDATE | Plausible but underived; needs tolerance_sensitivity sidecar |
+| `predicted_score_frame * (1/50) * 100 = score_div` | RISKY | Acknowledged-wrong in plan; first baseline will be garbage |
+| partitura's `note_array()` always includes `onset_div` | VALIDATE | Version-dependent in partitura; assert at call site |
+| AMT `/health` returns JSON with optional `checkpoint_hash` | SAFE | apps/inference/amt server documented; behavior is opt-in |
+| `cargo build --release` of dtw_chunk_cli fits in 120s budget on cold checkout | RISKY | First build is ~60-180s on M4; budget is for steady state, not cold |
+| Practice eval audio sha256 stable across regen | SAFE | sha256 of the .wav file; only changes if the audio file changes |
+| n=1 piece × ~10 chunks is a usable autoresearch signal | RISKY | Per-chunk binomial CI is ~±15-20pp; many candidate effects will be sub-noise |
+| Dropping G4 does not lose stitch-regression coverage | RISKY | Practice corpus chunks are independent; stitch failures invisible to new primary |
+
+### Summary
+
+[BLOCKER]  count: 8
+[RISK]     count: 9
+[QUESTION] count: 1
+
+Critical blockers cluster on (a) the math in D3, (b) the cache key construction in B1/B5, (c) the verify CLI passing fake hashes everywhere, (d) the bare-ValueError catch in B5, (e) the projection-bpm dead code path in B5, and (f) TDD discipline violations in B2/B3 and A1/A2/A3.
+
+VERDICT: NEEDS_REWORK — Fix the score-frame-to-score-div conversion (D3 plan or schema change); compute real audio_sha256 in verify.py instead of hardcoding "z"*16; extend cache key to include score_sha256 + parangonar_version + projection_bpm; replace bare ValueError catch with PseudoTruthMismatchError-specific catch; remove or assert-guard the partitura projection bpm dead path; collapse B1/B2/B3 into either one bundled commit or three real red-green cycles; drop the tautological deletion-shape tests in A1/A2/A3; add a coverage-pct gate in amt_regen; restore stitch-regression coverage (keep G4 or replace with consecutive-chunk continuity guard); document n=1 baseline as smoke-only and gate /autoresearch dispatch on a second piece's score.
