@@ -26,8 +26,6 @@ from typing import Any
 
 import yaml
 
-from shared.style_rules import get_style_guidance
-from shared.teacher_style import format_teacher_voice_blocks, select_clusters
 from shared.provenance import RunProvenance, make_run_provenance
 from shared.judge_compatibility import assert_judge_compatible
 from shared.judge_atomic import judge_atomic_matrix
@@ -115,103 +113,6 @@ def aggregate_muq(chunks: list[dict[str, Any]]) -> dict[str, float]:
         for dim, vals in accum.items()
         if vals
     }
-
-
-def build_synthesis_user_msg(
-    muq_means: dict[str, float],
-    duration_seconds: float,
-    meta: dict[str, Any],
-    chunks: list[dict[str, Any]] | None = None,
-) -> str:
-    """Build the user message for Sonnet, matching prod buildSynthesisFraming()."""
-    deviations = {
-        dim: muq_means[dim] - SCALER_MEAN[dim]
-        for dim in DIMS
-        if dim in muq_means
-    }
-
-    # Top moments: largest absolute deviation, floor at 0.05 to exclude noise
-    top_moments = sorted(
-        [
-            {
-                "dimension": dim,
-                "score": muq_means[dim],
-                "deviation_from_mean": round(dev, 3),
-                "direction": "above_average" if dev > 0 else "below_average",
-            }
-            for dim, dev in deviations.items()
-            if abs(dev) >= 0.05
-        ],
-        key=lambda x: abs(float(x["deviation_from_mean"])),
-        reverse=True,
-    )[:4]
-
-    # Inject bar_analysis facts onto the matching top moment.
-    # NOTE: eval uses SCALER_MEAN (global) as baselines; production uses
-    # per-student baselines. Documented divergence.
-    if chunks is not None and top_moments:
-        from teaching_knowledge.bar_analysis_local import build_bar_analysis
-        from teaching_knowledge.piece_score_map import get_score_path_for_piece
-
-        score_path = get_score_path_for_piece(meta.get("piece_slug", ""))
-        score_json = json.loads(score_path.read_text()) if score_path is not None else None
-        baselines_for_facts = {dim: SCALER_MEAN[dim] for dim in DIMS}
-        facts = build_bar_analysis(chunks, baselines_for_facts, score_json)
-        if facts is not None:
-            selected_dim_name = facts["selected"]["dimension"]
-            for m in top_moments:
-                if m["dimension"] == selected_dim_name:
-                    m["bar_analysis"] = facts
-                    break
-
-    session_data = {
-        "duration_minutes": round(duration_seconds / 60, 1),
-        "practice_pattern": "continuous_play",
-        "top_moments": top_moments,
-        "drilling_records": [],
-        "piece": {
-            "title": meta["title"],
-            "composer": meta["composer"],
-            "skill_level": meta["skill_bucket"],
-        },
-    }
-
-    guidance = get_style_guidance(meta.get("composer", ""))
-
-    devs = [float(m["deviation_from_mean"]) for m in top_moments]
-    negs = [-d for d in devs if d < 0]
-    poss = [d for d in devs if d > 0]
-    signals = {
-        "max_neg_dev": max(negs) if negs else 0.0,
-        "max_pos_dev": max(poss) if poss else 0.0,
-        "n_significant": sum(1 for d in devs if abs(d) >= 0.1),
-        "drilling_present": False,   # live session state unavailable from recordings
-        "drilling_improved": False,  # live session state unavailable from recordings
-        "duration_min": duration_seconds / 60,
-        "mode_count": 1,             # live session state unavailable from recordings
-        "has_piece": bool(meta.get("title")) and meta.get("title") != "Unknown",
-    }
-    voice_blocks = format_teacher_voice_blocks(select_clusters(signals))
-
-    parts: list[str] = [
-        "<session_data>",
-        json.dumps(session_data, indent=2),
-        "</session_data>",
-    ]
-    if guidance:
-        parts.append("")
-        parts.append(guidance)
-    if voice_blocks:
-        parts.append("")
-        parts.append(voice_blocks)
-    parts.append("")
-    parts.append(
-        "<task>Write <analysis>...</analysis> first as a reasoning scratchpad "
-        "(this will be stripped). Then write your teacher response: 3-6 sentences, "
-        "conversational, warm, specific. Do not mention scores or numbers. Focus on "
-        "what matters most for this session.</task>"
-    )
-    return "\n".join(parts)
 
 
 def extract_teacher_response(raw: str) -> str:
@@ -377,79 +278,10 @@ def run(
             duration_seconds = data.get("total_duration_seconds", 0.0)
 
             try:
-                user_msg = build_synthesis_user_msg(
-                    muq_means, duration_seconds, meta, chunks=chunks
+                raise NotImplementedError(
+                    "Thin-framing synthesis path removed (issue #22). "
+                    "Use run_do_baseline via --do-path."
                 )
-
-                t0 = time.monotonic()
-                raw = synthesis_client.complete(
-                    user=user_msg,
-                    system=system_prompt,
-                    max_tokens=1024,
-                )
-                synthesis_latency_ms = (time.monotonic() - t0) * 1000
-                synthesis_text = extract_teacher_response(raw)
-
-                if dry_run:
-                    result = _build_row(
-                        recording_id=recording_id,
-                        meta=meta,
-                        muq_means=muq_means,
-                        synthesis_text=synthesis_text,
-                        synthesis_latency_ms=round(synthesis_latency_ms),
-                        judge_dimensions=[],
-                        judge_model="dry_run",
-                        judge_latency_ms=0,
-                        error="",
-                        provenance=provenance,
-                    )
-                else:
-                    judge_context = {
-                        "piece_name": meta["title"],
-                        "composer": meta["composer"],
-                        "skill_level": meta["skill_bucket"],
-                    }
-                    # Autodetect: @cf/* = workers-ai, vendor/model = openrouter (bare names unreachable here — family guard blocks them).
-                    judge_provider = "openrouter" if "/" in judge_model and not judge_model.startswith("@cf/") else "workers-ai"
-                    judge_result = judge_synthesis_v2(
-                        synthesis_text=synthesis_text,
-                        context=judge_context,
-                        provider=judge_provider,
-                        model=judge_model,
-                    )
-                    result = _build_row(
-                        recording_id=recording_id,
-                        meta=meta,
-                        muq_means=muq_means,
-                        synthesis_text=synthesis_text,
-                        synthesis_latency_ms=round(synthesis_latency_ms),
-                        judge_dimensions=[
-                            {
-                                "criterion": d.criterion,
-                                "process": d.process,
-                                "outcome": d.outcome,
-                                "score": d.score,
-                                "evidence": d.evidence,
-                                "reason": d.reason,
-                            }
-                            for d in judge_result.dimensions
-                        ],
-                        judge_model=judge_result.model,
-                        judge_latency_ms=round(judge_result.latency_ms),
-                        error="",
-                        provenance=provenance,
-                    )
-                    if atomic_threshold is not None:
-                        atomic_client = LLMClient(provider=judge_provider, model=judge_model)
-                        atomic = _maybe_atomic_judge(
-                            synthesis_text=synthesis_text,
-                            context=judge_context,
-                            judge_dimensions=result["judge_dimensions"],
-                            threshold=atomic_threshold,
-                            client=atomic_client,
-                        )
-                        if atomic is not None:
-                            result["atomic_matrix"] = atomic
 
             except Exception as exc:
                 errors += 1
