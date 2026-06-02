@@ -168,6 +168,10 @@ model/data/eval/youtube_amt/*.webm
 model/data/eval/youtube_amt/*.m4a
 model/data/eval/youtube_amt/*.opus
 
+# practice_eval audio (downloaded via model/scripts/download_practice_eval.py;
+# regen from candidates.yaml; pseudo-truth JSON is committed, audio is not)
+model/data/evals/practice_eval/*/audio/
+
 # Eval reports (regenerated)
 apps/api/evals/reports/
 .gitnexus

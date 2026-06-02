@@ -1,0 +1,24 @@
+{
+  "piece": "chopin_ballade_1",
+  "video_id": "MKbOHysTOE8",
+  "amt_note_count": 2305,
+  "score_note_count": 5171,
+  "measure_count": 264,
+  "matched_label_count": 1883,
+  "matched_pair_count": 1883,
+  "match_rate_vs_amt": 0.8169197396963124,
+  "match_rate_vs_score": 0.36414619996132275,
+  "parangonar_seconds": 73.87775802612305,
+  "anchor_bars": {
+    "5.0s": null,
+    "30.0s": 7.0,
+    "60.0s": 17.25225225225225,
+    "90.0s": 29.166666666666668,
+    "120.0s": 40.08139534883721,
+    "150.0s": 62.8015873015873,
+    "180.0s": 76.81182795698925,
+    "210.0s": 89.31218181818183,
+    "240.0s": 99.54074074074073,
+    "270.0s": 113.72163120567376
+  }
+}
