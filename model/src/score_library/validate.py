@@ -56,7 +56,7 @@ class ExpectedMeta:
     min_notes: int = 20
     bar_tol_low: float = 0.7
     bar_tol_high: float = 2.2
-    quant_max_median_dev_beats: float = 0.10
+    quant_max_median_dev_sixteenths: float = 0.4
     key_min_correlation: float = 0.6
     pitch_low: int = 21
     pitch_high: int = 108
@@ -116,6 +116,12 @@ def validate_score(score: ScoreData, expected: ExpectedMeta) -> list[Violation]:
         )
 
     # (d) Quantization: recover the 16th grid from bar.start_tick deltas + time sig.
+    # Metric: median deviation expressed in sixteenth-note units (meter-independent).
+    # A perfectly on-grid note = 0.0; a note exactly half a sixteenth off = 0.5.
+    # The ceiling is always 0.5 regardless of time signature, so the threshold
+    # (default 0.4) is meter-independent: triplet textures yield ~0.333 (pass),
+    # a fixed half-sixteenth offset yields 0.5 (fail). Primary discriminators remain
+    # key-agreement + bar-count; this is a coarse gross/fixed-offset guard only.
     if len(score.bars) >= 2:
         bar_ticks_list: list[int] = []
         for i in range(len(score.bars) - 1):
@@ -123,7 +129,7 @@ def validate_score(score: ScoreData, expected: ExpectedMeta) -> list[Violation]:
         # Last bar reuses the previous bar's tick span.
         bar_ticks_list.append(bar_ticks_list[-1] if bar_ticks_list else 0)
 
-        devs_beats: list[float] = []
+        devs_sixteenths: list[float] = []
         for bi, bar in enumerate(score.bars):
             bar_ticks = bar_ticks_list[bi]
             if bar_ticks <= 0:
@@ -135,20 +141,19 @@ def validate_score(score: ScoreData, expected: ExpectedMeta) -> list[Violation]:
                 continue
             numerator = int(num_str)
             subdivisions_per_bar = numerator * 16 / denominator
-            sixteenths_per_beat = 16 / denominator
             for note in bar.notes:
                 fraction = (note.onset_tick - bar.start_tick) / bar_ticks
                 grid_pos = fraction * subdivisions_per_bar
                 dev_sixteenths = abs(grid_pos - round(grid_pos))
-                devs_beats.append(dev_sixteenths / sixteenths_per_beat)
+                devs_sixteenths.append(dev_sixteenths)
 
-        if devs_beats:
-            med = median(devs_beats)
-            if med > expected.quant_max_median_dev_beats:
+        if devs_sixteenths:
+            med = median(devs_sixteenths)
+            if med > expected.quant_max_median_dev_sixteenths:
                 violations.append(
                     Violation(
                         "quantization",
-                        f"median grid deviation {med:.3f} beats > {expected.quant_max_median_dev_beats} (grossly off-grid / fixed-offset?)",
+                        f"median grid deviation {med:.3f} sixteenths > {expected.quant_max_median_dev_sixteenths} (grossly off-grid / fixed-offset?)",
                     )
                 )
 

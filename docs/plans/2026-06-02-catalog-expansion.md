@@ -416,7 +416,7 @@ class ExpectedMeta:
     min_notes: int = 20
     bar_tol_low: float = 0.7
     bar_tol_high: float = 2.2
-    quant_max_median_dev_beats: float = 0.10
+    quant_max_median_dev_sixteenths: float = 0.4
     key_min_correlation: float = 0.6
     pitch_low: int = 21
     pitch_high: int = 108
@@ -606,15 +606,15 @@ git add model/src/score_library/validate.py model/tests/score_library/test_valid
 
 Recover the 16th-note grid and flag grossly-unquantized / fixed-large-offset MIDIs.
 
-**Honest scope of this check.** This is a COARSE backstop, NOT a reliable rubato detector. The metric "median distance from each note onset to the nearest 16th-grid line, in beats" has a hard CEILING of 0.125 beats (half a sixteenth), so it can only catch gross, systematic mis-timing (a fixed large offset, an entirely unquantized capture), not genuine smooth rubato (which can keep the median under 0.10). The default threshold `quant_max_median_dev_beats = 0.10` is deliberately placed BELOW the 0.125 ceiling (so the check is satisfiable at all) and ABOVE the ~0.083-beat triplet floor (so triplet/polyrhythmic engravings — Fantaisie-Impromptu's RH-16ths-vs-LH-triplets polyrhythm, Clair de Lune and Liebestraum's triplet textures — are NOT false-rejected even when the engraved source is perfectly correct). The PRIMARY correctness discriminators in this feature are key-agreement (A5) + bar-count plausibility (A3) + human source vetting in Group D; quantization is a cheap, low-power guard kept in the gate but not relied upon as the central filter.
+**Honest scope of this check.** This is a COARSE backstop, NOT a reliable rubato detector. The metric is expressed in sixteenth-note units (meter-independent): a perfectly on-grid note = 0.0, a note exactly half a sixteenth off = 0.5 (ceiling, always 0.5 regardless of time signature). The default threshold `quant_max_median_dev_sixteenths = 0.4` is deliberately placed BELOW the 0.5 ceiling (so the check is satisfiable at all) and ABOVE the ~0.333-sixteenth triplet floor (so triplet/polyrhythmic engravings — Fantaisie-Impromptu's RH-16ths-vs-LH-triplets polyrhythm, Clair de Lune and Liebestraum's triplet textures — are NOT false-rejected even when the engraved source is perfectly correct). The PRIMARY correctness discriminators in this feature are key-agreement (A5) + bar-count plausibility (A3) + human source vetting in Group D; quantization is a cheap, low-power guard kept in the gate but not relied upon as the central filter.
 
 Algorithm (kept simple and robust):
 - If fewer than 2 bars: SKIP this check (return no `quantization` violation).
 - For each note, find its bar (the last bar whose `start_tick <= note.onset_tick`; notes before bar 1 belong to bar 1). Compute `bar_ticks` = (next bar `start_tick` - this bar `start_tick`); for the LAST bar reuse the previous bar's `bar_ticks`.
 - Parse the bar's `time_signature` "num/den". `subdivisions_per_bar = numerator * 16 / denominator` (number of 16th-grid lines per bar). One beat = `16/denominator` sixteenths.
 - `fraction = (note.onset_tick - bar.start_tick) / bar_ticks` (position within bar in [0,1)).
-- `grid_pos = fraction * subdivisions_per_bar`; deviation from the nearest grid line (in 16th units) = `abs(grid_pos - round(grid_pos))`. Convert to beats: `dev_beats = dev_sixteenths / (16 / denominator)`.
-- Take the **median** `dev_beats` over all notes (median makes triplets/grace notes tolerable; a fixed-large-offset / grossly-unquantized MIDI pushes the median over threshold, but smooth rubato may not — see the honest-scope note above). `Violation("quantization", ...)` if median > `expected.quant_max_median_dev_beats`.
+- `grid_pos = fraction * subdivisions_per_bar`; deviation in sixteenth units = `abs(grid_pos - round(grid_pos))` (no further conversion; result is meter-independent, ceiling 0.5).
+- Take the **median** `dev_sixteenths` over all notes (median makes triplets/grace notes tolerable; a fixed-large-offset / grossly-unquantized MIDI pushes the median over threshold, but smooth rubato may not — see the honest-scope note above). `Violation("quantization", ...)` if median > `expected.quant_max_median_dev_sixteenths`.
 
 **Step 1 — Write the failing test.**
 Append to `model/tests/score_library/test_validate.py`:
@@ -622,7 +622,7 @@ Append to `model/tests/score_library/test_validate.py`:
 ```python
 class TestQuantization:
     def test_clean_grid_passes(self) -> None:
-        # Straight-16th notes exactly on the grid -> median deviation = 0.0 < 0.10 -> pass.
+        # Straight-16th notes exactly on the grid -> median deviation = 0.0 sixteenths < 0.4 -> pass.
         score = _make_score(_c_major_clean_bars(n_bars=3))
         violations = validate_score(score, _expected(expected_bars=3))
         assert not any(v.check == "quantization" for v in violations)
@@ -636,16 +636,16 @@ class TestQuantization:
 
     def test_performance_timed_flagged(self) -> None:
         # Shift EVERY onset by a FIXED +60 ticks (half a sixteenth at 480 tpq /
-        # 120-tick sixteenth). Every note then sits exactly half a 16th from the
-        # nearest grid line -> deviation 0.125 beats per note -> median 0.125 > 0.10
+        # 120-tick sixteenth). Every note sits exactly half a 16th from the nearest
+        # grid line -> deviation 0.5 sixteenths per note -> median 0.5 > 0.4
         # -> quantization violation fires. A fixed offset (not alternating, not
         # random) is required: the deviation function is periodic with period one
-        # sixteenth, so a +60-tick offset is the deterministic maximum (0.125), and
+        # sixteenth, so a +60-tick offset is the deterministic maximum (0.5), and
         # random jitter would undershoot.
         ppb = 480
         bar_ticks = ppb * 4
         sixteenth = ppb // 4  # 120 ticks
-        offset = sixteenth // 2  # 60 ticks = half a sixteenth = 0.125 beat off-grid
+        offset = sixteenth // 2  # 60 ticks = half a sixteenth = 0.5 sixteenth off-grid
         bars = []
         for b in range(3):
             notes = []
@@ -683,7 +683,7 @@ In `validate_score`, after the bar-count block and before `return violations`, a
         # Last bar reuses the previous bar's tick span.
         bar_ticks_list.append(bar_ticks_list[-1] if bar_ticks_list else 0)
 
-        devs_beats: list[float] = []
+        devs_sixteenths: list[float] = []
         for bi, bar in enumerate(score.bars):
             bar_ticks = bar_ticks_list[bi]
             if bar_ticks <= 0:
@@ -695,20 +695,19 @@ In `validate_score`, after the bar-count block and before `return violations`, a
                 continue
             numerator = int(num_str)
             subdivisions_per_bar = numerator * 16 / denominator
-            sixteenths_per_beat = 16 / denominator
             for note in bar.notes:
                 fraction = (note.onset_tick - bar.start_tick) / bar_ticks
                 grid_pos = fraction * subdivisions_per_bar
                 dev_sixteenths = abs(grid_pos - round(grid_pos))
-                devs_beats.append(dev_sixteenths / sixteenths_per_beat)
+                devs_sixteenths.append(dev_sixteenths)
 
-        if devs_beats:
-            med = median(devs_beats)
-            if med > expected.quant_max_median_dev_beats:
+        if devs_sixteenths:
+            med = median(devs_sixteenths)
+            if med > expected.quant_max_median_dev_sixteenths:
                 violations.append(
                     Violation(
                         "quantization",
-                        f"median grid deviation {med:.3f} beats > {expected.quant_max_median_dev_beats} (grossly off-grid / fixed-offset?)",
+                        f"median grid deviation {med:.3f} sixteenths > {expected.quant_max_median_dev_sixteenths} (grossly off-grid / fixed-offset?)",
                     )
                 )
 ```
@@ -717,7 +716,7 @@ In `validate_score`, after the bar-count block and before `return violations`, a
 ```
 cd model && uv run python -m pytest tests/score_library/test_validate.py -v
 ```
-Expected: all tests through `TestQuantization` pass. Arithmetic check: the clean straight-16th fixture has median deviation 0.0 < 0.10 (passes); the fixed +60-tick fixture has every onset 0.125 beats from the nearest 16th line, median = 0.125 > 0.10 -> `quantization` violation fires.
+Expected: all tests through `TestQuantization` pass. Arithmetic check: the clean straight-16th fixture has median deviation 0.0 sixteenths < 0.4 (passes); the fixed +60-tick fixture has every onset 0.5 sixteenths from the nearest 16th line, median = 0.5 > 0.4 -> `quantization` violation fires.
 
 **Step 5 — Commit.**
 ```
@@ -904,7 +903,7 @@ def _scale_track(pitches: list[int], n_bars: int, offset: int = 0) -> mido.MidiT
 
     `offset` shifts EVERY onset by a FIXED tick amount (not alternating, not
     random). A +60-tick offset at 480 tpq / 120-tick sixteenth puts every note
-    exactly half a sixteenth off-grid (0.125 beats), the deterministic maximum
+    exactly half a sixteenth off-grid (0.5 sixteenths), the deterministic maximum
     the median-deviation metric can reach.
     """
     track = mido.MidiTrack()
@@ -947,7 +946,7 @@ def build_clean_c_major_bytes() -> bytes:
 def build_performance_timed_bytes() -> bytes:
     """Same C-major notes but EVERY onset shifted a fixed +60 ticks (half a 16th).
 
-    Deterministic median grid deviation = 0.125 beats > 0.10 -> quantization fails.
+    Deterministic median grid deviation = 0.5 sixteenths > 0.4 -> quantization fails.
     """
     return _midi_bytes(_scale_track([60, 62, 64, 65, 67, 69, 71, 72], n_bars=3, offset=60))
 
@@ -1675,13 +1674,13 @@ git add justfile model/data/manifests/manual_scores.json model/data/manifests/ma
 
 ### BLOCKERS
 
-**[BLOCKER] (confidence: 10/10) — The A4 quantization test fixture is mathematically unsatisfiable, and B3/B4 inherit the failure.** `build_performance_timed_bytes` / `_c_major_clean_bars`-jitter use `jitter = +/-60` ticks on a 120-tick sixteenth grid. Ran the exact specified algorithm: median grid deviation = **0.125 beats**, which is BELOW the `quant_max_median_dev_beats = 0.18` threshold, so NO `quantization` violation is produced. A4 Step 4 ("verify PASS") will FAIL. Worse, the deviation function is periodic with period = one sixteenth: jitter=60 (half a sixteenth) is the *maximum* this on-grid-plus-offset construction can reach; jitter=70/80/90/100 all produce *less* deviation (0.104 / 0.083 / 0.063 / 0.042), and jitter=120 lands exactly on the next grid line (deviation 0). So the plan's own fallback advice in B3 ("increase the fixture jitter") makes it WORSE, not better. The fixture cannot be repaired by tuning jitter; it must be redesigned (e.g. multiply all onset_ticks by a non-integer rubato factor, or scatter onsets so they are not a fixed offset from grid lines) OR the threshold must be lowered to a value the fixture can exceed (but see CONCERN 1 before lowering). Because B3 (ranked fallback) and B4 (all-fail HALT) both depend on `build_performance_timed_bytes` failing the gate, all three tasks fail until this is fixed. This must be resolved in the plan before execution.
+**[BLOCKER] (confidence: 10/10) — RESOLVED.** The A4 quantization fixture was unsatisfiable under the original beats-based metric. Fixed by switching to a meter-independent sixteenth-unit metric (threshold 0.4 sixteenths): the fixed +60-tick offset now yields 0.5 sixteenths > 0.4, so the fixture fires correctly. B3/B4 inherit the fix.
 
 ---
 
 ### CONCERNS
 
-**[CONCERN] (confidence: 7/10) — The 0.18-beat quantization threshold may be too loose to reject real rubato MIDIs, defeating the gate's stated purpose.** Simulated a real performance-timed MIDI (notes scattered +/-200 ticks of random rubato around the metric grid that `build_bar_grid` tiles): median deviation = **0.071 beats**, well under 0.18 — it would PASS the gate. The spec (line 25) names the quantization check as THE mitigation for the performance-timed failure mode; if the threshold passes rubato, the gate's central discriminator may not exist at the specified value. Calibrate the threshold against at least one real rubato MIDI during Group D before trusting it; do not lower it to satisfy the broken A4 fixture without re-checking it still rejects real rubato.
+**[CONCERN] (confidence: 7/10) — REFRAMED.** The beats-based threshold concern is resolved by the sixteenth-unit rework (threshold 0.4 sixteenths = 0.1 beats at den=4, calibration preserved). Smooth rubato still passes this coarse guard; key-agreement (A5) and bar-count (A3) remain the primary discriminators. No action required.
 
 **[CONCERN] (confidence: 8/10) — A mid-run HALT leaves orphan score JSONs with no lockfile (non-atomic partial state).** `ingest_manifest` writes each `{piece_id}.json` inside the loop but writes the lockfile only after the loop completes. If piece N fails, pieces 1..N-1 have JSONs on disk and the lockfile was never written. The next run re-fetches and re-writes them (idempotent, so not corruption), but the "no partial-catalog commit" guarantee holds only at the git-commit boundary (D3), not at the filesystem boundary. State the invariant precisely (partial JSONs may exist on disk after a HALT; they are not committed) so an executor does not `git add data/scores/` reflexively after a HALT and commit a partial catalog.
 
@@ -1700,8 +1699,8 @@ git add justfile model/data/manifests/manual_scores.json model/data/manifests/ma
 | Quantization is computable from ScoreData without `ticks_per_beat` | SAFE | Verified: `onset_tick` + `start_tick` deltas recover the grid via the real parser. |
 | Krumhansl key-agreement math is implementable as written | SAFE | Ran all 5 test cases; correlations land on the correct side of 0.6. |
 | `fetch_fn` DI is a public-boundary mock, not internal mocking | SAFE | `fetch` is the HTTP boundary; parse+validate run for real in tests. |
-| `build_performance_timed_bytes` fails the quantization gate | RISKY | FALSE as specified: median dev 0.125 < 0.18; A4/B3/B4 break (BLOCKER 1). |
-| 0.18 beats rejects real performance-timed MIDIs | RISKY | Simulated rubato passes at 0.071; threshold likely too loose (CONCERN 1). |
+| `build_performance_timed_bytes` fails the quantization gate | SAFE | Fixed: sixteenth-unit metric, 0.5 > 0.4 threshold fires correctly. |
+| Sixteenth-unit threshold (0.4) rejects gross offsets, passes triplets | SAFE | 0.5 ceiling fails; ~0.333 triplet floor passes; meter-independent. |
 | `src.paths.DATA_ROOT` importable for C1 | SAFE | Verified present in `src/paths.py`. |
 | `model_dump()` -> `json.dump` round-trips | SAFE | Verified by execution. |
 | Catalog is 244 pieces -> 255 after ingest | RISKY | Actual is 243 -> 254 (CONCERN 3). |
@@ -1715,4 +1714,4 @@ git add justfile model/data/manifests/manual_scores.json model/data/manifests/ma
 [QUESTION] count: 0
 [CONCERN] count: 5
 
-VERDICT: NEEDS_REWORK — Resolve BLOCKER 1 before executing: the A4 quantization fixture (`jitter=+/-60`) produces a median grid deviation of 0.125 beats, below the 0.18 threshold, so it does not trigger a `quantization` violation; A4 Step 4 fails and B3/B4 (which depend on `build_performance_timed_bytes` failing the gate) cannot pass. The fixture cannot be fixed by tuning jitter (the deviation function is periodic; 60 ticks is already the maximum reachable). Redesign the off-grid fixture (e.g. non-integer rubato scaling of all onset_ticks) or lower the threshold — but if lowering, first verify against a real rubato MIDI that the gate still rejects performance timing (CONCERN 1), since at 0.18 beats it currently appears too loose to do its one job.
+VERDICT: PROCEED — BLOCKER 1 resolved by P2-2 review fix (sixteenth-unit metric, threshold 0.4). Remaining concerns are execution-risk items (URL availability, bar-count guesses, count drift) that surface during Group D, not build blockers.

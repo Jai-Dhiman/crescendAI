@@ -159,7 +159,7 @@ class TestBarCount:
 
 class TestQuantization:
     def test_clean_grid_passes(self) -> None:
-        # Straight-16th notes exactly on the grid -> median deviation = 0.0 < 0.10 -> pass.
+        # Straight-16th notes exactly on the grid -> median deviation = 0.0 sixteenths < 0.4 -> pass.
         score = _make_score(_c_major_clean_bars(n_bars=3))
         violations = validate_score(score, _expected(expected_bars=3))
         assert not any(v.check == "quantization" for v in violations)
@@ -173,16 +173,16 @@ class TestQuantization:
 
     def test_performance_timed_flagged(self) -> None:
         # Shift EVERY onset by a FIXED +60 ticks (half a sixteenth at 480 tpq /
-        # 120-tick sixteenth). Every note then sits exactly half a 16th from the
-        # nearest grid line -> deviation 0.125 beats per note -> median 0.125 > 0.10
+        # 120-tick sixteenth). Every note sits exactly half a 16th from the nearest
+        # grid line -> deviation 0.5 sixteenths per note -> median 0.5 > 0.4
         # -> quantization violation fires. A fixed offset (not alternating, not
         # random) is required: the deviation function is periodic with period one
-        # sixteenth, so a +60-tick offset is the deterministic maximum (0.125), and
+        # sixteenth, so a +60-tick offset is the deterministic maximum (0.5), and
         # random jitter would undershoot.
         ppb = 480
         bar_ticks = ppb * 4
         sixteenth = ppb // 4  # 120 ticks
-        offset = sixteenth // 2  # 60 ticks = half a sixteenth = 0.125 beat off-grid
+        offset = sixteenth // 2  # 60 ticks = half a sixteenth = 0.5 sixteenth off-grid
         bars = []
         for b in range(3):
             notes = []

@@ -94,7 +94,11 @@ def ingest_manifest(
                 if url.startswith("http://") or url.startswith("https://"):
                     raw = fetch_fn(url)
                 else:
-                    local_path = manifest_dir / url
+                    local_path = (manifest_dir / url).resolve()
+                    if not local_path.is_relative_to(manifest_dir.resolve()):
+                        raise SourceResolutionError(
+                            f"Source '{url}' resolves outside the manifest directory (path traversal rejected)"
+                        )
                     raw = local_path.read_bytes()
                 sha = hashlib.sha256(raw).hexdigest()
 

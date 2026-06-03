@@ -26,7 +26,7 @@ def _scale_track(pitches: list[int], n_bars: int, offset: int = 0) -> mido.MidiT
 
     `offset` shifts EVERY onset by a FIXED tick amount (not alternating, not
     random). A +60-tick offset at 480 tpq / 120-tick sixteenth puts every note
-    exactly half a sixteenth off-grid (0.125 beats), the deterministic maximum
+    exactly half a sixteenth off-grid (0.5 sixteenths), the deterministic maximum
     the median-deviation metric can reach.
     """
     track = mido.MidiTrack()
@@ -69,7 +69,7 @@ def build_clean_c_major_bytes() -> bytes:
 def build_performance_timed_bytes() -> bytes:
     """Same C-major notes but EVERY onset shifted a fixed +60 ticks (half a 16th).
 
-    Deterministic median grid deviation = 0.125 beats > 0.10 -> quantization fails.
+    Deterministic median grid deviation = 0.5 sixteenths > 0.4 -> quantization fails.
     """
     return _midi_bytes(_scale_track([60, 62, 64, 65, 67, 69, 71, 72], n_bars=3, offset=60))
 
@@ -283,7 +283,7 @@ class TestLocalFileSource:
         )
 
         # NO fetch_fn override: exercises the real local-read path
-        report = ingest_manifest(manifest_path, scores_dir, lock_path)
+        ingest_manifest(manifest_path, scores_dir, lock_path)
 
         # Score JSON lands in scores_dir
         assert (scores_dir / "test.cmajor.json").exists()
@@ -294,3 +294,34 @@ class TestLocalFileSource:
         lock = json.loads(lock_path.read_text())
         assert lock["test.cmajor"]["resolved_url"] == "manual_midis/x.mid"
         assert lock["test.cmajor"]["sha256"] == hashlib.sha256(midi_bytes).hexdigest()
+
+    def test_local_source_path_traversal_rejected(self, tmp_path: Path) -> None:
+        """A manifest source that escapes manifest_dir via ../ raises SourceResolutionError."""
+        scores_dir = tmp_path / "scores"
+        scores_dir.mkdir()
+        lock_path = tmp_path / "manifest_subdir" / "lock.json"
+
+        # Manifest lives in a subdirectory; source tries to escape with ../
+        manifest_subdir = tmp_path / "manifest_subdir"
+        manifest_subdir.mkdir()
+        manifest_path = manifest_subdir / "m.json"
+        manifest_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "slug": "test_escape",
+                        "piece_id": "test.escape",
+                        "composer": "Test",
+                        "title": "Escape",
+                        "expected_key": "C major",
+                        "expected_bars": 3,
+                        "license": "PD",
+                        "sources": ["../escape.mid"],
+                    }
+                ]
+            )
+        )
+
+        with pytest.raises(SourceResolutionError) as exc:
+            ingest_manifest(manifest_path, scores_dir, lock_path)
+        assert "path traversal" in str(exc.value).lower()

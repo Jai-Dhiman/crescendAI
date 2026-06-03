@@ -34,7 +34,7 @@ A new offline command, `uv run python -m score_library.cli parse-manual --manife
 
 **`score_library/validate.py`** — DEEP.
 - Interface: `validate_score(score: ScoreData, expected: ExpectedMeta) -> list[Violation]` (empty list = pass).
-- Hides: Krumhansl-Schmuckler key-profile correlation (primary), bar-count tolerance band (primary), DoD-minimum and pitch-range logic, and a coarse 16th-grid recovery + median-deviation backstop (threshold 0.10 beats sits below the 0.125-beat metric ceiling and above the ~0.083-beat triplet floor, so it flags gross/fixed-offset mis-timing without false-rejecting triplet/polyrhythmic engravings; it does NOT reliably detect smooth rubato).
+- Hides: Krumhansl-Schmuckler key-profile correlation (primary), bar-count tolerance band (primary), DoD-minimum and pitch-range logic, and a coarse 16th-grid recovery + median-deviation backstop (metric is meter-independent: deviation in sixteenth-note units, ceiling 0.5, threshold 0.4 sixteenths; triplet textures yield ~0.333 and pass, a fixed half-sixteenth offset yields 0.5 and fails; it does NOT reliably detect smooth rubato).
 - Tested through: `validate_score` only, with synthetic `ScoreData` fixtures. Never internals.
 
 **`score_library/manual.py`** — DEEP.
