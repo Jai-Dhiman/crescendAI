@@ -8,7 +8,6 @@ from teacher_model.stage0.aggregator import build_dossier
 from teacher_model.stage0.judge_extended import judge_extended
 from teacher_model.stage0.pin_tokenizer import pin_tokenizer
 from teacher_model.stage0.run_continuation import run as run_continuation
-from teacher_model.stage0.run_synthesis import run as run_synthesis
 from teacher_model.stage0.run_tool_probe import run as run_tool_probe
 from teacher_model.stage0.sampler import sample_holdout, write_holdout
 
@@ -17,7 +16,6 @@ _DATA_DIR = _STAGE0_ROOT / "data"
 _RESULTS_DIR = _STAGE0_ROOT / "results"
 _PROMPTS_DIR = _STAGE0_ROOT / "prompts"
 _REPO_ROOT = _STAGE0_ROOT.resolve().parents[3]
-_SYNTH_SYSTEM = _REPO_ROOT / "apps" / "shared" / "teacher-style" / "synthesis_system.txt"
 _BASELINE_AGGREGATE = _REPO_ROOT / "apps" / "evals" / "results" / "baseline_v1_aggregate.json"
 
 
@@ -41,6 +39,8 @@ def _build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--judge-model", default="@cf/google/gemma-4-26b-a4b-it")
     sp.add_argument("--out", type=Path, default=_RESULTS_DIR / "synthesis_runs.jsonl")
     sp.add_argument("--limit", type=int, default=None)
+    sp.add_argument("--wrangler-url", default="http://localhost:8787",
+                    help="wrangler dev base URL (DO-path synthesis).")
 
     sp = sub.add_parser("tool", help="Pipeline B: tool-call probe")
     sp.add_argument("--provider", default="openrouter")
@@ -132,17 +132,16 @@ def main() -> None:
         return
 
     if args.cmd == "synthesis":
-        from teaching_knowledge.llm_client import LLMClient
-        client = LLMClient(provider=args.provider, model=args.model)
-        run_synthesis(
+        from teaching_knowledge.run_eval import run_do_baseline
+
+        run_do_baseline(
             holdout_path=_DATA_DIR / "stage0_holdout.jsonl",
             out_path=args.out,
-            teacher_client=client,
-            judge_fn=judge_extended,
-            system_prompt=_SYNTH_SYSTEM.read_text(),
+            wrangler_url=getattr(args, "wrangler_url", "http://localhost:8787"),
+            judge_fn=judge_extended,  # BLOCKER 2: keep the 9-dim stage0 judge, not judge_synthesis_v2
+            limit=args.limit,
             judge_provider=args.judge_provider,
             judge_model=args.judge_model,
-            limit=args.limit,
         )
         return
 
