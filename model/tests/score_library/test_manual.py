@@ -166,3 +166,44 @@ class TestIngestHashMismatch:
         assert "hash_mismatch" in str(exc.value)
         # The only candidate was rejected by the pin, so no JSON was written.
         assert not (scores_dir / "test.cmajor.json").exists()
+
+
+class TestIngestRankedFallback:
+    def test_first_fails_second_wins(self, tmp_path: Path) -> None:
+        scores_dir = tmp_path / "scores"
+        scores_dir.mkdir()
+        manifest_path = tmp_path / "manifest.json"
+        lock_path = tmp_path / "lock.json"
+
+        bad = build_performance_timed_bytes()
+        good = build_clean_c_major_bytes()
+        url_bad = "https://example.org/perf.mid"
+        url_good = "https://example.org/clean.mid"
+        _write_manifest(
+            manifest_path,
+            [
+                {
+                    "slug": "test_slug",
+                    "piece_id": "test.cmajor",
+                    "composer": "Test",
+                    "title": "C Major",
+                    "expected_key": "C major",
+                    "expected_bars": 3,
+                    "license": "PD",
+                    "sources": [url_bad, url_good],
+                }
+            ],
+        )
+
+        report = ingest_manifest(
+            manifest_path,
+            scores_dir,
+            lock_path,
+            fetch_fn=_make_fetch({url_bad: bad, url_good: good}),
+        )
+
+        assert (scores_dir / "test.cmajor.json").exists()
+        lock = json.loads(lock_path.read_text())
+        # Second (clean) source won; lockfile records its URL.
+        assert lock["test.cmajor"]["resolved_url"] == url_good
+        assert report.resolved["test.cmajor"]["resolved_url"] == url_good
