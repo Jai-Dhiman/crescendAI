@@ -1,8 +1,26 @@
-{
-  "version": 1,
-  "chunks": [
-    {"id": "fix_001", "kind": "gold", "simulated_error_frames": 0, "simulated_cost": 0.10},
-    {"id": "fix_002", "kind": "amateur", "simulated_cost": 0.18, "simulated_bar_distance": 0.0},
-    {"id": "fix_003", "kind": "silence", "simulated_cost": 0.05, "simulated_loud_failure": true}
-  ]
-}
+[
+  {
+    "piece": "bach_prelude_c_wtc1",
+    "video_id": "VID0",
+    "start_audio_sec": 0.0,
+    "end_audio_sec": 15.0,
+    "audio_sha256": "fixture_stub_0001",
+    "position_bucket": "intro"
+  },
+  {
+    "piece": "bach_prelude_c_wtc1",
+    "video_id": "VID0",
+    "start_audio_sec": 30.0,
+    "end_audio_sec": 45.0,
+    "audio_sha256": "fixture_stub_0001",
+    "position_bucket": "middle"
+  },
+  {
+    "piece": "bach_prelude_c_wtc1",
+    "video_id": "VID0",
+    "start_audio_sec": 100.0,
+    "end_audio_sec": 115.0,
+    "audio_sha256": "fixture_stub_0001",
+    "position_bucket": "late"
+  }
+]
