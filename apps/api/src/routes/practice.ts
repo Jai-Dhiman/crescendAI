@@ -117,7 +117,17 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 		const stub = c.env.SESSION_BRAIN.get(id);
 
 		const url = new URL(c.req.url);
-		url.searchParams.set("studentId", c.var.studentId);
+
+		// Eval sessions may supply a per-recording identity so each recording
+		// starts with empty sessionHistory/pastDiagnoses (cold-start guarantee).
+		// This override is ONLY honoured when the session is explicitly eval mode;
+		// production sessions always use the authenticated user's identity.
+		const isEval = c.req.query("eval") === "true";
+		const evalStudentId = isEval ? (c.req.query("evalStudentId") ?? "") : "";
+		const effectiveStudentId =
+			isEval && evalStudentId ? evalStudentId : c.var.studentId;
+
+		url.searchParams.set("studentId", effectiveStudentId);
 		const conversationId = c.req.query("conversationId");
 		if (conversationId) {
 			url.searchParams.set("conversationId", conversationId);

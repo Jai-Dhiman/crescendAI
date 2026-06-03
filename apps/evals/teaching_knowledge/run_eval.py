@@ -347,11 +347,16 @@ def run_do_baseline(
                 "chunks": briefing.get("chunks", []),
             }
 
+            # Each recording gets a fresh eval identity so sessionHistory /
+            # pastDiagnoses queries in the DO see an empty longitudinal record.
+            # The outer `student_id` param is ignored here intentionally.
+            per_recording_student_id = f"eval-{recording_id}"
+
             try:
                 session_result = driver(
                     wrangler_url,
                     recording_cache,
-                    student_id,
+                    per_recording_student_id,
                     meta["piece_slug"] or None,
                 )
                 row = build_do_row(

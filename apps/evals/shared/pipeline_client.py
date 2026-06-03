@@ -155,7 +155,10 @@ async def run_recording(
 
     parsed = urlparse(wrangler_url)
     ws_scheme = "wss" if parsed.scheme == "https" else "ws"
-    ws_url = f"{ws_scheme}://{parsed.netloc}/api/practice/ws/{session_id}?eval=true"
+    ws_url = (
+        f"{ws_scheme}://{parsed.netloc}/api/practice/ws/{session_id}"
+        f"?eval=true&evalStudentId={student_id}"
+    )
 
     observations: list[PipelineObservation] = []
     chunk_responses: list[dict] = []
