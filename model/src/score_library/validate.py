@@ -14,6 +14,37 @@ from statistics import median
 
 from score_library.schema import ScoreData
 
+KRUMHANSL_MAJOR = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
+KRUMHANSL_MINOR = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
+
+_TONIC_TO_PC = {
+    "C": 0, "B#": 0,
+    "C#": 1, "Db": 1,
+    "D": 2,
+    "D#": 3, "Eb": 3,
+    "E": 4, "Fb": 4,
+    "F": 5, "E#": 5,
+    "F#": 6, "Gb": 6,
+    "G": 7,
+    "G#": 8, "Ab": 8,
+    "A": 9,
+    "A#": 10, "Bb": 10,
+    "B": 11, "Cb": 11,
+}
+
+
+def _pearson(a: list[float], b: list[float]) -> float:
+    n = len(a)
+    mean_a = sum(a) / n
+    mean_b = sum(b) / n
+    cov = sum((a[i] - mean_a) * (b[i] - mean_b) for i in range(n))
+    var_a = sum((a[i] - mean_a) ** 2 for i in range(n))
+    var_b = sum((b[i] - mean_b) ** 2 for i in range(n))
+    denom = (var_a * var_b) ** 0.5
+    if denom == 0:
+        return 0.0
+    return cov / denom
+
 
 @dataclass(frozen=True)
 class ExpectedMeta:
@@ -118,6 +149,28 @@ def validate_score(score: ScoreData, expected: ExpectedMeta) -> list[Violation]:
                     Violation(
                         "quantization",
                         f"median grid deviation {med:.3f} beats > {expected.quant_max_median_dev_beats} (grossly off-grid / fixed-offset?)",
+                    )
+                )
+
+    # (e) Key agreement (Krumhansl-Schmuckler) -- chroma-independent.
+    parts = expected.expected_key.split()
+    if len(parts) == 2 and parts[0] in _TONIC_TO_PC and parts[1] in ("major", "minor"):
+        tonic_pc = _TONIC_TO_PC[parts[0]]
+        profile = KRUMHANSL_MAJOR if parts[1] == "major" else KRUMHANSL_MINOR
+        rotated = [profile[(pc - tonic_pc) % 12] for pc in range(12)]
+
+        pc_counts = [0] * 12
+        for n in notes:
+            pc_counts[n.pitch % 12] += 1
+        total = sum(pc_counts)
+        if total > 0:
+            histogram = [c / total for c in pc_counts]
+            corr = _pearson(histogram, rotated)
+            if corr < expected.key_min_correlation:
+                violations.append(
+                    Violation(
+                        "key_agreement",
+                        f"key correlation {corr:.3f} < {expected.key_min_correlation} for expected {expected.expected_key}",
                     )
                 )
 

@@ -194,3 +194,50 @@ class TestQuantization:
         score = _make_score(bars)
         violations = validate_score(score, _expected(expected_bars=3))
         assert any(v.check == "quantization" for v in violations)
+
+
+class TestKeyAgreement:
+    def test_c_major_score_agrees_with_c_major(self) -> None:
+        score = _make_score(_c_major_clean_bars(n_bars=3))
+        violations = validate_score(score, _expected(expected_key="C major", expected_bars=3))
+        assert not any(v.check == "key_agreement" for v in violations)
+
+    def test_c_major_score_disagrees_with_fsharp_major(self) -> None:
+        # Same C-major notes, but expecting F# major -> low correlation -> violation.
+        score = _make_score(_c_major_clean_bars(n_bars=3))
+        violations = validate_score(score, _expected(expected_key="F# major", expected_bars=3))
+        assert any(v.check == "key_agreement" for v in violations)
+
+    def test_a_minor_score_agrees_with_a_minor(self) -> None:
+        # A natural-minor scale notes.
+        ppb = 480
+        bar_ticks = ppb * 4
+        sixteenth = ppb // 4
+        a_minor = [69, 71, 72, 74, 76, 77, 79, 81]
+        bars = []
+        for b in range(3):
+            notes = []
+            for i, pitch in enumerate(a_minor):
+                tick = b * bar_ticks + i * (2 * sixteenth)
+                notes.append(_note(pitch, tick / 1000.0, tick))
+            bars.append(_bar(b + 1, b * bar_ticks, notes))
+        score = _make_score(bars)
+        violations = validate_score(score, _expected(expected_key="A minor", expected_bars=3))
+        assert not any(v.check == "key_agreement" for v in violations)
+
+    def test_enharmonic_db_major_parsed(self) -> None:
+        # A Db-major scale should agree with expected "Db major".
+        ppb = 480
+        bar_ticks = ppb * 4
+        sixteenth = ppb // 4
+        db_major = [61, 63, 65, 66, 68, 70, 72, 73]  # Db Eb F Gb Ab Bb C Db
+        bars = []
+        for b in range(3):
+            notes = []
+            for i, pitch in enumerate(db_major):
+                tick = b * bar_ticks + i * (2 * sixteenth)
+                notes.append(_note(pitch, tick / 1000.0, tick))
+            bars.append(_bar(b + 1, b * bar_ticks, notes))
+        score = _make_score(bars)
+        violations = validate_score(score, _expected(expected_key="Db major", expected_bars=3))
+        assert not any(v.check == "key_agreement" for v in violations)
