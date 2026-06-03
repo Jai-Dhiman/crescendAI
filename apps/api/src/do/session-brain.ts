@@ -1125,13 +1125,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 		state.scoredChunks.push({ chunkIndex: index, scores: scoresArray });
 		await this.ctx.storage.put(`eval_score:${index}`, scoresArray);
 
-		// Send chunk_processed
-		this.sendWs(ws, {
-			type: "chunk_processed",
-			index,
-			scores: muqScores,
-		});
-
 		// Bar analysis (same WASM path as real chunks)
 		let chunkAnalysisTier = 3;
 		let chunkBarRange: [number, number] | null = null;
@@ -1329,6 +1322,14 @@ export class SessionBrain extends DurableObject<Bindings> {
 		state.modeDetector = modeDetector.toJSON();
 		state.version++;
 		await this.writeState(state);
+
+		// Ack only AFTER persist so pipeline_client's wait-for-ack gates the next eval_chunk,
+		// forcing strictly sequential processing (no lost-update race on session state).
+		this.sendWs(ws, {
+			type: "chunk_processed",
+			index,
+			scores: muqScores,
+		});
 	}
 
 	// ─── Session End ──────────────────────────────────────────────────────────
