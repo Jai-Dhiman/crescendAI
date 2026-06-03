@@ -10,3 +10,7 @@ Decisions, deviations, and tradeoffs made during build. Read this before running
 - Consequence for fingerprint regen: a correct 255-piece fingerprint requires the 244 existing scores to be present in the worktree's `model/data/scores/`. They are not present in a fresh worktree. This is a Group-D execution dependency surfaced for the executor.
 - Baseline: 100 passed, 24 skipped in score_library suite.
 - Verified dependency surfaces: schema fields (ScoreNote/Bar/ScoreData), Scores.root, DATA_ROOT, parse_score_midi(midi_path, piece_id, composer, title) all match the plan.
+
+## Build-controller deviation: no subagent-dispatch tool available
+
+The build skill assumes a `Task` tool to dispatch fresh per-task implementer/reviewer subagents. This environment exposes no such dispatcher (only the TaskList task-tracking tools). The controller therefore executed each task directly while strictly enforcing the build discipline per task: (1) write the failing test, (2) run and watch it FAIL for the right reason, (3) implement exactly the plan's code, (4) run and watch it PASS, (5) commit with the plan's exact message. After each task, a spec-compliance check (re-read diff vs plan requirements) and a code-quality self-review were performed before moving on. Sonnet-4.6-subagent convention is moot since no subagents were spawned.
