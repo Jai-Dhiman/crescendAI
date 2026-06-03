@@ -40,6 +40,30 @@ pub fn select_teaching_moment(
     serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
+/// Select up to `max` within-session teaching moments from a session's scored chunks.
+///
+/// `chunks_js`: array of `{ chunk_index: number, scores: number[] }`
+/// `reference_js`: `{ dynamics, timing, pedaling, articulation, phrasing, interpretation }`
+///   (typically the per-dimension session mean)
+/// `max`: maximum number of moments to return
+///
+/// Returns a serialized `Vec<TeachingMoment>` (empty array if fewer than 2 chunks).
+#[wasm_bindgen]
+pub fn select_session_moments(
+    chunks_js: JsValue,
+    reference_js: JsValue,
+    max: usize,
+) -> Result<JsValue, JsValue> {
+    let chunks: Vec<types::ScoredChunk> =
+        serde_wasm_bindgen::from_value(chunks_js).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let reference: types::StudentBaselines = serde_wasm_bindgen::from_value(reference_js)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    let result =
+        teaching_moments::select_session_moments(&chunks, &reference.as_array(), max);
+    serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
 /// Tier 1 bar-aligned analysis: full analysis with score and reference comparison.
 ///
 /// `bar_map_js`: `BarMap` from a prior `align_chunk` call

@@ -89,6 +89,7 @@ export interface SynthesisInput {
 	sessionHistory: SessionHistoryRecord[];
 	pastDiagnoses: PastDiagnosisRecord[];
 	pieceId?: string | null;
+	referenceMode?: "within_session" | null;
 }
 
 type ProcessToolFn = (name: string, input: unknown) => Promise<ToolResult>;
@@ -657,6 +658,7 @@ export async function synthesize(
 			input.pieceMetadata,
 			memoryContext,
 			composer,
+			input.referenceMode ?? null,
 		);
 
 		const systemBlocks: AnthropicSystemBlock[] = [
@@ -758,6 +760,7 @@ export async function* synthesizeV6(
 		cohort_tables: COHORT_TABLES,
 		session_history: input.sessionHistory,
 		past_diagnoses: input.pastDiagnoses,
+		reference_mode: input.referenceMode ?? null,
 	};
 
 	const hookCtx: HookContext = {

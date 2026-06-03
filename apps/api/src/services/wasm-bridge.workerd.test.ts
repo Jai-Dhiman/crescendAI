@@ -131,3 +131,43 @@ describe("wasm-bridge workerd (real WASM)", () => {
 		expect(result.bar_max).toBe(1);
 	});
 });
+
+describe("selectSessionMoments (real WASM)", () => {
+	it("returns real within-session moments for a multi-chunk session", async () => {
+		const { selectSessionMoments } = await import("./wasm-bridge");
+		const chunks = [
+			{ chunk_index: 0, scores: [0.55, 0.5, 0.5, 0.54, 0.52, 0.5] as [number, number, number, number, number, number] },
+			{ chunk_index: 1, scores: [0.55, 0.5, 0.1, 0.54, 0.52, 0.5] as [number, number, number, number, number, number] },
+			{ chunk_index: 2, scores: [0.55, 0.5, 0.48, 0.54, 0.52, 0.5] as [number, number, number, number, number, number] },
+		];
+		const reference = {
+			dynamics: 0.55,
+			timing: 0.5,
+			pedaling: 0.36,
+			articulation: 0.54,
+			phrasing: 0.52,
+			interpretation: 0.5,
+		};
+		const moments = selectSessionMoments(chunks, reference, 6);
+		expect(Array.isArray(moments)).toBe(true);
+		expect(moments.length).toBeGreaterThan(0);
+		expect(moments[0]?.dimension).toBe("pedaling");
+		expect(moments[0]?.reasoning).toContain("this session");
+	});
+
+	it("returns an empty array when fewer than 2 chunks", async () => {
+		const { selectSessionMoments } = await import("./wasm-bridge");
+		const chunks = [
+			{ chunk_index: 0, scores: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3] as [number, number, number, number, number, number] },
+		];
+		const reference = {
+			dynamics: 0.3,
+			timing: 0.3,
+			pedaling: 0.3,
+			articulation: 0.3,
+			phrasing: 0.3,
+			interpretation: 0.3,
+		};
+		expect(selectSessionMoments(chunks, reference, 6)).toEqual([]);
+	});
+});

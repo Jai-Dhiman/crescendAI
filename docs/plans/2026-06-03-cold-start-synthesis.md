@@ -36,7 +36,7 @@ Group D (sequential, depends on Task 3 + Task 6): Task 5 (DO wiring + thread ref
 - Modify: `apps/api/src/wasm/score-analysis/src/teaching_moments.rs`
 - Test: `apps/api/src/wasm/score-analysis/src/teaching_moments.rs` (cargo `#[cfg(test)]` module, same file)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append these four tests inside the existing `mod tests` block in `teaching_moments.rs` (after `positive_moment_picks_highest_improvement`, before the closing `}` of the module):
 
@@ -116,7 +116,7 @@ Append these four tests inside the existing `mod tests` block in `teaching_momen
     }
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/apps/api/src/wasm/score-analysis && cargo test select_session_moments 2>&1 | tail -20
@@ -124,7 +124,7 @@ cd /Users/jdhiman/Documents/crescendai/apps/api/src/wasm/score-analysis && cargo
 ```
 Expected: FAIL — `cannot find function 'select_session_moments' in this scope` (compile error).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Add this function to `teaching_moments.rs`, immediately after `select_teaching_moment` (before `select_positive_moment`). Do NOT modify `select_teaching_moment`.
 
@@ -217,14 +217,14 @@ Add this method to the existing `impl Candidate` block (after `to_teaching_momen
 
 Note: `select_positive_moment` already produces reasoning beginning "No issues detected." which is reference-neutral; reuse it as-is for the all-at-mean fallback.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/apps/api/src/wasm/score-analysis && cargo test session_moments 2>&1 | tail -20
 ```
 Expected: PASS — all four `session_moments_*` tests green, and the pre-existing `select_teaching_moment` tests still green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/wasm/score-analysis/src/teaching_moments.rs && git commit -m "feat(wasm): add select_session_moments for within-session moment selection"
@@ -243,7 +243,7 @@ git add apps/api/src/wasm/score-analysis/src/teaching_moments.rs && git commit -
 - Modify: `apps/api/src/services/wasm-bridge.ts`
 - Modify: `apps/api/src/services/wasm-bridge.workerd.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `wasm-bridge.workerd.test.ts` (inside the file, as a new top-level `describe`; the file already imports `describe, expect, it` from vitest and types from `./wasm-bridge`):
 
@@ -289,14 +289,14 @@ describe("selectSessionMoments (real WASM)", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/apps/api && bun run test -- src/services/wasm-bridge.workerd.test.ts 2>&1 | tail -25
 ```
 Expected: FAIL — `selectSessionMoments is not a function` (the bridge does not yet export it; the `pkg/` is not yet rebuilt).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 (a) Add the `#[wasm_bindgen]` export to `lib.rs`, immediately after the existing `select_teaching_moment` wasm export (after its closing `}`):
 
@@ -353,14 +353,14 @@ export function selectSessionMoments(
 cd /Users/jdhiman/Documents/crescendai/apps/api && bun run build:wasm
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/apps/api && bun run test -- src/services/wasm-bridge.workerd.test.ts 2>&1 | tail -25
 ```
 Expected: PASS — both `selectSessionMoments` tests green; pre-existing workerd tests still green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/wasm/score-analysis/src/lib.rs apps/api/src/services/wasm-bridge.ts apps/api/src/services/wasm-bridge.workerd.test.ts apps/api/src/wasm/score-analysis/pkg && git commit -m "feat(wasm): export select_session_moments via bridge"
@@ -378,7 +378,7 @@ git add apps/api/src/wasm/score-analysis/src/lib.rs apps/api/src/services/wasm-b
 - Modify: `apps/api/src/do/session-brain.ts`
 - Modify: `apps/api/src/do/session-brain.unit.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `session-brain.unit.test.ts` (the file already imports `describe, expect, it` from vitest and `SessionAccumulator, type AccumulatedMoment` from `../services/accumulator`; add `buildColdStartMoments` to the existing `import { buildV6WsPayload } from "./session-brain"` line -> `import { buildV6WsPayload, buildColdStartMoments } from "./session-brain"`):
 
@@ -407,14 +407,14 @@ describe("buildColdStartMoments", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/apps/api && bun run test -- src/do/session-brain.unit.test.ts 2>&1 | tail -25
 ```
 Expected: FAIL — `buildColdStartMoments is not exported` / `is not a function`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Add this exported function to `session-brain.ts`, near the other exported helpers (e.g. immediately after `nextSynthesisAlarmDelayMs`, before the `export class SessionBrain` declaration).
 
@@ -480,14 +480,14 @@ export function buildColdStartMoments(
 
 Note: `StudentBaselines`, `ScoredChunk` types are already imported in `session-brain.ts` from `../services/wasm-bridge` (used by the live path). Verify they are in the existing import list; if not, add them.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/apps/api && bun run test -- src/do/session-brain.unit.test.ts 2>&1 | tail -25
 ```
 Expected: PASS — both `buildColdStartMoments` tests green; pre-existing unit tests still green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/do/session-brain.ts apps/api/src/do/session-brain.unit.test.ts && git commit -m "feat(synthesis): add buildColdStartMoments helper"
@@ -505,7 +505,7 @@ git add apps/api/src/do/session-brain.ts apps/api/src/do/session-brain.unit.test
 - Modify: `apps/api/src/do/session-brain.ts`
 - Modify: `apps/api/src/do/session-brain.unit.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `session-brain.unit.test.ts` (add `computeSessionDurationMs` to the `./session-brain` import line):
 
@@ -525,14 +525,14 @@ describe("computeSessionDurationMs", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/apps/api && bun run test -- src/do/session-brain.unit.test.ts 2>&1 | tail -25
 ```
 Expected: FAIL — `computeSessionDurationMs is not exported` / `is not a function`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 (a) Add the exported function to `session-brain.ts`, near `nextSynthesisAlarmDelayMs`:
 
@@ -570,14 +570,14 @@ Replace the `sessionDurationMs` assignment with:
 
 > **Guidance (eval-mode scoredChunks emptiness):** `state.scoredChunks` can be empty at synthesis time in eval/dev mode, because the eval path persists scored chunks under per-chunk `eval_score:` storage keys "as fallback (robust against wrangler dev serialization gaps)" rather than relying on `state.scoredChunks` (see the existing `evalContext` sourcing in `runSynthesisAndPersist`, ~lines 1379-1390). If empty, `computeSessionDurationMs(0) === 0` reintroduces the 0-minute bug this task fixes. The implementation MUST mirror that existing `eval_score:` per-chunk-key fallback to source the chunk count when `state.scoredChunks` is empty in eval mode, so the duration computation does not silently no-op. This is guidance, not new scope: reuse the exact fallback already used for `evalContext`; do not invent a new mechanism.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/apps/api && bun run test -- src/do/session-brain.unit.test.ts 2>&1 | tail -25
 ```
 Expected: PASS — three `computeSessionDurationMs` tests green; pre-existing unit tests still green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/do/session-brain.ts apps/api/src/do/session-brain.unit.test.ts && git commit -m "fix(synthesis): derive session duration from scored-chunk count"
@@ -598,7 +598,7 @@ git add apps/api/src/do/session-brain.ts apps/api/src/do/session-brain.unit.test
 
 (A dedicated new test file avoids touching `teacher.test.ts`, whose top-level `vi.mock("./llm")` only stubs `callAnthropicStream`, not the non-stream `callAnthropic` that `synthesize` uses. A separate file gets its own clean mock of `callAnthropic`.)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/api/src/services/teacher-synthesize-reference-mode.test.ts`. `synthesize` calls `callAnthropic(env, request)` (from `./llm`) and `buildMemoryContext` (from `./memory`); mock both. A text-only Anthropic response (no `tool_use` blocks) avoids `processToolUse`. Capture the `system` array from the mock's call args.
 
@@ -672,14 +672,14 @@ describe("synthesize referenceMode threading", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/apps/api && bun run test -- src/services/teacher-synthesize-reference-mode.test.ts 2>&1 | tail -25
 ```
 Expected: FAIL — the within_session framing does not contain `"reference_mode"` / the first-session instruction, because `synthesize` does not yet pass `referenceMode` to `buildSynthesisFraming` and `SynthesisInput` has no `referenceMode` field (TS compile error on `referenceMode` in `baseInput` until Step 3a lands).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 (a) In `teacher.ts`, add `referenceMode` to `SynthesisInput`:
 
@@ -773,14 +773,14 @@ Replace with:
 			referenceMode,
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/apps/api && bun run test -- src/services/teacher-synthesize-reference-mode.test.ts 2>&1 | tail -25
 ```
 Expected: PASS — both `referenceMode threading` tests green. Also run the broader suite to confirm no regression: `bun run test -- src/services/teacher.test.ts src/do/session-brain.unit.test.ts 2>&1 | tail -15` (still green).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/services/teacher.ts apps/api/src/do/session-brain.ts apps/api/src/services/teacher-synthesize-reference-mode.test.ts && git commit -m "feat(synthesis): wire cold-start moments and referenceMode through synthesis"
@@ -798,7 +798,7 @@ git add apps/api/src/services/teacher.ts apps/api/src/do/session-brain.ts apps/a
 - Modify: `apps/api/src/services/prompts.ts`
 - Modify: `apps/api/src/services/prompts.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `prompts.test.ts` (inside the existing `describe("buildSynthesisFraming", ...)` block, or as a new `describe`):
 
@@ -854,14 +854,14 @@ describe("buildSynthesisFraming referenceMode", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/apps/api && bun run test -- src/services/prompts.test.ts 2>&1 | tail -25
 ```
 Expected: FAIL — output does not contain `"reference_mode"` or the first-session instruction (the param and conditional output do not exist yet).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `prompts.ts`, modify `buildSynthesisFraming`. Change the signature to add a trailing optional param and conditionally include the field + instruction. Find:
 
@@ -942,14 +942,14 @@ Replace with:
 	return parts.join("\n");
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/apps/api && bun run test -- src/services/prompts.test.ts 2>&1 | tail -25
 ```
 Expected: PASS — three `referenceMode` tests green; all pre-existing `buildSynthesisFraming` tests (which call with 7 args) still green because the 8th param defaults to `null`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/services/prompts.ts apps/api/src/services/prompts.test.ts && git commit -m "feat(synthesis): add within_session reference-mode guardrail to framing"

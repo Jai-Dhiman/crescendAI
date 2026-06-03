@@ -233,6 +233,23 @@ export function selectTeachingMoment(
 }
 
 /**
+ * Select up to `max` within-session teaching moments, ranked against a
+ * within-session reference (typically the per-dimension session mean).
+ * Returns an empty array if fewer than 2 chunks are provided.
+ */
+export function selectSessionMoments(
+	chunks: ScoredChunk[],
+	reference: StudentBaselines,
+	max: number,
+): TeachingMoment[] {
+	return scoreAnalysisModule.select_session_moments(
+		chunks,
+		reference,
+		max,
+	) as TeachingMoment[];
+}
+
+/**
  * Align a 15s audio chunk to a score using chroma-based subsequence DTW.
  *
  * Correctness is verified by the Rust cargo test (chroma_dtw_roundtrip).

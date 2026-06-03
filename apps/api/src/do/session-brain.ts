@@ -9,7 +9,7 @@ import type { SessionHistoryRecord, PastDiagnosisRecord } from "../services/teac
 import type { Dimension } from "../lib/dims";
 import { DIMS_6 } from "../lib/dims";
 import type { Bindings, ServiceContext } from "../lib/types";
-import { SessionAccumulator } from "../services/accumulator";
+import { SessionAccumulator, type AccumulatedMoment } from "../services/accumulator";
 import { applyConfidenceGate } from "../services/confidence_gate";
 import { callAmtEndpoint, callMuqEndpoint } from "../services/inference";
 import { type ChunkSignal, ModeDetector } from "../services/practice-mode";
@@ -164,6 +164,74 @@ export function nextSynthesisAlarmDelayMs(opts: {
 		return opts.chunksInFlight === 0 ? 1 : opts.deferredWindowMs;
 	}
 	return opts.idleWindowMs;
+}
+
+/** MuQ audio chunk length in milliseconds (15s per scored chunk). */
+const MUQ_CHUNK_MS = 15000;
+
+/**
+ * Compute session duration from the number of scored chunks rather than
+ * wall-clock timeline stamps. Eval replay stamps all timeline events within
+ * the same millisecond, so the stamp-based calc rounded to 0 minutes.
+ */
+export function computeSessionDurationMs(scoredChunkCount: number): number {
+	return scoredChunkCount * MUQ_CHUNK_MS;
+}
+
+/**
+ * Build within-session ("cold-start") teaching moments for a student with no
+ * stored baselines. Computes the per-dimension session mean as the reference,
+ * selects moments via the WASM bridge, and maps them to AccumulatedMoment[].
+ *
+ * Returns [] when there are too few chunks (the bridge requires >= 2).
+ * Throws if the WASM module is unavailable; callers must catch.
+ */
+export function buildColdStartMoments(
+	scoredChunks: { chunkIndex: number; scores: number[] }[],
+	max: number,
+): AccumulatedMoment[] {
+	if (scoredChunks.length < 2) {
+		return [];
+	}
+
+	// Per-dimension session mean (the within-session reference).
+	const sums = [0, 0, 0, 0, 0, 0];
+	for (const c of scoredChunks) {
+		for (let i = 0; i < 6; i++) {
+			sums[i] = (sums[i] ?? 0) + (c.scores[i] ?? 0);
+		}
+	}
+	const n = scoredChunks.length;
+	const meanArr = sums.map((s) => s / n);
+	const reference: StudentBaselines = {
+		dynamics: meanArr[0] ?? 0,
+		timing: meanArr[1] ?? 0,
+		pedaling: meanArr[2] ?? 0,
+		articulation: meanArr[3] ?? 0,
+		phrasing: meanArr[4] ?? 0,
+		interpretation: meanArr[5] ?? 0,
+	};
+
+	const wasmChunks: ScoredChunk[] = scoredChunks.map((c) => ({
+		chunk_index: c.chunkIndex,
+		scores: c.scores as [number, number, number, number, number, number],
+	}));
+
+	const moments = wasm.selectSessionMoments(wasmChunks, reference, max);
+
+	return moments.map((m) => ({
+		chunkIndex: m.chunk_index,
+		dimension: m.dimension as Dimension,
+		score: m.score,
+		baseline: m.baseline,
+		deviation: m.deviation,
+		isPositive: m.is_positive,
+		reasoning: m.reasoning,
+		barRange: null,
+		analysisTier: 3,
+		timestampMs: 0,
+		llmAnalysis: null,
+	}));
 }
 
 export class SessionBrain extends DurableObject<Bindings> {
@@ -1369,25 +1437,55 @@ export class SessionBrain extends DurableObject<Bindings> {
 		await this.writeState(state);
 
 		const acc = SessionAccumulator.fromJSON(state.accumulator);
-		const sessionDurationMs =
-			acc.timeline.length > 0
-				? (acc.timeline[acc.timeline.length - 1]?.timestampMs ?? 0) -
-					(acc.timeline[0]?.timestampMs ?? 0)
-				: 0;
+
+		// Source scored chunks defensively: in eval/dev mode state.scoredChunks can
+		// be empty at synthesis time because chunks are persisted under per-chunk
+		// `eval_score:` storage keys (robust against wrangler dev serialization gaps).
+		// chunkIndex is synthesized from numeric-sorted key order, since eval_score:
+		// values are bare score arrays. Duration and the cold-start branch both read
+		// this list so they do not silently no-op when state.scoredChunks is empty.
+		let effectiveScoredChunks: { chunkIndex: number; scores: number[] }[] =
+			state.scoredChunks.map((c) => ({ chunkIndex: c.chunkIndex, scores: c.scores }));
+		if (state.isEvalSession && effectiveScoredChunks.length === 0) {
+			const evalScoreMap = await this.ctx.storage.list<number[]>({ prefix: "eval_score:" });
+			effectiveScoredChunks = Array.from(evalScoreMap.entries())
+				.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+				.map(([, scores], i) => ({ chunkIndex: i, scores }));
+		}
+
+		const sessionDurationMs = computeSessionDurationMs(effectiveScoredChunks.length);
+
+		// Cold-start: a student with no stored baselines never accumulated live
+		// teaching moments (the live gate requires baselines !== null). Build
+		// within-session moments now so acc.topMoments() has data to surface.
+		// Sources chunks from effectiveScoredChunks, which mirrors the eval_score:
+		// per-chunk-key fallback above, so this does not silently no-op in eval mode.
+		let referenceMode: "within_session" | null = null;
+		if (state.baselines === null) {
+			referenceMode = "within_session";
+			try {
+				const coldStartMoments = buildColdStartMoments(effectiveScoredChunks, 6);
+				for (const m of coldStartMoments) {
+					acc.accumulateMoment(m);
+				}
+			} catch (err) {
+				const error = err as Error;
+				console.log(
+					JSON.stringify({
+						level: "warn",
+						message: "cold-start moment selection failed",
+						sessionId: state.sessionId,
+						error: error.message,
+					}),
+				);
+			}
+		}
 
 		// Eval mode: compute accumulator snapshot now, attach to synthesis payload below.
-		// Read scoredChunks from per-chunk keys as fallback (robust against wrangler dev serialization gaps).
 		let evalContext: Record<string, unknown> | null = null;
 		if (state.isEvalSession) {
-			const evalScoreMap = await this.ctx.storage.list<number[]>({ prefix: "eval_score:" });
-			const scoredFromKeys = Array.from(evalScoreMap.entries())
-				.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-				.map(([, scores]) => ({ scores }));
 			evalContext = {
-				scored_chunks:
-					scoredFromKeys.length > 0
-						? scoredFromKeys
-						: state.scoredChunks.map((c) => ({ scores: c.scores })),
+				scored_chunks: effectiveScoredChunks.map((c) => ({ scores: c.scores })),
 				teaching_moments: acc.teachingMoments,
 				baselines: state.baselines ?? {},
 				mode_transitions: acc.modeTransitions,
@@ -1513,6 +1611,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 			sessionHistory,
 			pastDiagnoses,
 			pieceId: state.pieceIdentification?.pieceId ?? null,
+			referenceMode,
 		};
 
 		// teacher.synthesize() throws on failure — try/catch handles it
