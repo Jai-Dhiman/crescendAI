@@ -192,6 +192,82 @@ def _build_row(
     }
 
 
+def build_do_row(
+    session_result,
+    meta: dict[str, Any],
+    judge_fn,
+    provenance: RunProvenance,
+    *,
+    dry_run: bool = False,
+    judge_provider: str = "workers-ai",
+    judge_model: str = "@cf/google/gemma-4-26b-a4b-it",
+) -> dict:
+    """Build one aggregator-schema JSONL row from a DO SessionResult.
+
+    No thin-framing fallback: a DO/WS failure (or missing synthesis) records the
+    error verbatim and skips the judge. Piece resolution is reported via
+    `piece_resolved` (False -> the DO ran Tier 2/3 with bar_range null).
+    """
+    recording_id = getattr(session_result, "recording_id", meta.get("recording_id", ""))
+    piece_resolved = getattr(session_result, "piece_identification", None) is not None
+
+    base = {
+        "recording_id": recording_id,
+        "run_id": provenance.run_id,
+        "git_sha": provenance.git_sha,
+        "git_dirty": provenance.git_dirty,
+        "piece_slug": meta.get("piece_slug", ""),
+        "title": meta.get("title", ""),
+        "composer": meta.get("composer", ""),
+        "skill_bucket": meta.get("skill_bucket", 3),
+        "piece_resolved": piece_resolved,
+        "synthesis_text": "",
+        "synthesis_latency_ms": int(getattr(session_result, "synthesis_latency_ms", 0) or 0),
+        "judge_dimensions": [],
+        "judge_model": "",
+        "judge_latency_ms": 0,
+        "error": "",
+    }
+
+    synthesis = getattr(session_result, "synthesis", None)
+    errors = getattr(session_result, "errors", []) or []
+    if synthesis is None or not getattr(synthesis, "text", ""):
+        base["error"] = "; ".join(errors) if errors else "DO returned no synthesis text"
+        return base
+
+    base["synthesis_text"] = synthesis.text
+
+    if dry_run:
+        base["judge_model"] = "dry_run"
+        return base
+
+    judge_ctx = {
+        "piece_name": meta.get("title", ""),
+        "composer": meta.get("composer", ""),
+        "skill_level": meta.get("skill_bucket", 3),
+    }
+    jr = judge_fn(
+        synthesis.text,
+        judge_ctx,
+        provider=judge_provider,
+        model=judge_model,
+    )
+    base["judge_dimensions"] = [
+        {
+            "criterion": d.criterion,
+            "process": getattr(d, "process", None),
+            "outcome": getattr(d, "outcome", None),
+            "score": getattr(d, "score", None),
+            "evidence": getattr(d, "evidence", ""),
+            "reason": getattr(d, "reason", ""),
+        }
+        for d in jr.dimensions
+    ]
+    base["judge_model"] = getattr(jr, "model", "")
+    base["judge_latency_ms"] = round(getattr(jr, "latency_ms", 0.0))
+    return base
+
+
 def run(
     limit: int | None = None,
     out_path: Path | None = None,
