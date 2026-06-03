@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import time
 from pathlib import Path
 
 EVALS_ROOT = Path(__file__).resolve().parents[2]
@@ -52,27 +51,42 @@ def _load_completed(out_path: Path) -> set[str]:
     return completed
 
 
+def _default_driver(wrangler_url, recording_cache, student_id, piece_query):
+    """Default DO-replay driver: real run_recording over wrangler dev."""
+    import asyncio
+
+    from shared.pipeline_client import run_recording
+
+    return asyncio.run(
+        run_recording(
+            wrangler_url,
+            recording_cache,
+            student_id=student_id,
+            piece_query=piece_query,
+        )
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true", help="Skip judge, synthesis only")
+    parser.add_argument("--wrangler-url", default="http://localhost:8787",
+                        help="wrangler dev base URL (DO-path synthesis).")
     args = parser.parse_args()
 
     # Import run_eval helpers — must run from apps/evals/
     try:
         from teaching_knowledge.run_eval import (
-            SESSION_SYNTHESIS_SYSTEM,
-            aggregate_muq,
-            build_synthesis_user_msg,
-            extract_teacher_response,
+            build_do_row,
             load_manifests,
-            _build_row,
         )
-        from teaching_knowledge.llm_client import LLMClient
         from shared.judge import judge_synthesis_v2
         from shared.provenance import make_run_provenance as _mkprov
     except ImportError as e:
         print(f"ERROR: {e}\nRun from apps/evals/ with uv run.", file=sys.stderr)
         sys.exit(1)
+
+    driver = _default_driver
 
     target_ids = _manifest_recording_ids()
     completed = _load_completed(OUT_PATH)
@@ -89,9 +103,8 @@ def main() -> None:
     manifest_lookup = load_manifests()
     cache_files = {f.stem: f for f in CACHE_DIR.glob("*.json") if f.name != "_fingerprint.json"}
 
-    synthesis_client = LLMClient(provider="anthropic", model="claude-sonnet-4-6")
     provenance = _mkprov()
-    print(f"Synthesis prompt: SESSION_SYNTHESIS_SYSTEM (synthesis_system.txt)")
+    print(f"Synthesis: real SessionBrain DO via {args.wrangler_url} (buildSynthesisFraming)")
     print(f"Judge prompt:     synthesis_quality_judge_v2.txt")
     print(f"run_id: {provenance.run_id}")
 
@@ -116,67 +129,29 @@ def main() -> None:
                 print(f"  SKIP {rid}: empty chunks")
                 continue
 
-            muq_means = aggregate_muq(chunks)
-            duration_seconds = data.get("total_duration_seconds", 0.0)
-            user_msg = build_synthesis_user_msg(muq_means, duration_seconds, meta)
-
+            recording_cache = {"recording_id": rid, "chunks": chunks}
             try:
-                t0 = time.monotonic()
-                raw = synthesis_client.complete(
-                    user=user_msg,
-                    system=SESSION_SYNTHESIS_SYSTEM,
-                    max_tokens=1024,
+                session_result = driver(
+                    args.wrangler_url,
+                    recording_cache,
+                    "calibration-student-001",
+                    meta.get("piece_slug") or None,
                 )
-                synthesis_latency_ms = (time.monotonic() - t0) * 1000
-                synthesis_text = extract_teacher_response(raw)
-
-                if args.dry_run:
-                    judge_dims: list[dict] = []
-                    judge_model_name = "dry_run"
-                    judge_latency = 0
-                else:
-                    context = {
-                        "piece_name": meta.get("title", "Unknown"),
-                        "composer": meta.get("composer", "Unknown"),
-                        "skill_level": meta.get("skill_bucket", "Unknown"),
-                    }
-                    judge_result = judge_synthesis_v2(
-                        synthesis_text=synthesis_text,
-                        context=context,
-                    )
-                    judge_dims = [
-                        {
-                            "criterion": d.criterion,
-                            "process": d.process,
-                            "outcome": d.outcome,
-                            "score": d.score,
-                            "evidence": d.evidence,
-                            "reason": d.reason,
-                        }
-                        for d in judge_result.dimensions
-                    ]
-                    judge_model_name = judge_result.model
-                    judge_latency = round(judge_result.latency_ms)
-
-                row = _build_row(
-                    recording_id=rid,
-                    meta=meta,
-                    muq_means=muq_means,
-                    synthesis_text=synthesis_text,
-                    synthesis_latency_ms=round(synthesis_latency_ms),
-                    judge_dimensions=judge_dims,
-                    judge_model=judge_model_name,
-                    judge_latency_ms=judge_latency,
-                    error="",
-                    provenance=provenance,
+                row = build_do_row(
+                    session_result,
+                    meta,
+                    judge_synthesis_v2,
+                    provenance,
+                    dry_run=args.dry_run,
                 )
-                fout.write(json.dumps(row) + "\n")
-                fout.flush()
-                processed += 1
-                print(f"  [{processed}/{len(remaining)}] {rid} ({meta['title'][:30]})")
-
             except Exception as exc:
                 print(f"  ERROR {rid}: {exc}")
+                continue
+
+            fout.write(json.dumps(row) + "\n")
+            fout.flush()
+            processed += 1
+            print(f"  [{processed}/{len(remaining)}] {rid} ({meta['title'][:30]})")
 
     print(f"\nDone. Wrote {processed} rows to {OUT_PATH}")
     print(f"Pass --baseline {OUT_PATH} to run_opus_rating_session to use this file.")
