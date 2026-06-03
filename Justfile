@@ -276,3 +276,13 @@ chroma-eval-ratchet:
 amt-regen-pseudo-truth piece video_id:
     cd model && uv run python -m chroma_dtw_eval.amt_regen \
         --piece {{piece}} --video-id {{video_id}}
+
+# Chroma-identification feasibility harness (Issue #21).
+# Downloads real audio on cache miss; use --holdout to configure open-set probe.
+# Run `just piece-id-feasibility-acquire` first to populate audio cache.
+piece-id-feasibility:
+    cd model && uv run python -m piece_id_eval.cli
+
+# Acquire audio for all 16 practice_eval pieces (yt-dlp required).
+piece-id-feasibility-acquire slug video_id:
+    cd model && uv run python -c "from pathlib import Path; from piece_id_eval.acquire import acquire_audio; out = acquire_audio('{{video_id}}', Path('data/evals/practice_eval/{{slug}}/audio')); print('Downloaded:', out)"
