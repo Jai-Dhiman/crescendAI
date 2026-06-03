@@ -22,31 +22,28 @@ def _load_fixture_chunks(fixtures: Path) -> list[ChunkResult]:
     manifest = json.loads((fixtures / "manifest.json").read_text())
     results: list[ChunkResult] = []
     for c in manifest["chunks"]:
-        kind_map = {"gold": "gold", "amateur": "amateur", "silence": "silence"}
-        kind = kind_map[c["kind"]]
-        if kind == "gold":
+        raw_kind = c["kind"]
+        if raw_kind == "gold":
+            # Treat simulated_error_frames as error_seconds for fixture smoke tests.
             results.append(ChunkResult(
-                kind="gold",
-                error_frames=float(c.get("simulated_error_frames", 999.0)),
+                kind="practice",
+                error_seconds=float(c.get("simulated_error_frames", 999.0)),
                 cost=float(c.get("simulated_cost", 0.2)),
-                abstain=False,
             ))
-        elif kind == "amateur":
+        elif raw_kind == "amateur":
             results.append(ChunkResult(
                 kind="amateur",
-                error_frames=None,
                 cost=float(c.get("simulated_cost", 0.2)),
-                abstain=False,
                 bar_distance_from_forward=float(c.get("simulated_bar_distance", 0.0)),
             ))
-        elif kind == "silence":
+        elif raw_kind == "silence":
             results.append(ChunkResult(
                 kind="silence",
-                error_frames=None,
                 cost=float(c.get("simulated_cost", 0.05)),
-                abstain=False,
                 silence_loud_failure=bool(c.get("simulated_loud_failure", True)),
             ))
+        else:
+            raise ValueError(f"unknown fixture kind: {raw_kind!r}")
     return results
 
 
@@ -77,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         raise ValueError("must pass --fixtures or --corpus")
 
-    metrics = aggregate(results, baseline=baseline, frame_rate_hz=50.0, tolerance_ms=50.0)
+    metrics = aggregate(results, baseline=baseline, tolerance_s=1.5)
     args.sidecar.parent.mkdir(parents=True, exist_ok=True)
     args.sidecar.write_text(json.dumps({
         "primary": metrics.primary,
