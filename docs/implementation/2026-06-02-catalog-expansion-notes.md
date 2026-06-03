@@ -20,3 +20,6 @@ Implemented exactly as planned. 6 tests pass. CANONICAL_MAP = 16 entries. No dev
 
 ## Group A (validate.py A1-A5) — DONE
 All 5 checks implemented exactly as planned: min_notes/total_bars/monotonic_onsets, pitch_range, bar_count, quantization (16th-grid via start_tick deltas), key_agreement (Krumhansl-Schmuckler, enharmonic tonic map). 19 tests pass. No chroma. The +60-tick fixed-offset quant fixture yields median 0.125 > 0.10 (violation); clean grid 0.0 (pass) — matches challenge re-review. No deviations.
+
+## Group B (manual.py B1-B4) — DONE
+ingest_manifest with temp-staging all-or-nothing atomicity (CONCERN 2 fix): staged JSONs only moved into scores_dir after ALL pieces resolve; lockfile written last; HALT leaves scores_dir + lockfile untouched. B2-B4 are behavior-locking tests over B1's impl (passed on first run, as the plan predicted; watch-it-fail satisfied at B1 module-absence). 4 tests pass. Semgrep flagged urllib dynamic-URL (WARNING) on _http_fetch — accepted: plan mandates stdlib urllib (requests/httpx not deps), URLs from pinned manifest, line carries noqa S310. No deviations.
