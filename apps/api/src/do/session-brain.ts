@@ -9,7 +9,7 @@ import type { SessionHistoryRecord, PastDiagnosisRecord } from "../services/teac
 import type { Dimension } from "../lib/dims";
 import { DIMS_6 } from "../lib/dims";
 import type { Bindings, ServiceContext } from "../lib/types";
-import { SessionAccumulator } from "../services/accumulator";
+import { SessionAccumulator, type AccumulatedMoment } from "../services/accumulator";
 import { applyConfidenceGate } from "../services/confidence_gate";
 import { callAmtEndpoint, callMuqEndpoint } from "../services/inference";
 import { type ChunkSignal, ModeDetector } from "../services/practice-mode";
@@ -176,6 +176,62 @@ const MUQ_CHUNK_MS = 15000;
  */
 export function computeSessionDurationMs(scoredChunkCount: number): number {
 	return scoredChunkCount * MUQ_CHUNK_MS;
+}
+
+/**
+ * Build within-session ("cold-start") teaching moments for a student with no
+ * stored baselines. Computes the per-dimension session mean as the reference,
+ * selects moments via the WASM bridge, and maps them to AccumulatedMoment[].
+ *
+ * Returns [] when there are too few chunks (the bridge requires >= 2).
+ * Throws if the WASM module is unavailable; callers must catch.
+ */
+export function buildColdStartMoments(
+	scoredChunks: { chunkIndex: number; scores: number[] }[],
+	max: number,
+): AccumulatedMoment[] {
+	if (scoredChunks.length < 2) {
+		return [];
+	}
+
+	// Per-dimension session mean (the within-session reference).
+	const sums = [0, 0, 0, 0, 0, 0];
+	for (const c of scoredChunks) {
+		for (let i = 0; i < 6; i++) {
+			sums[i] = (sums[i] ?? 0) + (c.scores[i] ?? 0);
+		}
+	}
+	const n = scoredChunks.length;
+	const meanArr = sums.map((s) => s / n);
+	const reference: StudentBaselines = {
+		dynamics: meanArr[0] ?? 0,
+		timing: meanArr[1] ?? 0,
+		pedaling: meanArr[2] ?? 0,
+		articulation: meanArr[3] ?? 0,
+		phrasing: meanArr[4] ?? 0,
+		interpretation: meanArr[5] ?? 0,
+	};
+
+	const wasmChunks: ScoredChunk[] = scoredChunks.map((c) => ({
+		chunk_index: c.chunkIndex,
+		scores: c.scores as [number, number, number, number, number, number],
+	}));
+
+	const moments = wasm.selectSessionMoments(wasmChunks, reference, max);
+
+	return moments.map((m) => ({
+		chunkIndex: m.chunk_index,
+		dimension: m.dimension as Dimension,
+		score: m.score,
+		baseline: m.baseline,
+		deviation: m.deviation,
+		isPositive: m.is_positive,
+		reasoning: m.reasoning,
+		barRange: null,
+		analysisTier: 3,
+		timestampMs: 0,
+		llmAnalysis: null,
+	}));
 }
 
 export class SessionBrain extends DurableObject<Bindings> {
