@@ -166,6 +166,18 @@ export function nextSynthesisAlarmDelayMs(opts: {
 	return opts.idleWindowMs;
 }
 
+/** MuQ audio chunk length in milliseconds (15s per scored chunk). */
+const MUQ_CHUNK_MS = 15000;
+
+/**
+ * Compute session duration from the number of scored chunks rather than
+ * wall-clock timeline stamps. Eval replay stamps all timeline events within
+ * the same millisecond, so the stamp-based calc rounded to 0 minutes.
+ */
+export function computeSessionDurationMs(scoredChunkCount: number): number {
+	return scoredChunkCount * MUQ_CHUNK_MS;
+}
+
 export class SessionBrain extends DurableObject<Bindings> {
 	private readonly ALARM_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -1369,25 +1381,29 @@ export class SessionBrain extends DurableObject<Bindings> {
 		await this.writeState(state);
 
 		const acc = SessionAccumulator.fromJSON(state.accumulator);
-		const sessionDurationMs =
-			acc.timeline.length > 0
-				? (acc.timeline[acc.timeline.length - 1]?.timestampMs ?? 0) -
-					(acc.timeline[0]?.timestampMs ?? 0)
-				: 0;
+
+		// Source scored chunks defensively: in eval/dev mode state.scoredChunks can
+		// be empty at synthesis time because chunks are persisted under per-chunk
+		// `eval_score:` storage keys (robust against wrangler dev serialization gaps).
+		// chunkIndex is synthesized from numeric-sorted key order, since eval_score:
+		// values are bare score arrays. Duration and the cold-start branch both read
+		// this list so they do not silently no-op when state.scoredChunks is empty.
+		let effectiveScoredChunks: { chunkIndex: number; scores: number[] }[] =
+			state.scoredChunks.map((c) => ({ chunkIndex: c.chunkIndex, scores: c.scores }));
+		if (state.isEvalSession && effectiveScoredChunks.length === 0) {
+			const evalScoreMap = await this.ctx.storage.list<number[]>({ prefix: "eval_score:" });
+			effectiveScoredChunks = Array.from(evalScoreMap.entries())
+				.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+				.map(([, scores], i) => ({ chunkIndex: i, scores }));
+		}
+
+		const sessionDurationMs = computeSessionDurationMs(effectiveScoredChunks.length);
 
 		// Eval mode: compute accumulator snapshot now, attach to synthesis payload below.
-		// Read scoredChunks from per-chunk keys as fallback (robust against wrangler dev serialization gaps).
 		let evalContext: Record<string, unknown> | null = null;
 		if (state.isEvalSession) {
-			const evalScoreMap = await this.ctx.storage.list<number[]>({ prefix: "eval_score:" });
-			const scoredFromKeys = Array.from(evalScoreMap.entries())
-				.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-				.map(([, scores]) => ({ scores }));
 			evalContext = {
-				scored_chunks:
-					scoredFromKeys.length > 0
-						? scoredFromKeys
-						: state.scoredChunks.map((c) => ({ scores: c.scores })),
+				scored_chunks: effectiveScoredChunks.map((c) => ({ scores: c.scores })),
 				teaching_moments: acc.teachingMoments,
 				baselines: state.baselines ?? {},
 				mode_transitions: acc.modeTransitions,

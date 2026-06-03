@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildV6WsPayload } from "./session-brain";
+import { buildV6WsPayload, computeSessionDurationMs } from "./session-brain";
 import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
 import { parseMuqResponse } from "../services/inference";
 import { wsOutgoingMessageSchema } from "./session-brain.schema";
@@ -183,5 +183,19 @@ describe("session-brain accumulation contract", () => {
 		expect(top[0]?.llmAnalysis).not.toBeNull();
 		expect(top[0]?.llmAnalysis?.selected.dimension).toBe("timing");
 		expect(top[0]?.llmAnalysis?.correlated.map((d) => d.dimension)).toContain("dynamics");
+	});
+});
+
+describe("computeSessionDurationMs", () => {
+	it("derives duration from scored-chunk count at 15s per chunk", () => {
+		expect(computeSessionDurationMs(10)).toBe(150000);
+	});
+
+	it("returns a positive duration for a short multi-chunk replay (not 0)", () => {
+		expect(computeSessionDurationMs(8)).toBeGreaterThan(0);
+	});
+
+	it("returns 0 for a session with no scored chunks", () => {
+		expect(computeSessionDurationMs(0)).toBe(0);
 	});
 });
