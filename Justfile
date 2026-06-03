@@ -212,10 +212,41 @@ lint-web:
 chroma-eval-prebuild:
     cd apps/api/src/wasm/score-analysis && cargo build --release --bin dtw_chunk_cli
 
-# Run chroma-DTW eval harness against the committed practice corpus.
-# stdout: exactly one float (the primary). exit 0 iff no guard regressed.
-# 120s budget assumes the Rust DTW binary is already built; run `just chroma-eval-prebuild` once after a clean checkout.
+# CI/dev sanity check: smoke path (--skip-dtw). Exercises sampler + pseudo-truth
+# + aggregator + sidecar without needing real audio or the Rust DTW binary.
+# Primary scalar (100.0) is by construction -- not a real measurement.
+# Use this in pre-commit hooks and fast CI gates.
+chroma-eval-verify-smoke:
+    cd model && uv run python -m chroma_dtw_eval.verify \
+        --baseline data/evals/chroma_dtw/baseline.json \
+        --manifest data/evals/chroma_dtw_fixtures/manifest.json \
+        --skip-dtw
+
+# Full chroma-DTW eval using real audio + Rust DTW binary. This is the real
+# measurement loop -- run before /autoresearch dispatch or ratcheting baseline.
+# Requires:
+#   model/data/evals/practice_eval/bach_prelude_c_wtc1/audio/*.wav
+#   model/data/evals/pseudo_truth/bach_prelude_c_wtc1/
+# If data is missing, run `just amt-regen-pseudo-truth` first;
+# see docs/implementation/2026-06-01-amt-pseudo-truth-pilot.md
+# 120s budget assumes Rust DTW binary is pre-built; run `just chroma-eval-prebuild` once.
 chroma-eval-verify:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    AUDIO_DIR="model/data/evals/practice_eval/bach_prelude_c_wtc1/audio"
+    PT_DIR="model/data/evals/pseudo_truth/bach_prelude_c_wtc1"
+    if [ ! -d "$AUDIO_DIR" ] || [ -z "$(ls -A "$AUDIO_DIR" 2>/dev/null)" ]; then
+        echo "ERROR: real audio not found at $AUDIO_DIR" >&2
+        echo "Run \`just amt-regen-pseudo-truth <piece> <video_id>\` first;" >&2
+        echo "see docs/implementation/2026-06-01-amt-pseudo-truth-pilot.md" >&2
+        exit 1
+    fi
+    if [ ! -d "$PT_DIR" ] || [ -z "$(ls -A "$PT_DIR" 2>/dev/null)" ]; then
+        echo "ERROR: pseudo-truth not found at $PT_DIR" >&2
+        echo "Run \`just amt-regen-pseudo-truth <piece> <video_id>\` first;" >&2
+        echo "see docs/implementation/2026-06-01-amt-pseudo-truth-pilot.md" >&2
+        exit 1
+    fi
     cd model && uv run python -m chroma_dtw_eval.verify \
         --baseline data/evals/chroma_dtw/baseline.json \
         --manifest data/evals/chroma_dtw_fixtures/manifest.json

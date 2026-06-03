@@ -83,4 +83,4 @@ def test_g2_threshold_scales_with_chunk_count() -> None:
     # The exact AUC value here is implementation-dependent; the test asserts
     # that g2 IS NOT marked regressed at n=4 even when below baseline by a
     # small amount (sqrt(50/4) ~ 3.5 -> threshold scaled 3.5x).
-    assert "g2" not in m.regressed or m.guards.g2 < 0.9 - 0.02 * 3.5
+    assert "g2" not in m.regressed

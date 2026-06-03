@@ -222,7 +222,7 @@ def main(argv: list[str] | None = None) -> int:
         "g2_threshold_scale": metrics.g2_threshold_scale,
         "error_seconds_distribution": dist,
         "tolerance_sensitivity": tolerance_sensitivity,
-        "generated_at": _dt.datetime.utcnow().isoformat() + "Z",
+        "generated_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
     }, indent=2))
     print(f"{metrics.primary:.4f}")
     return 1 if metrics.regressed else 0

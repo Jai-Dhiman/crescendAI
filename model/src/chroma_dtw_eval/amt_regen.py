@@ -324,7 +324,11 @@ def regenerate_pseudo_truth(
         raise AmtRegenError(f"AMT returned zero notes for {audio_path}")
 
     score_na, measure_table, score_sha256_2 = _load_bach_json_score(score_path)
-    assert score_sha256 == score_sha256_2
+    if score_sha256 != score_sha256_2:
+        raise AmtRegenError(
+            f"score file mutated during regen: {score_path} "
+            f"(first sha={score_sha256!r}, second sha={score_sha256_2!r})"
+        )
 
     # Extract BPM for beat duration computation in _amt_to_perf_na.
     score_body = json.loads(score_path.read_text())

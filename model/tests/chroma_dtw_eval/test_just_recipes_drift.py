@@ -12,6 +12,7 @@ JUSTFILE = REPO_ROOT / "Justfile"
 
 @pytest.mark.parametrize("recipe", [
     "chroma-eval-verify",
+    "chroma-eval-verify-smoke",
     "chroma-eval-ratchet",
     "chroma-eval-prebuild",
     "amt-regen-pseudo-truth",
