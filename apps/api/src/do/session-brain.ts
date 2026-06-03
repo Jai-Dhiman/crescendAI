@@ -1455,6 +1455,32 @@ export class SessionBrain extends DurableObject<Bindings> {
 
 		const sessionDurationMs = computeSessionDurationMs(effectiveScoredChunks.length);
 
+		// Cold-start: a student with no stored baselines never accumulated live
+		// teaching moments (the live gate requires baselines !== null). Build
+		// within-session moments now so acc.topMoments() has data to surface.
+		// Sources chunks from effectiveScoredChunks, which mirrors the eval_score:
+		// per-chunk-key fallback above, so this does not silently no-op in eval mode.
+		let referenceMode: "within_session" | null = null;
+		if (state.baselines === null) {
+			referenceMode = "within_session";
+			try {
+				const coldStartMoments = buildColdStartMoments(effectiveScoredChunks, 6);
+				for (const m of coldStartMoments) {
+					acc.accumulateMoment(m);
+				}
+			} catch (err) {
+				const error = err as Error;
+				console.log(
+					JSON.stringify({
+						level: "warn",
+						message: "cold-start moment selection failed",
+						sessionId: state.sessionId,
+						error: error.message,
+					}),
+				);
+			}
+		}
+
 		// Eval mode: compute accumulator snapshot now, attach to synthesis payload below.
 		let evalContext: Record<string, unknown> | null = null;
 		if (state.isEvalSession) {
@@ -1585,6 +1611,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 			sessionHistory,
 			pastDiagnoses,
 			pieceId: state.pieceIdentification?.pieceId ?? null,
+			referenceMode,
 		};
 
 		// teacher.synthesize() throws on failure — try/catch handles it
