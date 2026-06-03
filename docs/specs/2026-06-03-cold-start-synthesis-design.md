@@ -95,6 +95,7 @@ Four vertical slices, each one test -> one impl -> one commit.
 | `apps/api/src/services/prompts.ts` | Add `referenceMode` param + conditional `reference_mode` field + no-history instruction | Modify |
 | `apps/api/src/services/prompts.test.ts` | Tests for conditional reference_mode output | Modify |
 | `apps/api/src/services/teacher.ts` | Add `referenceMode` to `SynthesisInput`; pass to `buildSynthesisFraming` | Modify |
+| `apps/api/src/services/teacher-synthesize-reference-mode.test.ts` | Mocked-`callAnthropic` test for referenceMode threading through `synthesize` | New |
 
 ## Open Questions
 
