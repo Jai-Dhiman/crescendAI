@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
+import type { Bindings, Variables } from "../lib/types";
 import { errorHandler } from "../middleware/error-handler";
 import { practiceRoutes, resolveSessionStudentId } from "./practice";
 
@@ -7,7 +8,7 @@ const testApp = new Hono().route("/api/practice", practiceRoutes);
 
 // Authenticated test app: injects a studentId and stubs the DB.
 function makeAuthApp(dbStub: Record<string, unknown>) {
-	const app = new Hono();
+	const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 	app.use("*", async (c, next) => {
 		c.set("studentId", "student-a");
 		c.set("db", dbStub);
