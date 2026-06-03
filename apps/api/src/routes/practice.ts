@@ -25,6 +25,33 @@ const synthesizeBodySchema = z.object({
 	sessionId: z.string().uuid(),
 });
 
+/**
+ * Resolves the effective studentId for a WebSocket practice session.
+ *
+ * Guarantee: in production (environment === "production") the eval override
+ * is unconditionally ignored — effectiveStudentId is ALWAYS authStudentId.
+ * In non-production environments, an explicit evalStudentId is honoured when
+ * provided so the cold-start eval harness can supply per-recording identities.
+ * If evalStudentId is empty even in non-production, authStudentId is used.
+ */
+export function resolveSessionStudentId({
+	isEvalQuery,
+	evalStudentId,
+	authStudentId,
+	environment,
+}: {
+	isEvalQuery: boolean;
+	evalStudentId: string;
+	authStudentId: string | null;
+	environment: string;
+}): string | null {
+	const evalAllowed = isEvalQuery && environment !== "production";
+	if (evalAllowed && evalStudentId) {
+		return evalStudentId;
+	}
+	return authStudentId;
+}
+
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 	.post("/start", validate("json", startBodySchema), async (c) => {
 		requireAuth(c.var.studentId);
@@ -120,14 +147,17 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 		// Eval sessions may supply a per-recording identity so each recording
 		// starts with empty sessionHistory/pastDiagnoses (cold-start guarantee).
-		// This override is ONLY honoured when the session is explicitly eval mode;
-		// production sessions always use the authenticated user's identity.
-		const isEval = c.req.query("eval") === "true";
-		const evalStudentId = isEval ? (c.req.query("evalStudentId") ?? "") : "";
-		const effectiveStudentId =
-			isEval && evalStudentId ? evalStudentId : c.var.studentId;
+		// SECURITY: the override is gated on ENVIRONMENT !== "production" so it
+		// is unreachable in the deployed worker. Production always uses the
+		// authenticated studentId; the local harness keeps working via evalStudentId.
+		const effectiveStudentId = resolveSessionStudentId({
+			isEvalQuery: c.req.query("eval") === "true",
+			evalStudentId: c.req.query("evalStudentId") ?? "",
+			authStudentId: c.var.studentId,
+			environment: c.env.ENVIRONMENT,
+		});
 
-		url.searchParams.set("studentId", effectiveStudentId);
+		url.searchParams.set("studentId", effectiveStudentId ?? "");
 		const conversationId = c.req.query("conversationId");
 		if (conversationId) {
 			url.searchParams.set("conversationId", conversationId);

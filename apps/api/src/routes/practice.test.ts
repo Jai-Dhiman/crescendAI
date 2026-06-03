@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import { errorHandler } from "../middleware/error-handler";
-import { practiceRoutes } from "./practice";
+import { practiceRoutes, resolveSessionStudentId } from "./practice";
 
 const testApp = new Hono().route("/api/practice", practiceRoutes);
 
@@ -17,6 +17,59 @@ function makeAuthApp(dbStub: Record<string, unknown>) {
 	app.onError(errorHandler);
 	return app;
 }
+
+describe("resolveSessionStudentId", () => {
+	it("production: ignores eval override, returns authStudentId", () => {
+		const result = resolveSessionStudentId({
+			isEvalQuery: true,
+			evalStudentId: "victim-student-id",
+			authStudentId: "auth-user-id",
+			environment: "production",
+		});
+		expect(result).toBe("auth-user-id");
+	});
+
+	it("production: eval=true&evalStudentId=victim resolves to authenticated user, not victim", () => {
+		const result = resolveSessionStudentId({
+			isEvalQuery: true,
+			evalStudentId: "victim-id",
+			authStudentId: "real-auth-id",
+			environment: "production",
+		});
+		expect(result).not.toBe("victim-id");
+		expect(result).toBe("real-auth-id");
+	});
+
+	it("non-production: eval=true&evalStudentId=eval-rX resolves to eval-rX", () => {
+		const result = resolveSessionStudentId({
+			isEvalQuery: true,
+			evalStudentId: "eval-r42",
+			authStudentId: "auth-user-id",
+			environment: "development",
+		});
+		expect(result).toBe("eval-r42");
+	});
+
+	it("non-production: eval=true but empty evalStudentId falls back to authStudentId", () => {
+		const result = resolveSessionStudentId({
+			isEvalQuery: true,
+			evalStudentId: "",
+			authStudentId: "auth-user-id",
+			environment: "development",
+		});
+		expect(result).toBe("auth-user-id");
+	});
+
+	it("non-production: eval=false ignores evalStudentId, returns authStudentId", () => {
+		const result = resolveSessionStudentId({
+			isEvalQuery: false,
+			evalStudentId: "injected-id",
+			authStudentId: "auth-user-id",
+			environment: "development",
+		});
+		expect(result).toBe("auth-user-id");
+	});
+});
 
 describe("practice routes", () => {
 	it("POST /api/practice/start returns 401 without auth", async () => {
