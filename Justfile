@@ -206,3 +206,28 @@ lint-api:
 # Lint web (biome)
 lint-web:
     cd apps/web && bun run lint
+
+# Build dtw_chunk_cli release binary so chroma-eval-verify hits its 120s budget on warm cache.
+# Run once after a clean checkout; idempotent thereafter.
+chroma-eval-prebuild:
+    cd apps/api/src/wasm/score-analysis && cargo build --release --bin dtw_chunk_cli
+
+# Run chroma-DTW eval harness against the committed practice corpus.
+# stdout: exactly one float (the primary). exit 0 iff no guard regressed.
+# 120s budget assumes the Rust DTW binary is already built; run `just chroma-eval-prebuild` once after a clean checkout.
+chroma-eval-verify:
+    cd model && uv run python -m chroma_dtw_eval.verify \
+        --baseline data/evals/chroma_dtw/baseline.json \
+        --manifest data/evals/chroma_dtw_fixtures/manifest.json
+
+# Promote the latest sidecar to baseline. Refuses to write on regression.
+chroma-eval-ratchet:
+    cd model && uv run python -m chroma_dtw_eval.ratchet \
+        --from data/evals/chroma_dtw/last_run.json \
+        --to data/evals/chroma_dtw/baseline.json
+
+# Regenerate AMT pseudo-truth cache for a single (piece, video_id).
+# Usage: just amt-regen-pseudo-truth <piece_id> <video_id>
+amt-regen-pseudo-truth piece video_id:
+    cd model && uv run python -m chroma_dtw_eval.amt_regen \
+        --piece {{piece}} --video-id {{video_id}}
