@@ -71,7 +71,7 @@ Group D (manual, after C): Task 7 (live measure), Task 8 (re-lock + checklist)
 - Modify: `apps/evals/teaching_knowledge/run_eval.py`
 - Test: `apps/evals/teaching_knowledge/tests/test_run_eval_no_thin_framing.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/teaching_knowledge/tests/test_run_eval_no_thin_framing.py
@@ -95,14 +95,14 @@ def test_module_imports_without_bar_analysis_local() -> None:
     assert "piece_score_map" not in text
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/evals && uv run pytest teaching_knowledge/tests/test_run_eval_no_thin_framing.py -q
 ```
 Expected: FAIL — `assert not hasattr(run_eval, "build_synthesis_user_msg")` fails because the function still exists.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/evals/teaching_knowledge/run_eval.py`:
 
@@ -121,14 +121,14 @@ In `apps/evals/teaching_knowledge/run_eval.py`:
    Place this `raise` as the first statement inside the existing `try:` in `run(...)`, replacing the `user_msg = build_synthesis_user_msg(...)` line and the subsequent `synthesis_client.complete(...)` / `extract_teacher_response(...)` / judge block down to the matching `except Exception as exc:`. Keep the `except Exception as exc:` error-row handling as-is so the module still parses. (Task 5 removes this stub and wires `run_do_baseline`.)
 4. Keep `aggregate_muq`, `extract_teacher_response`, `load_manifests`, `load_completed_ids`, `_build_row`, `_filter_cache_files_by_split`, and the `SCALER_MEAN`/`DIMS` constants — Task 4 reuses `aggregate_muq` and `_build_row` is still imported elsewhere.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/evals && uv run pytest teaching_knowledge/tests/test_run_eval_no_thin_framing.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/evals/teaching_knowledge/run_eval.py apps/evals/teaching_knowledge/tests/test_run_eval_no_thin_framing.py
@@ -151,7 +151,7 @@ git commit -m "refactor(evals): remove thin-framing build_synthesis_user_msg fro
 - Delete: `apps/evals/teaching_knowledge/tests/test_run_eval_bar_analysis.py`
 - Test: `apps/evals/teaching_knowledge/tests/test_no_bar_analysis_local.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/teaching_knowledge/tests/test_no_bar_analysis_local.py
@@ -175,14 +175,14 @@ def test_bar_analysis_local_not_importable() -> None:
     raise AssertionError("teaching_knowledge.bar_analysis_local should not be importable")
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/evals && uv run pytest teaching_knowledge/tests/test_no_bar_analysis_local.py -q
 ```
 Expected: FAIL — `bar_analysis_local.py` still exists, so the first assertion fails.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```bash
 git rm apps/evals/teaching_knowledge/bar_analysis_local.py \
@@ -190,14 +190,14 @@ git rm apps/evals/teaching_knowledge/bar_analysis_local.py \
        apps/evals/teaching_knowledge/tests/test_run_eval_bar_analysis.py
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/evals && uv run pytest teaching_knowledge/tests/test_no_bar_analysis_local.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A apps/evals/teaching_knowledge/
@@ -223,7 +223,7 @@ git commit -m "chore(evals): delete bar_analysis_local framing port + tests (#22
 
 > Note: `test_run_eval_blocks.py` and `test_run_eval_style_injection.py` both import `build_synthesis_user_msg` (deleted in Task 1) and would fail collection otherwise; they test the deleted thin framing, so they are removed here.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/teacher_model/stage0/tests/test_no_run_synthesis.py
@@ -246,14 +246,14 @@ def test_stage0_run_synthesis_not_importable() -> None:
     raise AssertionError("teacher_model.stage0.run_synthesis should not be importable")
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/evals && uv run pytest teacher_model/stage0/tests/test_no_run_synthesis.py -q
 ```
 Expected: FAIL — `run_synthesis.py` still exists.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```bash
 git rm apps/evals/teacher_model/stage0/run_synthesis.py \
@@ -262,14 +262,14 @@ git rm apps/evals/teacher_model/stage0/run_synthesis.py \
        apps/evals/tests/test_run_eval_style_injection.py
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/evals && uv run pytest teacher_model/stage0/tests/test_no_run_synthesis.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A apps/evals/teacher_model/stage0/ apps/evals/teaching_knowledge/ apps/evals/tests/
@@ -290,7 +290,7 @@ git commit -m "chore(evals): delete stage0 thin-framing run_synthesis + style/bl
 - Modify: `apps/evals/teaching_knowledge/run_eval.py`
 - Test: `apps/evals/teaching_knowledge/tests/test_do_row.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/teaching_knowledge/tests/test_do_row.py
@@ -412,14 +412,14 @@ def test_unresolved_piece_flags_false_but_still_judges() -> None:
     assert len(row["judge_dimensions"]) == 2
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/evals && uv run pytest teaching_knowledge/tests/test_do_row.py -q
 ```
 Expected: FAIL — `ImportError: cannot import name 'build_do_row' from 'teaching_knowledge.run_eval'`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Add to `apps/evals/teaching_knowledge/run_eval.py` (the `RunProvenance` type is already imported at the top of the file):
 
@@ -502,14 +502,14 @@ def build_do_row(
 
 Note: the test calls `build_do_row(sr, meta, judge_fn, prov)` with a judge that accepts `provider=`/`model=` kwargs (matching `judge_synthesis_v2`'s signature); `_judge_ok` ignores them via `**kwargs`.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/evals && uv run pytest teaching_knowledge/tests/test_do_row.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/evals/teaching_knowledge/run_eval.py apps/evals/teaching_knowledge/tests/test_do_row.py
@@ -530,7 +530,7 @@ git commit -m "feat(evals): build_do_row maps DO SessionResult to aggregator row
 - Modify: `apps/evals/teaching_knowledge/run_eval.py`
 - Test: `apps/evals/teaching_knowledge/tests/test_run_do_baseline.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/teaching_knowledge/tests/test_run_do_baseline.py
@@ -665,14 +665,14 @@ def test_run_do_baseline_resumes_completed_recordings(tmp_path: Path) -> None:
     assert len(rows) == 1
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/evals && uv run pytest teaching_knowledge/tests/test_run_do_baseline.py -q
 ```
 Expected: FAIL — `ImportError: cannot import name 'run_do_baseline' from 'teaching_knowledge.run_eval'`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/evals/teaching_knowledge/run_eval.py`:
 
@@ -829,14 +829,14 @@ def run_do_baseline(
         return
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/evals && uv run pytest teaching_knowledge/tests/test_run_do_baseline.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/evals/teaching_knowledge/run_eval.py apps/evals/teaching_knowledge/tests/test_run_do_baseline.py
@@ -863,7 +863,7 @@ git commit -m "feat(evals): run_do_baseline drives holdout through real DO synth
 - Modify: `apps/evals/teacher_model/stage0/cli.py`
 - Test: `apps/evals/teacher_model/stage0/tests/test_cli_synthesis_repointed.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/teacher_model/stage0/tests/test_cli_synthesis_repointed.py
@@ -901,14 +901,14 @@ def test_synthesis_subcommand_calls_run_do_baseline_with_judge_extended(tmp_path
     assert kwargs["judge_fn"] is judge_extended
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/evals && uv run pytest teacher_model/stage0/tests/test_cli_synthesis_repointed.py -q
 ```
 Expected: FAIL — `cli.py` still has the module-top import at line 11 (`from teacher_model.stage0.run_synthesis import run as run_synthesis`), and because Task 3 already deleted `run_synthesis.py`, importing/collecting `cli.py` raises `ModuleNotFoundError` at line 11 before either test body runs. (This is the anticipated intermediate-state failure described in the Verified-import-structure note above.)
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/evals/teacher_model/stage0/cli.py`:
 
@@ -942,14 +942,14 @@ In `apps/evals/teacher_model/stage0/cli.py`:
 
    The subparser already defines `--provider`, `--model`, `--out`, `--judge-provider`, `--judge-model`, `--limit` (confirm; keep them — `--provider`/`--model` are now unused by this branch but harmless; do not remove them in this task to keep the diff surgical). Map `args.judge_provider`/`args.judge_model` through unchanged.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/evals && uv run pytest teacher_model/stage0/tests/test_cli_synthesis_repointed.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/evals/teacher_model/stage0/cli.py apps/evals/teacher_model/stage0/tests/test_cli_synthesis_repointed.py
@@ -1101,7 +1101,7 @@ Expected: the eval suite collects and passes (no import errors from the deleted 
 - Modify: `apps/evals/teacher_model/calibration/regen_calibration_baseline.py`
 - Test: `apps/evals/teacher_model/calibration/tests/test_regen_calibration_repointed.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/teacher_model/calibration/tests/test_regen_calibration_repointed.py
@@ -1125,14 +1125,14 @@ def test_regen_builds_row_through_build_do_row() -> None:
     assert "build_do_row" in text
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/evals && uv run pytest teacher_model/calibration/tests/test_regen_calibration_repointed.py -q
 ```
 Expected: FAIL — the module still imports/uses `build_synthesis_user_msg` and `extract_teacher_response` and does not reference `build_do_row`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/evals/teacher_model/calibration/regen_calibration_baseline.py`:
 
@@ -1174,14 +1174,14 @@ In `apps/evals/teacher_model/calibration/regen_calibration_baseline.py`:
    `build_do_row`'s default `judge_provider="workers-ai"` / `judge_model="@cf/google/gemma-4-26b-a4b-it"` match the calibration regen's existing Gemma judge; pass explicit values only if the regen pinned a different judge model (confirm against the current `judge_synthesis_v2(...)` call — it used defaults, so no override needed).
 3. The `driver` is the injected/default DO-replay driver (same shape as Task 5: `driver(wrangler_url, recording_cache, student_id, piece_query) -> SessionResult`, default calls `shared.pipeline_client.run_recording` via `asyncio.run`). Define it at module level so the unit test can monkeypatch it if needed; the two tests above assert source content only, so the default driver need not run.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/evals && uv run pytest teacher_model/calibration/tests/test_regen_calibration_repointed.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/evals/teacher_model/calibration/regen_calibration_baseline.py \
