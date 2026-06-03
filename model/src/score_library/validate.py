@@ -72,4 +72,15 @@ def validate_score(score: ScoreData, expected: ExpectedMeta) -> list[Violation]:
             )
         )
 
+    # (c) Bar-count plausibility.
+    low = expected.bar_tol_low * expected.expected_bars
+    high = expected.bar_tol_high * expected.expected_bars
+    if not (low <= score.total_bars <= high):
+        violations.append(
+            Violation(
+                "bar_count",
+                f"total_bars={score.total_bars} outside plausible [{low:.1f}, {high:.1f}] for expected {expected.expected_bars}",
+            )
+        )
+
     return violations

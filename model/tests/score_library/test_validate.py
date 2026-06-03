@@ -129,3 +129,29 @@ class TestPitchRange:
         score = _make_score(bars)
         violations = validate_score(score, _expected())
         assert any(v.check == "pitch_range" for v in violations)
+
+
+class TestBarCount:
+    def test_plausible_bar_count_no_violation(self) -> None:
+        # 3 actual bars; expected 3 -> well within [0.7*3, 2.2*3] = [2.1, 6.6].
+        score = _make_score(_c_major_clean_bars(n_bars=3))
+        violations = validate_score(score, _expected(expected_bars=3))
+        assert not any(v.check == "bar_count" for v in violations)
+
+    def test_too_few_bars_flagged(self) -> None:
+        # 3 actual bars; expected 10 -> 0.7*10 = 7.0 > 3 -> violation.
+        score = _make_score(_c_major_clean_bars(n_bars=3))
+        violations = validate_score(score, _expected(expected_bars=10))
+        assert any(v.check == "bar_count" for v in violations)
+
+    def test_too_many_bars_flagged(self) -> None:
+        # 3 actual bars; expected 1 -> 2.2*1 = 2.2 < 3 -> violation.
+        score = _make_score(_c_major_clean_bars(n_bars=3))
+        violations = validate_score(score, _expected(expected_bars=1))
+        assert any(v.check == "bar_count" for v in violations)
+
+    def test_repeat_unfold_tolerated(self) -> None:
+        # 6 actual bars; expected 3 -> 2.2*3 = 6.6 >= 6 -> no violation (repeat unfold).
+        score = _make_score(_c_major_clean_bars(n_bars=6))
+        violations = validate_score(score, _expected(expected_bars=3))
+        assert not any(v.check == "bar_count" for v in violations)
