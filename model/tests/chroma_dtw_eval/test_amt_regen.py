@@ -145,3 +145,24 @@ def test_regen_raises_low_coverage_on_sparse_match(
             )
     finally:
         _StubAmtHandler.canned_notes = _bach_canned_notes()
+
+
+@pytest.mark.parametrize("missing", ["score", "audio"])
+def test_regen_raises_on_missing_path(tmp_path: Path, missing: str) -> None:
+    """First-line guard: regenerate_pseudo_truth must raise AmtRegenError on
+    missing score or audio paths before any work runs."""
+    real_audio = tmp_path / "real.wav"
+    sf.write(str(real_audio), np.zeros(16000, dtype=np.float32), 16000)
+
+    score_path = BACH_SCORE if missing != "score" else tmp_path / "nope_score.json"
+    audio_path = real_audio if missing != "audio" else tmp_path / "nope_audio.wav"
+
+    with pytest.raises(AmtRegenError, match=f"{missing} not found"):
+        regenerate_pseudo_truth(
+            piece_id="bach_prelude_c_wtc1", video_id="V_missing",
+            score_path=score_path, audio_path=audio_path,
+            amt_url="http://127.0.0.1:9/transcribe",
+            amt_checkpoint_hash="aria_amt_v1_pilot_2026_06_01",
+            parangonar_version="3.3.2",
+            cache_root=tmp_path / "pseudo_truth",
+        )

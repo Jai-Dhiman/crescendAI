@@ -140,7 +140,7 @@ def _transcribe_clip(audio_16k: np.ndarray, amt_url: str) -> list[dict]:
     return all_notes
 
 
-def _load_bach_json_score(score_path: Path) -> tuple[np.ndarray, list[dict], str]:
+def _load_bach_json_score(score_path: Path) -> tuple[np.ndarray, list[dict], str, float]:
     """Load a single-tempo score JSON (bach prelude format).
 
     Returns (score_na, measure_table, score_sha256).
@@ -211,7 +211,7 @@ def _load_bach_json_score(score_path: Path) -> tuple[np.ndarray, list[dict], str
          "start_tick": int(b["start_tick"])}
         for b in bars
     ]
-    return score_na, measure_table, score_sha256
+    return score_na, measure_table, score_sha256, beat_sec
 
 
 def _amt_to_perf_na(notes: list[dict], beat_sec: float = 0.5) -> np.ndarray:
@@ -323,18 +323,12 @@ def regenerate_pseudo_truth(
     if not amt_notes:
         raise AmtRegenError(f"AMT returned zero notes for {audio_path}")
 
-    score_na, measure_table, score_sha256_2 = _load_bach_json_score(score_path)
+    score_na, measure_table, score_sha256_2, beat_sec = _load_bach_json_score(score_path)
     if score_sha256 != score_sha256_2:
         raise AmtRegenError(
             f"score file mutated during regen: {score_path} "
             f"(first sha={score_sha256!r}, second sha={score_sha256_2!r})"
         )
-
-    # Extract BPM for beat duration computation in _amt_to_perf_na.
-    score_body = json.loads(score_path.read_text())
-    tempo = score_body["tempo_markings"][0]
-    bpm = float(tempo.get("bpm") or (60_000_000 / tempo["tempo_usec"]))
-    beat_sec = 60.0 / bpm
 
     amt_perf_na = _amt_to_perf_na(amt_notes, beat_sec=beat_sec)
     matches = _match(score_na, amt_perf_na)
