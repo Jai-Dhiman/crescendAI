@@ -114,16 +114,20 @@ export function buildSynthesisFraming(
 	pieceMetadata: unknown,
 	memoryContext: string,
 	composer: string,
+	referenceMode: "within_session" | null = null,
 ): string {
 	const parts: string[] = [];
 
-	const sessionData = {
+	const sessionData: Record<string, unknown> = {
 		duration_minutes: Math.round(sessionDurationMs / 60000),
 		practice_pattern: practicePattern,
 		top_moments: topMoments,
 		drilling_records: drillingRecords,
 		piece: pieceMetadata,
 	};
+	if (referenceMode === "within_session") {
+		sessionData["reference_mode"] = "within_session";
+	}
 
 	parts.push("<session_data>");
 	parts.push(JSON.stringify(sessionData, null, 2));
@@ -153,6 +157,13 @@ export function buildSynthesisFraming(
 		parts.push("<student_memory>");
 		parts.push(memoryContext);
 		parts.push("</student_memory>");
+	}
+
+	if (referenceMode === "within_session") {
+		parts.push("");
+		parts.push(
+			"This is the student's first session -- describe only what happened within this session; do not reference past sessions or claim improvement over time.",
+		);
 	}
 
 	parts.push("");

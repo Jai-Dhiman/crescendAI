@@ -198,3 +198,53 @@ describe("buildSynthesisFraming + teacher_voice", () => {
 		expect(out).toContain("<also_consider");
 	});
 });
+
+describe("buildSynthesisFraming referenceMode", () => {
+	const piece = { title: "Etude", composer: "Chopin", skill_level: 3 };
+	const moments = [{ dimension: "timing", score: 0.3 }];
+
+	it("emits reference_mode and the first-session guardrail when within_session", () => {
+		const out = buildSynthesisFraming(
+			120_000,
+			"continuous_play",
+			moments,
+			[],
+			piece,
+			"",
+			"Chopin",
+			"within_session",
+		);
+		expect(out).toContain('"reference_mode"');
+		expect(out).toContain('"within_session"');
+		expect(out).toContain("This is the student's first session");
+		expect(out).toContain("do not reference past sessions");
+	});
+
+	it("omits reference_mode and the guardrail when referenceMode is null", () => {
+		const out = buildSynthesisFraming(
+			120_000,
+			"continuous_play",
+			moments,
+			[],
+			piece,
+			"",
+			"Chopin",
+			null,
+		);
+		expect(out).not.toContain("reference_mode");
+		expect(out).not.toContain("This is the student's first session");
+	});
+
+	it("omits reference_mode when the argument is not supplied (existing callers unchanged)", () => {
+		const out = buildSynthesisFraming(
+			120_000,
+			"continuous_play",
+			moments,
+			[],
+			piece,
+			"",
+			"Chopin",
+		);
+		expect(out).not.toContain("reference_mode");
+	});
+});
