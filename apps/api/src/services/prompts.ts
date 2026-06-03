@@ -106,6 +106,9 @@ Most responses should be text-only. Tools are supplements, not defaults.
 - Direct, warm, specific -- prioritize honesty over encouragement
 - Speak as a teacher talking TO the student, not about them`;
 
+export const FIRST_SESSION_GUARDRAIL =
+	"This is the student's first session -- describe only what happened within this session; do not reference past sessions or claim improvement over time.";
+
 export function buildSynthesisFraming(
 	sessionDurationMs: number,
 	practicePattern: unknown,
@@ -161,9 +164,7 @@ export function buildSynthesisFraming(
 
 	if (referenceMode === "within_session") {
 		parts.push("");
-		parts.push(
-			"This is the student's first session -- describe only what happened within this session; do not reference past sessions or claim improvement over time.",
-		);
+		parts.push(FIRST_SESSION_GUARDRAIL);
 	}
 
 	parts.push("");

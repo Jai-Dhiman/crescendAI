@@ -760,6 +760,7 @@ export async function* synthesizeV6(
 		cohort_tables: COHORT_TABLES,
 		session_history: input.sessionHistory,
 		past_diagnoses: input.pastDiagnoses,
+		reference_mode: input.referenceMode ?? null,
 	};
 
 	const hookCtx: HookContext = {

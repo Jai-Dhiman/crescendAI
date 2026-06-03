@@ -127,3 +127,84 @@ describe('synthesizeV6 digest shape', () => {
     expect(userContent).toMatch(/"baselines":\s*null/)
   })
 })
+
+const GUARDRAIL =
+  "This is the student's first session -- describe only what happened within this session; do not reference past sessions or claim improvement over time."
+
+describe('synthesizeV6 first-session guardrail', () => {
+  const fetchSpy = vi.fn()
+
+  beforeEach(() => {
+    fetchSpy.mockReset()
+    vi.stubGlobal('fetch', fetchSpy)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  // Runs synthesizeV6, returning the captured phase1 and phase2 request bodies.
+  async function runWith(referenceMode: 'within_session' | null) {
+    let phase1Body: string | null = null
+    let phase2Body: string | null = null
+
+    // Call 1: Phase 1 — capture body, end turn with no tools
+    fetchSpy.mockImplementationOnce(async (_url: string, opts: RequestInit) => {
+      phase1Body = opts.body as string
+      return new Response(
+        JSON.stringify({ content: [{ type: 'text', text: 'no tools' }], stop_reason: 'end_turn' }),
+        { status: 200 },
+      )
+    })
+    // Call 2: Phase 2 — capture body, write SynthesisArtifact
+    fetchSpy.mockImplementationOnce(async (_url: string, opts: RequestInit) => {
+      phase2Body = opts.body as string
+      return new Response(
+        JSON.stringify({
+          content: [{ type: 'tool_use', id: 'tu_g', name: 'write_synthesis_artifact', input: VALID_ARTIFACT }],
+          stop_reason: 'tool_use',
+        }),
+        { status: 200 },
+      )
+    })
+
+    const ctx: ServiceContext = { db: {} as never, env: MOCK_BINDINGS }
+    for await (const _ of synthesizeV6(ctx, {
+      studentId: 'stu-1', conversationId: null, sessionDurationMs: 60000, practicePattern: '{}',
+      topMoments: [], drillingRecords: [], pieceMetadata: null,
+      enrichedChunks: [], baselines: referenceMode === null ? { dynamics: 0.5, timing: 0.48, pedaling: 0.46, articulation: 0.54, phrasing: 0.52, interpretation: 0.51 } : null,
+      sessionHistory: [], pastDiagnoses: [],
+      referenceMode,
+    }, 'sess-1')) { /* drain */ }
+
+    return { phase1Body, phase2Body }
+  }
+
+  // Extracts the user-message content string from a captured request body.
+  function userContentOf(body: string): string {
+    const parsed = JSON.parse(body)
+    return parsed.messages?.find((m: { role: string }) => m.role === 'user')?.content as string
+  }
+
+  it('emits the first-session guardrail into the phase2 prose prompt when referenceMode=within_session', async () => {
+    const { phase1Body, phase2Body } = await runWith('within_session')
+
+    expect(phase1Body).not.toBeNull()
+    expect(phase2Body).not.toBeNull()
+    const phase1User = userContentOf(phase1Body!)
+    const phase2User = userContentOf(phase2Body!)
+    // reference_mode flag reaches both phases via the serialized digest.
+    expect(phase1User).toContain('"reference_mode": "within_session"')
+    expect(phase2User).toContain('"reference_mode": "within_session"')
+    // Explicit guardrail instruction reaches the prose-writing (phase2) prompt.
+    expect(phase2User).toContain(GUARDRAIL)
+  })
+
+  it('omits the guardrail when referenceMode is null (returning student)', async () => {
+    const { phase1Body, phase2Body } = await runWith(null)
+
+    expect(phase2Body).not.toBeNull()
+    expect(userContentOf(phase1Body!)).toContain('"reference_mode": null')
+    expect(userContentOf(phase2Body!)).not.toContain(GUARDRAIL)
+  })
+})

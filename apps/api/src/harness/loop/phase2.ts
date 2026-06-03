@@ -1,5 +1,6 @@
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { InferenceError } from "../../lib/errors";
+import { FIRST_SESSION_GUARDRAIL } from "../../services/prompts";
 import { withRetries } from "./middleware";
 import { routeModel } from "./route-model";
 import type { Phase2Binding, HookEvent, PhaseContext } from "./types";
@@ -51,9 +52,15 @@ export async function* runPhase2(
 		input_schema: artifactInputSchema(binding.artifactSchema),
 	};
 
+	const guardrail =
+		ctx.digest.reference_mode === "within_session"
+			? `${FIRST_SESSION_GUARDRAIL}\n\n`
+			: "";
+
 	const userPrompt =
 		`Session digest:\n${JSON.stringify(ctx.digest, null, 2)}\n\n` +
 		`Collected diagnoses (${diagnoses.length}):\n${JSON.stringify(diagnoses, null, 2)}\n\n` +
+		guardrail +
 		`Write the SynthesisArtifact now using the ${binding.artifactToolName} tool.`;
 
 	const client = routeModel("phase2_voice");
