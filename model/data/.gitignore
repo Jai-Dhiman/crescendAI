@@ -9,6 +9,7 @@
 # Scores: generated piece JSONs are gitignored, titles.json and seed.sql are tracked
 /scores/*.json
 !/scores/titles.json
+!/scores/bach.prelude.bwv_846.json
 
 # Eval outputs (manifests/metadata tracked separately)
 /evals/inference_cache/

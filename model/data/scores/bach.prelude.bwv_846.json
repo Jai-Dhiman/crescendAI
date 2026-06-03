@@ -1,0 +1,3348 @@
+{
+  "piece_id": "bach_prelude_c_wtc1",
+  "composer": "Johann Sebastian Bach",
+  "title": "Prelude in C Major, BWV 846",
+  "key_signature": "C major",
+  "time_signatures": [
+    {
+      "tick": 0,
+      "numerator": 4,
+      "denominator": 4
+    }
+  ],
+  "tempo_markings": [
+    {
+      "tick": 0,
+      "tempo_usec": 500000,
+      "bpm": 120.0
+    }
+  ],
+  "total_bars": 35,
+  "bars": [
+    {
+      "bar_number": 1,
+      "start_tick": 0,
+      "start_seconds": 0.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 0,
+          "onset_seconds": 0.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 240,
+          "onset_seconds": 0.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 480,
+          "onset_seconds": 0.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 720,
+          "onset_seconds": 0.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 960,
+          "onset_seconds": 1.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 1200,
+          "onset_seconds": 1.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 1440,
+          "onset_seconds": 1.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 1680,
+          "onset_seconds": 1.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        76
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 2,
+      "start_tick": 1920,
+      "start_seconds": 2.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 1920,
+          "onset_seconds": 2.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 62,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 2160,
+          "onset_seconds": 2.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 2400,
+          "onset_seconds": 2.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 2640,
+          "onset_seconds": 2.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 74,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 2880,
+          "onset_seconds": 3.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 3120,
+          "onset_seconds": 3.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 3360,
+          "onset_seconds": 3.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 74,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 3600,
+          "onset_seconds": 3.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        74
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 3,
+      "start_tick": 3840,
+      "start_seconds": 4.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 59,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 3840,
+          "onset_seconds": 4.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 62,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 4080,
+          "onset_seconds": 4.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 4320,
+          "onset_seconds": 4.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 4560,
+          "onset_seconds": 4.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 74,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 4800,
+          "onset_seconds": 5.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 5040,
+          "onset_seconds": 5.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 5280,
+          "onset_seconds": 5.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 74,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 5520,
+          "onset_seconds": 5.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        59,
+        74
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 4,
+      "start_tick": 5760,
+      "start_seconds": 6.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 5760,
+          "onset_seconds": 6.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 6000,
+          "onset_seconds": 6.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 6240,
+          "onset_seconds": 6.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 6480,
+          "onset_seconds": 6.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 6720,
+          "onset_seconds": 7.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 6960,
+          "onset_seconds": 7.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 7200,
+          "onset_seconds": 7.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 7440,
+          "onset_seconds": 7.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        76
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 5,
+      "start_tick": 7680,
+      "start_seconds": 8.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 7680,
+          "onset_seconds": 8.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 7920,
+          "onset_seconds": 8.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 8160,
+          "onset_seconds": 8.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 8400,
+          "onset_seconds": 8.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 8640,
+          "onset_seconds": 9.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 8880,
+          "onset_seconds": 9.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 9120,
+          "onset_seconds": 9.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 9360,
+          "onset_seconds": 9.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        76
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 6,
+      "start_tick": 9600,
+      "start_seconds": 10.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 9600,
+          "onset_seconds": 10.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 9840,
+          "onset_seconds": 10.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 10080,
+          "onset_seconds": 10.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 10320,
+          "onset_seconds": 10.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 77,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 10560,
+          "onset_seconds": 11.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 10800,
+          "onset_seconds": 11.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 11040,
+          "onset_seconds": 11.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 77,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 11280,
+          "onset_seconds": 11.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        77
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 7,
+      "start_tick": 11520,
+      "start_seconds": 12.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 59,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 11520,
+          "onset_seconds": 12.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 62,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 11760,
+          "onset_seconds": 12.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 12000,
+          "onset_seconds": 12.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 12240,
+          "onset_seconds": 12.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 71,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 12480,
+          "onset_seconds": 13.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 12720,
+          "onset_seconds": 13.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 12960,
+          "onset_seconds": 13.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 71,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 13200,
+          "onset_seconds": 13.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        59,
+        71
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 8,
+      "start_tick": 13440,
+      "start_seconds": 14.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 13440,
+          "onset_seconds": 14.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 13680,
+          "onset_seconds": 14.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 13920,
+          "onset_seconds": 14.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 14160,
+          "onset_seconds": 14.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 14400,
+          "onset_seconds": 15.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 14640,
+          "onset_seconds": 15.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 14880,
+          "onset_seconds": 15.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 15120,
+          "onset_seconds": 15.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        76
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 9,
+      "start_tick": 15360,
+      "start_seconds": 16.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 55,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 15360,
+          "onset_seconds": 16.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 60,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 15600,
+          "onset_seconds": 16.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 15840,
+          "onset_seconds": 16.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 16080,
+          "onset_seconds": 16.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 16320,
+          "onset_seconds": 17.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 16560,
+          "onset_seconds": 17.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 16800,
+          "onset_seconds": 17.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 17040,
+          "onset_seconds": 17.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        55,
+        72
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 10,
+      "start_tick": 17280,
+      "start_seconds": 18.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 53,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 17280,
+          "onset_seconds": 18.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 57,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 17520,
+          "onset_seconds": 18.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 60,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 17760,
+          "onset_seconds": 18.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 18000,
+          "onset_seconds": 18.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 18240,
+          "onset_seconds": 19.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 60,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 18480,
+          "onset_seconds": 19.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 18720,
+          "onset_seconds": 19.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 18960,
+          "onset_seconds": 19.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        53,
+        69
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 11,
+      "start_tick": 19200,
+      "start_seconds": 20.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 50,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 19200,
+          "onset_seconds": 20.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 53,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 19440,
+          "onset_seconds": 20.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 57,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 19680,
+          "onset_seconds": 20.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 60,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 19920,
+          "onset_seconds": 20.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 20160,
+          "onset_seconds": 21.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 57,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 20400,
+          "onset_seconds": 21.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 60,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 20640,
+          "onset_seconds": 21.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 20880,
+          "onset_seconds": 21.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        50,
+        65
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 12,
+      "start_tick": 21120,
+      "start_seconds": 22.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 52,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 21120,
+          "onset_seconds": 22.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 55,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 21360,
+          "onset_seconds": 22.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 59,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 21600,
+          "onset_seconds": 22.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 62,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 21840,
+          "onset_seconds": 22.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 22080,
+          "onset_seconds": 23.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 59,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 22320,
+          "onset_seconds": 23.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 62,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 22560,
+          "onset_seconds": 23.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 22800,
+          "onset_seconds": 23.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        52,
+        67
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 13,
+      "start_tick": 23040,
+      "start_seconds": 24.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 23040,
+          "onset_seconds": 24.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 23280,
+          "onset_seconds": 24.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 23520,
+          "onset_seconds": 24.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 23760,
+          "onset_seconds": 24.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 24000,
+          "onset_seconds": 25.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 24240,
+          "onset_seconds": 25.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 24480,
+          "onset_seconds": 25.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 24720,
+          "onset_seconds": 25.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        76
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 14,
+      "start_tick": 24960,
+      "start_seconds": 26.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 24960,
+          "onset_seconds": 26.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 62,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 25200,
+          "onset_seconds": 26.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 25440,
+          "onset_seconds": 26.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 25680,
+          "onset_seconds": 26.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 74,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 25920,
+          "onset_seconds": 27.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 26160,
+          "onset_seconds": 27.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 26400,
+          "onset_seconds": 27.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 74,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 26640,
+          "onset_seconds": 27.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        74
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 15,
+      "start_tick": 26880,
+      "start_seconds": 28.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 59,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 26880,
+          "onset_seconds": 28.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 62,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 27120,
+          "onset_seconds": 28.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 27360,
+          "onset_seconds": 28.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 27600,
+          "onset_seconds": 28.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 74,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 27840,
+          "onset_seconds": 29.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 28080,
+          "onset_seconds": 29.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 28320,
+          "onset_seconds": 29.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 74,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 28560,
+          "onset_seconds": 29.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        59,
+        74
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 16,
+      "start_tick": 28800,
+      "start_seconds": 30.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 28800,
+          "onset_seconds": 30.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 29040,
+          "onset_seconds": 30.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 29280,
+          "onset_seconds": 30.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 29520,
+          "onset_seconds": 30.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 29760,
+          "onset_seconds": 31.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 30000,
+          "onset_seconds": 31.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 30240,
+          "onset_seconds": 31.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 30480,
+          "onset_seconds": 31.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        76
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 17,
+      "start_tick": 30720,
+      "start_seconds": 32.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 30720,
+          "onset_seconds": 32.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 30960,
+          "onset_seconds": 32.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 31200,
+          "onset_seconds": 32.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 31440,
+          "onset_seconds": 32.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 31680,
+          "onset_seconds": 33.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 31920,
+          "onset_seconds": 33.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 32160,
+          "onset_seconds": 33.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 32400,
+          "onset_seconds": 33.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        76
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 18,
+      "start_tick": 32640,
+      "start_seconds": 34.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 32640,
+          "onset_seconds": 34.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 32880,
+          "onset_seconds": 34.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 33120,
+          "onset_seconds": 34.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 33360,
+          "onset_seconds": 34.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 77,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 33600,
+          "onset_seconds": 35.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 33840,
+          "onset_seconds": 35.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 34080,
+          "onset_seconds": 35.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 77,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 34320,
+          "onset_seconds": 35.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        77
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 19,
+      "start_tick": 34560,
+      "start_seconds": 36.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 59,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 34560,
+          "onset_seconds": 36.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 62,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 34800,
+          "onset_seconds": 36.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 35040,
+          "onset_seconds": 36.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 35280,
+          "onset_seconds": 36.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 71,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 35520,
+          "onset_seconds": 37.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 35760,
+          "onset_seconds": 37.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 36000,
+          "onset_seconds": 37.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 71,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 36240,
+          "onset_seconds": 37.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        59,
+        71
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 20,
+      "start_tick": 36480,
+      "start_seconds": 38.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 36480,
+          "onset_seconds": 38.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 36720,
+          "onset_seconds": 38.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 36960,
+          "onset_seconds": 38.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 37200,
+          "onset_seconds": 38.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 37440,
+          "onset_seconds": 39.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 37680,
+          "onset_seconds": 39.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 37920,
+          "onset_seconds": 39.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 38160,
+          "onset_seconds": 39.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        76
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 21,
+      "start_tick": 38400,
+      "start_seconds": 40.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 55,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 38400,
+          "onset_seconds": 40.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 60,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 38640,
+          "onset_seconds": 40.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 38880,
+          "onset_seconds": 40.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 39120,
+          "onset_seconds": 40.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 39360,
+          "onset_seconds": 41.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 39600,
+          "onset_seconds": 41.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 39840,
+          "onset_seconds": 41.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 40080,
+          "onset_seconds": 41.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        55,
+        72
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 22,
+      "start_tick": 40320,
+      "start_seconds": 42.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 53,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 40320,
+          "onset_seconds": 42.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 57,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 40560,
+          "onset_seconds": 42.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 60,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 40800,
+          "onset_seconds": 42.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 41040,
+          "onset_seconds": 42.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 41280,
+          "onset_seconds": 43.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 60,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 41520,
+          "onset_seconds": 43.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 41760,
+          "onset_seconds": 43.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 42000,
+          "onset_seconds": 43.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        53,
+        69
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 23,
+      "start_tick": 42240,
+      "start_seconds": 44.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 50,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 42240,
+          "onset_seconds": 44.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 53,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 42480,
+          "onset_seconds": 44.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 57,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 42720,
+          "onset_seconds": 44.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 60,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 42960,
+          "onset_seconds": 44.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 43200,
+          "onset_seconds": 45.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 57,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 43440,
+          "onset_seconds": 45.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 60,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 43680,
+          "onset_seconds": 45.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 43920,
+          "onset_seconds": 45.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        50,
+        65
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 24,
+      "start_tick": 44160,
+      "start_seconds": 46.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 52,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 44160,
+          "onset_seconds": 46.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 55,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 44400,
+          "onset_seconds": 46.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 59,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 44640,
+          "onset_seconds": 46.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 62,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 44880,
+          "onset_seconds": 46.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 45120,
+          "onset_seconds": 47.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 59,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 45360,
+          "onset_seconds": 47.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 62,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 45600,
+          "onset_seconds": 47.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 45840,
+          "onset_seconds": 47.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        52,
+        67
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 25,
+      "start_tick": 46080,
+      "start_seconds": 48.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 46080,
+          "onset_seconds": 48.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 46320,
+          "onset_seconds": 48.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 46560,
+          "onset_seconds": 48.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 46800,
+          "onset_seconds": 48.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 47040,
+          "onset_seconds": 49.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 47280,
+          "onset_seconds": 49.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 47520,
+          "onset_seconds": 49.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 47760,
+          "onset_seconds": 49.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        76
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 26,
+      "start_tick": 48000,
+      "start_seconds": 50.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 48000,
+          "onset_seconds": 50.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 62,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 48240,
+          "onset_seconds": 50.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 48480,
+          "onset_seconds": 50.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 48720,
+          "onset_seconds": 50.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 74,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 48960,
+          "onset_seconds": 51.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 49200,
+          "onset_seconds": 51.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 49440,
+          "onset_seconds": 51.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 74,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 49680,
+          "onset_seconds": 51.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        74
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 27,
+      "start_tick": 49920,
+      "start_seconds": 52.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 59,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 49920,
+          "onset_seconds": 52.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 62,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 50160,
+          "onset_seconds": 52.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 50400,
+          "onset_seconds": 52.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 50640,
+          "onset_seconds": 52.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 74,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 50880,
+          "onset_seconds": 53.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 51120,
+          "onset_seconds": 53.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 51360,
+          "onset_seconds": 53.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 74,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 51600,
+          "onset_seconds": 53.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        59,
+        74
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 28,
+      "start_tick": 51840,
+      "start_seconds": 54.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 51840,
+          "onset_seconds": 54.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 52080,
+          "onset_seconds": 54.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 52320,
+          "onset_seconds": 54.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 52560,
+          "onset_seconds": 54.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 52800,
+          "onset_seconds": 55.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 53040,
+          "onset_seconds": 55.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 53280,
+          "onset_seconds": 55.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 53520,
+          "onset_seconds": 55.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        76
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 29,
+      "start_tick": 53760,
+      "start_seconds": 56.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 53760,
+          "onset_seconds": 56.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 54000,
+          "onset_seconds": 56.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 54240,
+          "onset_seconds": 56.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 54480,
+          "onset_seconds": 56.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 54720,
+          "onset_seconds": 57.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 54960,
+          "onset_seconds": 57.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 55200,
+          "onset_seconds": 57.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 55440,
+          "onset_seconds": 57.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        76
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 30,
+      "start_tick": 55680,
+      "start_seconds": 58.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 55680,
+          "onset_seconds": 58.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 55920,
+          "onset_seconds": 58.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 56160,
+          "onset_seconds": 58.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 56400,
+          "onset_seconds": 58.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 77,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 56640,
+          "onset_seconds": 59.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 56880,
+          "onset_seconds": 59.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 57120,
+          "onset_seconds": 59.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 77,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 57360,
+          "onset_seconds": 59.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        77
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 31,
+      "start_tick": 57600,
+      "start_seconds": 60.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 59,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 57600,
+          "onset_seconds": 60.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 62,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 57840,
+          "onset_seconds": 60.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 58080,
+          "onset_seconds": 60.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 58320,
+          "onset_seconds": 60.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 71,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 58560,
+          "onset_seconds": 61.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 58800,
+          "onset_seconds": 61.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 59040,
+          "onset_seconds": 61.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 71,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 59280,
+          "onset_seconds": 61.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        59,
+        71
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 32,
+      "start_tick": 59520,
+      "start_seconds": 62.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 60,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 59520,
+          "onset_seconds": 62.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 59760,
+          "onset_seconds": 62.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 60000,
+          "onset_seconds": 62.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 60240,
+          "onset_seconds": 62.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 60480,
+          "onset_seconds": 63.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 60720,
+          "onset_seconds": 63.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 60960,
+          "onset_seconds": 63.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 76,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 61200,
+          "onset_seconds": 63.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        60,
+        76
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 33,
+      "start_tick": 61440,
+      "start_seconds": 64.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 55,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 61440,
+          "onset_seconds": 64.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 60,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 61680,
+          "onset_seconds": 64.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 61920,
+          "onset_seconds": 64.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 62160,
+          "onset_seconds": 64.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 62400,
+          "onset_seconds": 65.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 64,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 62640,
+          "onset_seconds": 65.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 67,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 62880,
+          "onset_seconds": 65.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 72,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 63120,
+          "onset_seconds": 65.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        55,
+        72
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 34,
+      "start_tick": 63360,
+      "start_seconds": 66.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 53,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 63360,
+          "onset_seconds": 66.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 57,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 63600,
+          "onset_seconds": 66.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 60,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 63840,
+          "onset_seconds": 66.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 64080,
+          "onset_seconds": 66.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 64320,
+          "onset_seconds": 67.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 60,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 64560,
+          "onset_seconds": 67.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 64800,
+          "onset_seconds": 67.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 69,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 65040,
+          "onset_seconds": 67.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        53,
+        69
+      ],
+      "mean_velocity": 64
+    },
+    {
+      "bar_number": 35,
+      "start_tick": 65280,
+      "start_seconds": 68.0,
+      "time_signature": "4/4",
+      "notes": [
+        {
+          "pitch": 50,
+          "pitch_name": "note_0",
+          "velocity": 64,
+          "onset_tick": 65280,
+          "onset_seconds": 68.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 53,
+          "pitch_name": "note_1",
+          "velocity": 64,
+          "onset_tick": 65520,
+          "onset_seconds": 68.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 57,
+          "pitch_name": "note_2",
+          "velocity": 64,
+          "onset_tick": 65760,
+          "onset_seconds": 68.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 60,
+          "pitch_name": "note_3",
+          "velocity": 64,
+          "onset_tick": 66000,
+          "onset_seconds": 68.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_4",
+          "velocity": 64,
+          "onset_tick": 66240,
+          "onset_seconds": 69.0,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 57,
+          "pitch_name": "note_5",
+          "velocity": 64,
+          "onset_tick": 66480,
+          "onset_seconds": 69.25,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 60,
+          "pitch_name": "note_6",
+          "velocity": 64,
+          "onset_tick": 66720,
+          "onset_seconds": 69.5,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        },
+        {
+          "pitch": 65,
+          "pitch_name": "note_7",
+          "velocity": 64,
+          "onset_tick": 66960,
+          "onset_seconds": 69.75,
+          "duration_ticks": 239,
+          "duration_seconds": 0.25,
+          "track": 0
+        }
+      ],
+      "pedal_events": [],
+      "note_count": 8,
+      "pitch_range": [
+        50,
+        65
+      ],
+      "mean_velocity": 64
+    }
+  ]
+}
