@@ -207,3 +207,44 @@ class TestIngestRankedFallback:
         # Second (clean) source won; lockfile records its URL.
         assert lock["test.cmajor"]["resolved_url"] == url_good
         assert report.resolved["test.cmajor"]["resolved_url"] == url_good
+
+
+class TestIngestAllFailHalt:
+    def test_all_sources_fail_raises_with_table(self, tmp_path: Path) -> None:
+        scores_dir = tmp_path / "scores"
+        scores_dir.mkdir()
+        manifest_path = tmp_path / "manifest.json"
+        lock_path = tmp_path / "lock.json"
+
+        perf = build_performance_timed_bytes()
+        transposed = build_transposed_bytes()
+        url_a = "https://example.org/perf.mid"
+        url_b = "https://example.org/transposed.mid"
+        _write_manifest(
+            manifest_path,
+            [
+                {
+                    "slug": "test_slug",
+                    "piece_id": "test.cmajor",
+                    "composer": "Test",
+                    "title": "C Major",
+                    "expected_key": "C major",
+                    "expected_bars": 3,
+                    "license": "PD",
+                    "sources": [url_a, url_b],
+                }
+            ],
+        )
+
+        with pytest.raises(SourceResolutionError) as exc:
+            ingest_manifest(
+                manifest_path,
+                scores_dir,
+                lock_path,
+                fetch_fn=_make_fetch({url_a: perf, url_b: transposed}),
+            )
+        msg = str(exc.value)
+        assert "test.cmajor" in msg
+        assert url_a in msg and url_b in msg
+        # No JSON written for the unresolved piece.
+        assert not (scores_dir / "test.cmajor.json").exists()
