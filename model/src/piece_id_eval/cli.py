@@ -146,9 +146,7 @@ def main(argv: list[str] | None = None) -> int:
     print("\nRunning evaluation...")
     report = EvalReport.run(
         load_result.windows,
-        catalog,
         matchers,
-        holdout_piece_ids=holdout_piece_ids,
         thresholds=thresholds,
     )
 

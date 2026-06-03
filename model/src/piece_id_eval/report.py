@@ -44,18 +44,14 @@ class EvalReport:
     @staticmethod
     def run(
         query_windows: list[LabeledQueryWindow],
-        catalog_chromas: dict[str, np.ndarray],
         matchers: list[Matcher],
-        holdout_piece_ids: set[str],
         thresholds: np.ndarray,
     ) -> ReportResult:
         """Run all matchers over in/out-of-catalog windows, aggregate metrics.
 
         Args:
             query_windows: labeled windows from QuerySet.load.
-            catalog_chromas: {piece_id: score_chroma} for the searchable library.
             matchers: list of Matcher implementations to evaluate.
-            holdout_piece_ids: piece_ids whose queries are tagged is_in_catalog=False.
             thresholds: array of confidence thresholds for the open-set sweep.
 
         Returns:

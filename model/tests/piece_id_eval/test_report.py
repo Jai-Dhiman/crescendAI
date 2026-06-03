@@ -41,7 +41,7 @@ def test_report_run_returns_report_result() -> None:
     ]
     windows = _make_query_windows(catalog, holdout_ids=set())
     thresholds = np.linspace(0.0, 1.0, 21)
-    result = EvalReport.run(windows, catalog, matchers, holdout_piece_ids=set(), thresholds=thresholds)
+    result = EvalReport.run(windows, matchers, thresholds=thresholds)
     assert isinstance(result, ReportResult)
     assert result.verdict in ("KILL", "TUNE", "PROCEED")
 
@@ -55,7 +55,7 @@ def test_report_matcher_results_present_for_all_matchers() -> None:
     ]
     windows = _make_query_windows(catalog, holdout_ids=set())
     thresholds = np.linspace(0.0, 1.0, 21)
-    result = EvalReport.run(windows, catalog, matchers, holdout_piece_ids=set(), thresholds=thresholds)
+    result = EvalReport.run(windows, matchers, thresholds=thresholds)
     assert len(result.matcher_results) == 3
     for mr in result.matcher_results:
         assert isinstance(mr, MatcherResult)
@@ -70,7 +70,7 @@ def test_report_circularity_gives_perfect_recall_dtw() -> None:
     matchers = [DtwCeilingMatcher(catalog, oti=False)]
     windows = _make_query_windows(catalog, holdout_ids=set())
     thresholds = np.linspace(0.0, 1.0, 21)
-    result = EvalReport.run(windows, catalog, matchers, holdout_piece_ids=set(), thresholds=thresholds)
+    result = EvalReport.run(windows, matchers, thresholds=thresholds)
     dtw_result = result.matcher_results[0]
     assert dtw_result.recall_at_1 == 1.0
     assert dtw_result.recall_at_10 == 1.0
@@ -87,7 +87,7 @@ def test_report_open_set_curve_behavioral() -> None:
     matchers = [DtwCeilingMatcher(catalog, oti=False)]
     windows = _make_query_windows(catalog, holdout_ids=holdout_ids)
     thresholds = np.linspace(0.0, 1.0, 21)
-    result = EvalReport.run(windows, catalog, matchers, holdout_piece_ids=holdout_ids, thresholds=thresholds)
+    result = EvalReport.run(windows, matchers, thresholds=thresholds)
     # Curve arrays must match threshold shape
     assert result.open_set_fa.shape == thresholds.shape
     assert result.open_set_ta.shape == thresholds.shape
