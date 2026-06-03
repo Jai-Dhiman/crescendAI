@@ -130,3 +130,39 @@ class TestIngestHappyPath:
         lock = json.loads(lock_path.read_text())
         assert lock["test.cmajor"]["resolved_url"] == url
         assert lock["test.cmajor"]["sha256"] == hashlib.sha256(clean).hexdigest()
+
+
+class TestIngestHashMismatch:
+    def test_pinned_wrong_sha_rejects_only_candidate_then_halts(self, tmp_path: Path) -> None:
+        scores_dir = tmp_path / "scores"
+        scores_dir.mkdir()
+        manifest_path = tmp_path / "manifest.json"
+        lock_path = tmp_path / "lock.json"
+
+        clean = build_clean_c_major_bytes()
+        url = "https://example.org/cmaj.mid"
+        # Pre-seed the lockfile pinning this piece to a DIFFERENT sha.
+        lock_path.write_text(json.dumps({"test.cmajor": {"resolved_url": url, "sha256": "deadbeef"}}))
+        _write_manifest(
+            manifest_path,
+            [
+                {
+                    "slug": "test_slug",
+                    "piece_id": "test.cmajor",
+                    "composer": "Test",
+                    "title": "C Major",
+                    "expected_key": "C major",
+                    "expected_bars": 3,
+                    "license": "PD",
+                    "sources": [url],
+                }
+            ],
+        )
+
+        with pytest.raises(SourceResolutionError) as exc:
+            ingest_manifest(
+                manifest_path, scores_dir, lock_path, fetch_fn=_make_fetch({url: clean})
+            )
+        assert "hash_mismatch" in str(exc.value)
+        # The only candidate was rejected by the pin, so no JSON was written.
+        assert not (scores_dir / "test.cmajor.json").exists()
