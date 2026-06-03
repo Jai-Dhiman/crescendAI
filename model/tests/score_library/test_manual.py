@@ -1,0 +1,132 @@
+"""Tests for the ranked-source manual ingestion driver."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from io import BytesIO
+from pathlib import Path
+
+import mido
+import pytest
+
+from score_library.manual import (
+    IngestReport,
+    SourceResolutionError,
+    ingest_manifest,
+)
+
+PPB = 480
+BAR_TICKS = PPB * 4
+SIXTEENTH = PPB // 4
+
+
+def _scale_track(pitches: list[int], n_bars: int, offset: int = 0) -> mido.MidiTrack:
+    """Build a track: each bar plays `pitches` on every other 16th (8 notes/bar).
+
+    `offset` shifts EVERY onset by a FIXED tick amount (not alternating, not
+    random). A +60-tick offset at 480 tpq / 120-tick sixteenth puts every note
+    exactly half a sixteenth off-grid (0.125 beats), the deterministic maximum
+    the median-deviation metric can reach.
+    """
+    track = mido.MidiTrack()
+    track.append(mido.MetaMessage("time_signature", numerator=4, denominator=4, time=0))
+    track.append(mido.MetaMessage("set_tempo", tempo=500_000, time=0))
+    # Build absolute-tick (note_on, note_off) events, then delta-encode.
+    events: list[tuple[int, str, int]] = []
+    for b in range(n_bars):
+        for i, pitch in enumerate(pitches):
+            base = b * BAR_TICKS + i * (2 * SIXTEENTH)
+            on = base + offset
+            off = on + SIXTEENTH
+            events.append((on, "on", pitch))
+            events.append((off, "off", pitch))
+    events.sort(key=lambda e: e[0])
+    prev = 0
+    for abs_tick, kind, pitch in events:
+        delta = abs_tick - prev
+        prev = abs_tick
+        if kind == "on":
+            track.append(mido.Message("note_on", note=pitch, velocity=80, time=delta))
+        else:
+            track.append(mido.Message("note_off", note=pitch, velocity=0, time=delta))
+    return track
+
+
+def _midi_bytes(track: mido.MidiTrack) -> bytes:
+    mid = mido.MidiFile(ticks_per_beat=PPB)
+    mid.tracks.append(track)
+    buf = BytesIO()
+    mid.save(file=buf)
+    return buf.getvalue()
+
+
+def build_clean_c_major_bytes() -> bytes:
+    """>= 20 notes on a clean 4/4 16th grid in C major, several bars, monotonic."""
+    return _midi_bytes(_scale_track([60, 62, 64, 65, 67, 69, 71, 72], n_bars=3))
+
+
+def build_performance_timed_bytes() -> bytes:
+    """Same C-major notes but EVERY onset shifted a fixed +60 ticks (half a 16th).
+
+    Deterministic median grid deviation = 0.125 beats > 0.10 -> quantization fails.
+    """
+    return _midi_bytes(_scale_track([60, 62, 64, 65, 67, 69, 71, 72], n_bars=3, offset=60))
+
+
+def build_transposed_bytes() -> bytes:
+    """Clean grid but transposed to F# major (key-agreement vs C major fails)."""
+    return _midi_bytes(_scale_track([66, 68, 70, 71, 73, 75, 77, 78], n_bars=3))
+
+
+def _make_fetch(mapping: dict[str, bytes]):
+    def fetch(url: str) -> bytes:
+        if url not in mapping:
+            raise KeyError(f"no fixture for {url}")
+        return mapping[url]
+    return fetch
+
+
+def _write_manifest(path: Path, entries: list[dict]) -> None:
+    path.write_text(json.dumps(entries))
+
+
+class TestIngestHappyPath:
+    def test_clean_source_writes_json_and_lockfile(self, tmp_path: Path) -> None:
+        scores_dir = tmp_path / "scores"
+        scores_dir.mkdir()
+        manifest_path = tmp_path / "manifest.json"
+        lock_path = tmp_path / "lock.json"
+
+        clean = build_clean_c_major_bytes()
+        url = "https://example.org/cmaj.mid"
+        _write_manifest(
+            manifest_path,
+            [
+                {
+                    "slug": "test_slug",
+                    "piece_id": "test.cmajor",
+                    "composer": "Test",
+                    "title": "C Major",
+                    "expected_key": "C major",
+                    "expected_bars": 3,
+                    "license": "PD",
+                    "sources": [url],
+                }
+            ],
+        )
+
+        report = ingest_manifest(
+            manifest_path, scores_dir, lock_path, fetch_fn=_make_fetch({url: clean})
+        )
+
+        assert isinstance(report, IngestReport)
+        # Score JSON written.
+        out = scores_dir / "test.cmajor.json"
+        assert out.exists()
+        data = json.loads(out.read_text())
+        assert data["piece_id"] == "test.cmajor"
+        # Lockfile written with correct sha256.
+        lock = json.loads(lock_path.read_text())
+        assert lock["test.cmajor"]["resolved_url"] == url
+        assert lock["test.cmajor"]["sha256"] == hashlib.sha256(clean).hexdigest()
