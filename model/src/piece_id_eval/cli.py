@@ -57,7 +57,8 @@ def _load_catalog(
         try:
             catalog[piece_id] = load_catalog_score_chroma(score_path, frame_rate_hz)
         except (KeyError, ValueError):
-            # Skip score files that don't contain notes (e.g. titles.json)
+            # Skip non-score JSON files that lack 'bars'/'notes' keys (e.g. titles.json)
+            # and score files whose note lists are empty or otherwise invalid.
             pass
     return catalog
 
