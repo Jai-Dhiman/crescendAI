@@ -19,6 +19,7 @@ Errors per recording are written to the JSONL and the run continues.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import time
 from pathlib import Path
@@ -55,6 +56,15 @@ SESSION_SYNTHESIS_SYSTEM = SYNTHESIS_SYSTEM_PATH.read_text().strip()
 
 def _assert_models_compatible(teacher_model: str, judge_model: str) -> None:
     assert_judge_compatible(teacher_model, judge_model)
+
+
+def _judge_provider_for(judge_model: str) -> str:
+    """Autodetect the judge provider from the model name.
+
+    @cf/* => workers-ai; vendor/model => openrouter (bare names unreachable
+    here -- the family guard blocks them upstream).
+    """
+    return "openrouter" if "/" in judge_model and not judge_model.startswith("@cf/") else "workers-ai"
 
 
 def _maybe_atomic_judge(
@@ -268,6 +278,121 @@ def build_do_row(
     return base
 
 
+def _default_driver(wrangler_url, recording_cache, student_id, piece_query):
+    """Default DO-replay driver: real run_recording over wrangler dev."""
+    from shared.pipeline_client import run_recording
+
+    return asyncio.run(
+        run_recording(
+            wrangler_url,
+            recording_cache,
+            student_id=student_id,
+            piece_query=piece_query,
+        )
+    )
+
+
+def run_do_baseline(
+    holdout_path: Path,
+    out_path: Path,
+    wrangler_url: str,
+    judge_fn,
+    *,
+    driver=_default_driver,
+    limit: int | None = None,
+    dry_run: bool = False,
+    judge_provider: str = "workers-ai",
+    judge_model: str = "@cf/google/gemma-4-26b-a4b-it",
+    student_id: str = "eval-student-001",
+) -> None:
+    """Drive holdout recordings through the real SessionBrain DO and write JSONL.
+
+    `driver(wrangler_url, recording_cache, student_id, piece_query) -> SessionResult`
+    is injected so the orchestration is unit-testable without a live DO.
+    The default driver calls shared.pipeline_client.run_recording.
+    """
+    holdout = [
+        json.loads(line)
+        for line in holdout_path.read_text().splitlines()
+        if line.strip()
+    ]
+    if limit is not None:
+        holdout = holdout[:limit]
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    completed = load_completed_ids(out_path)
+    provenance = make_run_provenance()
+    print(f"run_id: {provenance.run_id} | DO path | wrangler={wrangler_url}")
+
+    processed = 0
+    errors = 0
+
+    with out_path.open("a") as fout:
+        for entry in holdout:
+            recording_id = entry["recording_id"]
+            if recording_id in completed:
+                continue
+
+            meta = {
+                "recording_id": recording_id,
+                "piece_slug": entry.get("piece_slug", ""),
+                "title": entry.get("title", ""),
+                "composer": entry.get("composer", ""),
+                "skill_bucket": int(entry.get("skill_bucket", 3)),
+            }
+
+            briefing = json.loads(Path(entry["briefing_path"]).read_text())
+            recording_cache = {
+                "recording_id": briefing.get("recording_id", recording_id),
+                "chunks": briefing.get("chunks", []),
+            }
+
+            try:
+                session_result = driver(
+                    wrangler_url,
+                    recording_cache,
+                    student_id,
+                    meta["piece_slug"] or None,
+                )
+                row = build_do_row(
+                    session_result,
+                    meta,
+                    judge_fn,
+                    provenance,
+                    dry_run=dry_run,
+                    judge_provider=judge_provider,
+                    judge_model=judge_model,
+                )
+            except Exception as exc:  # driver/judge hard failure -> error row, never thin fallback
+                row = {
+                    "recording_id": recording_id,
+                    "run_id": provenance.run_id,
+                    "git_sha": provenance.git_sha,
+                    "git_dirty": provenance.git_dirty,
+                    "piece_slug": meta["piece_slug"],
+                    "title": meta["title"],
+                    "composer": meta["composer"],
+                    "skill_bucket": meta["skill_bucket"],
+                    "piece_resolved": False,
+                    "synthesis_text": "",
+                    "synthesis_latency_ms": 0,
+                    "judge_dimensions": [],
+                    "judge_model": "",
+                    "judge_latency_ms": 0,
+                    "error": str(exc)[:500],
+                }
+
+            if row.get("error"):
+                errors += 1
+            fout.write(json.dumps(row) + "\n")
+            fout.flush()
+            processed += 1
+            print(f"[{processed}] {recording_id} | {meta['piece_slug']}"
+                  + (f" | ERROR: {row['error'][:80]}" if row.get("error") else ""))
+
+    print(f"Done. processed={processed} errors={errors} -> {out_path}")
+
+
 def run(
     limit: int | None = None,
     out_path: Path | None = None,
@@ -457,7 +582,36 @@ def main() -> None:
         default=None,
         help="Path to a synthesis system prompt .txt file (default: apps/shared/teacher-style/synthesis_system.txt).",
     )
+    parser.add_argument(
+        "--do-path",
+        action="store_true",
+        help="Drive synthesis through the real SessionBrain DO (requires wrangler dev).",
+    )
+    parser.add_argument(
+        "--wrangler-url",
+        default="http://localhost:8787",
+        help="wrangler dev base URL for --do-path (default: %(default)s).",
+    )
     args = parser.parse_args()
+
+    if args.do_path:
+        from shared.judge import judge_synthesis_v2
+
+        judge_provider = _judge_provider_for(args.judge_model)
+        holdout = EVALS_ROOT / "teacher_model" / "stage0" / "data" / "stage0_holdout.jsonl"
+        out = args.out if args.out is not None else (RESULTS_DIR / "baseline_v2_do.jsonl")
+        run_do_baseline(
+            holdout_path=holdout,
+            out_path=out,
+            wrangler_url=args.wrangler_url,
+            judge_fn=judge_synthesis_v2,
+            limit=args.limit,
+            dry_run=args.dry_run,
+            judge_provider=judge_provider,
+            judge_model=args.judge_model,
+        )
+        return
+
     default_split_file = EVALS_ROOT / "teaching_knowledge" / "data" / "splits.json"
     split_path = args.split_file
     if split_path is None and args.split != "all" and default_split_file.exists():
