@@ -22,11 +22,11 @@ A new offline command, `uv run python -m score_library.cli parse-manual --manife
 
 **Key decisions and trade-offs:**
 
-- **MIDI over MusicXML.** The engraved PDF is ground truth; every MIDI and MusicXML is a third-party transcription of it, so format does not determine note-correctness. MIDI feeds the entire tested `parse.py` → `fingerprint` path unchanged and carries real velocities (keeps the rerank velocity channel healthy). MusicXML's only structural advantage — authoritative bar boundaries — is recovered by the validation gate instead of a new ingestion module. Trade-off accepted: bars are re-derived from the tick grid, so a *performance-timed* MIDI is the failure mode; the gate's quantization check is the mitigation.
+- **MIDI over MusicXML.** The engraved PDF is ground truth; every MIDI and MusicXML is a third-party transcription of it, so format does not determine note-correctness. MIDI feeds the entire tested `parse.py` → `fingerprint` path unchanged and carries real velocities (keeps the rerank velocity channel healthy). MusicXML's only structural advantage — authoritative bar boundaries — is recovered by the validation gate instead of a new ingestion module. Trade-off accepted: bars are re-derived from the tick grid, so a *performance-timed* MIDI is the failure mode. The quantization check is a COARSE backstop against grossly-unquantized / fixed-large-offset MIDIs (its median-deviation metric has a 0.125-beat ceiling and cannot reliably catch smooth rubato); the PRIMARY mitigations are key-agreement + bar-count plausibility + human source vetting in Group D.
 
 - **`parse.py` and the JSON schema are untouched.** `parse_score_midi(path, piece_id, composer, title)` has zero ASAP-specific logic; ASAP-specificity lives only in `discover.py`. The new driver feeds it `(path, piece_id, composer, title)` tuples. The quantization check recovers the 16th-note grid from `bar.start_tick` deltas + `time_signature` (no `ticks_per_beat` field needed), so no schema change.
 
-- **Validation is independent of chroma.** The gate must NOT use chroma self-recognition: gating acceptance on "does the chroma matcher rank this score #1 for its own audio" pre-selects scores the matcher likes, which is exactly what #21 measures — it would rig #21's result. The gate uses only chroma-independent signals: metric quantization, bar-count plausibility, Krumhansl key agreement, pitch range.
+- **Validation is independent of chroma.** The gate must NOT use chroma self-recognition: gating acceptance on "does the chroma matcher rank this score #1 for its own audio" pre-selects scores the matcher likes, which is exactly what #21 measures — it would rig #21's result. The gate uses only chroma-independent signals: Krumhansl key agreement and bar-count plausibility (the primary discriminators), plus pitch range and a coarse metric-quantization backstop (low-power; catches gross/fixed-offset mis-timing, not smooth rubato).
 
 - **Ranked sources + lockfile.** Manifest carries a ranked `sources` list per piece; the build tries them in order and pins the winner's sha256 to the lockfile. This gives reproducibility (content pin defeats a URL silently swapping content) and resilience (auto-fallback) without committing binary MIDI blobs to git.
 
@@ -34,12 +34,12 @@ A new offline command, `uv run python -m score_library.cli parse-manual --manife
 
 **`score_library/validate.py`** — DEEP.
 - Interface: `validate_score(score: ScoreData, expected: ExpectedMeta) -> list[Violation]` (empty list = pass).
-- Hides: Krumhansl-Schmuckler key-profile correlation, 16th-grid recovery + median-deviation computation, bar-count tolerance band, DoD-minimum and pitch-range logic.
+- Hides: Krumhansl-Schmuckler key-profile correlation (primary), bar-count tolerance band (primary), DoD-minimum and pitch-range logic, and a coarse 16th-grid recovery + median-deviation backstop (threshold 0.10 beats sits below the 0.125-beat metric ceiling and above the ~0.083-beat triplet floor, so it flags gross/fixed-offset mis-timing without false-rejecting triplet/polyrhythmic engravings; it does NOT reliably detect smooth rubato).
 - Tested through: `validate_score` only, with synthetic `ScoreData` fixtures. Never internals.
 
 **`score_library/manual.py`** — DEEP.
 - Interface: `ingest_manifest(manifest_path, scores_dir, lock_path, fetch_fn=_http_fetch) -> IngestReport`.
-- Hides: URL fetch (stdlib `urllib`), sha256 hashing, ranked-source iteration, lockfile read/write, temp-file lifecycle, wiring `parse_score_midi` → `validate_score`, and the HALT-on-all-fail logic with per-candidate failure tables.
+- Hides: URL fetch (stdlib `urllib`), sha256 hashing, ranked-source iteration, lockfile read/write, temp-file lifecycle, temp-staging of winning JSONs (moved into `scores_dir` only after ALL pieces resolve, so a HALT is all-or-nothing at the filesystem boundary), wiring `parse_score_midi` → `validate_score`, and the HALT-on-all-fail logic with per-candidate failure tables.
 - Tested through: `ingest_manifest` with an injected `fetch_fn` returning fixture bytes (DI at the public boundary — `fetch` is an external dependency, not an internal collaborator). Never internals.
 
 **`score_library/catalog_coverage.py`** — DEEP-ish (the verification harness).
@@ -76,4 +76,4 @@ A new offline command, `uv run python -m score_library.cli parse-manual --manife
 ## Open Questions
 
 - Q: Do reputable Mutopia/MuseScore-PD MIDIs exist for all 11 pieces with metric (non-performance) timing? Default: the ranked-`sources` + auto-fallback + HALT design surfaces any piece that has no passing source during build, at which point a replacement URL is sourced; the build does not commit a partial catalog.
-- Q: Bar-count plausibility band width, given some source MIDIs unfold repeats (inflating `total_bars` since `parse.py` tiles bars across `total_ticks`). Default: a wide band `[0.7×expected, 2.2×expected]` — catches truncation/wrong-piece while tolerating repeat-unfolding; key-agreement + quantization carry the real discrimination.
+- Q: Bar-count plausibility band width, given some source MIDIs unfold repeats (inflating `total_bars` since `parse.py` tiles bars across `total_ticks`). Default: a wide band `[0.7×expected, 2.2×expected]` — catches truncation/wrong-piece while tolerating repeat-unfolding; key-agreement carries the real discrimination (quantization is only a coarse backstop). A `bar_count` violation during ingestion means "re-check `expected_bars` against the actual source," not "reject the source" — repeats can inflate `total_bars` past `2.2×` on a correct MIDI.

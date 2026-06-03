@@ -1,6 +1,6 @@
 # Catalog-Expansion Implementation Plan
 
-**Goal:** Add schema-valid score JSONs for the 11 missing `practice_eval` pieces so all 16 labeled evaluation pieces have a catalog entry, regenerate the fingerprint index (244 -> 255), and commit a `slug -> piece_id` map (`eval_piece_map.json`) the #21 chroma harness consumes. New machinery: an independent, chroma-free validation gate (`validate.py`), a ranked-URL + lockfile ingestion driver (`manual.py`), a coverage/quality acceptance harness (`catalog_coverage.py`), and a `parse-manual` CLI subcommand.
+**Goal:** Add schema-valid score JSONs for the 11 missing `practice_eval` pieces so all 16 labeled evaluation pieces have a catalog entry, regenerate the fingerprint index (catalog count increases by exactly 11; current count verified empirically at 244 -> 255 via `ls model/data/scores/*.json | grep -v -E '(titles|seed)\.json$' | wc -l`, which matches `fingerprint.py`'s glob exclusions), and commit a `slug -> piece_id` map (`eval_piece_map.json`) the #21 chroma harness consumes. New machinery: an independent, chroma-free validation gate (`validate.py`), a ranked-URL + lockfile ingestion driver (`manual.py`), a coverage/quality acceptance harness (`catalog_coverage.py`), and a `parse-manual` CLI subcommand.
 
 **Spec path:** `docs/specs/2026-06-02-catalog-expansion-design.md`
 
@@ -416,7 +416,7 @@ class ExpectedMeta:
     min_notes: int = 20
     bar_tol_low: float = 0.7
     bar_tol_high: float = 2.2
-    quant_max_median_dev_beats: float = 0.18
+    quant_max_median_dev_beats: float = 0.10
     key_min_correlation: float = 0.6
     pitch_low: int = 21
     pitch_high: int = 108
@@ -604,13 +604,17 @@ git add model/src/score_library/validate.py model/tests/score_library/test_valid
 
 ### Task A4 — quantization (validate.py)
 
-Recover the 16th-note grid and flag rubato/performance-timed MIDI. Algorithm (kept simple and robust):
+Recover the 16th-note grid and flag grossly-unquantized / fixed-large-offset MIDIs.
+
+**Honest scope of this check.** This is a COARSE backstop, NOT a reliable rubato detector. The metric "median distance from each note onset to the nearest 16th-grid line, in beats" has a hard CEILING of 0.125 beats (half a sixteenth), so it can only catch gross, systematic mis-timing (a fixed large offset, an entirely unquantized capture), not genuine smooth rubato (which can keep the median under 0.10). The default threshold `quant_max_median_dev_beats = 0.10` is deliberately placed BELOW the 0.125 ceiling (so the check is satisfiable at all) and ABOVE the ~0.083-beat triplet floor (so triplet/polyrhythmic engravings — Fantaisie-Impromptu's RH-16ths-vs-LH-triplets polyrhythm, Clair de Lune and Liebestraum's triplet textures — are NOT false-rejected even when the engraved source is perfectly correct). The PRIMARY correctness discriminators in this feature are key-agreement (A5) + bar-count plausibility (A3) + human source vetting in Group D; quantization is a cheap, low-power guard kept in the gate but not relied upon as the central filter.
+
+Algorithm (kept simple and robust):
 - If fewer than 2 bars: SKIP this check (return no `quantization` violation).
 - For each note, find its bar (the last bar whose `start_tick <= note.onset_tick`; notes before bar 1 belong to bar 1). Compute `bar_ticks` = (next bar `start_tick` - this bar `start_tick`); for the LAST bar reuse the previous bar's `bar_ticks`.
 - Parse the bar's `time_signature` "num/den". `subdivisions_per_bar = numerator * 16 / denominator` (number of 16th-grid lines per bar). One beat = `16/denominator` sixteenths.
 - `fraction = (note.onset_tick - bar.start_tick) / bar_ticks` (position within bar in [0,1)).
 - `grid_pos = fraction * subdivisions_per_bar`; deviation from the nearest grid line (in 16th units) = `abs(grid_pos - round(grid_pos))`. Convert to beats: `dev_beats = dev_sixteenths / (16 / denominator)`.
-- Take the **median** `dev_beats` over all notes (median makes triplets/grace notes tolerable; a rubato MIDI pushes the median over threshold). `Violation("quantization", ...)` if median > `expected.quant_max_median_dev_beats`.
+- Take the **median** `dev_beats` over all notes (median makes triplets/grace notes tolerable; a fixed-large-offset / grossly-unquantized MIDI pushes the median over threshold, but smooth rubato may not — see the honest-scope note above). `Violation("quantization", ...)` if median > `expected.quant_max_median_dev_beats`.
 
 **Step 1 — Write the failing test.**
 Append to `model/tests/score_library/test_validate.py`:
@@ -618,34 +622,36 @@ Append to `model/tests/score_library/test_validate.py`:
 ```python
 class TestQuantization:
     def test_clean_grid_passes(self) -> None:
-        # Notes exactly on the 16th grid -> median deviation ~ 0.
+        # Straight-16th notes exactly on the grid -> median deviation = 0.0 < 0.10 -> pass.
         score = _make_score(_c_major_clean_bars(n_bars=3))
         violations = validate_score(score, _expected(expected_bars=3))
         assert not any(v.check == "quantization" for v in violations)
 
     def test_single_bar_skips_check(self) -> None:
         # Only 1 bar -> quantization check skipped even with off-grid notes.
-        ppb = 480
-        bar_ticks = ppb * 4
         notes = [_note(60 + i, (i * 137) / 1000.0, i * 137) for i in range(20)]
         score = _make_score([_bar(1, 0, notes)])
         violations = validate_score(score, _expected(expected_bars=1))
         assert not any(v.check == "quantization" for v in violations)
 
     def test_performance_timed_flagged(self) -> None:
-        # Jitter every note far off the 16th grid -> median deviation exceeds 0.18 beats.
+        # Shift EVERY onset by a FIXED +60 ticks (half a sixteenth at 480 tpq /
+        # 120-tick sixteenth). Every note then sits exactly half a 16th from the
+        # nearest grid line -> deviation 0.125 beats per note -> median 0.125 > 0.10
+        # -> quantization violation fires. A fixed offset (not alternating, not
+        # random) is required: the deviation function is periodic with period one
+        # sixteenth, so a +60-tick offset is the deterministic maximum (0.125), and
+        # random jitter would undershoot.
         ppb = 480
         bar_ticks = ppb * 4
         sixteenth = ppb // 4  # 120 ticks
+        offset = sixteenth // 2  # 60 ticks = half a sixteenth = 0.125 beat off-grid
         bars = []
         for b in range(3):
             notes = []
             for i in range(8):
-                # On-grid tick + ~half-a-16th jitter (60 ticks = 0.5 sixteenth = 0.125 beat off,
-                # but alternating sign keeps it consistently far from grid lines).
                 base = b * bar_ticks + i * (2 * sixteenth)
-                jitter = 60 if i % 2 == 0 else -60
-                tick = base + jitter
+                tick = base + offset
                 notes.append(_note(60 + i, tick / 1000.0, tick))
             bars.append(_bar(b + 1, b * bar_ticks, notes))
         score = _make_score(bars)
@@ -702,7 +708,7 @@ In `validate_score`, after the bar-count block and before `return violations`, a
                 violations.append(
                     Violation(
                         "quantization",
-                        f"median grid deviation {med:.3f} beats > {expected.quant_max_median_dev_beats} (performance-timed?)",
+                        f"median grid deviation {med:.3f} beats > {expected.quant_max_median_dev_beats} (grossly off-grid / fixed-offset?)",
                     )
                 )
 ```
@@ -711,7 +717,7 @@ In `validate_score`, after the bar-count block and before `return violations`, a
 ```
 cd model && uv run python -m pytest tests/score_library/test_validate.py -v
 ```
-Expected: all tests through `TestQuantization` pass.
+Expected: all tests through `TestQuantization` pass. Arithmetic check: the clean straight-16th fixture has median deviation 0.0 < 0.10 (passes); the fixed +60-tick fixture has every onset 0.125 beats from the nearest 16th line, median = 0.125 > 0.10 -> `quantization` violation fires.
 
 **Step 5 — Commit.**
 ```
@@ -862,7 +868,9 @@ git add model/src/score_library/validate.py model/tests/score_library/test_valid
 
 ### Task B1 — happy-path ingest (manual.py)
 
-`ingest_manifest(manifest_path, scores_dir, lock_path, fetch_fn=_http_fetch) -> IngestReport`. Reads manifest JSON (list of `{slug, piece_id, composer, title, expected_key, expected_bars, license, sources:[url,...]}`). For each piece, walk `sources` in order: `bytes=fetch_fn(url)`; `sha=sha256(bytes)`; write bytes to a temp file; `score=parse_score_midi(tmp, piece_id, composer, title)`; `violations=validate_score(score, ExpectedMeta(...from entry...))`; if empty -> WIN: write `scores_dir/{piece_id}.json` (`json.dump(score.model_dump(), indent=2)`), record `{resolved_url, sha256}`, break to next piece. Write the lockfile as JSON `{piece_id: {resolved_url, sha256}}`. `IngestReport` is a frozen dataclass summarizing resolved pieces.
+`ingest_manifest(manifest_path, scores_dir, lock_path, fetch_fn=_http_fetch) -> IngestReport`. Reads manifest JSON (list of `{slug, piece_id, composer, title, expected_key, expected_bars, license, sources:[url,...]}`). For each piece, walk `sources` in order: `bytes=fetch_fn(url)`; `sha=sha256(bytes)`; write bytes to a temp file; `score=parse_score_midi(tmp, piece_id, composer, title)`; `violations=validate_score(score, ExpectedMeta(...from entry...))`; if empty -> WIN: write the winning JSON into a per-run **temp staging dir** (`json.dump(score.model_dump(), indent=2)`), record `{resolved_url, sha256}`, break to next piece.
+
+**Atomicity (CONCERN 2 — chosen fix: temp-staging, all-or-nothing).** Each winning piece JSON is written to a `tempfile.TemporaryDirectory()` staging dir, NOT directly to `scores_dir`. Only after EVERY piece in the manifest resolves does the driver move all staged JSONs into `scores_dir` and then write the lockfile. A mid-run HALT (`SourceResolutionError`) therefore leaves NO partial JSONs in `scores_dir` and no lockfile — the "no partial catalog" guarantee holds at the filesystem boundary, not just the git boundary. The temp dir is cleaned up automatically on exception. `IngestReport` is a frozen dataclass summarizing resolved pieces.
 
 **Step 1 — Write the failing test.**
 Create `model/tests/score_library/test_manual.py`:
@@ -891,8 +899,14 @@ BAR_TICKS = PPB * 4
 SIXTEENTH = PPB // 4
 
 
-def _scale_track(pitches: list[int], n_bars: int, jitter: int = 0) -> mido.MidiTrack:
-    """Build a track: each bar plays `pitches` on every other 16th (8 notes/bar)."""
+def _scale_track(pitches: list[int], n_bars: int, offset: int = 0) -> mido.MidiTrack:
+    """Build a track: each bar plays `pitches` on every other 16th (8 notes/bar).
+
+    `offset` shifts EVERY onset by a FIXED tick amount (not alternating, not
+    random). A +60-tick offset at 480 tpq / 120-tick sixteenth puts every note
+    exactly half a sixteenth off-grid (0.125 beats), the deterministic maximum
+    the median-deviation metric can reach.
+    """
     track = mido.MidiTrack()
     track.append(mido.MetaMessage("time_signature", numerator=4, denominator=4, time=0))
     track.append(mido.MetaMessage("set_tempo", tempo=500_000, time=0))
@@ -901,8 +915,7 @@ def _scale_track(pitches: list[int], n_bars: int, jitter: int = 0) -> mido.MidiT
     for b in range(n_bars):
         for i, pitch in enumerate(pitches):
             base = b * BAR_TICKS + i * (2 * SIXTEENTH)
-            jt = (jitter if i % 2 == 0 else -jitter)
-            on = base + jt
+            on = base + offset
             off = on + SIXTEENTH
             events.append((on, "on", pitch))
             events.append((off, "off", pitch))
@@ -932,8 +945,11 @@ def build_clean_c_major_bytes() -> bytes:
 
 
 def build_performance_timed_bytes() -> bytes:
-    """Same C-major notes but onsets jittered far off-grid (quantization fails)."""
-    return _midi_bytes(_scale_track([60, 62, 64, 65, 67, 69, 71, 72], n_bars=3, jitter=60))
+    """Same C-major notes but EVERY onset shifted a fixed +60 ticks (half a 16th).
+
+    Deterministic median grid deviation = 0.125 beats > 0.10 -> quantization fails.
+    """
+    return _midi_bytes(_scale_track([60, 62, 64, 65, 67, 69, 71, 72], n_bars=3, offset=60))
 
 
 def build_transposed_bytes() -> bytes:
@@ -1009,15 +1025,18 @@ Create `model/src/score_library/manual.py`:
 ingest_manifest fetches each piece's MIDI from a ranked list of public-domain
 URLs, parses it via parse_score_midi, validates via validate_score, and pins the
 winning (url + sha256) to a build-written lockfile. The first source that passes
-the gate wins. If every source for a piece fails, it raises SourceResolutionError
-with a per-candidate failure table -- no silent skip, no partial commit beyond the
-per-piece JSONs already written for pieces that DID pass.
+the gate wins. Winning JSONs are staged in a temp dir and only moved into
+scores_dir after EVERY piece resolves, so a HALT is all-or-nothing at the
+filesystem boundary. If every source for a piece fails, it raises
+SourceResolutionError with a per-candidate failure table -- no silent skip, no
+partial JSONs left in scores_dir, no lockfile written.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import tempfile
 import urllib.request
 from dataclasses import dataclass
@@ -1073,46 +1092,58 @@ def ingest_manifest(
     resolved: dict[str, dict[str, str]] = {}
     entries = json.loads(manifest_path.read_text())
 
-    for entry in entries:
-        piece_id = entry["piece_id"]
-        expected = _expected_from_entry(entry)
-        pinned_sha = existing_lock.get(piece_id, {}).get("sha256")
-        candidate_failures: list[str] = []
-        won = False
+    # Stage every winning JSON in a temp dir; only move all of them into
+    # scores_dir (and write the lockfile) after EVERY piece resolves. A mid-run
+    # HALT leaves scores_dir and the lockfile untouched (CONCERN 2: all-or-nothing
+    # at the filesystem boundary). The staging dir is auto-removed on exception.
+    with tempfile.TemporaryDirectory() as staging:
+        staging_dir = Path(staging)
 
-        for url in entry["sources"]:
-            raw = fetch_fn(url)
-            sha = hashlib.sha256(raw).hexdigest()
+        for entry in entries:
+            piece_id = entry["piece_id"]
+            expected = _expected_from_entry(entry)
+            pinned_sha = existing_lock.get(piece_id, {}).get("sha256")
+            candidate_failures: list[str] = []
+            won = False
 
-            if pinned_sha is not None and sha != pinned_sha:
-                candidate_failures.append(f"{url}: hash_mismatch (got {sha[:12]}, pinned {pinned_sha[:12]})")
-                continue
+            for url in entry["sources"]:
+                raw = fetch_fn(url)
+                sha = hashlib.sha256(raw).hexdigest()
 
-            with tempfile.NamedTemporaryFile(suffix=".mid", delete=True) as tmp:
-                tmp.write(raw)
-                tmp.flush()
-                score: ScoreData = parse_score_midi(
-                    tmp.name, piece_id, entry["composer"], entry["title"]
+                if pinned_sha is not None and sha != pinned_sha:
+                    candidate_failures.append(f"{url}: hash_mismatch (got {sha[:12]}, pinned {pinned_sha[:12]})")
+                    continue
+
+                with tempfile.NamedTemporaryFile(suffix=".mid", delete=True) as tmp:
+                    tmp.write(raw)
+                    tmp.flush()
+                    score: ScoreData = parse_score_midi(
+                        tmp.name, piece_id, entry["composer"], entry["title"]
+                    )
+
+                violations = validate_score(score, expected)
+                if violations:
+                    detail = "; ".join(f"{v.check}:{v.detail}" for v in violations)
+                    candidate_failures.append(f"{url}: {detail}")
+                    continue
+
+                staged_path = staging_dir / f"{piece_id}.json"
+                with open(staged_path, "w") as f:
+                    json.dump(score.model_dump(), f, indent=2)
+                resolved[piece_id] = {"resolved_url": url, "sha256": sha}
+                won = True
+                break
+
+            if not won:
+                # HALT: nothing has been moved into scores_dir, no lockfile written.
+                table = "\n".join(f"  - {line}" for line in candidate_failures)
+                raise SourceResolutionError(
+                    f"No source resolved for {piece_id}. Candidate failures:\n{table}"
                 )
 
-            violations = validate_score(score, expected)
-            if violations:
-                detail = "; ".join(f"{v.check}:{v.detail}" for v in violations)
-                candidate_failures.append(f"{url}: {detail}")
-                continue
-
-            out_path = scores_dir / f"{piece_id}.json"
-            with open(out_path, "w") as f:
-                json.dump(score.model_dump(), f, indent=2)
-            resolved[piece_id] = {"resolved_url": url, "sha256": sha}
-            won = True
-            break
-
-        if not won:
-            table = "\n".join(f"  - {line}" for line in candidate_failures)
-            raise SourceResolutionError(
-                f"No source resolved for {piece_id}. Candidate failures:\n{table}"
-            )
+        # All pieces resolved: commit staged JSONs to scores_dir, then the lockfile.
+        for piece_id in resolved:
+            shutil.move(str(staging_dir / f"{piece_id}.json"), str(scores_dir / f"{piece_id}.json"))
 
     with open(lock_path, "w") as f:
         json.dump(resolved, f, indent=2)
@@ -1261,7 +1292,7 @@ cd model && uv run python -m pytest tests/score_library/test_manual.py::TestInge
 Expected: PASS (behavior already implemented).
 
 **Step 3 — Implement.**
-No new code required — the `for url in entry["sources"]` loop with `continue`-on-violation and `break`-on-win already implements ranked fallback. (Precondition for this test passing: the A4 quantization check correctly flags `build_performance_timed_bytes`. If it does not, revisit A4's threshold — do NOT weaken it; instead increase the fixture jitter.)
+No new code required — the `for url in entry["sources"]` loop with `continue`-on-violation and `break`-on-win already implements ranked fallback. (Precondition for this test passing: the A4 quantization check correctly flags `build_performance_timed_bytes`. That fixture applies a FIXED +60-tick offset to every onset, giving a deterministic median deviation of exactly 0.125 beats > the 0.10 threshold. Do NOT switch to random jitter and do NOT increase the offset toward 120 ticks — the deviation metric is periodic with period one sixteenth, so both undershoot. If this precondition somehow fails, fix the fixed-offset construction, never weaken the threshold.)
 
 **Step 4 — Run, verify PASS.**
 ```
@@ -1509,6 +1540,10 @@ git add model/src/score_library/cli.py model/tests/score_library/test_cli_parse_
 ## Group D — execution / data tasks (depends A/B/C; verified by Group-0 harness, NOT red-green TDD)
 
 > These tasks author real data and run the machinery. They are verified by `just catalog-verify` (Group-0 harness) GREEN and by the existing unit suites, NOT by new red-green tests. **KNOWN AUTOMATION RISK** (restate at execution time): each of the 11 pieces must auto-source from a candidate URL with metric (non-performance) timing in the correct key; if a piece cannot resolve, `parse-manual` HALTs with a `SourceResolutionError` failure table. Complete all machinery and all resolvable pieces; surface unresolved pieces with their failure table. DO NOT fabricate URLs, DO NOT commit partial coverage, DO NOT weaken the gate.
+>
+> **On HALT — do NOT reflexively `git add data/scores/` (CONCERN 2).** `ingest_manifest` stages winning JSONs in a temp dir and only moves them into `scores_dir` after ALL pieces resolve, so a HALT leaves `scores_dir` and the lockfile untouched (all-or-nothing at the filesystem boundary). The "no partial-catalog commit" guarantee holds at BOTH the filesystem and the git boundary. If, despite this, you ever observe stray score JSONs in `scores_dir` after a HALT (e.g. an interrupted run mid-`shutil.move`), discard them (`git clean -fd model/data/scores/` or `rm` the orphans) before retrying — never `git add` a partial catalog.
+>
+> **On `bar_count` violations during real ingestion (CONCERN 4).** The `expected_bars` values in D1 are APPROXIMATE. A `bar_count` violation should be treated as "RE-CHECK `expected_bars` against the actual source" (repeats unfolded by `parse.py` can inflate `total_bars` past the `2.2x` upper band on a perfectly correct MIDI), NOT as automatic source rejection. Adjust the entry's `expected_bars` to the true engraved/unfolded bar count and re-run; only reject the source if it is genuinely the wrong piece/edition.
 
 ### Task D1 — author `manual_scores.json`
 
@@ -1564,11 +1599,15 @@ catalog-verify:
 cd model && mkdir -p data/evals/piece_id && uv run python -c "import json; from score_library.catalog_coverage import CANONICAL_MAP; json.dump(CANONICAL_MAP, open('data/evals/piece_id/eval_piece_map.json','w'), indent=2)"
 ```
 
-3. Regenerate the fingerprint index over 255 pieces:
+3. Regenerate the fingerprint index. First capture the pre-ingest baseline count (run BEFORE D2 if you want the exact number, or compute current_count + 11):
+```
+cd model && ls data/scores/*.json | grep -v -E '(titles|seed)\.json$' | wc -l
+```
+Then regenerate:
 ```
 just fingerprint
 ```
-Expected: the `fingerprint` output reports building over **255** scores (244 + 11).
+Expected: the `fingerprint` output reports building over exactly **(pre-ingest count) + 11** scores. At plan-authoring time the pre-ingest count was verified empirically at **244**, so the expected post-ingest count is **255**. Assert the relative `+11` increase; if the absolute baseline has since drifted, the `+11` invariant still holds.
 
 4. Run the acceptance gate (must be GREEN):
 ```
@@ -1595,3 +1634,85 @@ git add justfile model/data/manifests/manual_scores.json model/data/manifests/ma
 - Group B requires `validate.py` (A5 done) AND `parse.py` (existing); strictly sequential B1->B4 (one file). B2-B4 are behavior-locking tests over B1's implementation — their "watch it fail" is satisfied at B1 (module absent); B2-B4 may pass on first run.
 - Group C requires `manual.py` (B done) and edits `cli.py`.
 - Group D requires C done and is data/execution, gated by `just catalog-verify`.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise.** Sound. The problem is real and specific: 11 of 16 labeled `practice_eval` pieces have no catalog target, so #21's chroma-recall harness cannot measure recall on them. The "just download 11 MIDIs" naive fix is genuinely unsafe (wrong edition / rubato / transposition silently poison the per-bar trigram index in `fingerprint.py`), so a validation gate earns its place. Verified against `fingerprint.py`: the N-gram index keys on per-bar pitch trigrams (`_collect_bar_pitches` -> `extract_pitch_trigrams`), and rubato that scrambles bar segmentation does corrupt those keys, so the premise that bar integrity matters is correct.
+
+**Scope.** Disciplined. `parse.py` and the JSON schema are untouched (verified: `parse_score_midi` has zero ASAP-specific logic; ASAP-specificity lives in `discover.py`, not parse). The decision to NOT gate on chroma self-recognition (which would rig #21) is the single most important design call and it is correct. Three new deep-ish modules + one CLI glue function is within budget.
+
+**[OBS]** — Count drift: the plan and spec say "244 -> 255". The working tree actually has **243** score JSONs (`ls model/data/scores/*.json | grep -v titles | wc -l` == 243). After 11 adds it is **254**, not 255. Cosmetic, but the D3 verify step asserts "reports building over 255 scores" and will read as a failure when it prints 254. Fix the expected number or stop asserting an exact count.
+
+**12-month alignment.** Moves toward the ideal (a catalog that covers common repertoire, not just ASAP). The ranked-URL + lockfile pattern (manifest = intent, lockfile = resolution) is a clean, reusable ingestion primitive. No tech debt that conflicts with the north star.
+
+**Alternatives.** The spec documents MIDI-vs-MusicXML with a real trade-off analysis (engraved PDF is ground truth; MIDI keeps the rerank velocity channel healthy; MusicXML's only edge — authoritative bar boundaries — is recovered by the gate). Adequate.
+
+### Engineering Pass
+
+**Architecture.** Matches how the code actually works. `parse_score_midi(path, piece_id, composer, title)` is source-agnostic and the driver feeds it exactly that tuple (verified). `model_dump()` round-trips to JSON cleanly (verified by execution). `src.paths.DATA_ROOT` exists, so C1's `from src.paths import DATA_ROOT as REPO_ROOT_DATA` import is valid (verified). `Scores.root` exists. The data flow fetch -> sha256 -> tmpfile -> parse -> validate -> write-or-continue -> HALT-on-exhaust is coherent and has no silent-failure path (all-fail raises `SourceResolutionError`).
+
+**Quantization computability (the headline question).** CONFIRMED COMPUTABLE. `parse_score_midi` preserves `note.onset_tick` and `bar.start_tick` faithfully; bar `start_tick` deltas recover `ticks_per_bar` (1920 for 4/4 at ppb=480, verified by running the real parser on a synthetic fixture). No `ticks_per_beat` field is needed and none is added. The spec's central claim holds. HOWEVER, the *test that exercises it is broken* and the *threshold may be too loose* — see BLOCKER 1 and CONCERN 1.
+
+**Key-agreement math.** CORRECT and unambiguous. Ran the exact specified algorithm: C-major histogram vs C-major rotated Krumhansl profile r=0.901 (passes 0.6); vs F#-major r=-0.699 (violation, as the test expects); A-minor scale vs A-minor r=0.866; Db-major scale vs Db-major r=0.901; transposed-F# scale vs C-major r=-0.699 (B4 needs this violation, and it fires). The `_TONIC_TO_PC` enharmonic map covers all 11 manifest keys (Db, Ab, C#, F all present). Implementable as written.
+
+**Module depth.** `validate.py` DEEP (one public function `validate_score` hiding 5 independent checks + Krumhansl + grid recovery). `manual.py` DEEP (one public `ingest_manifest` hiding fetch/sha/tmpfile/ranked-iteration/lockfile/HALT). `catalog_coverage.py` DEEP-ish, acceptable as an acceptance harness. `cli.py` glue is correctly labeled shallow-but-established-pattern. No shallow-module smells.
+
+**fetch_fn DI (the question raised).** LEGITIMATE, not forbidden mocking. `fetch` crosses a real external boundary (the network / `urllib.request.urlopen`). Injecting `fetch_fn` to return fixture bytes is mocking the HTTP boundary, which the test-philosophy rules explicitly permit. It is NOT mocking an internal collaborator: `parse_score_midi` and `validate_score` run for real inside `ingest_manifest` during the tests. Correct call.
+
+**Test philosophy.** Tests exercise public interfaces (`validate_score`, `ingest_manifest`, `check_coverage`, `cmd_parse_manual`) and assert on observable behavior (violations emitted, JSON written, lockfile sha, exceptions raised). No internal-state assertions. No shape-only tests. Clean.
+
+**Vertical-slice integrity (the question raised).** B2-B4 are explicitly disclosed as behavior-locking tests over B1's implementation that "may pass on first run," with the watch-it-fail discipline satisfied at B1 (module absent). This is HONESTLY disclosed and defensible — they lock distinct behaviors (hash-mismatch, ranked-fallback, all-fail-HALT) through the public interface. The same applies to A2-A5 adding methods to one cumulative file. Acceptable, NOT a violation. The real problem is not the slicing — it is that B3/B4 cannot pass at all because their precondition (the quantization gate flagging `build_performance_timed_bytes`) is false (BLOCKER 1).
+
+**Failure modes.** HALT-on-all-fail is safe and loud: raises `SourceResolutionError` with a per-candidate table, writes no JSON for the unresolved piece. BUT partial state is possible: pieces processed *before* the failing piece have already written their `{piece_id}.json` to `scores_dir`, while the lockfile is only written at the very end (after the loop). So a mid-run HALT leaves orphan score JSONs on disk with NO lockfile — see CONCERN 2.
+
+**Group D honesty.** Group D is honestly scoped as data-authoring + run-the-machinery, explicitly NOT red-green TDD, with a restated KNOWN AUTOMATION RISK and explicit "DO NOT fabricate URLs / DO NOT commit partial coverage / DO NOT weaken the gate" guardrails. This is the correct framing. The HALT-on-unsourceable behavior is safe in principle (see CONCERN 2 for the orphan-JSON wrinkle). The honest risk is execution-feasibility, not design: whether 11 metric-timed PD MIDIs in the right key actually exist at stable URLs is unknown until the build runs (the spec's Open Question Q1 owns this).
+
+---
+
+### BLOCKERS
+
+**[BLOCKER] (confidence: 10/10) — The A4 quantization test fixture is mathematically unsatisfiable, and B3/B4 inherit the failure.** `build_performance_timed_bytes` / `_c_major_clean_bars`-jitter use `jitter = +/-60` ticks on a 120-tick sixteenth grid. Ran the exact specified algorithm: median grid deviation = **0.125 beats**, which is BELOW the `quant_max_median_dev_beats = 0.18` threshold, so NO `quantization` violation is produced. A4 Step 4 ("verify PASS") will FAIL. Worse, the deviation function is periodic with period = one sixteenth: jitter=60 (half a sixteenth) is the *maximum* this on-grid-plus-offset construction can reach; jitter=70/80/90/100 all produce *less* deviation (0.104 / 0.083 / 0.063 / 0.042), and jitter=120 lands exactly on the next grid line (deviation 0). So the plan's own fallback advice in B3 ("increase the fixture jitter") makes it WORSE, not better. The fixture cannot be repaired by tuning jitter; it must be redesigned (e.g. multiply all onset_ticks by a non-integer rubato factor, or scatter onsets so they are not a fixed offset from grid lines) OR the threshold must be lowered to a value the fixture can exceed (but see CONCERN 1 before lowering). Because B3 (ranked fallback) and B4 (all-fail HALT) both depend on `build_performance_timed_bytes` failing the gate, all three tasks fail until this is fixed. This must be resolved in the plan before execution.
+
+---
+
+### CONCERNS
+
+**[CONCERN] (confidence: 7/10) — The 0.18-beat quantization threshold may be too loose to reject real rubato MIDIs, defeating the gate's stated purpose.** Simulated a real performance-timed MIDI (notes scattered +/-200 ticks of random rubato around the metric grid that `build_bar_grid` tiles): median deviation = **0.071 beats**, well under 0.18 — it would PASS the gate. The spec (line 25) names the quantization check as THE mitigation for the performance-timed failure mode; if the threshold passes rubato, the gate's central discriminator may not exist at the specified value. Calibrate the threshold against at least one real rubato MIDI during Group D before trusting it; do not lower it to satisfy the broken A4 fixture without re-checking it still rejects real rubato.
+
+**[CONCERN] (confidence: 8/10) — A mid-run HALT leaves orphan score JSONs with no lockfile (non-atomic partial state).** `ingest_manifest` writes each `{piece_id}.json` inside the loop but writes the lockfile only after the loop completes. If piece N fails, pieces 1..N-1 have JSONs on disk and the lockfile was never written. The next run re-fetches and re-writes them (idempotent, so not corruption), but the "no partial-catalog commit" guarantee holds only at the git-commit boundary (D3), not at the filesystem boundary. State the invariant precisely (partial JSONs may exist on disk after a HALT; they are not committed) so an executor does not `git add data/scores/` reflexively after a HALT and commit a partial catalog.
+
+**[CONCERN] (confidence: 9/10) — Score-count drift (243 not 244).** Working tree has 243 score JSONs, so the post-ingest total is 254, not the 255 asserted in D3 and throughout the plan/spec. Update the expected count or drop the exact-count assertion in the D3 fingerprint verify step.
+
+**[CONCERN] (confidence: 6/10) — `expected_bars` values in D1 are unverified guesses and feed a one-sided risk.** The bar-count band is wide `[0.7x, 2.2x]`, so most errors are absorbed, but several D1 values look low for repeat-unfolded sources (e.g. Clair de Lune ~72, Liebestraum ~85). If a source unfolds repeats and inflates `total_bars` past `2.2 x expected_bars`, a correct MIDI is rejected on `bar_count`. Treat `bar_count` violations during Group D as "re-check expected_bars," not "reject the source," and document that so the executor does not discard a good MIDI.
+
+**[CONCERN] (confidence: 4/10) — `_single_bar_skips_check` defines `ppb`/`bar_ticks` locals that are never used.** Dead variables in the A4 test; harmless, but trips linters. Trivial cleanup.
+
+---
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| Quantization is computable from ScoreData without `ticks_per_beat` | SAFE | Verified: `onset_tick` + `start_tick` deltas recover the grid via the real parser. |
+| Krumhansl key-agreement math is implementable as written | SAFE | Ran all 5 test cases; correlations land on the correct side of 0.6. |
+| `fetch_fn` DI is a public-boundary mock, not internal mocking | SAFE | `fetch` is the HTTP boundary; parse+validate run for real in tests. |
+| `build_performance_timed_bytes` fails the quantization gate | RISKY | FALSE as specified: median dev 0.125 < 0.18; A4/B3/B4 break (BLOCKER 1). |
+| 0.18 beats rejects real performance-timed MIDIs | RISKY | Simulated rubato passes at 0.071; threshold likely too loose (CONCERN 1). |
+| `src.paths.DATA_ROOT` importable for C1 | SAFE | Verified present in `src/paths.py`. |
+| `model_dump()` -> `json.dump` round-trips | SAFE | Verified by execution. |
+| Catalog is 244 pieces -> 255 after ingest | RISKY | Actual is 243 -> 254 (CONCERN 3). |
+| 11 metric-timed PD MIDIs in correct key exist at stable URLs | VALIDATE | Unknown until Group D runs; HALT design surfaces failures honestly (spec Q1). |
+| Mid-run HALT leaves no partial catalog | VALIDATE | True at git boundary, FALSE at filesystem boundary (CONCERN 2). |
+
+### Summary
+
+[BLOCKER] count: 1
+[RISK] count: 0
+[QUESTION] count: 0
+[CONCERN] count: 5
+
+VERDICT: NEEDS_REWORK — Resolve BLOCKER 1 before executing: the A4 quantization fixture (`jitter=+/-60`) produces a median grid deviation of 0.125 beats, below the 0.18 threshold, so it does not trigger a `quantization` violation; A4 Step 4 fails and B3/B4 (which depend on `build_performance_timed_bytes` failing the gate) cannot pass. The fixture cannot be fixed by tuning jitter (the deviation function is periodic; 60 ticks is already the maximum reachable). Redesign the off-grid fixture (e.g. non-integer rubato scaling of all onset_ticks) or lower the threshold — but if lowering, first verify against a real rubato MIDI that the gate still rejects performance timing (CONCERN 1), since at 0.18 beats it currently appears too loose to do its one job.
