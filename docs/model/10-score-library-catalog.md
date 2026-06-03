@@ -87,6 +87,43 @@ only move into `data/scores/` after EVERY piece resolves; a mid-run HALT leaves
 `data/scores/` and the lockfile untouched. To intentionally re-pin (e.g. a better
 source), delete the piece's lockfile entry and re-run `catalog-add`.
 
+## Chroma piece-ID feasibility harness (shipped, Issue #21)
+
+`model/src/piece_id_eval/` is the measurement harness that gates whether a
+chroma-based recall channel should be wired into the Rust/WASM score follower.
+It is a research/measurement tool, not production code.
+
+**What it does.** Runs three matcher families over the 16-piece eval set and
+reports recall@1/3/5, MRR, and an open-set rejection sweep:
+
+| Matcher | Strategy |
+|---|---|
+| `ChordNgramMatcher` | Interval-trigram (transpose-invariant N-gram index) |
+| `DtwCeilingMatcher` | Full chroma-DTW over the score library (oracle ceiling) |
+| `TwoDftMatcher` | 2D-DFT fingerprint (shift/transpose invariant) |
+
+**Gate.** `decision.py` contains the pre-registered KILL/TUNE/PROCEED thresholds
+(recall@1 ≥ 0.70 and open-set AUC ≥ 0.65 for PROCEED; recall@1 < 0.40 for KILL;
+everything else is TUNE). The gate is evaluated in the CLI and printed with the
+per-matcher table.
+
+**How to run.**
+
+```bash
+# Populate audio cache first (yt-dlp required; one-time per piece):
+just piece-id-feasibility-acquire <slug> <youtube_video_id>
+
+# Run the full eval:
+just piece-id-feasibility
+```
+
+Test suite: `model/tests/piece_id_eval/` — 46 tests, all unit/synthetic (no real
+audio required). Run with `just test-model` or `cd model && uv run pytest tests/piece_id_eval/`.
+
+**Next step.** Run `just piece-id-feasibility` against real audio and read the
+VERDICT line. If PROCEED or TUNE, open a follow-on issue to wire the winning
+matcher into the Rust/WASM `score_follower` chroma-recall channel.
+
 ## Catalog vs. eval set — two different things
 
 Do not conflate them:

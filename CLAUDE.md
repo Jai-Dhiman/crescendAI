@@ -37,6 +37,7 @@ Uses `just` (justfile) for dev commands. Install: `brew install just`.
 | `just chroma-eval-verify-smoke` | Fast sanity check (--skip-dtw); no real audio required; use in pre-commit / CI |
 | `just chroma-eval-verify` | Full chroma-DTW eval with real audio + AMT pseudo-truth; **fails loudly if audio or pseudo-truth data missing** (run `just amt-regen-pseudo-truth` first) |
 | `just chroma-eval-ratchet` | Promote last_run.json to baseline.json after a deliberate metric improvement |
+| `just piece-id-feasibility` | Chroma piece-ID feasibility harness (Issue #21); run `just piece-id-feasibility-acquire` first to populate audio cache |
 | `just deploy-api` | Deploy API worker to production |
 | `just migrate-generate` / `just migrate-prod` | Drizzle migrations (generate SQL / apply to prod) |
 
