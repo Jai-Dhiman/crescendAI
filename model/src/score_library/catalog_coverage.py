@@ -12,6 +12,16 @@ import json
 from pathlib import Path
 
 #: Canonical 16-entry slug -> piece_id map (the #21 chroma-harness contract).
+#:
+#: This is the FIXED eval acceptance set, NOT the catalog. Two different things:
+#:   - The general catalog grows freely -- append an entry to
+#:     data/manifests/manual_scores.json (URL or local source) and run
+#:     `just catalog-add`. No code change. New pieces beyond these 16 are fine.
+#:   - This map defines what `just catalog-verify` asserts: the 16 pieces the #21
+#:     chroma-identification harness is benchmarked against. Editing it redefines
+#:     that contract, so it is deliberately code-hardcoded and high-friction.
+#:     Add an eval piece here ONLY in lockstep with data/evals/piece_id/
+#:     eval_piece_map.json. See docs/model/10-score-library-catalog.md.
 CANONICAL_MAP: dict[str, str] = {
     "bach_invention_1": "bach.inventions.1",
     "bach_prelude_c_wtc1": "bach.prelude.bwv_846",

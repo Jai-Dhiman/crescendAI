@@ -90,6 +90,16 @@ fingerprint:
 catalog-verify:
     cd model && uv run python -c "from score_library.catalog_coverage import check_coverage, CANONICAL_MAP; from src.paths import Scores; import sys; f=check_coverage(Scores.root, CANONICAL_MAP); print(chr(10).join(f) if f else 'PASS'); sys.exit(1 if f else 0)"
 
+# Add scores to the catalog from data/manifests/manual_scores.json (URL or local
+# manual_midis/ sources). Re-ingests the whole manifest through the validation
+# gate (HALTS loudly if any source is bad or off-grid), rebuilds fingerprints,
+# and reports catalog size. To add a piece: append an entry to manual_scores.json
+# then run this. See docs/model/10-score-library-catalog.md for the full workflow.
+catalog-add:
+    cd model && uv run python -m score_library.cli parse-manual --manifest data/manifests/manual_scores.json
+    just fingerprint
+    cd model && echo "Catalog size: $(find data/scores -maxdepth 1 -name '*.json' ! -name titles.json | wc -l | tr -d ' ') score JSONs"
+
 # Run model tests
 test-model:
     cd model && uv run python -m pytest tests/ -v

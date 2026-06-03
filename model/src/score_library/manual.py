@@ -99,6 +99,12 @@ def ingest_manifest(
                         raise SourceResolutionError(
                             f"Source '{url}' resolves outside the manifest directory (path traversal rejected)"
                         )
+                    if not local_path.is_file():
+                        raise SourceResolutionError(
+                            f"Local source for {piece_id} not found: '{url}' "
+                            f"(resolved to {local_path}). Commit the MIDI under the "
+                            f"manifest's manual_midis/ dir, or fix the source path."
+                        )
                     raw = local_path.read_bytes()
                 sha = hashlib.sha256(raw).hexdigest()
 

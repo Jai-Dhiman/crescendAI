@@ -57,6 +57,12 @@ segments/
 *.tmp.wav.tmp
 maestro-v3.0.0.zip
 
+# Committed local-source MIDIs for catalog pieces with no public-domain
+# engraved-MIDI URL (the score-library "local" source type). These ARE the
+# source of record and must track normally -- override the *.mid rule above so
+# adding one needs no `git add -f`. See docs/model/10-score-library-catalog.md.
+!data/manifests/manual_midis/*.mid
+
 .tmp.driveupload
 giantmidi_raw/
 reference_profiles/

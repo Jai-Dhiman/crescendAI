@@ -295,6 +295,43 @@ class TestLocalFileSource:
         assert lock["test.cmajor"]["resolved_url"] == "manual_midis/x.mid"
         assert lock["test.cmajor"]["sha256"] == hashlib.sha256(midi_bytes).hexdigest()
 
+    def test_missing_local_source_raises_clear_error(self, tmp_path: Path) -> None:
+        """A local source whose file does not exist raises SourceResolutionError.
+
+        First-class local sources fail loudly and explicitly (naming the resolved
+        path) instead of surfacing a bare FileNotFoundError, so a typo'd or
+        uncommitted MIDI is actionable.
+        """
+        scores_dir = tmp_path / "scores"
+        scores_dir.mkdir()
+        lock_path = tmp_path / "lock.json"
+
+        manifest_path = tmp_path / "m.json"
+        manifest_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "slug": "test_missing",
+                        "piece_id": "test.missing",
+                        "composer": "Test",
+                        "title": "Missing",
+                        "expected_key": "C major",
+                        "expected_bars": 3,
+                        "license": "PD",
+                        "sources": ["manual_midis/absent.mid"],
+                    }
+                ]
+            )
+        )
+
+        with pytest.raises(SourceResolutionError) as exc:
+            ingest_manifest(manifest_path, scores_dir, lock_path)
+        msg = str(exc.value)
+        assert "not found" in msg.lower()
+        assert "absent.mid" in msg
+        # No JSON written for the unresolved piece.
+        assert not (scores_dir / "test.missing.json").exists()
+
     def test_local_source_path_traversal_rejected(self, tmp_path: Path) -> None:
         """A manifest source that escapes manifest_dir via ../ raises SourceResolutionError."""
         scores_dir = tmp_path / "scores"
