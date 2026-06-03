@@ -54,9 +54,13 @@ def ingest_manifest(
     manifest_path: Path,
     scores_dir: Path,
     lock_path: Path,
-    fetch_fn=_http_fetch,
+    fetch_fn=None,
 ) -> IngestReport:
     """Resolve every piece in the manifest, writing score JSONs + a lockfile."""
+    # Resolve the default at call time (not def time) so monkeypatching the
+    # module-level _http_fetch is observed by callers that pass no fetch_fn.
+    if fetch_fn is None:
+        fetch_fn = _http_fetch
     manifest_path = Path(manifest_path)
     scores_dir = Path(scores_dir)
     lock_path = Path(lock_path)
