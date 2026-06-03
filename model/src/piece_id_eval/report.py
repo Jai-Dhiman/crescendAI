@@ -4,7 +4,7 @@ EvalReport.run is the single composition root that the CLI delegates to.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -77,9 +77,11 @@ class EvalReport:
         for matcher in matchers:
             # Build rankings for in-catalog windows only
             rankings = []
+            in_ranked_cache = []  # reused below for DTW open-set scoring
             for w in in_windows:
                 ranked = matcher.rank(w.chroma)
                 rankings.append((w.piece_id, ranked))
+                in_ranked_cache.append(ranked)
 
             r1 = recall_at_k(rankings, k=1) if rankings else 0.0
             r5 = recall_at_k(rankings, k=5) if rankings else 0.0
@@ -98,9 +100,8 @@ class EvalReport:
             # Track DTW ceiling and best indexable; collect open-set scores from DTW
             if "dtw_ceiling" in matcher.name:
                 dtw_recall10 = r10
-                # Collect best scores for open-set curve from DTW ceiling
-                for w in in_windows:
-                    ranked = matcher.rank(w.chroma)
+                # Reuse cached in-catalog rankings (already computed above)
+                for ranked in in_ranked_cache:
                     in_best_scores.append(ranked[0].score if ranked else 0.0)
                 for w in out_windows:
                     ranked = matcher.rank(w.chroma)
