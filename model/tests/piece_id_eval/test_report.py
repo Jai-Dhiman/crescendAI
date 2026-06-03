@@ -76,6 +76,19 @@ def test_report_circularity_gives_perfect_recall_dtw() -> None:
     assert dtw_result.recall_at_10 == 1.0
 
 
+def test_report_raises_on_multiple_dtw_ceiling_matchers() -> None:
+    catalog = _make_toy_catalog()
+    matchers = [
+        DtwCeilingMatcher(catalog, oti=False),
+        DtwCeilingMatcher(catalog, oti=True),
+    ]
+    windows = _make_query_windows(catalog, holdout_ids=set())
+    thresholds = np.linspace(0.0, 1.0, 21)
+    import pytest
+    with pytest.raises(ValueError, match="at most one DTW ceiling matcher"):
+        EvalReport.run(windows, matchers, thresholds=thresholds)
+
+
 def test_report_open_set_curve_behavioral() -> None:
     # Use DtwCeilingMatcher + a holdout window so open-set scoring actually executes.
     # piece_2 is held out (is_in_catalog=False) — its query is the out-of-catalog probe.

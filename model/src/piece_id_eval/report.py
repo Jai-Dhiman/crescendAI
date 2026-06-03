@@ -58,10 +58,18 @@ class EvalReport:
             ReportResult with per-matcher metrics, open-set curve, and verdict.
 
         Raises:
-            ValueError: if query_windows is empty.
+            ValueError: if query_windows is empty or more than one DTW ceiling matcher
+                is provided (supports at most one DTW ceiling matcher).
         """
         if not query_windows:
             raise ValueError("query_windows is empty; nothing to evaluate")
+
+        dtw_matchers = [m for m in matchers if "dtw_ceiling" in m.name]
+        if len(dtw_matchers) > 1:
+            raise ValueError(
+                f"EvalReport.run supports at most one DTW ceiling matcher, "
+                f"got {len(dtw_matchers)}: {[m.name for m in dtw_matchers]}"
+            )
 
         in_windows = [w for w in query_windows if w.is_in_catalog]
         out_windows = [w for w in query_windows if not w.is_in_catalog]
