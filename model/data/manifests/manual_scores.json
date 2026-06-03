@@ -18,9 +18,9 @@
     "title": "Waltz in C-sharp minor, Op. 64 No. 2",
     "expected_key": "C# minor",
     "expected_bars": 129,
-    "license": "PD (public domain)",
+    "license": "PD (public domain); local source of record (no engraved PD MIDI URL available)",
     "sources": [
-      "UNRESOLVED: not on Mutopia (only Op.64 No.1 / Minute Waltz is published). No verified engraved metric-timed PD MIDI located. Needs follow-up sourcing."
+      "manual_midis/chopin.waltzes.64-2.mid"
     ]
   },
   {
@@ -78,9 +78,9 @@
     "title": "Liebestraum No. 3 in A-flat major, S. 541",
     "expected_key": "Ab major",
     "expected_bars": 85,
-    "license": "PD (public domain)",
+    "license": "PD (public domain); local source of record (no engraved PD MIDI URL available)",
     "sources": [
-      "UNRESOLVED: not on Mutopia (S.541 absent; only Consolations S.172 and a Ballade are published). No verified engraved metric-timed PD MIDI located. Needs follow-up sourcing."
+      "manual_midis/liszt.liebestraume.3.mid"
     ]
   },
   {
@@ -90,9 +90,9 @@
     "title": "Piano Sonata No. 14 in C-sharp minor, Op. 27 No. 2, Mvt 1 (Moonlight)",
     "expected_key": "C# minor",
     "expected_bars": 69,
-    "license": "PD (public domain)",
+    "license": "PD (public domain); local source of record (no engraved PD MIDI URL available)",
     "sources": [
-      "UNRESOLVED: Mutopia has only LilyPond .ly source for the piano version (no rendered piano MIDI on the FTP); the only published .mid is a guitar-duo arrangement (wrong instrument). No verified engraved metric-timed piano PD MIDI located. Needs follow-up sourcing."
+      "manual_midis/beethoven.piano_sonatas.14-1.mid"
     ]
   },
   {

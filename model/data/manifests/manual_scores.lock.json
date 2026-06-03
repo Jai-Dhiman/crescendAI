@@ -3,6 +3,10 @@
     "resolved_url": "https://www.mutopiaproject.org/ftp/BachJS/BWV772/bach-invention-01/bach-invention-01.mid",
     "sha256": "9b9a6213941932d5171d9102d85912c3c1c61f8176ce02005cd2198881823c2d"
   },
+  "chopin.waltzes.64-2": {
+    "resolved_url": "manual_midis/chopin.waltzes.64-2.mid",
+    "sha256": "c26c6f016e940ac89f1c0721b37e64800b54fc12a980309187e007be30d02632"
+  },
   "debussy.suite_bergamasque.3_clair_de_lune": {
     "resolved_url": "https://www.mutopiaproject.org/ftp/DebussyC/L75/debussy_Ste_Bergamesq_Clair/debussy_Ste_Bergamesq_Clair.mid",
     "sha256": "4eee9a1546ffde1ff74cb9824ba0e57cbc821185a15185bfea9faed97820bf8c"
@@ -18,6 +22,14 @@
   "beethoven.fur_elise": {
     "resolved_url": "https://www.mutopiaproject.org/ftp/BeethovenLv/WoO59/fur_Elise_WoO59/fur_Elise_WoO59.mid",
     "sha256": "1c12c21c7bbf4cf163896732672648a69d497636059837abd153c71abe50215a"
+  },
+  "liszt.liebestraume.3": {
+    "resolved_url": "manual_midis/liszt.liebestraume.3.mid",
+    "sha256": "f3cf960505051d13e696538c7fbf7774bd8260c2d7644a39b2e06c0c96148b40"
+  },
+  "beethoven.piano_sonatas.14-1": {
+    "resolved_url": "manual_midis/beethoven.piano_sonatas.14-1.mid",
+    "sha256": "17b58106bc288e2d8cecb6ed6da94e59d0c135e8cbe237456044de952955d856"
   },
   "mozart.piano_sonatas.16-1": {
     "resolved_url": "https://www.mutopiaproject.org/ftp/MozartWA/KV545/K545-1/K545-1.mid",
