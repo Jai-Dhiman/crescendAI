@@ -10,6 +10,7 @@ gating on the chroma matcher would rig the #21 feasibility harness.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from statistics import median
 
 from score_library.schema import ScoreData
 
@@ -82,5 +83,42 @@ def validate_score(score: ScoreData, expected: ExpectedMeta) -> list[Violation]:
                 f"total_bars={score.total_bars} outside plausible [{low:.1f}, {high:.1f}] for expected {expected.expected_bars}",
             )
         )
+
+    # (d) Quantization: recover the 16th grid from bar.start_tick deltas + time sig.
+    if len(score.bars) >= 2:
+        bar_ticks_list: list[int] = []
+        for i in range(len(score.bars) - 1):
+            bar_ticks_list.append(score.bars[i + 1].start_tick - score.bars[i].start_tick)
+        # Last bar reuses the previous bar's tick span.
+        bar_ticks_list.append(bar_ticks_list[-1] if bar_ticks_list else 0)
+
+        devs_beats: list[float] = []
+        for bi, bar in enumerate(score.bars):
+            bar_ticks = bar_ticks_list[bi]
+            if bar_ticks <= 0:
+                continue
+            try:
+                num_str, den_str = bar.time_signature.split("/")
+                denominator = int(den_str)
+            except (ValueError, AttributeError):
+                continue
+            numerator = int(num_str)
+            subdivisions_per_bar = numerator * 16 / denominator
+            sixteenths_per_beat = 16 / denominator
+            for note in bar.notes:
+                fraction = (note.onset_tick - bar.start_tick) / bar_ticks
+                grid_pos = fraction * subdivisions_per_bar
+                dev_sixteenths = abs(grid_pos - round(grid_pos))
+                devs_beats.append(dev_sixteenths / sixteenths_per_beat)
+
+        if devs_beats:
+            med = median(devs_beats)
+            if med > expected.quant_max_median_dev_beats:
+                violations.append(
+                    Violation(
+                        "quantization",
+                        f"median grid deviation {med:.3f} beats > {expected.quant_max_median_dev_beats} (grossly off-grid / fixed-offset?)",
+                    )
+                )
 
     return violations

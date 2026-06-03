@@ -155,3 +155,42 @@ class TestBarCount:
         score = _make_score(_c_major_clean_bars(n_bars=6))
         violations = validate_score(score, _expected(expected_bars=3))
         assert not any(v.check == "bar_count" for v in violations)
+
+
+class TestQuantization:
+    def test_clean_grid_passes(self) -> None:
+        # Straight-16th notes exactly on the grid -> median deviation = 0.0 < 0.10 -> pass.
+        score = _make_score(_c_major_clean_bars(n_bars=3))
+        violations = validate_score(score, _expected(expected_bars=3))
+        assert not any(v.check == "quantization" for v in violations)
+
+    def test_single_bar_skips_check(self) -> None:
+        # Only 1 bar -> quantization check skipped even with off-grid notes.
+        notes = [_note(60 + i, (i * 137) / 1000.0, i * 137) for i in range(20)]
+        score = _make_score([_bar(1, 0, notes)])
+        violations = validate_score(score, _expected(expected_bars=1))
+        assert not any(v.check == "quantization" for v in violations)
+
+    def test_performance_timed_flagged(self) -> None:
+        # Shift EVERY onset by a FIXED +60 ticks (half a sixteenth at 480 tpq /
+        # 120-tick sixteenth). Every note then sits exactly half a 16th from the
+        # nearest grid line -> deviation 0.125 beats per note -> median 0.125 > 0.10
+        # -> quantization violation fires. A fixed offset (not alternating, not
+        # random) is required: the deviation function is periodic with period one
+        # sixteenth, so a +60-tick offset is the deterministic maximum (0.125), and
+        # random jitter would undershoot.
+        ppb = 480
+        bar_ticks = ppb * 4
+        sixteenth = ppb // 4  # 120 ticks
+        offset = sixteenth // 2  # 60 ticks = half a sixteenth = 0.125 beat off-grid
+        bars = []
+        for b in range(3):
+            notes = []
+            for i in range(8):
+                base = b * bar_ticks + i * (2 * sixteenth)
+                tick = base + offset
+                notes.append(_note(60 + i, tick / 1000.0, tick))
+            bars.append(_bar(b + 1, b * bar_ticks, notes))
+        score = _make_score(bars)
+        violations = validate_score(score, _expected(expected_bars=3))
+        assert any(v.check == "quantization" for v in violations)
