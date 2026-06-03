@@ -23,3 +23,8 @@ All 5 checks implemented exactly as planned: min_notes/total_bars/monotonic_onse
 
 ## Group B (manual.py B1-B4) — DONE
 ingest_manifest with temp-staging all-or-nothing atomicity (CONCERN 2 fix): staged JSONs only moved into scores_dir after ALL pieces resolve; lockfile written last; HALT leaves scores_dir + lockfile untouched. B2-B4 are behavior-locking tests over B1's impl (passed on first run, as the plan predicted; watch-it-fail satisfied at B1 module-absence). 4 tests pass. Semgrep flagged urllib dynamic-URL (WARNING) on _http_fetch — accepted: plan mandates stdlib urllib (requests/httpx not deps), URLs from pinned manifest, line carries noqa S310. No deviations.
+
+## Group C (cli.py parse-manual) — DONE, with one required deviation
+cmd_parse_manual + parse-manual subparser (--manifest required, --lock default None) + dispatch entry added. cmd_fingerprint unchanged.
+
+DEVIATION (necessary): The plan's C1 test monkeypatches `score_library.manual._http_fetch`, but B1's `ingest_manifest` had `fetch_fn=_http_fetch` as a DEFAULT ARG, which binds the original function at def-time — the monkeypatch had no effect and the test hit the real network (HTTP 403). Fixed by changing the signature to `fetch_fn=None` and resolving `fetch_fn = _http_fetch` at call-time inside the function. This is the standard Python idiom for late-bound injectable defaults, is backward-compatible (all 4 B-tests that pass an explicit fetch_fn still pass), and is the minimal change that satisfies the plan's verbatim C1 test. The plan's B1 code + C1 test were mutually inconsistent on this point; the test is the contract, so the impl was corrected.
