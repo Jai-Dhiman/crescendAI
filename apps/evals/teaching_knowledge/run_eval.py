@@ -125,14 +125,6 @@ def aggregate_muq(chunks: list[dict[str, Any]]) -> dict[str, float]:
     }
 
 
-def extract_teacher_response(raw: str) -> str:
-    """Strip the <analysis>...</analysis> scratchpad from synthesis output."""
-    if "<analysis>" not in raw:
-        return raw.strip()
-    parts = raw.split("</analysis>", 1)
-    return parts[1].strip() if len(parts) == 2 else raw.strip()
-
-
 def load_completed_ids(out_path: Path) -> set[str]:
     """Return recording_ids already written to the output JSONL."""
     if not out_path.exists():
