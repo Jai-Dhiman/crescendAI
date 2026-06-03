@@ -78,6 +78,8 @@ def ingest_manifest(
     # scores_dir (and write the lockfile) after EVERY piece resolves. A mid-run
     # HALT leaves scores_dir and the lockfile untouched (CONCERN 2: all-or-nothing
     # at the filesystem boundary). The staging dir is auto-removed on exception.
+    manifest_dir = manifest_path.parent
+
     with tempfile.TemporaryDirectory() as staging:
         staging_dir = Path(staging)
 
@@ -89,7 +91,11 @@ def ingest_manifest(
             won = False
 
             for url in entry["sources"]:
-                raw = fetch_fn(url)
+                if url.startswith("http://") or url.startswith("https://"):
+                    raw = fetch_fn(url)
+                else:
+                    local_path = manifest_dir / url
+                    raw = local_path.read_bytes()
                 sha = hashlib.sha256(raw).hexdigest()
 
                 if pinned_sha is not None and sha != pinned_sha:

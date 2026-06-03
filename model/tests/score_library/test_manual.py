@@ -248,3 +248,49 @@ class TestIngestAllFailHalt:
         assert url_a in msg and url_b in msg
         # No JSON written for the unresolved piece.
         assert not (scores_dir / "test.cmajor.json").exists()
+
+
+class TestLocalFileSource:
+    def test_local_file_source_resolves(self, tmp_path: Path) -> None:
+        """A non-http(s) source is resolved as a path relative to the manifest file."""
+        scores_dir = tmp_path / "scores"
+        scores_dir.mkdir()
+        lock_path = tmp_path / "lock.json"
+
+        # Write a valid MIDI to tmp_path/manual_midis/x.mid
+        midi_dir = tmp_path / "manual_midis"
+        midi_dir.mkdir()
+        midi_bytes = build_clean_c_major_bytes()
+        (midi_dir / "x.mid").write_bytes(midi_bytes)
+
+        # Manifest lives at tmp_path/m.json; source is a relative path
+        manifest_path = tmp_path / "m.json"
+        manifest_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "slug": "test_local",
+                        "piece_id": "test.cmajor",
+                        "composer": "Test",
+                        "title": "C Major",
+                        "expected_key": "C major",
+                        "expected_bars": 3,
+                        "license": "PD",
+                        "sources": ["manual_midis/x.mid"],
+                    }
+                ]
+            )
+        )
+
+        # NO fetch_fn override: exercises the real local-read path
+        report = ingest_manifest(manifest_path, scores_dir, lock_path)
+
+        # Score JSON lands in scores_dir
+        assert (scores_dir / "test.cmajor.json").exists()
+        data = json.loads((scores_dir / "test.cmajor.json").read_text())
+        assert data["piece_id"] == "test.cmajor"
+
+        # Lockfile records the relative source string (not an absolute path) + sha256
+        lock = json.loads(lock_path.read_text())
+        assert lock["test.cmajor"]["resolved_url"] == "manual_midis/x.mid"
+        assert lock["test.cmajor"]["sha256"] == hashlib.sha256(midi_bytes).hexdigest()
