@@ -86,6 +86,10 @@ seed-scores:
 fingerprint:
     cd model && uv run python -m score_library.cli fingerprint --scores-dir data/scores --output-dir data/fingerprints
 
+# Verify all 16 labeled eval pieces have a non-trivial, monotonic catalog entry
+catalog-verify:
+    cd model && uv run python -c "from score_library.catalog_coverage import check_coverage, CANONICAL_MAP; from src.paths import Scores; import sys; f=check_coverage(Scores.root, CANONICAL_MAP); print(chr(10).join(f) if f else 'PASS'); sys.exit(1 if f else 0)"
+
 # Run model tests
 test-model:
     cd model && uv run python -m pytest tests/ -v
