@@ -108,3 +108,24 @@ class TestDoDMinimums:
         v = Violation(check="min_notes", detail="x")
         assert v.check == "min_notes"
         assert v.detail == "x"
+
+
+class TestPitchRange:
+    def test_in_range_score_has_no_pitch_violation(self) -> None:
+        score = _make_score(_c_major_clean_bars())
+        violations = validate_score(score, _expected())
+        assert not any(v.check == "pitch_range" for v in violations)
+
+    def test_pitch_below_low_flagged(self) -> None:
+        bars = _c_major_clean_bars()
+        bars[0].notes[0] = _note(20, bars[0].notes[0].onset_seconds, bars[0].notes[0].onset_tick)
+        score = _make_score(bars)
+        violations = validate_score(score, _expected())
+        assert any(v.check == "pitch_range" for v in violations)
+
+    def test_pitch_above_high_flagged(self) -> None:
+        bars = _c_major_clean_bars()
+        bars[0].notes[0] = _note(109, bars[0].notes[0].onset_seconds, bars[0].notes[0].onset_tick)
+        score = _make_score(bars)
+        violations = validate_score(score, _expected())
+        assert any(v.check == "pitch_range" for v in violations)

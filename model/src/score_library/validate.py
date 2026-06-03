@@ -62,4 +62,14 @@ def validate_score(score: ScoreData, expected: ExpectedMeta) -> list[Violation]:
     if any(onsets[i] < onsets[i - 1] for i in range(1, len(onsets))):
         violations.append(Violation("monotonic_onsets", "onset_seconds not non-decreasing"))
 
+    # (b) Pitch range.
+    out_of_range = [n.pitch for n in notes if n.pitch < expected.pitch_low or n.pitch > expected.pitch_high]
+    if out_of_range:
+        violations.append(
+            Violation(
+                "pitch_range",
+                f"{len(out_of_range)} notes outside [{expected.pitch_low}, {expected.pitch_high}]",
+            )
+        )
+
     return violations
