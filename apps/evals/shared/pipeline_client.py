@@ -18,10 +18,10 @@ import asyncio
 import requests
 import websockets
 
-# Dev default matches apps/api/.dev.vars EVAL_SHARED_SECRET.
-# Override by setting the EVAL_SHARED_SECRET environment variable.
-_DEFAULT_DEV_EVAL_SECRET = "crescendai-eval-dev-secret-xk9p2mq7r4n8vwl3"
-EVAL_SHARED_SECRET: str = os.environ.get("EVAL_SHARED_SECRET", _DEFAULT_DEV_EVAL_SECRET)
+# Must match apps/api/.dev.vars EVAL_SHARED_SECRET. No committed default: set the
+# EVAL_SHARED_SECRET environment variable. Empty here -> run_recording raises before
+# attempting the eval-identity override (explicit failure, never a silent fallback).
+EVAL_SHARED_SECRET: str = os.environ.get("EVAL_SHARED_SECRET", "")
 
 
 @dataclass
@@ -120,6 +120,11 @@ async def run_recording(
     to capture the synthesis output. The pipeline routes through the
     production accumulation path (no legacy per-observation LLM calls).
     """
+    if not EVAL_SHARED_SECRET:
+        raise RuntimeError(
+            "EVAL_SHARED_SECRET is not set. Export it to match apps/api/.dev.vars "
+            "(the DO eval-identity override is fail-closed and rejects an empty secret)."
+        )
     recording_id = recording_cache["recording_id"]
     chunks = recording_cache["chunks"]
     start = time.time()

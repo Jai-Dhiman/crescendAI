@@ -295,7 +295,6 @@ def run_do_baseline(
     dry_run: bool = False,
     judge_provider: str = "workers-ai",
     judge_model: str = "@cf/google/gemma-4-26b-a4b-it",
-    student_id: str = "eval-student-001",
 ) -> None:
     """Drive holdout recordings through the real SessionBrain DO and write JSONL.
 
@@ -339,9 +338,9 @@ def run_do_baseline(
                 "chunks": briefing.get("chunks", []),
             }
 
-            # Each recording gets a fresh eval identity so sessionHistory /
-            # pastDiagnoses queries in the DO see an empty longitudinal record.
-            # The outer `student_id` param is ignored here intentionally.
+            # Each recording gets a fresh per-recording eval identity so
+            # sessionHistory / pastDiagnoses queries in the DO see an empty
+            # longitudinal record (cold-start fidelity).
             per_recording_student_id = f"eval-{recording_id}"
 
             try:
