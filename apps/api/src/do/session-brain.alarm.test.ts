@@ -97,7 +97,7 @@ describe("webSocketClose alarm guard (Fix B / Finding 3, DO-level)", () => {
 		});
 	});
 
-	it("does NOT bump state.version (so in-flight chunks survive the version-change bail)", async () => {
+	it("does NOT bump state.version (leaves the in-flight chunk's merge undisturbed)", async () => {
 		const id = env.SESSION_BRAIN.idFromName("ws-close-version");
 		const stub = env.SESSION_BRAIN.get(id);
 		await runInDurableObject(stub, async (instance: SessionBrain, state) => {
@@ -109,7 +109,7 @@ describe("webSocketClose alarm guard (Fix B / Finding 3, DO-level)", () => {
 			await instance.webSocketClose(fakeWs, 1000, "client gone");
 
 			const after = (await state.storage.get("state")) as { version: number; sessionEnding: boolean };
-			expect(after.version).toBe(7); // unchanged: protects the in-flight chunk from Finding 2's bail
+			expect(after.version).toBe(7); // unchanged: in-flight chunk merges its output on completion
 			expect(after.sessionEnding).toBe(true);
 			await state.storage.deleteAlarm();
 		});

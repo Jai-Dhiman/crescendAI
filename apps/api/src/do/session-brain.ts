@@ -458,10 +458,10 @@ export class SessionBrain extends DurableObject<Bindings> {
 	): Promise<void> {
 		// Mark session as ending and schedule the synthesis alarm, guarded on chunksInFlight
 		// so a mid-inference disconnect does not fire synthesis on incomplete accumulator state
-		// (Fix B / Finding 3). NOTE: do NOT bump state.version here — an in-flight chunk that
-		// re-reads state after inference would otherwise hit the version-change bail and discard
-		// its output. Leaving version unchanged lets that chunk complete, drain chunksInFlight to
-		// 0, and fire the immediate alarm itself with its data included.
+		// (Fix B / Finding 3). An in-flight chunk that re-reads state after inference will merge
+		// its output under finalizeChunk's lock and drain chunksInFlight to 0, then fire the
+		// immediate alarm itself with its data included — so this path only needs to set
+		// sessionEnding, not race the chunk to schedule synthesis.
 		let delayMs = 1;
 		try {
 			const state = await this.readState();
@@ -514,17 +514,14 @@ export class SessionBrain extends DurableObject<Bindings> {
 		index: number,
 		r2Key: string,
 	): Promise<void> {
-		// 1. Read state, snapshot version
-		// Note: chunksInFlight is tracked separately from the version counter
-		// to avoid false positives when concurrent chunks both increment it.
-		// The version counter only tracks semantically significant mutations
-		// (accumulator, modeDetector, piece identification, session ending).
-		const state = await this.readState();
-		const stateVersion = state.version;
-
-		// Increment chunks in flight (does NOT bump version)
-		state.chunksInFlight++;
-		await this.ctx.storage.put("state", state);
+		// 1. Increment chunksInFlight atomically. blockConcurrencyWhile serializes this
+		// read-modify-write so two concurrent chunk_ready events cannot both read the same
+		// count and write the same +1 (the #11 undercount). Does NOT bump version.
+		await this.ctx.blockConcurrencyWhile(async () => {
+			const state = await this.readState();
+			state.chunksInFlight++;
+			await this.ctx.storage.put("state", state);
+		});
 
 		// 2. Fetch audio from R2
 		let audioBytes: ArrayBuffer;
@@ -590,25 +587,39 @@ export class SessionBrain extends DurableObject<Bindings> {
 			callAmtEndpoint(this.env, audioBytes, contextAudio),
 		]);
 
-		// 4. Re-read state, check version hasn't changed
-		const currentState = await this.readState();
-		if (currentState.version !== stateVersion) {
-			// Another event mutated state during our await — bail to avoid clobbering
-			console.log(
-				JSON.stringify({
-					level: "warn",
-					message:
-						"state version changed during inference, bailing chunk pipeline",
-					index,
-					expectedVersion: stateVersion,
-					gotVersion: currentState.version,
-				}),
-			);
-			await this.decrementChunksInFlight();
-			return;
-		}
+		// 4. Atomic merge section (replaces the old version-change bail). The inference fetch
+		// above opened the DO input gate — fetch() is non-storage I/O — so concurrent chunk_ready
+		// events interleaved while we waited. We must therefore re-read the LATEST state and apply
+		// this chunk's additive output (scoredChunks push, chunksInFlight decrement, accumulator
+		// appends) onto it, never onto our now-stale pre-inference snapshot. The old bail compared
+		// a snapshotted version and dropped every chunk but the first when it changed (#11/#12).
+		// blockConcurrencyWhile serializes ONLY this cheap post-inference section; the expensive
+		// inference ran outside the lock, so chunks still infer concurrently.
+		await this.ctx.blockConcurrencyWhile(() =>
+			this.finalizeChunk(ws, index, muqResult, amtResult),
+		);
+	}
 
-		// Decrement chunksInFlight (will be re-written with final state)
+	/**
+	 * Apply one chunk's inference result to session state. ALWAYS invoked inside
+	 * ctx.blockConcurrencyWhile, so this read-modify-write is exclusive: it re-reads the latest
+	 * state and appends this chunk's scoredChunk / decrements chunksInFlight without clobbering a
+	 * concurrent chunk's writes. Re-reading here (rather than reusing handleChunkReady's
+	 * pre-inference snapshot) is what makes N concurrent chunks yield scoredChunks.length === N.
+	 */
+	private async finalizeChunk(
+		ws: WebSocket,
+		index: number,
+		muqResult: PromiseSettledResult<
+			Awaited<ReturnType<typeof callMuqEndpoint>>
+		>,
+		amtResult: PromiseSettledResult<
+			Awaited<ReturnType<typeof callAmtEndpoint>>
+		>,
+	): Promise<void> {
+		const currentState = await this.readState();
+
+		// Decrement chunksInFlight (this chunk's inference is done)
 		currentState.chunksInFlight = Math.max(0, currentState.chunksInFlight - 1);
 
 		// 5. Process MuQ result — send chunk_processed immediately
@@ -1981,14 +1992,19 @@ export class SessionBrain extends DurableObject<Bindings> {
 	}
 
 	private async decrementChunksInFlight(): Promise<void> {
-		try {
-			const state = await this.readState();
-			state.chunksInFlight = Math.max(0, state.chunksInFlight - 1);
-			state.version++;
-			await this.writeState(state);
-		} catch {
-			// Best-effort
-		}
+		// Serialized so a failed-fetch decrement cannot race a concurrent increment or
+		// finalizeChunk merge and lose the counter update. Never called from inside another
+		// blockConcurrencyWhile (only the pre-inference R2-failure paths use it), so no deadlock.
+		await this.ctx.blockConcurrencyWhile(async () => {
+			try {
+				const state = await this.readState();
+				state.chunksInFlight = Math.max(0, state.chunksInFlight - 1);
+				state.version++;
+				await this.writeState(state);
+			} catch {
+				// Best-effort
+			}
+		});
 	}
 
 	private sendWs(ws: WebSocket, data: unknown): void {
