@@ -86,6 +86,46 @@ uv run python -m teaching_knowledge.scripts.aggregate \
 
 Estimate: ~$20 total (Sonnet synthesis + Workers AI Gemma judge), ~1 hour wall time.
 
+## Producing the HONEST baseline through the real DO (#22, canonical)
+
+The `run_eval.py` path above feeds the teacher a thin Python summary; it overstates
+quality. The honest baseline replays the holdout through the **real SessionBrain DO**
+(`buildSynthesisFraming`), which is the production framing. This is the canonical
+baseline as of #22 — locked into `teacher_model/stage0/tests/test_aggregator.py`
+(`_SONNET_BASELINE`).
+
+Prereqs:
+- Local `wrangler dev` on :8787 (`cd apps/api && bun run dev`). Needs `.dev.vars`.
+- The eval studentId override is **fail-closed**: set BOTH in `apps/api/.dev.vars`:
+  `ALLOW_EVAL_STUDENT_OVERRIDE=true` and `EVAL_SHARED_SECRET=<dev secret>`. The harness
+  sends `x-eval-secret`; export the same value: `export EVAL_SHARED_SECRET=<dev secret>`.
+  These vars are absent in production, so the override is unreachable there.
+- DB connection cap: `createDb` uses `max:5, idle_timeout:10` so sequential sessions
+  don't exhaust Postgres (`too many clients`). If you still hit it, lower `max` further.
+
+```bash
+# Smoke one recording (confirm a real ~10s Anthropic call, no ERROR:)
+cd apps/evals && uv run python -m teaching_knowledge.run_eval --do-path --limit 1 \
+    --teacher-model claude-sonnet-4-6 --judge-model '@cf/google/gemma-4-26b-a4b-it' \
+    --out results/smoke_do_$(date -u +%Y%m%d).jsonl
+
+# Full holdout (98 recordings) through the DO — resume-safe, must be <5% errors
+cd apps/evals && uv run python -m teaching_knowledge.run_eval --do-path \
+    --teacher-model claude-sonnet-4-6 --judge-model '@cf/google/gemma-4-26b-a4b-it' \
+    --out results/baseline_v2_do.jsonl
+
+# Aggregate (run from apps/evals so the default --dataset-index resolves)
+cd apps/evals && uv run python -m teaching_knowledge.scripts.aggregate \
+    results/baseline_v2_do.jsonl \
+    --dataset-index teaching_knowledge/data/dataset_index.jsonl \
+    --out results/baseline_v2_do_aggregate.json
+```
+
+Then re-lock `_SONNET_BASELINE` in `teacher_model/stage0/tests/test_aggregator.py` from
+the aggregate, and confirm `pytest teacher_model/stage0/tests/test_aggregator.py` passes.
+Current locked numbers: ASCF `mean_outcome` 0.959, composite 1.060 (n=98) — below the old
+thin-path 1.387/2.483 because the honest cold-start framing is leaner, not a regression.
+
 ## Cross-family constraint
 
 Same-family teacher/judge pairings are blocked at `run_eval.py` startup by `assert_judge_compatible`. Allowed pairings:
