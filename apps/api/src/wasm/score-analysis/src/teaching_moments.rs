@@ -98,6 +98,70 @@ pub fn select_teaching_moment(
     Some(select_positive_moment(chunks, &baseline_arr))
 }
 
+/// Select up to `max` within-session teaching moments, ranked against a
+/// caller-supplied within-session `reference` (typically the per-dimension
+/// session mean) rather than a stored longitudinal baseline.
+///
+/// Algorithm:
+/// 1. For each chunk, find its worst dimension vs `reference` (largest negative deviation).
+/// 2. Keep chunks whose worst dimension is below the reference (deviation < 0).
+/// 3. Rank by deviation magnitude (most-below-mean first).
+/// 4. Walk ranked candidates, emitting at most one moment per distinct dimension, up to `max`.
+/// 5. If no chunk is below the reference anywhere, return a single positive moment.
+/// 6. If fewer than `MIN_CHUNKS` chunks, return an empty vec.
+///
+/// Reasoning strings are within-session phrased (reference-neutral), never longitudinal.
+/// This function is additive; `select_teaching_moment` (the live path) is unaffected.
+pub fn select_session_moments(
+    chunks: &[ScoredChunk],
+    reference: &[f64; 6],
+    max: usize,
+) -> Vec<TeachingMoment> {
+    if chunks.len() < MIN_CHUNKS {
+        return Vec::new();
+    }
+
+    let mut candidates: Vec<Candidate> = Vec::new();
+    for chunk in chunks {
+        let (dim_idx, deviation) = max_negative_deviation(&chunk.scores, reference);
+        if deviation >= 0.0 {
+            continue;
+        }
+        candidates.push(Candidate {
+            chunk_index: chunk.chunk_index,
+            dim_idx,
+            score: chunk.scores[dim_idx],
+            baseline: reference[dim_idx],
+            deviation,
+        });
+    }
+
+    candidates.sort_by(|a, b| {
+        a.deviation
+            .partial_cmp(&b.deviation)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let mut moments: Vec<TeachingMoment> = Vec::new();
+    let mut used_dims: Vec<usize> = Vec::new();
+    for candidate in &candidates {
+        if moments.len() >= max {
+            break;
+        }
+        if used_dims.contains(&candidate.dim_idx) {
+            continue;
+        }
+        used_dims.push(candidate.dim_idx);
+        moments.push(candidate.to_session_moment());
+    }
+
+    if moments.is_empty() {
+        moments.push(select_positive_moment(chunks, reference));
+    }
+
+    moments
+}
+
 /// Positive teaching moment: find what the student did best.
 #[allow(clippy::needless_range_loop)] // i indexes both scores[i] and baselines[i] in parallel
 fn select_positive_moment(chunks: &[ScoredChunk], baselines: &[f64; 6]) -> TeachingMoment {
@@ -190,6 +254,23 @@ impl Candidate {
             deviation: self.deviation,
             reasoning,
             is_positive,
+        }
+    }
+
+    fn to_session_moment(&self) -> TeachingMoment {
+        let dim_name = DIMS_6[self.dim_idx];
+        let reasoning = format!(
+            "{} was the weakest relative to the rest of this session: {:.2} vs session average {:.2} (deviation {:.2}).",
+            dim_name, self.score, self.baseline, self.deviation,
+        );
+        TeachingMoment {
+            chunk_index: self.chunk_index,
+            dimension: dim_name.to_string(),
+            score: self.score,
+            baseline: self.baseline,
+            deviation: self.deviation,
+            reasoning,
+            is_positive: false,
         }
     }
 }
@@ -355,5 +436,79 @@ mod tests {
         assert!(moment.is_positive);
         assert_eq!(moment.dimension, "pedaling");
         assert!(moment.deviation > 0.4);
+    }
+
+    fn reference_mean(chunks: &[ScoredChunk]) -> [f64; 6] {
+        let mut sums = [0.0f64; 6];
+        for c in chunks {
+            for i in 0..6 {
+                sums[i] += c.scores[i];
+            }
+        }
+        let n = chunks.len() as f64;
+        let mut mean = [0.0f64; 6];
+        for i in 0..6 {
+            mean[i] = sums[i] / n;
+        }
+        mean
+    }
+
+    #[test]
+    fn session_moments_rank_by_magnitude_vs_session_mean() {
+        // Chunk 1 is far below the session mean on pedaling -> should rank first.
+        let chunks = vec![
+            ScoredChunk { chunk_index: 0, scores: [0.55, 0.50, 0.50, 0.54, 0.52, 0.50] },
+            ScoredChunk { chunk_index: 1, scores: [0.55, 0.50, 0.10, 0.54, 0.52, 0.50] },
+            ScoredChunk { chunk_index: 2, scores: [0.55, 0.50, 0.48, 0.54, 0.52, 0.50] },
+        ];
+        let reference = reference_mean(&chunks);
+        let moments = select_session_moments(&chunks, &reference, 6);
+        assert!(!moments.is_empty(), "should return at least one moment");
+        assert_eq!(moments[0].dimension, "pedaling");
+        assert_eq!(moments[0].chunk_index, 1);
+        assert!(moments[0].deviation < 0.0, "weakest moment is below the session mean");
+        assert!(!moments[0].is_positive);
+        assert!(
+            moments[0].reasoning.contains("this session"),
+            "reasoning must be within-session phrased, got: {}",
+            moments[0].reasoning
+        );
+    }
+
+    #[test]
+    fn session_moments_return_distinct_dimensions_up_to_max() {
+        let chunks = vec![
+            ScoredChunk { chunk_index: 0, scores: [0.10, 0.80, 0.80, 0.80, 0.80, 0.80] },
+            ScoredChunk { chunk_index: 1, scores: [0.80, 0.10, 0.80, 0.80, 0.80, 0.80] },
+            ScoredChunk { chunk_index: 2, scores: [0.80, 0.80, 0.10, 0.80, 0.80, 0.80] },
+        ];
+        let reference = reference_mean(&chunks);
+        let moments = select_session_moments(&chunks, &reference, 2);
+        assert_eq!(moments.len(), 2, "must respect max");
+        assert_ne!(
+            moments[0].dimension, moments[1].dimension,
+            "moments must span distinct dimensions"
+        );
+    }
+
+    #[test]
+    fn session_moments_positive_fallback_when_all_at_mean() {
+        // Every chunk identical -> deviation from mean is 0 everywhere -> positive fallback.
+        let chunks = vec![
+            ScoredChunk { chunk_index: 0, scores: [0.60, 0.60, 0.60, 0.60, 0.60, 0.60] },
+            ScoredChunk { chunk_index: 1, scores: [0.60, 0.60, 0.60, 0.60, 0.60, 0.60] },
+        ];
+        let reference = reference_mean(&chunks);
+        let moments = select_session_moments(&chunks, &reference, 6);
+        assert_eq!(moments.len(), 1, "positive fallback returns a single moment");
+        assert!(moments[0].is_positive);
+    }
+
+    #[test]
+    fn session_moments_empty_when_too_few_chunks() {
+        let chunks = vec![ScoredChunk { chunk_index: 0, scores: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3] }];
+        let reference = reference_mean(&chunks);
+        let moments = select_session_moments(&chunks, &reference, 6);
+        assert!(moments.is_empty(), "fewer than 2 chunks -> empty");
     }
 }

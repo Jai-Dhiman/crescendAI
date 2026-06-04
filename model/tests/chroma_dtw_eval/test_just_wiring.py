@@ -5,8 +5,10 @@ import subprocess
 def test_just_chroma_eval_verify_exits_zero():
     if shutil.which("just") is None:
         import pytest; pytest.skip("just not installed")
+    # Use smoke recipe: exercises sampler + pseudo-truth + aggregator without real audio.
+    # Full chroma-eval-verify (no --skip-dtw) requires real audio; tested separately.
     result = subprocess.run(
-        ["just", "chroma-eval-verify"],
+        ["just", "chroma-eval-verify-smoke"],
         capture_output=True, text=True, timeout=120,
     )
     assert result.returncode == 0, f"stdout={result.stdout}; stderr={result.stderr}"

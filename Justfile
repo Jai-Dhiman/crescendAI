@@ -86,6 +86,20 @@ seed-scores:
 fingerprint:
     cd model && uv run python -m score_library.cli fingerprint --scores-dir data/scores --output-dir data/fingerprints
 
+# Verify all 16 labeled eval pieces have a non-trivial, monotonic catalog entry
+catalog-verify:
+    cd model && uv run python -c "from score_library.catalog_coverage import check_coverage, CANONICAL_MAP; from src.paths import Scores; import sys; f=check_coverage(Scores.root, CANONICAL_MAP); print(chr(10).join(f) if f else 'PASS'); sys.exit(1 if f else 0)"
+
+# Add scores to the catalog from data/manifests/manual_scores.json (URL or local
+# manual_midis/ sources). Re-ingests the whole manifest through the validation
+# gate (HALTS loudly if any source is bad or off-grid), rebuilds fingerprints,
+# and reports catalog size. To add a piece: append an entry to manual_scores.json
+# then run this. See docs/model/10-score-library-catalog.md for the full workflow.
+catalog-add:
+    cd model && uv run python -m score_library.cli parse-manual --manifest data/manifests/manual_scores.json
+    just fingerprint
+    cd model && echo "Catalog size: $(find data/scores -maxdepth 1 -name '*.json' ! -name titles.json | wc -l | tr -d ' ') score JSONs"
+
 # Run model tests
 test-model:
     cd model && uv run python -m pytest tests/ -v
@@ -206,3 +220,69 @@ lint-api:
 # Lint web (biome)
 lint-web:
     cd apps/web && bun run lint
+
+# Build dtw_chunk_cli release binary so chroma-eval-verify hits its 120s budget on warm cache.
+# Run once after a clean checkout; idempotent thereafter.
+chroma-eval-prebuild:
+    cd apps/api/src/wasm/score-analysis && cargo build --release --bin dtw_chunk_cli
+
+# CI/dev sanity check: smoke path (--skip-dtw). Exercises sampler + pseudo-truth
+# + aggregator + sidecar without needing real audio or the Rust DTW binary.
+# Primary scalar (100.0) is by construction -- not a real measurement.
+# Use this in pre-commit hooks and fast CI gates.
+chroma-eval-verify-smoke:
+    cd model && uv run python -m chroma_dtw_eval.verify \
+        --baseline data/evals/chroma_dtw/baseline.json \
+        --manifest data/evals/chroma_dtw_fixtures/manifest.json \
+        --skip-dtw
+
+# Full chroma-DTW eval using real audio + Rust DTW binary. This is the real
+# measurement loop -- run before /autoresearch dispatch or ratcheting baseline.
+# Requires:
+#   model/data/evals/practice_eval/bach_prelude_c_wtc1/audio/*.wav
+#   model/data/evals/pseudo_truth/bach_prelude_c_wtc1/
+# If data is missing, run `just amt-regen-pseudo-truth` first;
+# see docs/implementation/2026-06-01-amt-pseudo-truth-pilot.md
+# 120s budget assumes Rust DTW binary is pre-built; run `just chroma-eval-prebuild` once.
+chroma-eval-verify:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    AUDIO_DIR="model/data/evals/practice_eval/bach_prelude_c_wtc1/audio"
+    PT_DIR="model/data/evals/pseudo_truth/bach_prelude_c_wtc1"
+    if [ ! -d "$AUDIO_DIR" ] || [ -z "$(ls -A "$AUDIO_DIR" 2>/dev/null)" ]; then
+        echo "ERROR: real audio not found at $AUDIO_DIR" >&2
+        echo "Run \`just amt-regen-pseudo-truth <piece> <video_id>\` first;" >&2
+        echo "see docs/implementation/2026-06-01-amt-pseudo-truth-pilot.md" >&2
+        exit 1
+    fi
+    if [ ! -d "$PT_DIR" ] || [ -z "$(ls -A "$PT_DIR" 2>/dev/null)" ]; then
+        echo "ERROR: pseudo-truth not found at $PT_DIR" >&2
+        echo "Run \`just amt-regen-pseudo-truth <piece> <video_id>\` first;" >&2
+        echo "see docs/implementation/2026-06-01-amt-pseudo-truth-pilot.md" >&2
+        exit 1
+    fi
+    cd model && uv run python -m chroma_dtw_eval.verify \
+        --baseline data/evals/chroma_dtw/baseline.json \
+        --manifest data/evals/chroma_dtw_fixtures/manifest.json
+
+# Promote the latest sidecar to baseline. Refuses to write on regression.
+chroma-eval-ratchet:
+    cd model && uv run python -m chroma_dtw_eval.ratchet \
+        --from data/evals/chroma_dtw/last_run.json \
+        --to data/evals/chroma_dtw/baseline.json
+
+# Regenerate AMT pseudo-truth cache for a single (piece, video_id).
+# Usage: just amt-regen-pseudo-truth <piece_id> <video_id>
+amt-regen-pseudo-truth piece video_id:
+    cd model && uv run python -m chroma_dtw_eval.amt_regen \
+        --piece {{piece}} --video-id {{video_id}}
+
+# Chroma-identification feasibility harness (Issue #21).
+# Downloads real audio on cache miss; use --holdout to configure open-set probe.
+# Run `just piece-id-feasibility-acquire` first to populate audio cache.
+piece-id-feasibility:
+    cd model && uv run python -m piece_id_eval.cli
+
+# Acquire audio for all 16 practice_eval pieces (yt-dlp required).
+piece-id-feasibility-acquire slug video_id:
+    cd model && uv run python -c "from pathlib import Path; from piece_id_eval.acquire import acquire_audio; out = acquire_audio('{{video_id}}', Path('data/evals/practice_eval/{{slug}}/audio')); print('Downloaded:', out)"

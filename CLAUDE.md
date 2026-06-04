@@ -34,8 +34,10 @@ Uses `just` (justfile) for dev commands. Install: `brew install just`.
 | `just muq` / `just amt` / `just api` / `just web` | Individual services |
 | `just fingerprint` | Generate N-gram index + rerank features from score library |
 | `just test-model` / `just test-api` / `just check-api` | Tests and checks |
-| `just chroma-eval-verify` | Run chroma-DTW eval harness; exits non-zero on guard regression |
-| `just chroma-eval-ratchet` | Commit updated baseline.json after a deliberate metric improvement |
+| `just chroma-eval-verify-smoke` | Fast sanity check (--skip-dtw); no real audio required; use in pre-commit / CI |
+| `just chroma-eval-verify` | Full chroma-DTW eval with real audio + AMT pseudo-truth; **fails loudly if audio or pseudo-truth data missing** (run `just amt-regen-pseudo-truth` first) |
+| `just chroma-eval-ratchet` | Promote last_run.json to baseline.json after a deliberate metric improvement |
+| `just piece-id-feasibility` | Chroma piece-ID feasibility harness (Issue #21); run `just piece-id-feasibility-acquire` first to populate audio cache |
 | `just deploy-api` | Deploy API worker to production |
 | `just migrate-generate` / `just migrate-prod` | Drizzle migrations (generate SQL / apply to prod) |
 

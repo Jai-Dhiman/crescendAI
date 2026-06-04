@@ -1,4 +1,6 @@
-"""Download approved practice_eval audio clips via yt-dlp.
+"""Practice corpus downloader. Used during initial data fetch; not in the eval critical path.
+
+Download approved practice_eval audio clips via yt-dlp.
 
 Walks `model/data/evals/practice_eval/<piece>/candidates.yaml`, filters
 `approved: true` (optionally constrained by --piece and --video-ids), and

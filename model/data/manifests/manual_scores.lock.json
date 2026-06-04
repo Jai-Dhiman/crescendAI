@@ -1,0 +1,46 @@
+{
+  "bach.inventions.1": {
+    "resolved_url": "https://www.mutopiaproject.org/ftp/BachJS/BWV772/bach-invention-01/bach-invention-01.mid",
+    "sha256": "9b9a6213941932d5171d9102d85912c3c1c61f8176ce02005cd2198881823c2d"
+  },
+  "chopin.waltzes.64-2": {
+    "resolved_url": "manual_midis/chopin.waltzes.64-2.mid",
+    "sha256": "c26c6f016e940ac89f1c0721b37e64800b54fc12a980309187e007be30d02632"
+  },
+  "debussy.suite_bergamasque.3_clair_de_lune": {
+    "resolved_url": "https://www.mutopiaproject.org/ftp/DebussyC/L75/debussy_Ste_Bergamesq_Clair/debussy_Ste_Bergamesq_Clair.mid",
+    "sha256": "4eee9a1546ffde1ff74cb9824ba0e57cbc821185a15185bfea9faed97820bf8c"
+  },
+  "debussy.deux_arabesques.1": {
+    "resolved_url": "https://www.mutopiaproject.org/ftp/DebussyC/L66/debussy_Arabesque_1/debussy_Arabesque_1.mid",
+    "sha256": "6732dc10799ec0af47d19d9095562d0671864a750129e0279901def169a34757"
+  },
+  "chopin.fantaisie_impromptu": {
+    "resolved_url": "https://www.mutopiaproject.org/ftp/ChopinFF/O66/chopin_fantaisie-impromptu/chopin_fantaisie-impromptu.mid",
+    "sha256": "b29f6add7473b6e931c2e66349e860bf0e884cf68e19e90420a4870aae689f96"
+  },
+  "beethoven.fur_elise": {
+    "resolved_url": "https://www.mutopiaproject.org/ftp/BeethovenLv/WoO59/fur_Elise_WoO59/fur_Elise_WoO59.mid",
+    "sha256": "1c12c21c7bbf4cf163896732672648a69d497636059837abd153c71abe50215a"
+  },
+  "liszt.liebestraume.3": {
+    "resolved_url": "manual_midis/liszt.liebestraume.3.mid",
+    "sha256": "f3cf960505051d13e696538c7fbf7774bd8260c2d7644a39b2e06c0c96148b40"
+  },
+  "beethoven.piano_sonatas.14-1": {
+    "resolved_url": "manual_midis/beethoven.piano_sonatas.14-1.mid",
+    "sha256": "17b58106bc288e2d8cecb6ed6da94e59d0c135e8cbe237456044de952955d856"
+  },
+  "mozart.piano_sonatas.16-1": {
+    "resolved_url": "https://www.mutopiaproject.org/ftp/MozartWA/KV545/K545-1/K545-1.mid",
+    "sha256": "54e510ba1e5865aeedc4e96bf70b83c93ecddf5b66660033ef98a5a8204ab02d"
+  },
+  "rachmaninoff.preludes_op_3.2": {
+    "resolved_url": "https://www.mutopiaproject.org/ftp/RachmaninoffS/O3/rach-prelude-op3-no2/rach-prelude-op3-no2.mid",
+    "sha256": "cd7879a13accb06c539b1a74855121ed25ec4c71f8069473c6fc78ae56d7c43b"
+  },
+  "schumann.kinderszenen.7": {
+    "resolved_url": "https://www.mutopiaproject.org/ftp/SchumannR/O15/SchumannOp15No07/SchumannOp15No07.mid",
+    "sha256": "6e0045d5783ff28dedcf05813074fe407ca3846e5e2a7246f2793ac5614e4851"
+  }
+}

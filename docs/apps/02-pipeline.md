@@ -579,6 +579,20 @@ Repertoire suggests {inferred_level} level.
 No baseline to compare against -- assess based on absolute quality.
 ```
 
+> **Cold-start post-session synthesis (shipped, issue #24).** When `loadBaselinesFromDb`
+> returns `null` (zero prior observations), `runSynthesisAndPersist` no longer surfaces an
+> empty `top_moments` array (which made the teacher say "I don't see any practice data").
+> Instead it computes the per-dimension *within-session mean* across this session's scored
+> chunks and calls the WASM `select_session_moments` (via `buildColdStartMoments`) to rank
+> teaching moments *relative to the rest of the same session* (reasoning strings phrased
+> "weakest relative to the rest of this session", never longitudinal). `buildSynthesisFraming`
+> emits `reference_mode: "within_session"` plus an anti-fabrication instruction telling the
+> teacher to describe only what happened this session and never claim improvement over past
+> sessions. The returning-student (`baselines !== null`) path is byte-for-byte unchanged.
+> Session duration is derived from `scoredChunkCount * 15000` (`computeSessionDurationMs`,
+> MuQ chunk = 15s) instead of wall-clock timeline stamps, so `duration_minutes` is no longer
+> 0 in eval replay where all events share a millisecond.
+
 **Student context (warm, sessions 3+):**
 
 ```

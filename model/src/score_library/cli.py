@@ -15,6 +15,7 @@ from collections import Counter
 from pathlib import Path
 
 from src.paths import Scores
+from src.paths import DATA_ROOT as REPO_ROOT_DATA
 
 from score_library.discover import discover_pieces
 from score_library.parse import parse_score_midi
@@ -157,6 +158,18 @@ def cmd_fingerprint(args):
     print("\nDone.")
 
 
+def cmd_parse_manual(args):
+    from score_library.manual import ingest_manifest
+
+    manifest_path = Path(args.manifest)
+    default_lock = REPO_ROOT_DATA / "manifests" / "manual_scores.lock.json"
+    lock_path = Path(args.lock) if args.lock else default_lock
+    report = ingest_manifest(manifest_path, Scores.root, lock_path)
+    print(f"Resolved {len(report.resolved)} pieces -> {lock_path}")
+    for piece_id, info in report.resolved.items():
+        print(f"  {piece_id}: {info['resolved_url']}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Score MIDI Library pipeline")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -206,6 +219,16 @@ def main():
         help="Prune trigrams appearing in more than N locations (default: 3, keeps index under 5MB)",
     )
 
+    p_parse_manual = sub.add_parser(
+        "parse-manual", help="Ingest manual score MIDIs from a ranked-URL manifest"
+    )
+    p_parse_manual.add_argument("--manifest", required=True, help="Path to manual_scores.json")
+    p_parse_manual.add_argument(
+        "--lock",
+        default=None,
+        help="Lockfile path (default: data/manifests/manual_scores.lock.json)",
+    )
+
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     {
@@ -216,6 +239,7 @@ def main():
         "upload-mxl": cmd_upload_mxl,
         "reupload-mxl": cmd_reupload_mxl,
         "fingerprint": cmd_fingerprint,
+        "parse-manual": cmd_parse_manual,
     }[args.command](args)
 
 

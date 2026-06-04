@@ -1,0 +1,8 @@
+{
+  "checkpoint_hash": "aria_amt_v1_pilot_2026_06_01",
+  "parangonar_version": "3.3.2",
+  "regen_source_default": "local:aria-amt",
+  "model_name": "aria-amt",
+  "pinned_at": "2026-06-02",
+  "notes": "checkpoint_hash is a stable label, not a cryptographic digest; bump when apps/inference/amt checkpoint changes. parangonar_version must match the installed parangonar package; bump when uv lock changes."
+}
