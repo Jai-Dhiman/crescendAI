@@ -1,0 +1,194 @@
+{
+  "dimensions": [
+    {
+      "name": "Appropriate Tone & Language",
+      "mean_process": 2.479591836734694,
+      "ci_process": [
+        2.377551020408163,
+        2.5918367346938775
+      ],
+      "mean_outcome": 2.0816326530612246,
+      "ci_outcome": [
+        1.9285714285714286,
+        2.2346938775510203
+      ],
+      "n": 98
+    },
+    {
+      "name": "Audible-Specific Corrective Feedback",
+      "mean_process": 1.597938144329897,
+      "ci_process": [
+        1.4948453608247423,
+        1.7010309278350515
+      ],
+      "mean_outcome": 0.9587628865979382,
+      "ci_outcome": [
+        0.9175257731958762,
+        0.9896907216494846
+      ],
+      "n": 97
+    },
+    {
+      "name": "Autonomy-Supporting Motivation",
+      "mean_process": 1.6224489795918366,
+      "ci_process": [
+        1.5,
+        1.7448979591836735
+      ],
+      "mean_outcome": 1.2551020408163265,
+      "ci_outcome": [
+        1.153061224489796,
+        1.3775510204081634
+      ],
+      "n": 98
+    },
+    {
+      "name": "Concrete Artifact Provision",
+      "mean_process": 0.5591397849462365,
+      "ci_process": [
+        0.44086021505376344,
+        0.6774193548387096
+      ],
+      "mean_outcome": 0.45161290322580644,
+      "ci_outcome": [
+        0.3548387096774194,
+        0.5591397849462365
+      ],
+      "n": 93
+    },
+    {
+      "name": "Scaffolded Guided Discovery",
+      "mean_process": 0.9166666666666666,
+      "ci_process": [
+        0.7916666666666666,
+        1.0416666666666667
+      ],
+      "mean_outcome": 0.7291666666666666,
+      "ci_outcome": [
+        0.6351562500000002,
+        0.8333333333333334
+      ],
+      "n": 96
+    },
+    {
+      "name": "Specific Positive Praise",
+      "mean_process": 1.348314606741573,
+      "ci_process": [
+        1.235674157303371,
+        1.460955056179775
+      ],
+      "mean_outcome": 0.7386363636363636,
+      "ci_outcome": [
+        0.6363636363636364,
+        0.8409090909090909
+      ],
+      "n": 89
+    },
+    {
+      "name": "Style-Consistent Musical Language",
+      "mean_process": 1.6701030927835052,
+      "ci_process": [
+        1.577319587628866,
+        1.7628865979381443
+      ],
+      "mean_outcome": 1.0824742268041236,
+      "ci_outcome": [
+        1.0,
+        1.175257731958763
+      ],
+      "n": 97
+    }
+  ],
+  "composite_mean": 1.0596209912536443,
+  "composite_ci": [
+    1.0006304664723031,
+    1.1216897473275025
+  ],
+  "by_era": {
+    "Romantic": {
+      "Audible-Specific Corrective Feedback": 1.0,
+      "Concrete Artifact Provision": 0.5,
+      "Specific Positive Praise": 0.6521739130434783,
+      "Autonomy-Supporting Motivation": 1.16,
+      "Scaffolded Guided Discovery": 0.7916666666666666,
+      "Style-Consistent Musical Language": 1.16,
+      "Appropriate Tone & Language": 2.0
+    },
+    "Baroque": {
+      "Audible-Specific Corrective Feedback": 1.0,
+      "Concrete Artifact Provision": 0.4166666666666667,
+      "Specific Positive Praise": 0.8333333333333334,
+      "Autonomy-Supporting Motivation": 1.44,
+      "Scaffolded Guided Discovery": 0.625,
+      "Style-Consistent Musical Language": 1.0,
+      "Appropriate Tone & Language": 2.16
+    },
+    "Classical": {
+      "Audible-Specific Corrective Feedback": 0.92,
+      "Concrete Artifact Provision": 0.4166666666666667,
+      "Specific Positive Praise": 0.6956521739130435,
+      "Autonomy-Supporting Motivation": 1.2,
+      "Scaffolded Guided Discovery": 0.76,
+      "Style-Consistent Musical Language": 1.12,
+      "Appropriate Tone & Language": 2.32
+    },
+    "Impressionist": {
+      "Audible-Specific Corrective Feedback": 0.9130434782608695,
+      "Concrete Artifact Provision": 0.47619047619047616,
+      "Autonomy-Supporting Motivation": 1.2173913043478262,
+      "Scaffolded Guided Discovery": 0.7391304347826086,
+      "Style-Consistent Musical Language": 0.9565217391304348,
+      "Appropriate Tone & Language": 1.7826086956521738,
+      "Specific Positive Praise": 0.7368421052631579
+    }
+  },
+  "by_skill": {
+    "3": {
+      "Audible-Specific Corrective Feedback": 1.0,
+      "Concrete Artifact Provision": 0.42105263157894735,
+      "Specific Positive Praise": 0.6842105263157895,
+      "Autonomy-Supporting Motivation": 1.1,
+      "Scaffolded Guided Discovery": 0.75,
+      "Style-Consistent Musical Language": 1.1,
+      "Appropriate Tone & Language": 2.1
+    },
+    "5": {
+      "Audible-Specific Corrective Feedback": 1.0,
+      "Concrete Artifact Provision": 0.47368421052631576,
+      "Specific Positive Praise": 0.7058823529411765,
+      "Autonomy-Supporting Motivation": 1.25,
+      "Scaffolded Guided Discovery": 0.6842105263157895,
+      "Style-Consistent Musical Language": 1.1,
+      "Appropriate Tone & Language": 1.95
+    },
+    "4": {
+      "Audible-Specific Corrective Feedback": 0.95,
+      "Concrete Artifact Provision": 0.45,
+      "Specific Positive Praise": 0.6111111111111112,
+      "Autonomy-Supporting Motivation": 1.15,
+      "Scaffolded Guided Discovery": 0.7,
+      "Style-Consistent Musical Language": 1.15,
+      "Appropriate Tone & Language": 1.9
+    },
+    "1": {
+      "Audible-Specific Corrective Feedback": 0.8823529411764706,
+      "Concrete Artifact Provision": 0.5,
+      "Specific Positive Praise": 0.8235294117647058,
+      "Autonomy-Supporting Motivation": 1.5,
+      "Scaffolded Guided Discovery": 0.7647058823529411,
+      "Style-Consistent Musical Language": 0.8823529411764706,
+      "Appropriate Tone & Language": 2.2777777777777777
+    },
+    "2": {
+      "Audible-Specific Corrective Feedback": 0.95,
+      "Concrete Artifact Provision": 0.42105263157894735,
+      "Specific Positive Praise": 0.8333333333333334,
+      "Autonomy-Supporting Motivation": 1.3,
+      "Scaffolded Guided Discovery": 0.75,
+      "Style-Consistent Musical Language": 1.05,
+      "Appropriate Tone & Language": 2.15
+    }
+  },
+  "total_rows": 98,
+  "run_id": "2026-06-04T03-43-40Z_2577f47"
+}
