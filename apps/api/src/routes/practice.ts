@@ -28,25 +28,32 @@ const synthesizeBodySchema = z.object({
 /**
  * Resolves the effective studentId for a WebSocket practice session.
  *
- * Guarantee: in production (environment === "production") the eval override
- * is unconditionally ignored — effectiveStudentId is ALWAYS authStudentId.
- * In non-production environments, an explicit evalStudentId is honoured when
- * provided so the cold-start eval harness can supply per-recording identities.
- * If evalStudentId is empty even in non-production, authStudentId is used.
+ * SECURITY: fail-closed design — the override is granted ONLY when ALL three
+ * conditions hold simultaneously:
+ *   1. overrideAllowed === true  (ALLOW_EVAL_STUDENT_OVERRIDE === "true" in env)
+ *   2. secretOk === true         (x-eval-secret header matches EVAL_SHARED_SECRET
+ *                                 AND EVAL_SHARED_SECRET is non-empty)
+ *   3. evalStudentId is non-empty
+ *
+ * Both flags are computed from c.env / request headers at the call site so this
+ * function remains pure and unit-testable without a live Hono context.
+ * If ALLOW_EVAL_STUDENT_OVERRIDE is absent/not "true", or the secret is wrong
+ * or unset, the override is unconditionally denied regardless of query params.
  */
 export function resolveSessionStudentId({
 	isEvalQuery,
 	evalStudentId,
 	authStudentId,
-	environment,
+	overrideAllowed,
+	secretOk,
 }: {
 	isEvalQuery: boolean;
 	evalStudentId: string;
 	authStudentId: string | null;
-	environment: string;
+	overrideAllowed: boolean;
+	secretOk: boolean;
 }): string | null {
-	const evalAllowed = isEvalQuery && environment !== "production";
-	if (evalAllowed && evalStudentId) {
+	if (isEvalQuery && overrideAllowed && secretOk && evalStudentId) {
 		return evalStudentId;
 	}
 	return authStudentId;
@@ -147,14 +154,24 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 		// Eval sessions may supply a per-recording identity so each recording
 		// starts with empty sessionHistory/pastDiagnoses (cold-start guarantee).
-		// SECURITY: the override is gated on ENVIRONMENT !== "production" so it
-		// is unreachable in the deployed worker. Production always uses the
-		// authenticated studentId; the local harness keeps working via evalStudentId.
+		// SECURITY: fail-closed flag+secret design. The override requires BOTH:
+		//   (a) ALLOW_EVAL_STUDENT_OVERRIDE === "true" (absent in prod configs), AND
+		//   (b) x-eval-secret header matching EVAL_SHARED_SECRET (must be non-empty).
+		// A missing/typo'd binding, absent header, or any mismatch denies the override.
+		// Production workers never set ALLOW_EVAL_STUDENT_OVERRIDE, so the override
+		// is structurally unreachable in prod regardless of query params.
+		const evalSecret = c.env.EVAL_SHARED_SECRET;
+		const overrideAllowed = c.env.ALLOW_EVAL_STUDENT_OVERRIDE === "true";
+		const secretOk =
+			typeof evalSecret === "string" &&
+			evalSecret.length > 0 &&
+			c.req.header("x-eval-secret") === evalSecret;
 		const effectiveStudentId = resolveSessionStudentId({
 			isEvalQuery: c.req.query("eval") === "true",
 			evalStudentId: c.req.query("evalStudentId") ?? "",
 			authStudentId: c.var.studentId,
-			environment: c.env.ENVIRONMENT,
+			overrideAllowed,
+			secretOk,
 		});
 
 		url.searchParams.set("studentId", effectiveStudentId ?? "");

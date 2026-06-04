@@ -20,55 +20,98 @@ function makeAuthApp(dbStub: Record<string, unknown>) {
 }
 
 describe("resolveSessionStudentId", () => {
-	it("production: ignores eval override, returns authStudentId", () => {
+	// Helper: all-conditions-true (should grant override)
+	const grantArgs = {
+		isEvalQuery: true,
+		evalStudentId: "eval-r42",
+		authStudentId: "auth-user-id",
+		overrideAllowed: true,
+		secretOk: true,
+	} as const;
+
+	// --- GRANTED cases ---
+
+	it("grants override when all conditions met (flag=true, secret=ok, evalStudentId present)", () => {
+		const result = resolveSessionStudentId(grantArgs);
+		expect(result).toBe("eval-r42");
+	});
+
+	// --- DENIED cases (fail-closed) ---
+
+	it("denies override when overrideAllowed=false (flag absent/not-true in env)", () => {
 		const result = resolveSessionStudentId({
-			isEvalQuery: true,
-			evalStudentId: "victim-student-id",
-			authStudentId: "auth-user-id",
-			environment: "production",
+			...grantArgs,
+			overrideAllowed: false,
 		});
 		expect(result).toBe("auth-user-id");
 	});
 
-	it("production: eval=true&evalStudentId=victim resolves to authenticated user, not victim", () => {
+	it("denies override when secretOk=false (wrong or missing x-eval-secret header)", () => {
+		const result = resolveSessionStudentId({
+			...grantArgs,
+			secretOk: false,
+		});
+		expect(result).toBe("auth-user-id");
+	});
+
+	it("denies override when EVAL_SHARED_SECRET is unset (secretOk=false)", () => {
+		// Simulates empty/unset EVAL_SHARED_SECRET binding: secretOk computed false at call site
+		const result = resolveSessionStudentId({
+			...grantArgs,
+			secretOk: false,
+		});
+		expect(result).toBe("auth-user-id");
+	});
+
+	it("denies override when evalStudentId is empty even with flag+secret", () => {
+		const result = resolveSessionStudentId({
+			...grantArgs,
+			evalStudentId: "",
+		});
+		expect(result).toBe("auth-user-id");
+	});
+
+	it("denies override when isEvalQuery=false even with flag+secret", () => {
+		const result = resolveSessionStudentId({
+			...grantArgs,
+			isEvalQuery: false,
+		});
+		expect(result).toBe("auth-user-id");
+	});
+
+	it("denies IDOR: flag+secret both false cannot impersonate victim studentId", () => {
 		const result = resolveSessionStudentId({
 			isEvalQuery: true,
 			evalStudentId: "victim-id",
 			authStudentId: "real-auth-id",
-			environment: "production",
+			overrideAllowed: false,
+			secretOk: false,
 		});
 		expect(result).not.toBe("victim-id");
 		expect(result).toBe("real-auth-id");
 	});
 
-	it("non-production: eval=true&evalStudentId=eval-rX resolves to eval-rX", () => {
+	it("denies IDOR: overrideAllowed=true but wrong secret cannot impersonate victim", () => {
+		const result = resolveSessionStudentId({
+			isEvalQuery: true,
+			evalStudentId: "victim-id",
+			authStudentId: "real-auth-id",
+			overrideAllowed: true,
+			secretOk: false,
+		});
+		expect(result).not.toBe("victim-id");
+		expect(result).toBe("real-auth-id");
+	});
+
+	it("returns authStudentId (null) when no auth and override denied", () => {
 		const result = resolveSessionStudentId({
 			isEvalQuery: true,
 			evalStudentId: "eval-r42",
-			authStudentId: "auth-user-id",
-			environment: "development",
+			authStudentId: null,
+			overrideAllowed: false,
+			secretOk: true,
 		});
-		expect(result).toBe("eval-r42");
-	});
-
-	it("non-production: eval=true but empty evalStudentId falls back to authStudentId", () => {
-		const result = resolveSessionStudentId({
-			isEvalQuery: true,
-			evalStudentId: "",
-			authStudentId: "auth-user-id",
-			environment: "development",
-		});
-		expect(result).toBe("auth-user-id");
-	});
-
-	it("non-production: eval=false ignores evalStudentId, returns authStudentId", () => {
-		const result = resolveSessionStudentId({
-			isEvalQuery: false,
-			evalStudentId: "injected-id",
-			authStudentId: "auth-user-id",
-			environment: "development",
-		});
-		expect(result).toBe("auth-user-id");
+		expect(result).toBeNull();
 	});
 });
 

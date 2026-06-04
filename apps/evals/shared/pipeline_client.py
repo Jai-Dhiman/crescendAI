@@ -8,6 +8,7 @@ accumulator state for offline analysis.
 from __future__ import annotations
 
 import json
+import os
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -16,6 +17,11 @@ from urllib.parse import urlparse
 import asyncio
 import requests
 import websockets
+
+# Dev default matches apps/api/.dev.vars EVAL_SHARED_SECRET.
+# Override by setting the EVAL_SHARED_SECRET environment variable.
+_DEFAULT_DEV_EVAL_SECRET = "crescendai-eval-dev-secret-xk9p2mq7r4n8vwl3"
+EVAL_SHARED_SECRET: str = os.environ.get("EVAL_SHARED_SECRET", _DEFAULT_DEV_EVAL_SECRET)
 
 
 @dataclass
@@ -125,6 +131,7 @@ async def run_recording(
     resp = auth.post(
         f"{wrangler_url}/api/practice/start",
         json={},
+        headers={"x-eval-secret": EVAL_SHARED_SECRET},
         timeout=10,
     )
     if resp.status_code == 401:
@@ -134,6 +141,7 @@ async def run_recording(
         resp = auth.post(
             f"{wrangler_url}/api/practice/start",
             json={},
+            headers={"x-eval-secret": EVAL_SHARED_SECRET},
             timeout=10,
         )
     if resp.status_code not in (200, 201):
@@ -164,8 +172,8 @@ async def run_recording(
     chunk_responses: list[dict] = []
     errors: list[str] = []
 
-    # Pass auth token to WebSocket via cookie header
-    ws_headers = {}
+    # Pass auth token and eval secret to WebSocket via headers
+    ws_headers = {"x-eval-secret": EVAL_SHARED_SECRET}
     token = auth.headers.get("Authorization", "")
     if token:
         ws_headers["Authorization"] = token
