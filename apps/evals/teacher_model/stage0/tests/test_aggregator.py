@@ -12,17 +12,21 @@ from teacher_model.stage0.aggregator import (
     build_dossier,
 )
 
+# Honest DO-path baseline (#22): measured over the 98-recording holdout through the
+# real SessionBrain DO + buildSynthesisFraming (claude-sonnet-4-6), replacing the thin
+# Python-strawman numbers. ASCF 0.959 (was 1.387) / composite 1.060 (was 2.483) is a
+# truer cold-start first-session baseline, not a regression — see baseline_v2_do_aggregate.json.
 _SONNET_BASELINE = {
     "dimensions": [
-        {"name": "Audible-Specific Corrective Feedback", "mean_outcome": 1.387, "n": 504},
-        {"name": "Concrete Artifact Provision", "mean_outcome": 2.164, "n": 511},
-        {"name": "Specific Positive Praise", "mean_outcome": 2.834, "n": 513},
-        {"name": "Autonomy-Supporting Motivation", "mean_outcome": 2.85, "n": 512},
-        {"name": "Scaffolded Guided Discovery", "mean_outcome": 2.195, "n": 512},
-        {"name": "Style-Consistent Musical Language", "mean_outcome": 3.0, "n": 513},
-        {"name": "Appropriate Tone & Language", "mean_outcome": 3.0, "n": 513},
+        {"name": "Audible-Specific Corrective Feedback", "mean_outcome": 0.959, "n": 97},
+        {"name": "Concrete Artifact Provision", "mean_outcome": 0.452, "n": 93},
+        {"name": "Specific Positive Praise", "mean_outcome": 0.739, "n": 89},
+        {"name": "Autonomy-Supporting Motivation", "mean_outcome": 1.255, "n": 98},
+        {"name": "Scaffolded Guided Discovery", "mean_outcome": 0.729, "n": 96},
+        {"name": "Style-Consistent Musical Language", "mean_outcome": 1.082, "n": 97},
+        {"name": "Appropriate Tone & Language", "mean_outcome": 2.082, "n": 98},
     ],
-    "composite_mean": 2.483,
+    "composite_mean": 1.060,
 }
 
 
