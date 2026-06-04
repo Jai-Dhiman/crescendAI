@@ -20,12 +20,12 @@
          +----------------------------+
          |  Cloudflare Workers         |
          |  api.crescend.ai            |
-         |  (Rust/Axum on WASM)        |
+         |  (TypeScript/Hono;          |
+         |   Rust WASM for compute)    |
          |                             |
          |  /api/practice/chunk        |
-         |  /api/ask                   |
-         |  /api/chat/send             |
-         |  /api/auth/apple            |
+         |  /api/chat                  |
+         |  /api/auth                  |
          |  /api/sync                  |
          +--+------+------+------+----+
             |      |      |      |
@@ -39,7 +39,7 @@
                                   +----+
 ```
 
-Both platforms upload 15-second audio chunks to the shared API worker. The worker orchestrates cloud inference (HF endpoint), STOP classification, teaching moment selection, and a two-stage LLM pipeline (Workers AI subagent for analysis, Anthropic for teacher delivery). iOS receives observations on-demand ("How was that?"); web pushes them in real time via WebSocket.
+Both platforms upload 15-second audio chunks to the shared API worker. The worker orchestrates cloud inference (HF endpoint), teaching moment selection (deviation-magnitude gate; the STOP classifier was removed 2026-05-27), and a two-stage LLM pipeline (Workers AI subagent for analysis, Anthropic for teacher delivery). iOS receives observations on-demand ("How was that?"); web pushes them in real time via WebSocket.
 
 ### Platform Strategy (CEO Review 2026-03-19)
 
@@ -59,7 +59,7 @@ From *The runtime behind production deep agents* (Mahler wiki): "building a good
 
 ### Model System (`docs/model/`)
 
-The audio intelligence layer. A finetuned MuQ foundation model (A1-Max) outputs 6 teacher-grounded dimensions: dynamics, timing, pedaling, articulation, phrasing, interpretation. Deployed as a 4-fold ensemble on HuggingFace Inference Endpoints (80.8% pairwise accuracy). Populates the enrichment cache (Layer 1 of the context graph) with prompt-aware extraction keys. The model taxonomy, encoder architecture, training pipeline, and research roadmap live here.
+The audio intelligence layer. A finetuned MuQ foundation model (A1-Max) outputs 6 teacher-grounded dimensions: dynamics, timing, pedaling, articulation, phrasing, interpretation. Deployed as a 4-fold ensemble on HuggingFace Inference Endpoints (79.85% pairwise accuracy on clean folds; the older 80.8% figure was from a leaked-fold run -- see `docs/model/00-research-timeline.md`). Populates the enrichment cache (Layer 1 of the context graph) with prompt-aware extraction keys. The model taxonomy, encoder architecture, training pipeline, and research roadmap live here.
 
 Entry point: [`docs/model/00-research-timeline.md`](model/00-research-timeline.md)
 
@@ -77,7 +77,7 @@ Entry point: platform docs in `apps/api/TS_STYLE.md`, runtime-level patterns doc
 
 ### Apps System (`docs/apps/`)
 
-Implementation detail for what the student touches and what currently runs in the API worker: audio capture, the current cloud inference pipeline, STOP classification, teaching moment selection, the two-stage subagent architecture, student memory data model, exercises, and UI components. Each implementation slice has a status header tracking what is built vs. planned. The harness and runtime systems above describe the *target* architecture this layer is being refactored toward.
+Implementation detail for what the student touches and what currently runs in the API worker: audio capture, the current cloud inference pipeline, teaching moment selection (deviation gate), the two-stage subagent architecture, student memory data model, exercises, and UI components. Each implementation slice has a status header tracking what is built vs. planned. The harness and runtime systems above describe the *target* architecture this layer is being refactored toward.
 
 Entry point: [`docs/apps/00-status.md`](apps/00-status.md) | Pipeline: [`docs/apps/02-pipeline.md`](apps/02-pipeline.md) | Product vision: [`docs/apps/01-product-vision.md`](apps/01-product-vision.md) | Capabilities: [`docs/apps/06-capabilities.md`](apps/06-capabilities.md) | Evaluation: [`docs/apps/07-evaluation.md`](apps/07-evaluation.md)
 
@@ -89,7 +89,7 @@ Entry point: [`docs/apps/00-status.md`](apps/00-status.md) | Pipeline: [`docs/ap
 |----------|-------|-----------|-------|
 | iOS | SwiftUI, AVAudioEngine, SwiftData | `apps/ios/` | On-demand observations, local-first persistence. **Follows web beta.** |
 | Web | TanStack Start, React, Tailwind CSS v4 | `apps/web/` | Real-time observations via WebSocket, chat interface. **Beta-first platform.** |
-| API | Rust/Axum on Cloudflare Workers (WASM) | `apps/api/` | Single worker: inference proxy, LLM pipeline, auth, sync |
+| API | TypeScript/Hono on Cloudflare Workers (Rust WASM for compute-heavy modules) | `apps/api/` | Single worker: inference proxy, LLM pipeline, auth, sync |
 | Inference | PyTorch, HF Inference Endpoint | `apps/inference/`, `model/` | A1-Max 4-fold ensemble, 6-dim scores |
 
 ---
@@ -124,7 +124,7 @@ The `exerciseUpdates` array contains exercises added or modified since the clien
 
 ### Observability
 
-Error tracking via Sentry across all three surfaces. iOS uses `sentry-cocoa` SPM (crash reporting, error capture, breadcrumbs). Web uses `@sentry/react` (React ErrorBoundary, API errors, WebSocket errors). The API worker uses Cloudflare Workers Observability with OTLP drain to Sentry -- no SDK in the Rust/WASM binary, just `console_error!` capture and invocation traces. Cloudflare Workers built-in analytics covers API health and latency. Sentry org: `crescendai`, projects: `crescendai-api`, `crescendai-web`, `crescendai-ios`.
+Error tracking via Sentry across all three surfaces. iOS uses `sentry-cocoa` SPM (crash reporting, error capture, breadcrumbs). Web uses `@sentry/react` (React ErrorBoundary, API errors, WebSocket errors). The API worker uses the `@sentry/cloudflare` SDK (`Sentry.captureException`, traces, breadcrumbs) with structured JSON logging. Cloudflare Workers built-in analytics covers API health and latency. Sentry org: `crescendai`, projects: `crescendai-api`, `crescendai-web`, `crescendai-ios`.
 
 ---
 
@@ -138,7 +138,7 @@ open apps/ios/CrescendAI.xcodeproj
 cd apps/web && bun install && bun run dev
 
 # API worker (api.crescend.ai)
-cd apps/api && npx wrangler dev
+cd apps/api && bun run dev   # or: just api
 
 # ML training pipeline
 cd model && uv sync && uv run python -m src.train

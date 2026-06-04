@@ -91,11 +91,11 @@ The model v2 system targets 8 perceptual capabilities, from immediate inference 
 
 | # | Capability | Description | Encoder | Status |
 |---|-----------|-------------|---------|--------|
-| 1 | **AMT** | Automatic music transcription (audio -> MIDI) | ByteDance piano transcription | DEPLOYED |
+| 1 | **AMT** | Automatic music transcription (audio -> MIDI) | Aria-AMT (Whisper-class, replaces ByteDance) | LOCAL ONLY (#9; prod = Tier 3) |
 | 2 | **Piece identification** | Fuzzy matching against score library | Score following (DTW) | COMPLETE |
 | 3 | **Quality assessment** | 6-dimension relative quality scoring | MuQ + Aria (parallel streams + MPM extraction, supersedes gated fusion 2026-05-27) | BASELINE ESTABLISHED (clean folds: 77.5% pairwise, optimized weights found) |
 | 4 | **Skill level** | Beginner/intermediate/advanced classification | MuQ + Aria (ordinal training) | NOT STARTED (A1-Max has zero discrimination) |
-| 5 | **STOP detection** | "Would a teacher stop here?" | Logistic regression on scores | COMPLETE (needs retrain on clean folds) |
+| 5 | ~~**STOP detection**~~ | REMOVED 2026-05-27 | -- | Deleted; deviation-magnitude gate replaces it (see `09-stop-classifier-removed.md`) |
 | 6 | **Difficulty estimation** | Per-passage technical difficulty | Score analysis + reference stats | COMPLETE (score infrastructure) |
 | 7 | **Temporal reasoning** | Rubato, repetition tracking, trajectory | Score following + onset analysis | NOT STARTED |
 | 8 | **Robustness** | Stable scores across audio conditions | AMT validation + calibration | VALIDATED |
@@ -132,7 +132,7 @@ See `docs/model/03-encoders.md` for parallel-stream architecture and training pr
 | Tier | Metric | Requirement | Purpose |
 |------|--------|-------------|---------|
 | **E4** | Competition correlation (Spearman rho) | > 0.6 on held-out competition | External validity |
-| **E5** | STOP classifier AUC | > 0.80 on retrained scores | Teaching moment quality |
+| ~~**E5**~~ | ~~STOP classifier AUC~~ OBSOLETE (STOP removed 2026-05-27) | -- | Teaching-moment quality now judged via synthesis eval |
 | **E6** | AMT robustness (pairwise drop) | < 5% across audio conditions | Production reliability |
 
 Evaluation uses single train/val/test split. T5 val (10%) for autoresearch optimization. T5 test (10%) + T1 test (20%) + T2 test (15%) for final reporting only (never seen during optimization). Bootstrap 95% CIs on all reported metrics.
@@ -151,9 +151,9 @@ Per-score data model (V1, MIDI-only): bar structure, tempo markings, pedal event
 
 Design spec: `docs/superpowers/specs/2026-03-14-score-midi-library-design.md`
 
-### Cloud AMT Service
+### AMT Service (local-only)
 
-ByteDance piano transcription (validated: 0% pairwise drop on MAESTRO, 79.9% agreement on mediocre YouTube audio) deployed alongside MuQ on HF endpoint. Single upload, two outputs (scores + MIDI). Total endpoint latency stays under 2s.
+Aria-AMT (Whisper-class, ~49M params, MAESTRO F1 0.86; replaces ByteDance, which was validated at 0% pairwise drop on MAESTRO / 79.9% agreement on mediocre YouTube audio). Runs as a separate HF endpoint, currently **LOCAL ONLY**: prod `AMT_ENDPOINT` is unset, so prod sessions degrade to Tier 3. Deploy tracked in #9. Locally, single upload yields two outputs (scores + MIDI + pedal CC64).
 
 ### Score Following
 
@@ -356,9 +356,9 @@ Aria inference runs in parallel with MuQ on the same HF endpoint (or a separate 
 | A1-Max (deployed, numbers invalid) | DEPLOYED (needs retrain) | Audio stream encoder (parallel-stream architecture, 2026-05-27) |
 | MuQ backbone (160K hrs) | DEPLOYED | Pretrained audio foundation |
 | Aria base + embedding | AVAILABLE (HuggingFace) | Symbolic encoder, score encoder |
-| STOP classifier (AUC 0.649) | COMPLETE (needs retrain) | Upgraded with score context |
+| STOP classifier | REMOVED 2026-05-27 | Deleted; replaced by deviation-magnitude gate (`09-stop-classifier-removed.md`) |
 | Two-stage subagent | IMPLEMENTED | Same architecture, richer inputs |
-| ByteDance AMT | VALIDATED | Cloud-deployed, production-ready |
+| Aria-AMT (replaces ByteDance) | LOCAL ONLY | Pending CF Container deploy (#9); prod = Tier 3 |
 | Score following (DTW) | COMPLETE | Bar alignment for score conditioning |
 | Bar-aligned analysis (6 dims) | COMPLETE | Structured musical facts |
 | Score MIDI library (242 pieces) | COMPLETE | Score conditioning input |

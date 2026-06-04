@@ -56,13 +56,13 @@ The canonical evidence trail, structured as an **enrichment cache with prompt-aw
 
 - **MuQ-quality extraction** -- 6-dim scores per 15s chunk.
 - **AMT-transcription extraction** -- midi_notes frames, pedal events, velocity curves.
-- **STOP-moment extraction** -- teaching-moment probabilities + blind-spot dimension.
+- **Teaching-moment extraction** -- worst-dimension deviation from baseline + blind-spot dimension. (The former STOP-classifier probability was removed 2026-05-27; see `docs/model/09-stop-classifier-removed.md`.)
 - **Score-following extraction** -- bar alignments, onset deviations.
 - **(Future) skill-scoped extractions** -- when a new molecule or atom needs a derived representation that is reused across sessions (e.g., pedal-overlap density, voicing-balance curves), it can add its own extraction schema. The new entry coexists with the existing entries on the same chunks.
 
 **Prompt-aware keys** means the same chunk can carry multiple extraction entries, each queried independently. **Cross-modal queries** combine entries -- "MuQ timing high AND AMT onset drift > 20ms" is the highest-signal diagnostic class and does not exist in any single extraction alone.
 
-MuQ 6-dim emissions, AMT midi_notes frames, STOP probabilities, score-following alignments, raw audio pointers (R2 keys). Append-only. Signals never change after emission; if the model improves, new signals supersede but do not overwrite old ones. This is what every downstream claim in the harness must be traceable to.
+MuQ 6-dim emissions, AMT midi_notes frames, teaching-moment deviations (worst-dimension delta from baseline), score-following alignments, raw audio pointers (R2 keys). Append-only. Signals never change after emission; if the model improves, new signals supersede but do not overwrite old ones. This is what every downstream claim in the harness must be traceable to.
 
 ### Layer 2: Entity (Resolved Identity)
 

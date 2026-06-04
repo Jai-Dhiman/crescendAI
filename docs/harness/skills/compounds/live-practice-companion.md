@@ -12,6 +12,8 @@ depends_on: [cross-modal-contradiction-check, rubato-coaching, classify-stop-mom
 triggered_by: OnRecordingActive
 ---
 
+> **Status: UNIMPLEMENTED / HISTORICAL DESIGN.** This compound is not wired into the runtime: `OnRecordingActive` is not a registered `HookKind` (the real kinds are `OnStop`, `OnPieceDetected`, `OnBarRegression`, `OnSessionEnd`, `OnWeeklyReview`, `OnChatMessage`), and there is no `compound-registry` binding for it. It also depends on the **removed** `classify-stop-moment` atom (STOP classifier deleted 2026-05-27 -- see `docs/model/09-stop-classifier-removed.md`). The post-session-synthesis architecture replaced real-time STOP-gated interruption. If a live companion is revived, gate on worst-dimension deviation (`deviation < 0`), not STOP probability. The procedure below is retained as historical design rationale.
+
 ## When-to-fire
 For each newly-written enrichment cache chunk during an active recording, call atom classify-stop-moment(muq_scores). If probability >= 0.65, fire the dispatch in the procedure below.
 

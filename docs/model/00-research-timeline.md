@@ -273,15 +273,15 @@ See "Model v2 Plan" section above for full details.
 - V2: Expand to MAESTRO (external score sourcing), IMSLP/MuseScore, MusicXML for richer annotations (future)
 - Graceful degradation to absolute scoring (Tier 2) for unknown pieces
 
-**1b. Cloud AMT service -- COMPLETE**
+**1b. AMT service -- LOCAL ONLY (prod deploy tracked in #9)**
 
-- ByteDance piano transcription alongside MuQ on HF endpoint
+- Aria-AMT (Whisper-class, ~49M, MAESTRO F1 0.86) alongside MuQ; replaces ByteDance (historically validated: 0% pairwise drop MAESTRO, 79.9% agreement YouTube)
 - Single upload, two outputs (scores + MIDI + pedal CC64 events)
-- Validated: 0% pairwise drop (MAESTRO), 79.9% agreement (YouTube)
+- Prod `AMT_ENDPOINT` unset -> prod sessions degrade to Tier 3; runs locally via `localhost:8001`
 
 **1c. Score following -- COMPLETE**
 
-- Onset+pitch subsequence DTW between AMT output and score MIDI (`apps/api/src/practice/score_follower.rs`)
+- Onset+pitch subsequence DTW between AMT output and score MIDI (`apps/api/src/wasm/score-analysis/src/chroma_dtw.rs`)
 - Cross-chunk continuity via FollowerState (last_known_bar)
 - Re-anchoring when cost > threshold (student skips ahead or restarts)
 - Median onset offset correction isolates true timing deviations from alignment artifacts
@@ -289,7 +289,7 @@ See "Model v2 Plan" section above for full details.
 
 **1d. Bar-aligned musical analysis engine -- COMPLETE**
 
-- All 6 dimensions analyzed per chunk (`apps/api/src/practice/analysis.rs`)
+- All 6 dimensions analyzed per chunk (`apps/api/src/wasm/score-analysis/src/bar_analysis.rs`)
 - Tier 1 (score context): bar-aligned facts with score + reference comparison
 - Tier 2 (no score): absolute MIDI statistics (velocity, IOI, pedal events, note duration)
 - Tier 3 (no AMT): scores only (current behavior, graceful degradation)

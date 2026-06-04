@@ -33,7 +33,7 @@ The training code (`src/model_improvement/data.py`) loads only embeddings and me
 - Tier-specific signals: labels, placements, contrastive mappings, augmented pairs
 
 For Aria (symbolic path), training also loads:
-- AMT MIDI: performance MIDI transcribed from audio (via ByteDance AMT on HF endpoint)
+- AMT MIDI: performance MIDI transcribed from audio (via Aria-AMT; local `localhost:8001`, prod unset -> Tier 3, #9)
 - Score MIDI: from score library (242 ASAP pieces deployed to D1 + R2)
 
 ## Datasets

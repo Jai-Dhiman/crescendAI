@@ -354,10 +354,9 @@ Three additive migrations are named here as future work. V2 writes none of them.
 
 ## Related
 
-- `docs/harness.md` — anchor doc; V2 named at line 152
+- `docs/harness.md` — anchor doc; V2 named in the Eight Verticals section
 - `docs/apps/03-memory-system.md` — Two Clocks + Three Layers preamble (cites this doc)
-- `docs/specs/2026-04-25-v2-canonical-entity-schema-design.md` — V2 design spec
-- `docs/specs/2026-04-25-v5-three-tier-skill-decomposition-design.md` — V5 spec; V5's three artifact schemas slot into Layer 1 via `schema_name`
+- (V2 and V5 design specs were shipped and removed by `/ship`; they no longer exist under `docs/specs/`)
 - `apps/api/src/harness/entities/` — entity Zod schemas
 - `apps/api/src/harness/content/` — Layer-1 schemas + EvidenceRef
 - `apps/api/src/harness/facts/` — Fact Layer-3 schema

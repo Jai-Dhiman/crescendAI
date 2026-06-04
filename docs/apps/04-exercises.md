@@ -149,7 +149,7 @@ Focus mode transforms the app from a passive listener into an active teacher. It
 
 ### Entry Points
 
-**System-initiated** -- after the STOP classifier (02-pipeline.md) identifies a dimension as the top teaching moment in 3+ of the last 5 sessions:
+**System-initiated** -- after teaching-moment selection (02-pipeline.md) identifies a dimension as the top teaching moment in 3+ of the last 5 sessions:
 
 > "I've noticed pedaling keeps coming up. Want to do a focused session on it next time?"
 
@@ -185,7 +185,7 @@ The student can skip an exercise or end the session early at any point.
 MuQ inference runs via the cloud HF endpoint on each exercise attempt, using the same inference path as regular practice. The key difference is how feedback is delivered:
 
 - **Weight to target dimension only.** If the student is working on pedaling, suppress observations about timing even if timing is worse than usual.
-- **Non-target exception.** Only surface a non-target observation if STOP probability exceeds 0.95 on that dimension -- something is severely off.
+- **Non-target exception.** Only surface a non-target observation if that dimension is severely below baseline (a large negative deviation) -- something is badly off. (Previously gated on STOP probability > 0.95; the STOP classifier was removed 2026-05-27, see `docs/model/09-stop-classifier-removed.md`.)
 - **Before/after comparison.** Each exercise attempt records the target dimension score. The wrap-up computes overall improvement.
 
 This keeps the session focused and avoids overwhelming the student with unrelated feedback.
@@ -262,7 +262,7 @@ The two-stage subagent pipeline (02-pipeline.md) uses exercise history as contex
 
 | Dependency | Location | Relationship |
 |------------|----------|-------------|
-| STOP classifier and teaching moment selection | `02-pipeline.md` | STOP triggers focus mode when a dimension persists across sessions |
+| Teaching moment selection | `02-pipeline.md` | A dimension persisting as the top teaching moment across sessions triggers focus mode (deviation-magnitude gate; STOP classifier removed 2026-05-27) |
 | Exercise UI components (`exercise_set`, notation rendering) | `05-ui-system.md` | Frontend rendering of exercise cards and notation |
 | 6-dimension taxonomy | `model/02-teacher-grounded-taxonomy.md` | All exercises and evaluations use these 6 dimensions |
 | D1 sync protocol | `docs/architecture.md` (Sync section) | Exercise data syncs to iOS via `POST /api/sync` |

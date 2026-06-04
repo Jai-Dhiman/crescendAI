@@ -13,7 +13,7 @@ Single-purpose, near-deterministic building blocks. **Do not call other skills.*
 
 Atoms are close to what already exists as tool functions in `apps/api/src/services/`. The V5 work is partly a rename-and-consolidate: name each atom, write a contract for it, guarantee deterministic behavior on a given input.
 
-**Examples:** `compute-velocity-curve`, `compute-pedal-overlap-ratio`, `fetch-student-baseline`, `fetch-reference-percentile`, `align-performance-to-score`, `detect-onset-drift`, `fetch-similar-past-observation`, `classify-stop-moment`, `compute-dimension-delta`.
+**Examples:** `compute-velocity-curve`, `compute-pedal-overlap-ratio`, `fetch-student-baseline`, `fetch-reference-percentile`, `align-performance-to-score`, `compute-onset-drift`, `fetch-similar-past-observation`, `compute-dimension-delta`, `prioritize-diagnoses`.
 
 ### Molecules (`molecules/`)
 Chain 2-10 atoms with explicit when-to-invoke instructions. **Minimize runtime agent judgment.** Expected target size: 8-12 files.

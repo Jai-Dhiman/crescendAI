@@ -2,7 +2,7 @@
 
 Anchor doc for CrescendAI's middle system -- everything between the model outputs and the student's screen. Parallel to `docs/architecture.md` (system-level view) and `docs/model/00-research-timeline.md` (model-level view).
 
-> **Status (2026-04-26):** V5 SHIPPED. Three-tier skill catalog is fully implemented: 15 atoms, 9 molecules, 4 compounds live in `docs/harness/skills/`. Typed Zod artifact contracts (`DiagnosisArtifact`, `ExerciseArtifact`, `SynthesisArtifact`) and a catalog validator with cross-file dependency checks live in `apps/api/src/harness/`. Naming doc otherwise unchanged — `docs/apps/` contains implementation detail.
+> **Status (2026-04-26):** V5 SHIPPED. Three-tier skill catalog is fully implemented: 14 atoms (the `classify-stop-moment` atom was removed 2026-05-27 with the STOP classifier), 9 molecules, 4 compounds live in `docs/harness/skills/`. Typed Zod artifact contracts (`DiagnosisArtifact`, `ExerciseArtifact`, `SynthesisArtifact`) and a catalog validator with cross-file dependency checks live in `apps/api/src/harness/`. Naming doc otherwise unchanged — `docs/apps/` contains implementation detail.
 
 ---
 
@@ -27,8 +27,8 @@ Naming these separately matters because without the split, harness work gets sca
 
 Durable primitives the harness is built from. Each has a precise definition; imprecise use breaks downstream reasoning.
 
-- **Signal** -- An immutable emission from the model system (a MuQ 6-dim vector, an AMT midi_notes frame, a STOP probability, a score-following alignment). Signals live in the enrichment cache (see below) and never change after emission.
-- **Enrichment cache** -- The Layer 1 store of extracted representations over raw audio. Each audio chunk has multiple coexisting cache entries, one per extraction schema (MuQ-quality, AMT-transcription, STOP-moment, score-alignment). **Prompt-aware keys**: the same audio processed with different schemas produces different entries that coexist and are cross-queryable. See *How to grep video* (Mahler wiki).
+- **Signal** -- An immutable emission from the model system (a MuQ 6-dim vector, an AMT midi_notes frame, a teaching-moment deviation, a score-following alignment). Signals live in the enrichment cache (see below) and never change after emission.
+- **Enrichment cache** -- The Layer 1 store of extracted representations over raw audio. Each audio chunk has multiple coexisting cache entries, one per extraction schema (MuQ-quality, AMT-transcription, score-alignment). **Prompt-aware keys**: the same audio processed with different schemas produces different entries that coexist and are cross-queryable. See *How to grep video* (Mahler wiki).
 - **Cross-modal query** -- A query that combines cache entries from different extraction schemas, used to catch contradictions no single schema would surface. "MuQ timing high but AMT shows 20ms onset drift" is cross-modal; it is also the highest-signal diagnostic a teacher makes.
 - **Entity** -- A canonical resolved identity: a Student, Piece, Movement, Bar, Session, or Exercise. Two references must collapse to the same entity row before any agent reasons about them.
 - **Fact** -- A temporal assertion about entities, with `validAt`, `invalidAt`, and an evidence chain back to Signals or Observations. "Student over-pedals in slow movements" is a Fact; its evidence is N Observations, each pointing at N Signals.
@@ -48,7 +48,7 @@ Durable primitives the harness is built from. Each has a precise definition; imp
 Bottom-up, model to user. Each vertical has a doc home and a tier.
 
 ### V1 -- Model & Signals
-MuQ (audio encoder), Aria (symbolic encoder), AMT (transcription), STOP classifier, score follower, piece ID. Populates the enrichment cache with prompt-aware keys. Doc home: `docs/model/`.
+MuQ (audio encoder), Aria (symbolic encoder), AMT (transcription), score follower, piece ID. (The STOP classifier was removed 2026-05-27 -- see `docs/model/09-stop-classifier-removed.md`.) Populates the enrichment cache with prompt-aware keys. Doc home: `docs/model/`.
 **Tier:** NEXT (Phase B/C in flight).
 
 ### V2 -- Context Graph (Content / Entity / Fact)
@@ -64,12 +64,12 @@ Same code runs prod and eval. Playbook.yaml style injection wired everywhere. Si
 **Tier:** NOW. P0 beta blocker.
 
 ### V5 -- Skills (Atoms / Molecules / Compounds)
-Three-tier skill catalog. 15 atoms, 9 molecules, 4 compounds. Each with YAML frontmatter (tier, dimensions, reads, writes, depends_on), 5 required body sections (When-to-fire, When-NOT-to-fire, Procedure, Concrete example, Post-conditions), and a typed artifact output contract. Three Zod artifact schemas (`DiagnosisArtifact`, `ExerciseArtifact`, `SynthesisArtifact`) in `apps/api/src/harness/artifacts/`. Skill catalog validator (`validator.ts`) enforces frontmatter schema, body sections, and cross-file `depends_on` resolution. Training target for the Qwen finetune. Doc home: `docs/harness/skills/`.
+Three-tier skill catalog. 14 atoms, 9 molecules, 4 compounds. Each with YAML frontmatter (tier, dimensions, reads, writes, depends_on), 5 required body sections (When-to-fire, When-NOT-to-fire, Procedure, Concrete example, Post-conditions), and a typed artifact output contract. Three Zod artifact schemas (`DiagnosisArtifact`, `ExerciseArtifact`, `SynthesisArtifact`) in `apps/api/src/harness/artifacts/`. Skill catalog validator (`validator.ts`) enforces frontmatter schema, body sections, and cross-file `depends_on` resolution. Training target for the Qwen finetune. Doc home: `docs/harness/skills/`.
 **Tier:** SHIPPED (2026-04-26). Gates Qwen data collection and Phase 1 judge design.
 
 ### V6 -- Agent Loop & Orchestration
 Teacher loop with deferred tool loading, NLAH contracts, event hooks + middleware hooks. Writes stay single-threaded: skills contribute intelligence, one teacher path writes. Capability-router across providers (Workers AI / Sonnet / eventually Qwen). Doc home: `docs/apps/02-pipeline.md` (Target section).
-**Tier:** NEXT.
+**Tier:** Core loop SHIPPED (2026-04-29) -- two-phase compound loop, `compound-registry` with `OnSessionEnd` + `OnChatMessage` bindings, `HARNESS_V6_ENABLED=true` in prod. NEXT: capability-router across providers, deferred tool loading, remaining hooks (`OnWeeklyReview`, `OnPieceDetected`).
 
 ### V7 -- Student Memory / Personalization
 Typed per-student memory (baseline, recurring_issue, preference, repertoire, goal, breakthrough) with MIA-style multidim retrieval. `STUDENT.md` index per student. Doc home: `docs/apps/03-memory-system.md`.

@@ -88,6 +88,7 @@ When no artifact is warranted:
 | `exercise` | Yes | Corrective feedback where structured practice helps | None (text-based) |
 | `score_highlight` | Phase 3 | Observation references specific bars with score available | Score rendering lib, score data |
 | `play_passage` | SHIPPED | Teacher wants student to listen back to a specific passage they just played | Score alignment for session (piece identified + bars covered) |
+| `segment_loop` | SHIPPED | Teacher assigns a bar-bounded loop to drill (V8a) | None |
 | `session_review` | Phase 3 | Session ends, synthesis ready | Session brain data |
 
 ### Latency Budget (Revised)
@@ -313,8 +314,8 @@ These actions feed back into the conversation as student messages, and the teach
 
 The API returns a component configuration (JSON) alongside the observation text. The client is responsible for rendering:
 
-- **Web:** React components keyed by `type`. Each component type (`ScoreHighlightCard`, `KeyboardGuideCard`, `ExerciseSetCard`, `ReferenceBrowserCard`) accepts the `config` object as props and renders accordingly.
-- **iOS:** SwiftUI views keyed by `type`. Same component library, native rendering. `ScoreHighlightCard`, `KeyboardGuideCard`, `ExerciseSetCard`, `ReferenceBrowserCard`.
+- **Web:** React components keyed by `type` in `apps/web/src/components/cards/`. Implemented: `ScoreHighlightCard`, `ExerciseSetCard`, `PlayPassageCard`, `SegmentLoopArtifact`. (`keyboard_guide` has a type but no card yet -- falls through to `PlaceholderCard`; `ReferenceBrowserCard` was never built -- `play_passage` replaced the reference-browser stub.)
+- **iOS:** SwiftUI views keyed by `type` planned (same component library, native rendering); not yet implemented.
 
 ### Chat Layout
 
@@ -356,7 +357,7 @@ Components appear as inline cards in the chat scroll, similar to iMessage rich c
 
 When a component cannot render (missing score data, network unavailable, unsupported platform capability):
 
-1. The UI subagent (stage 3) is skipped or returns `null`
+1. The teacher LLM's artifact tool call is skipped or returns `null` (the separate UI subagent stage was removed)
 2. The observation text is delivered without a component
 3. The text already contains the full teaching insight -- nothing is lost
 
@@ -372,7 +373,7 @@ Components in the chat history are snapshots -- they do not update retroactively
 
 | Capability | Web | iOS |
 |---|---|---|
-| Score rendering | VexFlow/OSMD in DOM | OSMD in WKWebView or native Swift renderer |
+| Score rendering | Verovio WASM in a Web Worker (`score-worker.ts`) | TBD (Verovio in WKWebView or native Swift) |
 | Keyboard guide | Canvas/SVG rendering | Native SwiftUI view (88-key scrollable) |
 | Exercise set | React card stack | SwiftUI card stack |
 | Reference browser (YouTube) | Embedded iframe player | WKWebView inline player |
@@ -398,9 +399,9 @@ Start simple, iterate:
 
 1. **Component frequency:** How often should the teacher generate a component vs. text-only? Too many cards could feel noisy. Too few and the feature is invisible. The ~30% target from the design philosophy section is confirmed as the right starting point (CEO review 2026-03-19). Increase or decrease based on engagement data.
 
-2. **Score rendering library:** VexFlow (JS, lightweight), OpenSheetMusicDisplay (JS, most capable but heaviest), or a native Swift renderer for iOS? WebView adds latency and feels less native, but notation rendering is hard.
+2. ~~**Score rendering library:**~~ RESOLVED -- Verovio WASM in a Web Worker (shipped, Phase 2: `score-ir.ts`, `score-cursor.ts`, `score-renderer.ts`, `score-worker.ts`). iOS renderer still TBD.
 
-3. **Reference browser content quality:** YouTube search results vary in quality. Should the UI subagent validate results (check video title, duration, relevance) before showing them? Or trust the search and let the student skip irrelevant results?
+3. **Reference browser content quality:** YouTube search results vary in quality. Should the teacher validate results (check video title, duration, relevance) before showing them? Or trust the search and let the student skip irrelevant results? (Note: the reference-browser artifact was never built; `play_passage` replaced the stub.)
 
 4. **Preference learning from references:** How quickly can the system learn preferences from reference interactions? After 3 listens of Argerich vs. 1 of Rubinstein, is that enough signal? Or does the student need to explicitly say "I like this one"?
 

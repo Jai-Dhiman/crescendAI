@@ -1,8 +1,8 @@
 # Apps & Delivery System Status
 
-> **Status (2026-04-29):** Two-stage LLM pipeline IMPLEMENTED with bar-aligned musical analysis (subagent + teacher, Workers AI + Anthropic). HF inference endpoint DEPLOYED (A1-Max 4-fold ensemble); AMT + pedal CC64 wired LOCAL ONLY (prod `AMT_ENDPOINT` unset -> prod = Tier 3; full pipeline verified locally via `just dev`, prod deploy deferred pre-beta). STOP classifier IMPLEMENTED. Teaching moment selection IMPLEMENTED. Score following (chroma-DTW) IMPLEMENTED. Bar-aligned analysis engine IMPLEMENTED (all 6 dims, Tier 1/2/3). Durable Object practice sessions IMPLEMENTED with state persistence (survives DO eviction). Web practice companion IMPLEMENTED (chat, recording, WebSocket observations, session synthesis, landing page v2 with ProofCard demo). Exercise system IMPLEMENTED (25 curated exercises seeded). iOS audio capture COMPLETE. Auth COMPLETE (Apple + Google on both API and web). AI Gateway COMPLETE (Anthropic + Workers AI). Zero-config piece ID CODE COMPLETE (merged, pending AMT container deploy). Session synthesis COMPLETE (alarm-triggered, all exit paths, deferred recovery). Unified artifact container COMPLETE. **V6 harness loop SHIPPED** (hook-driven two-phase compound loop, flag-gated via HARNESS_V6_ENABLED). **V6 atoms SHIPPED** (15 ToolDefinition objects + ALL_ATOMS barrel). **V6 molecules SHIPPED** (9 ToolDefinition molecules + ALL_MOLECULES barrel; wires atoms into compound-registry for Phase 1 tool dispatch). **V6 Integration (Plan 4) COMPLETE** (ALL_ATOMS wired into OnSessionEnd, HookContext.digest populated with chunks/baselines/cohort_tables/session_history/past_diagnoses, diagnosis_artifacts table added, E2E test passes; HARNESS_V6_ENABLED=true safe to flip). **iOS auth refactored** (cookie sessions → Keychain JWT). **V8a SHIPPED** (`assign_segment_loop` action atom live: segment_loops DB table, lifecycle service + routes, ASSIGN_SEGMENT_LOOP_TOOL in both OnChatMessage and OnSessionEnd bindings, PassageLoopDetector in DO, SegmentLoopArtifactCard in web with accept/dismiss; SynthesisArtifact carries assigned_loops; migration 0003 required before deploy). Platform strategy: web-first. Tiered monetization (Free/$5/$20/$50) decided, not yet enforced.
+> **Status (2026-06-04):** Two-stage LLM pipeline IMPLEMENTED with bar-aligned musical analysis (subagent + teacher, Workers AI + Anthropic). HF inference endpoint DEPLOYED (A1-Max 4-fold ensemble); AMT + pedal CC64 wired LOCAL ONLY (prod `AMT_ENDPOINT` unset -> prod = Tier 3; full pipeline verified locally via `just dev`, prod deploy deferred pre-beta -- see #9). Teaching moment selection IMPLEMENTED (deviation-magnitude gate: worst dimension below baseline, with positive-moment fallback; **STOP classifier REMOVED 2026-05-27**, see `docs/model/09-stop-classifier-removed.md`). Score following (chroma-DTW) IMPLEMENTED. Bar-aligned analysis engine IMPLEMENTED (all 6 dims, Tier 1/2/3). Durable Object practice sessions IMPLEMENTED with state persistence (survives DO eviction). Web practice companion IMPLEMENTED (chat, recording, WebSocket observations, session synthesis, landing page v2 with ProofCard demo). Exercise system IMPLEMENTED (25 curated exercises seeded). iOS audio capture COMPLETE. Auth COMPLETE (Apple + Google on both API and web). AI Gateway COMPLETE (Anthropic + Workers AI). Zero-config piece ID CODE COMPLETE (merged, pending AMT container deploy). Session synthesis COMPLETE (alarm-triggered, all exit paths, deferred recovery; honest DO-path eval baseline locked (#22) and cold-start within-session synthesis for first-session/no-baseline students (#24)). Unified artifact container COMPLETE. **V6 harness loop SHIPPED** (hook-driven two-phase compound loop, flag-gated via HARNESS_V6_ENABLED). **V6 atoms SHIPPED** (14 ToolDefinition objects + ALL_ATOMS barrel; the `classify-stop-moment` atom was removed 2026-05-27 with the STOP classifier). **V6 molecules SHIPPED** (9 ToolDefinition molecules + ALL_MOLECULES barrel; wires atoms into compound-registry for Phase 1 tool dispatch). **V6 Integration (Plan 4) COMPLETE** (ALL_ATOMS wired into OnSessionEnd, HookContext.digest populated with chunks/baselines/cohort_tables/session_history/past_diagnoses, diagnosis_artifacts table added, E2E test passes; HARNESS_V6_ENABLED=true safe to flip). **iOS auth refactored** (cookie sessions → Keychain JWT). **V8a SHIPPED** (`assign_segment_loop` action atom live: segment_loops DB table, lifecycle service + routes, ASSIGN_SEGMENT_LOOP_TOOL in both OnChatMessage and OnSessionEnd bindings, PassageLoopDetector in DO, SegmentLoopArtifactCard in web with accept/dismiss; SynthesisArtifact carries assigned_loops; migration 0003 required before deploy). Platform strategy: web-first. Tiered monetization (Free/$5/$20/$50) decided, not yet enforced.
 
-*Core loop: student plays, cloud inference scores 6 dimensions, STOP classifier identifies teaching moments, two-stage subagent pipeline reasons about what matters, teacher LLM delivers one specific observation.*
+*Core loop: student plays, cloud inference scores 6 dimensions, teaching-moment selection flags the chunks where the student fell below baseline (deviation-magnitude gate; falls back to a positive moment when nothing is below baseline), two-stage subagent pipeline reasons about what matters, teacher LLM delivers one specific observation.*
 
 Target user: Sarah -- intermediate self-learner, no teacher, wants to know the one thing to work on next. North star metric: one useful observation per practice session, delivered in under 3 seconds.
 
@@ -65,8 +65,8 @@ Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
 | Segment loop routes | COMPLETE | `apps/api/src/routes/segment-loops.ts` | `POST /api/segment-loops/:id/accept\|decline\|dismiss` — all auth-guarded. |
 | `assign_segment_loop` action atom | COMPLETE | `apps/api/src/harness/atoms/assign-segment-loop.ts` | Registered in OnChatMessage (trigger=chat → pending) and OnSessionEnd (trigger=synthesis → active) compound bindings. Zod-validated input, throws ToolPreconditionError if no piece. |
 | PassageLoopDetector (DO) | COMPLETE | `apps/api/src/do/passage-loop-detector.ts` | Strict ±1-bar tolerance, 2s debounce. DO holds per-instance detector in WeakMap; hydrates active assignment on WS connect; broadcasts `segment_loop_status` and `loop_attempt` events. |
-| STOP classifier | IMPLEMENTED | `apps/api/src/services/stop.rs` | 6-weight logistic regression, AUC 0.649 (6-dim balanced logistic regression; 2048-dim MuQ pooled reaches 0.845 but is not deployed) |
-| Teaching moment selection | IMPLEMENTED | `apps/api/src/services/teaching_moments.rs` | STOP filter + blind-spot detection + positive moments + dedup |
+| STOP classifier | REMOVED (2026-05-27) | -- (deleted) | Logistic-regression interrupt gate deleted from TS, WASM, and eval surfaces. Moment selection now gates on `deviation < 0`. See `docs/model/09-stop-classifier-removed.md`. |
+| Teaching moment selection | IMPLEMENTED | `apps/api/src/wasm/score-analysis/src/teaching_moments.rs` | Deviation-magnitude gate (worst dimension below baseline) + blind-spot ranking + positive-moment fallback + dedup |
 | Score following (chroma-DTW) | IMPLEMENTED | `apps/api/src/wasm/score-analysis/src/chroma_dtw.rs` | Chroma-based DTW alignment; MuQ extracts 12-bin chroma, Rust aligns audio chroma against score chroma, emits chunk_bar_map events |
 | Bar-aligned analysis engine | IMPLEMENTED | `apps/api/src/practice/analysis.rs` | All 6 dims, Tier 1/2/3 degradation, reference comparison |
 | Fuzzy piece matching | IMPLEMENTED | `apps/api/src/practice/piece_match.rs` | Bigram Dice against 242-piece catalog, demand tracking |
@@ -78,7 +78,7 @@ Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
 | Session synthesis | COMPLETE | `apps/api/src/practice/synthesis.rs` | Alarm-triggered, all exit paths, deferred recovery, 963 lines |
 | V6 harness loop | COMPLETE | `apps/api/src/harness/loop/` | Hook-driven two-phase compound execution loop. Phase 1 dispatches molecule atoms as Anthropic tools; Phase 2 forced-writes a Zod-validated SynthesisArtifact. `HARNESS_V6_ENABLED=true` in prod. |
 | Spec X: chat harness migration | COMPLETE | `apps/api/src/harness/`, `apps/api/src/routes/chat.ts` | chatV6 routes through runStreamingHook("OnChatMessage"); legacy chat() and buildChatBinding deleted. HARNESS_V6_CHAT_ENABLED flag removed (route always uses chatV6). |
-| V6 atoms | COMPLETE | `apps/api/src/harness/skills/atoms/` | 15 ToolDefinition objects (classify-stop-moment, compute-dimension-delta, align-performance-to-score, compute-ioi-correlation, compute-key-overlap-ratio, compute-onset-drift, compute-pedal-overlap-ratio, compute-velocity-curve, detect-passage-repetition, extract-bar-range-signals, fetch-reference-percentile, fetch-session-history, fetch-similar-past-observation, fetch-student-baseline, prioritize-diagnoses) + `ALL_ATOMS` barrel. |
+| V6 atoms | COMPLETE | `apps/api/src/harness/skills/atoms/` | 14 ToolDefinition objects (compute-dimension-delta, align-performance-to-score, compute-ioi-correlation, compute-key-overlap-ratio, compute-onset-drift, compute-pedal-overlap-ratio, compute-velocity-curve, detect-passage-repetition, extract-bar-range-signals, fetch-reference-percentile, fetch-session-history, fetch-similar-past-observation, fetch-student-baseline, prioritize-diagnoses) + `ALL_ATOMS` barrel. |
 | V6 molecules | COMPLETE | `apps/api/src/harness/skills/molecules/` | 9 ToolDefinition molecules (voicing-diagnosis, pedal-triage, rubato-coaching, phrasing-arc-analysis, tempo-stability-triage, dynamic-range-audit, articulation-clarity-check, cross-modal-contradiction-check, exercise-proposal) + `ALL_MOLECULES` barrel. Each molecule chains atoms deterministically and emits a Zod-validated DiagnosisArtifact or ExerciseArtifact. 25 tests (happy path + neutral path + insufficient-baseline exception paths). |
 | V6 Integration (Plan 4) | COMPLETE | `apps/api/src/harness/` | ALL_ATOMS wired into OnSessionEnd, HookContext.digest populated with chunks/baselines/cohort_tables/session_history/past_diagnoses, diagnosis_artifacts table added, E2E test passes. HARNESS_V6_ENABLED=true is safe to set in production. |
 | DO state persistence | COMPLETE | `apps/api/src/practice/session.rs` | Persists to state.storage(), reloads on eviction at all async boundaries |
@@ -128,19 +128,19 @@ Run: `cd apps/content-engine && uv run python -m content_engine.cli tick`
 
 ## Critical Path: End-to-End Feedback Loop
 
-The core feedback loop is now wired end-to-end on the web platform. The pipeline: student plays -> HF scores + AMT -> DO runs STOP classifier -> teaching moment selection -> score following (DTW) -> bar-aligned analysis -> enriched subagent prompt -> teacher observation delivered via WebSocket.
+The core feedback loop is now wired end-to-end on the web platform. The pipeline: student plays -> HF scores + AMT -> DO runs teaching-moment selection (deviation-magnitude gate) -> score following (DTW) -> bar-aligned analysis -> enriched subagent prompt -> teacher observation delivered via WebSocket.
 
 | Gate | Component | Status | Notes |
 |---|---|---|---|
-| 1 | STOP classifier | COMPLETE | 6-weight logistic regression, AUC 0.649 |
-| 2 | Teaching moment selection | COMPLETE | STOP + blind-spot + positive moments + dedup |
+| 1 | Teaching-moment gate | COMPLETE | Worst-dimension `deviation < 0` (replaces removed STOP classifier) |
+| 2 | Teaching moment selection | COMPLETE | deviation gate + blind-spot ranking + positive-moment fallback + dedup |
 | 3 | Web real-time observations | COMPLETE | DO orchestration, WebSocket delivery, bar-aligned analysis |
 | 4 | Score following + analysis | COMPLETE | DTW + Tier 1/2/3 analysis, all 6 dimensions |
 | 5 | Exercise system | PARTIAL | DB + endpoints implemented, focus mode NOT STARTED |
 
-**What works today:** A student can record on the web, chunks are scored by MuQ + transcribed by AMT, the DO runs STOP classification and teaching moment selection, score following maps to bar numbers (if piece is identified), the analysis engine produces per-dimension musical facts, and the enriched subagent prompt generates a bar-specific teacher observation delivered via WebSocket. Three-tier degradation: Tier 1 (full bar-aligned with score+reference), Tier 2 (absolute MIDI for unknown pieces), Tier 3 (scores only if AMT fails).
+**What works today:** A student can record on the web, chunks are scored by MuQ + transcribed by AMT, the DO runs teaching-moment selection (deviation-magnitude gate), score following maps to bar numbers (if piece is identified), the analysis engine produces per-dimension musical facts, and the enriched subagent prompt generates a bar-specific teacher observation delivered via WebSocket. Three-tier degradation: Tier 1 (full bar-aligned with score+reference), Tier 2 (absolute MIDI for unknown pieces), Tier 3 (scores only if AMT fails).
 
-**Remaining gaps:** Free tier gating, AMT container deployment (enables zero-config piece ID + bar-aligned analysis in production), observation pacing tuning, eval validation (STOP on consumer audio, synthesis quality).
+**Remaining gaps:** Free tier gating, AMT container deployment (enables zero-config piece ID + bar-aligned analysis in production), observation pacing tuning, eval validation (synthesis quality).
 
 ---
 
@@ -149,7 +149,7 @@ The core feedback loop is now wired end-to-end on the web platform. The pipeline
 | Doc | Title | What It Covers |
 |---|---|---|
 | `01-product-vision.md` | Product Vision | Target users, ideal practice session, UX principles, platform strategy, student model concept |
-| `02-pipeline.md` | Audio-to-Observation Pipeline | Full technical pipeline: capture, inference, STOP classification, teaching moment selection, two-stage subagent, provider architecture |
+| `02-pipeline.md` | Audio-to-Observation Pipeline | Full technical pipeline: capture, inference, teaching moment selection, two-stage subagent, provider architecture (note: STOP-classifier sections are historical -- removed 2026-05-27) |
 | `03-memory-system.md` | Student Memory System | Two-clock model (state + event), observations table, synthesized facts, retrieval strategy, eval framework |
 | `04-exercises.md` | Exercises and Focused Practice | Exercise DB schema, curated seed data, LLM-generated exercises, focus mode session flow |
 | `05-ui-system.md` | UI System | Chat-first interface, on-demand components (score highlight, keyboard guide, exercise set, reference browser), three-stage pipeline extension |
@@ -167,8 +167,8 @@ For system architecture, see `docs/architecture.md`.
 
 | Task | Status | Notes |
 |---|---|---|
-| Deploy STOP classifier in cloud worker | COMPLETE | `stop.rs`, 6-weight logistic regression, AUC 0.649 |
-| Implement teaching moment selection | COMPLETE | `teaching_moments.rs`, STOP + blind-spot + positive + dedup |
+| Deploy STOP classifier in cloud worker | COMPLETE, later REMOVED (2026-05-27) | Shipped then deleted; moment selection now gates on `deviation < 0`. See `docs/model/09-stop-classifier-removed.md` |
+| Implement teaching moment selection | COMPLETE | `teaching_moments.rs`, deviation gate + blind-spot + positive fallback + dedup |
 | Complete web recording + WebSocket observation flow | COMPLETE | DO orchestration, chunk upload, WebSocket delivery |
 | Score following (Phase 1c) | COMPLETE | `chroma_dtw.rs`, chroma-based DTW, cross-chunk continuity |
 | Bar-aligned analysis engine (Phase 1d) | COMPLETE | `analysis.rs`, all 6 dims, Tier 1/2/3 degradation |
@@ -223,7 +223,7 @@ For system architecture, see `docs/architecture.md`.
 | Local-first data (iOS) | SwiftData on-device, D1 for backup/sync | Practice works without internet (except LLM call). Phone is authoritative. No conflict resolution needed. |
 | Sign in with Apple | Single auth provider, both platforms | Zero friction, App Store requirement, stable cross-device identity. |
 | Scores as reasoning inputs | Not a report card | Model is ~80% pairwise accurate. Value is in the subagent analysis and teacher delivery, not raw numbers. |
-| STOP classifier Option B first | 6-dim scores in worker (0.649 AUC; 2048-dim MuQ pooled reaches 0.845 but is not deployed) | Simplest to deploy. Upgrade to Option A (MuQ embeddings, 0.936 AUC) if accuracy gap matters. |
+| ~~STOP classifier Option B first~~ SUPERSEDED (2026-05-27) | ~~6-dim scores in worker (0.649 AUC)~~ | STOP classifier removed entirely; an "always-trigger" bias floor made it a no-op. Moment selection now gates on deviation magnitude. See `docs/model/09-stop-classifier-removed.md`. |
 | Chat-first UI | Text default, components on-demand (~30%) | Mirrors real teaching. Most observations are conversational. Rich components only when visual/interactive aid adds pedagogical value. |
 | Piece identification | AMT fingerprint + graceful unknown | Auto-detect via AMT MIDI fingerprint against 242-piece score library. Unknown pieces get audio-quality feedback without bar numbers. Ask piece identity AFTER first observation, not before. |
 | Memory without vector search | Structured D1 queries, bi-temporal facts | Domain is narrow (6 dimensions, known ontology, low volume). No graph DB, no embeddings needed. |
@@ -239,8 +239,8 @@ For system architecture, see `docs/architecture.md`.
 
 ### Pipeline
 
-1. **STOP classifier generalization.** Trained on masterclass audio (professional students, concert pianos). Will it generalize to intermediate students on upright pianos with phone audio? Likely needs recalibration.
-2. **Minimum STOP threshold.** Below what threshold should the system say "sounded good, keep going" instead of always finding something to critique?
+1. ~~**STOP classifier generalization.**~~ OBSOLETE (STOP removed 2026-05-27). The successor concern: does the `deviation < 0` gate behave sensibly on intermediate students with phone audio, given baselines are still sparse? Validate with real sessions. See `docs/model/09-stop-classifier-removed.md`.
+2. **Minimum deviation threshold.** The deviation gate already returns a positive moment when no chunk falls below baseline. Open question: should there also be a *magnitude* floor (ignore trivially-small negative deviations) so the system says "sounded good, keep going" instead of surfacing tiny dips?
 3. **Positive/corrective ratio.** Target: 70% corrective, 30% positive. Validate with real users. See `02-pipeline.md`.
 
 ### Memory

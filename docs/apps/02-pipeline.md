@@ -2,11 +2,12 @@
 
 The complete path from microphone to teaching observation. This is the technical heart of the system -- how audio becomes actionable feedback.
 
-> **Status (2026-04-27):**
-> - IMPLEMENTED: Two-stage LLM pipeline (subagent + teacher), HF inference endpoint (A1-Max 4-fold ensemble + AMT + pedal CC64), STOP classifier, teaching moment selection, blind-spot detection, score following (chroma-DTW), bar-aligned analysis, synthesized facts, exercise endpoints (25 curated), session brain state machine (DO practice mode detection + state persistence), observation pacing (mode-aware), zero-config piece ID (N-gram + rerank + DTW, merged, pending AMT container deploy), artifact declaration via Anthropic tool_use (tool_choice: auto), session synthesis (alarm-triggered, all exit paths, deferred recovery), AI Gateway (Anthropic + Workers AI)
-> - SHIPPED (flag-gated): V6 harness loop — hook-driven two-phase compound execution loop that replaces the linear Stage 4a/4b path on `OnSessionEnd`. Phase 1 dispatches skill-catalog atoms as Anthropic tools; Phase 2 forced-writes a Zod-validated `SynthesisArtifact`. `HARNESS_V6_ENABLED=false` in prod until atom registry is populated (Plan 2).
+> **Status (2026-06-04):**
+> - IMPLEMENTED: Two-stage LLM pipeline (subagent + teacher), HF inference endpoint (A1-Max 4-fold ensemble; AMT + pedal CC64 wired **LOCAL ONLY** -- prod `AMT_ENDPOINT` unset, prod sessions degrade to Tier 3, see #9), teaching moment selection (deviation-magnitude gate + blind-spot detection + positive-moment fallback), score following (chroma-DTW), bar-aligned analysis, synthesized facts, exercise endpoints (25 curated), session brain state machine (DO practice mode detection + state persistence), observation pacing (mode-aware), zero-config piece ID (N-gram + rerank + DTW, merged, pending AMT container deploy), artifact declaration via Anthropic tool_use (tool_choice: auto), session synthesis (alarm-triggered, all exit paths, deferred recovery; cold-start within-session synthesis for first-session/no-baseline students, #24), AI Gateway (Anthropic + Workers AI)
+> - REMOVED (2026-05-27): **STOP classifier** (logistic-regression interrupt gate). The detailed STOP-classification, `stop_probability`, latency/cost, and STOP-eval sections below are retained only as **historical design rationale** -- they no longer describe shipped behavior. Moment selection now gates on worst-dimension `deviation < 0` with a positive-moment fallback. See `docs/model/09-stop-classifier-removed.md`.
+> - SHIPPED (flag-gated): V6 harness loop — hook-driven two-phase compound execution loop that replaces the linear Stage 4a/4b path on `OnSessionEnd`. Phase 1 dispatches skill-catalog atoms as Anthropic tools; Phase 2 forced-writes a Zod-validated `SynthesisArtifact`. `HARNESS_V6_ENABLED=true` in prod (Plan 4 integration complete; V8a `assign_segment_loop` action atom also shipped).
 > - NOT STARTED: Passage repetition detection
-> - **Code:** `apps/api/src/services/ask.rs` (pipeline), `apps/api/src/services/prompts.rs` (teacher persona), `apps/api/src/practice/session.rs` (DO session)
+> - **Code:** `apps/api/src/services/teacher.ts` (pipeline), `apps/api/src/services/prompts.ts` (teacher persona), `apps/api/src/do/session-brain.ts` (DO session)
 > - **Model details:** `model/03-encoders.md`
 > - **Student context:** `03-memory-system.md`
 > - **UI delivery:** `05-ui-system.md` (unified artifact system)
@@ -256,6 +257,8 @@ For full architecture details, training results, and per-dimension breakdown, se
 ---
 
 ## Stage 3: Teaching Moment Selection
+
+> **[HISTORICAL -- STOP REMOVED 2026-05-27]** This section describes the original STOP-classifier design. The classifier was deleted; selection now gates on worst-dimension `deviation < 0` (in `apps/api/src/wasm/score-analysis/src/teaching_moments.rs`) with a positive-moment fallback. See `docs/model/09-stop-classifier-removed.md`. The `stop_probability` mechanics, thresholds, and code samples below are retained as design rationale only.
 
 Given a session of scored chunks, determine *which* chunk is a teaching moment and *which* dimension to surface. Runs in the cloud worker (or Durable Object for web sessions).
 
@@ -655,7 +658,7 @@ The old three-stage pipeline (analysis subagent + teacher + UI subagent) is repl
 
 Connect MuQ chunk timestamps to bar/measure numbers in the score. This lets the teacher say "at bar 7, the dynamics have no range" instead of "at 0:04, the dynamics have no range."
 
-**Current approach (updated 2026-05-27):** AMT transcribes each chunk to MIDI. The MIDI fingerprint is matched against the 242-piece score library via `piece_match.rs` (bigram Dice similarity). If matched, the MuQ handler extracts a 12-bin chroma feature from the audio and `chroma_dtw.rs` aligns the audio chroma against the score chroma via subsequence DTW, producing bar numbers and a `chunk_bar_map` event. This runs automatically -- no student input required. `score_follower.rs` (onset+pitch DTW) has been replaced by chroma-DTW.
+**Current approach (updated 2026-05-27):** AMT transcribes each chunk to MIDI. The MIDI fingerprint is matched against the score library via `apps/api/src/wasm/piece-identify/src/text_match.rs` (bigram Dice similarity). If matched, the MuQ handler extracts a 12-bin chroma feature from the audio and `chroma_dtw.rs` aligns the audio chroma against the score chroma via subsequence DTW, producing bar numbers and a `chunk_bar_map` event. This runs automatically -- no student input required. `score_follower.rs` (onset+pitch DTW) has been replaced by chroma-DTW.
 
 **Graceful degradation:** If no piece match is found, observations use audio-quality language without bar numbers ("your pedaling is blurring harmonic changes" instead of "in bars 5-8, your pedaling..."). The system asks "What piece is this?" AFTER the first observation, not before. Piece identification enriches but never gates.
 
@@ -695,7 +698,7 @@ The pipeline uses direct provider APIs optimized per stage rather than routing e
 ```
                     +----------------+
                     |  Workers AI    |  Stage 4a: Subagent
-                    |  Gemma 4 26B   |  Stage 4c: UI subagent (optional)
+                    |  Gemma 4 26B   |  (UI subagent removed; teacher uses tool_use)
                     +----------------+
 
                     +----------------+
@@ -840,7 +843,7 @@ The Worker enriches this payload with D1 data (synthesized facts, recent observa
 
 ### Cloudflare Workers (api.crescend.ai)
 
-The backend is a single Cloudflare Workers application (Rust/WASM). Bindings:
+The backend is a single Cloudflare Workers application (TypeScript/Hono, with Rust WASM for compute-heavy modules). Bindings:
 
 | Binding | Purpose |
 |---------|---------|

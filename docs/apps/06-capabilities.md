@@ -50,11 +50,13 @@ Code complete and merged to main (2026-03-22). N-gram index + rerank features co
 
 ---
 
-## 2. STOP Classification
+## 2. STOP Classification (REMOVED 2026-05-27)
 
-### What It Does
+> **Removed.** The STOP classifier was deleted from the production pipeline on 2026-05-27. The gate is now a deviation-magnitude test in teaching-moment selection (section 3): a chunk is a candidate when its worst dimension is below the student's baseline (`deviation < 0`). The rest of this section is retained as **historical design rationale**. See `docs/model/09-stop-classifier-removed.md`.
 
-Every 15-second chunk, the system asks: "Would a real teacher stop the student here to talk about something?" STOP is the gate -- if it doesn't trigger, no teaching moment is selected, no feedback is generated. It must trigger on genuinely problematic passages and stay quiet when the student is playing fine.
+### What It Did
+
+Every 15-second chunk, the system asked: "Would a real teacher stop the student here to talk about something?" STOP was the gate -- if it didn't trigger, no teaching moment was selected. The deployed weights had an "always-trigger" bias floor (`sigmoid(1.7) ~= 0.85`), which is part of why it was removed.
 
 ### Inputs / Outputs
 
@@ -84,11 +86,11 @@ Threshold: 0.5 (default). Trained on 1,699 masterclass segments with balanced cl
 
 ### Current State
 
-Deployed. AUC 0.649 on training data (6-dim balanced logistic regression; 2048-dim MuQ pooled reaches 0.845 but is not deployed). Never tested on intermediate students with consumer microphones (the actual target population). The masterclass-to-YouTube domain gap is the biggest unknown.
+REMOVED 2026-05-27. Historically reached AUC 0.649 on training data (6-dim balanced logistic regression). An eval run (n=12, 2026-05-26) showed a 100% trigger rate across all skill levels -- the bias floor made it functionally an "always say stop" gate, so it was deleted rather than recalibrated. See `docs/model/09-stop-classifier-removed.md`.
 
 ### Key Files
 
-- `apps/api/src/services/stop.rs` -- Classifier weights and computation
+- (deleted) `apps/api/src/wasm/score-analysis/src/stop.rs` and the `classify-stop-moment` atom. Weights kept only as a research artifact at `model/data/labels/stop_classifier_weights.json`.
 
 ---
 
@@ -96,20 +98,20 @@ Deployed. AUC 0.649 on training data (6-dim balanced logistic regression; 2048-d
 
 ### What It Does
 
-Given that STOP triggered on multiple chunks in a session, the system picks the ONE teaching moment that matters most right now. Not the loudest signal, but the most pedagogically useful one -- the blind spot the student doesn't know about, or the breakthrough they should celebrate.
+Given the chunks where the student fell below baseline (the deviation gate, worst dimension `deviation < 0`), the system picks the ONE teaching moment that matters most right now. Not the loudest signal, but the most pedagogically useful one -- the blind spot the student doesn't know about, or the breakthrough they should celebrate.
 
 ### Inputs / Outputs
 
 - **In:** All scored chunks, student baselines (per-dimension rolling averages), recent observations (last 3 for dedup), score context (optional)
 - **Out:** `TeachingMoment { dimension, score, deviation, chunk_index, is_positive, reasoning, bar_range }`
-- **Depends on:** STOP classification, student baselines (from memory/D1), score following (for bar ranges)
+- **Depends on:** the deviation gate (worst dimension below baseline), student baselines (from memory/D1), score following (for bar ranges)
 
 ### How It Works
 
-1. **Filter:** Keep only chunks where STOP triggered
+1. **Filter:** Keep only chunks whose worst dimension is below the student's baseline (`deviation < 0`)
 2. **Rank by blind spot:** For each passing chunk, compute per-dimension deviation from student baseline. Rank by largest negative deviation (worst relative to their own norm).
 3. **Deduplicate:** Skip candidates whose top dimension matches the last 3 observations
-4. **Positive fallback:** If no chunks pass STOP, find the dimension with largest positive deviation from baseline -- celebrate it
+4. **Positive fallback:** If no chunk is below baseline anywhere, find the dimension with largest positive deviation from baseline -- celebrate it
 
 The accumulator's `top_moments()` algorithm selects up to 8 moments for synthesis: top-1 per dimension by |deviation|, plus top-1 positive per dimension if different, sorted by chunk_index for narrative coherence.
 
@@ -341,7 +343,7 @@ AMT Transcription
   |
 MuQ Scores
   |
-  +---> [2] STOP Classification
+  +---> [2] (STOP removed; deviation gate folded into [3])
   |       |
   |       v
   +---> [3] Teaching Moment Selection <--- Student Baselines
@@ -355,4 +357,4 @@ MuQ Scores
           +---> [6] Exercise Generation (via tool_use)
 ```
 
-Failures cascade downward. If AMT transcription is poor, piece ID fails, score following has no score to follow, and synthesis loses all musical grounding. If STOP never triggers, no teaching moments accumulate, and synthesis has nothing to say. The eval must test each layer independently AND the full cascade.
+Failures cascade downward. If AMT transcription is poor, piece ID fails, score following has no score to follow, and synthesis loses all musical grounding. If no chunk falls below baseline, no corrective teaching moments accumulate (a positive moment is surfaced instead). The eval must test each layer independently AND the full cascade.

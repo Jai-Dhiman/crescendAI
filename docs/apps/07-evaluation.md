@@ -47,7 +47,7 @@ For each T5 recording:
     5-7. Same capture
 
   Offline analysis:
-    - Statistical metrics (no LLM): STOP, piece ID, mode detection, bar analysis
+    - Statistical metrics (no LLM): piece ID, mode detection, bar analysis
     - Quality metrics (LLM judge): synthesis, exercises, teaching moment selection
     - Delta metrics: compare Pass A vs Pass B outputs
 ```
@@ -187,6 +187,8 @@ A runtime-level `after_model` middleware that re-scores compound outputs in prod
 ---
 
 ## 2. STOP Classification Eval
+
+> **[HISTORICAL -- STOP classifier removed 2026-05-27.]** This eval no longer applies; the classifier was deleted (see `docs/model/09-stop-classifier-removed.md`). The deviation-magnitude gate that replaced it is evaluated indirectly via synthesis quality (the `teaching_knowledge` eval). Retained below as design rationale.
 
 ### Ideal Eval
 
@@ -513,11 +515,11 @@ Target: > 70% rated HIGH or MEDIUM.
 - Fix eval client to route through production synthesis path (not `is_eval_session` observation path)
 - Add accumulator state capture to synthesis WebSocket response
 - Add cache integrity check (recording_id matches video_id)
-- Validate: run 3 recordings, verify different STOP values and different synthesis texts
+- Validate: run 3 recordings, verify different synthesis texts (via `--do-path`, the real DO synthesis path -- the honest baseline locked in #22)
 
 **Phase 2: Statistical metrics -- no LLM cost (1 day)**
 - Run all 361 recordings (Pass A: with piece_query)
-- Extract and compute: STOP metrics, piece ID metrics (Pass B subset), mode detection metrics, bar analysis metrics
+- Extract and compute: piece ID metrics (Pass B subset), mode detection metrics, bar analysis metrics
 - Report: per-capability metric tables with confidence intervals
 
 **Phase 3: Quality metrics -- LLM judge (2-3 days)**
@@ -539,7 +541,7 @@ Target: > 70% rated HIGH or MEDIUM.
 | Synthesis LLM (Anthropic Sonnet) | ~$0.03 | ~$11 | ~$22 |
 | Judge LLM (5 criteria x $0.01) | ~$0.05 | ~$18 | ~$36 |
 | Piece ID (no LLM, computed) | $0 | $0 | $0 |
-| STOP/mode (no LLM, computed) | $0 | $0 | $0 |
+| Mode detection (no LLM, computed) | $0 | $0 | $0 |
 | **Total** | ~$0.08 | ~$29 | ~$58 |
 
 Inference costs are zero (cached). The eval is LLM-judge-dominated but still under $60 for the full suite.
