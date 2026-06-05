@@ -3,7 +3,7 @@
 Rule (pre-registered before any real data is collected):
   KILL    if DtwCeilingMatcher recall@10 < 0.70
   PROCEED if some indexable matcher recall@10 >= 0.85
-           AND open_set_ok (FA <= 0.10 at TA >= 0.75)
+           AND open_set_ok (FA <= 0.05 at TA >= 0.60)
   TUNE    otherwise
 """
 from __future__ import annotations
@@ -21,8 +21,9 @@ def decide(
 
     Args:
         dtw_recall10: recall@10 of DtwCeilingMatcher (the discrimination ceiling).
-        best_indexable_recall10: max recall@10 across ChordNgramMatcher and TwoDFTMatcher.
-        open_set_ok_flag: True iff an open-set threshold exists with FA<=0.10, TA>=0.75.
+        best_indexable_recall10: max recall@10 across note-based indexable matchers
+            (NoteChromaMatcher, LandmarkMatcher, ChromaSeqDtwMatcher).
+        open_set_ok_flag: True iff an open-set threshold exists with FA<=0.05, TA>=0.60.
 
     Returns:
         'KILL' | 'PROCEED' | 'TUNE'
