@@ -1,9 +1,10 @@
-"""Matcher protocol and Ranked result type."""
+# model/src/piece_id_eval/matchers/base.py
+"""Matcher protocol and Ranked result type (note-based)."""
 from __future__ import annotations
 
-from typing import NamedTuple, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable, NamedTuple
 
-import numpy as np
+from piece_id_eval.notes import Note
 
 
 class Ranked(NamedTuple):
@@ -14,15 +15,15 @@ class Ranked(NamedTuple):
 
 @runtime_checkable
 class Matcher(Protocol):
-    """Protocol for piece-ID recall matchers."""
+    """Protocol for note-based piece-ID matchers."""
 
     @property
     def name(self) -> str:
         """Short identifier for this matcher (used in report tables)."""
         ...
 
-    def rank(self, query: np.ndarray) -> list[Ranked]:
-        """Rank catalog pieces against a query chroma window (12, N).
+    def rank(self, query: list[Note]) -> list[Ranked]:
+        """Rank catalog pieces against a query note list.
 
         Returns list of Ranked sorted descending by score (highest first).
         """
