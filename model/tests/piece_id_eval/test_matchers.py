@@ -5,9 +5,8 @@ self-query recall@1 == 1.0.
 """
 from __future__ import annotations
 
-import pytest
-
 from piece_id_eval.matchers.base import Matcher, Ranked
+from piece_id_eval.matchers.landmark import LandmarkMatcher
 from piece_id_eval.matchers.note_chroma_matcher import NoteChromaMatcher
 from piece_id_eval.notes import Note
 
@@ -49,3 +48,17 @@ def test_note_chroma_matcher_returns_ranked_list() -> None:
     assert all(isinstance(r, Ranked) for r in ranked)
     scores = [r.score for r in ranked]
     assert scores == sorted(scores, reverse=True), f"not descending: {scores}"
+
+
+def test_landmark_matcher_skips_empty_note_entries() -> None:
+    """Empty-note catalog entries must not appear in rank() output."""
+    catalog = _catalog_3piece()
+    catalog["empty_piece"] = []
+    m = LandmarkMatcher(catalog)
+    query = catalog["piece_0"]
+    ranked = m.rank(query)
+    ranked_ids = {r.piece_id for r in ranked}
+    assert "empty_piece" not in ranked_ids, (
+        f"empty_piece must not appear in rank output, got: {ranked_ids}"
+    )
+    assert len(ranked) == 3, f"expected 3 results (non-empty pieces), got {len(ranked)}"

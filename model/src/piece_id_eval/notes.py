@@ -54,9 +54,11 @@ def load_score_notes(path: Path) -> list[Note]:
     Each note has onset_seconds, duration_seconds, pitch, velocity.
     Returns notes sorted ascending by onset.
 
+    Returns an empty list if the JSON has no 'bars' key.
+
     Raises:
         FileNotFoundError: if path does not exist.
-        KeyError: if the JSON lacks expected structure.
+        KeyError: if a note dict within bars lacks 'onset_seconds' or 'pitch'.
     """
     if not path.exists():
         raise FileNotFoundError(f"Score JSON not found: {path}")

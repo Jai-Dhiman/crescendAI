@@ -56,8 +56,9 @@ class LandmarkMatcher:
     """Inverted landmark-token hit-count matcher (C2)."""
 
     def __init__(self, catalog: dict[str, list[Note]]) -> None:
-        self._piece_ids = list(catalog.keys())
-        self._index = _build_index(catalog)
+        filtered = {pid: notes for pid, notes in catalog.items() if notes}
+        self._piece_ids = list(filtered.keys())
+        self._index = _build_index(filtered)
 
     @property
     def name(self) -> str:
