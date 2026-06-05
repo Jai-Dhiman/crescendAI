@@ -3003,4 +3003,19 @@ The open-set coverage gap is a functional correctness defect — not just a miss
 [RISK]    count: 2
 [QUESTION] count: 0
 
-VERDICT: NEEDS_REWORK — Three blockers must be resolved before execution: (1) `parents[4]` → `parents[3]` in `test_notes.py` and `test_bakeoff.py`; (2) `parents[2]` → `parents[1]` for all default paths in `transcribe.py` and `bakeoff.py`; (3) DtwCeiling open-set threshold range is incompatible with negative scores — fix the threshold range or switch the open-set oracle to a matcher with scores in [0, 1].
+~~VERDICT: NEEDS_REWORK~~ (superseded — see Resolution below)
+
+---
+
+### Resolution (loop 1, commit `49d39948`)
+
+All three blockers and both risks were fixed in the task code:
+- **[BLOCKER-1]** `parents[4]` → `parents[3]` in `test_notes.py` and `test_bakeoff.py` (matches `test_amt_regen.py` reference).
+- **[BLOCKER-2]** default path anchors → `_MODULE_DIR.parents[1]` in `transcribe.py` and `bakeoff.py` (resolve to `model/data/...`).
+- **[BLOCKER-3]** open-set oracle switched from `DtwCeilingMatcher` (scores ≤ 0) to `NoteChromaMatcher` (cosine ∈ [-1, 1]) with a [0, 1] threshold sweep; new `test_bakeoff_open_set_ok_is_true_on_well_separated_catalog` locks the gate as reachable.
+- **[RISK-1]** Trackio block now catches `(ImportError, RuntimeError)` and logs to stderr.
+- **[RISK-2]** bakeoff reads `.name` from the existing `matchers` list (no redundant instantiation).
+
+Re-challenge (fresh full pass) verified all fixes landed and found no new blockers.
+
+VERDICT: PROCEED
