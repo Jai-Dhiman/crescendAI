@@ -4,7 +4,6 @@ The complete path from microphone to teaching observation. This is the technical
 
 > **Status (2026-06-04):**
 > - IMPLEMENTED: Two-stage LLM pipeline (subagent + teacher), HF inference endpoint (A1-Max 4-fold ensemble; AMT + pedal CC64 wired **LOCAL ONLY** -- prod `AMT_ENDPOINT` unset, prod sessions degrade to Tier 3, see #9), teaching moment selection (deviation-magnitude gate + blind-spot detection + positive-moment fallback), score following (chroma-DTW), bar-aligned analysis, synthesized facts, exercise endpoints (25 curated), session brain state machine (DO practice mode detection + state persistence), observation pacing (mode-aware), zero-config piece ID (N-gram + rerank + DTW, merged, pending AMT container deploy), artifact declaration via Anthropic tool_use (tool_choice: auto), session synthesis (alarm-triggered, all exit paths, deferred recovery; cold-start within-session synthesis for first-session/no-baseline students, #24), AI Gateway (Anthropic + Workers AI)
-> - REMOVED (2026-05-27): **STOP classifier** (logistic-regression interrupt gate). The detailed STOP-classification, `stop_probability`, latency/cost, and STOP-eval sections below are retained only as **historical design rationale** -- they no longer describe shipped behavior. Moment selection now gates on worst-dimension `deviation < 0` with a positive-moment fallback. See `docs/model/09-stop-classifier-removed.md`.
 > - SHIPPED (flag-gated): V6 harness loop — hook-driven two-phase compound execution loop that replaces the linear Stage 4a/4b path on `OnSessionEnd`. Phase 1 dispatches skill-catalog atoms as Anthropic tools; Phase 2 forced-writes a Zod-validated `SynthesisArtifact`. `HARNESS_V6_ENABLED=true` in prod (Plan 4 integration complete; V8a `assign_segment_loop` action atom also shipped).
 > - NOT STARTED: Passage repetition detection
 > - **Code:** `apps/api/src/services/teacher.ts` (pipeline), `apps/api/src/services/prompts.ts` (teacher persona), `apps/api/src/do/session-brain.ts` (DO session)
@@ -40,16 +39,9 @@ The complete path from microphone to teaching observation. This is the technical
                                    |
                                    v
                    +--------------------------------+
-                   |  Stage 2: STOP Classification  |
-                   |  Logistic regression on scores |
-                   |  "Would a teacher stop here?"  |
-                   +---------------+----------------+
-                                   |
-                                   v
-                   +--------------------------------+
                    |  Stage 3: Teaching Moment      |
                    |  Selection                     |
-                   |  Top chunk + blind-spot dim    |
+                   |  Deviation gate + blind-spot   |
                    +---------------+----------------+
                                    |
                                    v
@@ -117,7 +109,7 @@ ENTRY CONDITION (hook)
 
 ### What This Does Not Change
 
-- Stages 1-3 (audio capture, cloud inference, STOP classification) are unchanged. The agent loop consumes the same signals.
+- Stages 1-3 (audio capture, cloud inference, teaching moment selection) are unchanged. The agent loop consumes the same signals.
 - The DO-held session accumulator is unchanged (V3 adds sawtooth compaction later).
 - The AI Gateway routing and provider mix (Workers AI subagent + Sonnet teacher) is unchanged; the loop is provider-agnostic, so swapping Sonnet -> Qwen finetune is a runtime decision.
 
@@ -187,7 +179,7 @@ Each web practice session is backed by a Cloudflare Durable Object that manages 
 }
 ```
 
-**Chunk accumulation:** When `POST /api/practice/chunk` arrives, the worker forwards audio to HF inference, runs STOP classification on the returned scores, and sends the scored chunk to the DO via internal fetch. The DO appends to its `chunks` array and updates `candidates` if STOP > threshold.
+**Chunk accumulation:** When `POST /api/practice/chunk` arrives, the worker forwards audio to HF inference and sends the scored chunk to the DO via internal fetch. The DO appends to its `chunks` array and updates `candidates` when the chunk's worst dimension falls below the student's baseline (`deviation < 0`).
 
 **WebSocket:** `WS /api/practice/ws/:sessionId` opens a WebSocket connection to the DO. The DO pushes observations to connected clients when the throttle window allows. Multiple WebSocket connections to the same DO are supported (e.g., reconnection before old connection times out).
 
@@ -214,7 +206,7 @@ Both platforms apply a silence gate before uploading chunks. If a chunk's RMS en
 - **iOS:** Computed from the PCM ring buffer. Trivial RMS check on raw samples.
 - **Web:** The `AnalyserNode` (already running for the waveform visualizer) provides frequency data. RMS computed from time-domain data.
 
-Silence detection reduces inference cost by ~20-30% in a typical session (page turns, pauses, adjustments). It also prevents nonsensical MuQ scores on silent chunks from entering the STOP classifier.
+Silence detection reduces inference cost by ~20-30% in a typical session (page turns, pauses, adjustments). It also prevents nonsensical MuQ scores on silent chunks from entering teaching moment selection.
 
 ---
 
@@ -258,41 +250,20 @@ For full architecture details, training results, and per-dimension breakdown, se
 
 ## Stage 3: Teaching Moment Selection
 
-> **[HISTORICAL -- STOP REMOVED 2026-05-27]** This section describes the original STOP-classifier design. The classifier was deleted; selection now gates on worst-dimension `deviation < 0` (in `apps/api/src/wasm/score-analysis/src/teaching_moments.rs`) with a positive-moment fallback. See `docs/model/09-stop-classifier-removed.md`. The `stop_probability` mechanics, thresholds, and code samples below are retained as design rationale only.
-
-Given a session of scored chunks, determine *which* chunk is a teaching moment and *which* dimension to surface. Runs in the cloud worker (or Durable Object for web sessions).
-
-### STOP Classifier
-
-A logistic regression trained on 1,707 labeled teaching moments from masterclass transcripts. Predicts "would a teacher actually stop the student here?" for each chunk.
-
-**Two deployment options:**
-
-| Option | Where it runs | Accuracy (AUC) | Trade-off |
-|--------|---------------|-----------------|-----------|
-| A: MuQ embeddings | HF endpoint (additional output head) | 0.936 | Highest accuracy; requires modifying inference endpoint |
-| B: 6-dim composite scores | Cloud worker (Rust/WASM) | 0.649 | Simple to deploy; deployed model (2048-dim MuQ pooled reaches 0.845 but is not deployed) |
-
-**Decision: Start with Option B.** The classifier is trivial -- `sigmoid(dot(weights, scores) + bias)` with 6 weights extracted from the trained sklearn model in `model/src/masterclass_experiments/models.py`. Upgrade to Option A if the accuracy gap matters in practice.
-
-```rust
-// Option B: logistic regression in cloud worker
-fn stop_probability(scores: &[f64; 6], weights: &[f64; 6], bias: f64) -> f64 {
-    let logit: f64 = scores.iter().zip(weights).map(|(s, w)| s * w).sum::<f64>() + bias;
-    1.0 / (1.0 + (-logit).exp())
-}
-```
+Given a session of scored chunks, determine *which* chunk is a teaching moment and *which* dimension to surface. Runs in the cloud worker (or Durable Object for web sessions) via the WASM `selectTeachingMoment` (`apps/api/src/wasm/score-analysis/src/teaching_moments.rs`).
 
 ### Selection Algorithm
 
 Triggered when the student asks "how was that?" (iOS) or continuously during recording (web):
 
 1. Collect all chunks from the current session (or since last query)
-2. Each chunk has: 6-dim scores + STOP probability
-3. **Filter:** Only consider chunks with STOP probability > 0.5
-4. **Rank:** Sort by STOP probability descending
+2. For each chunk, compute per-dimension deviation from the student's baseline
+3. **Filter:** Only consider chunks whose worst dimension is actually below baseline (`deviation < 0`)
+4. **Rank:** Sort by the magnitude of the worst-dimension deviation (largest drop first)
 5. **Select:** Take the top-1 chunk as the teaching moment
-6. **Identify dimension:** Within the selected chunk, find the blind-spot dimension
+6. **Identify dimension:** The dimension driving the largest negative deviation is surfaced
+
+If every chunk is at or above baseline on every dimension, no chunk passes the gate -- see No-Candidates Fallback below. For first-session students with no baseline, the within-session mean stands in for the baseline (see cold-start synthesis, issue #24).
 
 ### Web Observation Throttle
 
@@ -318,9 +289,8 @@ Determines *which* dimension to talk about within the selected chunk.
 - "Surprising" means the student is usually fine here, but it dipped
 
 **Without student history (cold start):**
-- Use the STOP classifier's feature importance (logistic regression coefficients)
-- The dimension that contributed most to the STOP prediction for this chunk
-- Alternatively: the dimension with the lowest absolute score
+- The dimension with the lowest absolute score in the selected chunk
+- The within-session mean across this session's chunks provides a relative reference (see cold-start synthesis, issue #24)
 
 **Tie-breaking -- blind-spot prior:**
 
@@ -341,18 +311,18 @@ The pipeline also flags improvements and breakthroughs, not just problems. A chu
 - A passage that was problematic last session is now clean
 - Overall session quality is notably higher than recent history
 
-The pipeline tags positive candidates alongside STOP-flagged chunks. The subagent (Stage 4a) decides whether to use a positive or corrective framing.
+The pipeline tags positive candidates alongside below-baseline chunks. The subagent (Stage 4a) decides whether to use a positive or corrective framing.
 
 ### No-Candidates Fallback
 
-When no chunks pass the STOP threshold (probability > 0.5), the student played well and there is nothing to correct. Rather than returning silence or a generic "sounded good," the pipeline falls back to positive moment detection:
+When no chunk's worst dimension falls below baseline (`deviation < 0`), the student played well and there is nothing to correct. Rather than returning silence or a generic "sounded good," the pipeline falls back to positive moment detection:
 
 1. Find the dimension with the highest score across all session chunks
 2. If a student baseline exists, find the dimension with the largest positive deviation from baseline
 3. Construct a positive teaching moment with `is_positive: true`
 4. The subagent runs with positive framing context, producing recognition or encouragement
 
-This ensures the student always receives a meaningful response when they ask "how was that?" -- either a corrective observation (STOP fired) or a genuine positive observation (nothing to correct, but something good to acknowledge).
+This ensures the student always receives a meaningful response when they ask "how was that?" -- either a corrective observation (a below-baseline moment was found) or a genuine positive observation (nothing to correct, but something good to acknowledge).
 
 If the session has fewer than 2 scored chunks (e.g., student asked after 15 seconds), return a brief "I need a bit more to listen to -- keep playing and ask me again" message without invoking the subagent.
 
@@ -363,7 +333,6 @@ If the session has fewer than 2 scored chunks (e.g., student asked after 15 seco
     "teaching_moment": {
         "chunk_index": 7,
         "start_offset_sec": 105.0,
-        "stop_probability": 0.87,
         "dimension": "pedaling",
         "dimension_score": 0.35,
         "student_baseline": 0.62,
@@ -402,15 +371,15 @@ This mirrors how Claude Code handles complex tasks: the main agent delegates ana
 
 ### Stage 4a: Subagent (Workers AI / Gemma 4 26B)
 
-The subagent receives cloud-filtered moments (top 3-5 with STOP > threshold) plus the student's context map (baselines, synthesized facts, learning arc, goals). It reasons through five steps.
+The subagent receives cloud-filtered moments (top 3-5 below-baseline chunks, largest deviations first) plus the student's context map (baselines, synthesized facts, learning arc, goals). It reasons through five steps.
 
 #### Context Inputs
 
 The Worker builds the subagent's context from three sources:
 
 **From the client (per request):**
-- Filtered teaching moments (top 3-5 chunks with STOP > threshold)
-- Each chunk: 6 dimension scores, STOP probability, chunk index, start offset
+- Filtered teaching moments (top 3-5 chunks with the largest below-baseline deviations)
+- Each chunk: 6 dimension scores, per-dimension deviation, chunk index, start offset
 - Each top moment carries a `bar_analysis` block when WASM bar analysis succeeded (Tier 1/2): the selected dimension's per-bar findings plus correlated dimension findings derived from `ChunkAnalysis`. Built by `buildBarAnalysisFacts` in the DO at accumulation time and attached to each accumulated moment as `llmAnalysis`.
 - Current piece (if student-reported): composer, title, section label, approximate bar range
 - Session metadata: duration, total chunks, chunks above threshold
@@ -464,7 +433,7 @@ Piece, composer, and style weight which dimensions matter most:
 
 Re-rank the filtered moments considering learning arc, delta, musical context, and blind-spot prior. Pick the moment with the highest leverage -- what will move the needle most for this student right now.
 
-The subagent may select differently from the initial cloud worker ranking. The cloud worker uses STOP probability alone. The subagent adds student history, musical context, and learning arc.
+The subagent may select differently from the initial cloud worker ranking. The cloud worker uses deviation magnitude alone. The subagent adds student history, musical context, and learning arc.
 
 **5. What's the framing? (Correction / Recognition / Encouragement / Question)**
 
@@ -678,7 +647,7 @@ Activated when the student enters a focused practice session targeting a specifi
 
 1. **Dimension weighting:** Only the target dimension is considered for teaching moment selection. Non-target dimensions are suppressed from the subagent context.
 
-2. **Non-target exception:** If a non-target dimension has STOP probability > 0.95, it is surfaced anyway. This prevents ignoring severe issues (e.g., wildly wrong notes while working on pedaling).
+2. **Non-target exception:** If a non-target dimension is severely below baseline (a large negative deviation), it is surfaced anyway. This prevents ignoring severe issues (e.g., wildly wrong notes while working on pedaling).
 
 3. **Before/after tracking:** Each exercise attempt records the target dimension score. The pipeline maintains a per-exercise score history in the session state, enabling the teacher to compare improvement across attempts.
 
@@ -718,7 +687,7 @@ The pipeline uses direct provider APIs optimized per stage rather than routing e
 | Stage | Target | Notes |
 |-------|--------|-------|
 | Audio upload + inference | ~1-2s | HF endpoint round-trip |
-| STOP classification | <1ms | 6-weight logistic regression |
+| Teaching moment selection | <1ms | deviation-magnitude gate (in-worker WASM) |
 | Subagent (Workers AI) | | |
 | Teacher (Anthropic) | ~1.5s | Prompt caching reduces input cost |
 | **Total (Stages 4a+4b)** | **<2s** | Within <3s user-facing target |
@@ -787,7 +756,6 @@ Client                           Worker (/api/ask)                   LLM Provide
         {
             "chunk_index": 7,
             "start_offset_sec": 105.0,
-            "stop_probability": 0.87,
             "scores": {
                 "dynamics": 0.72,
                 "timing": 0.65,
@@ -875,29 +843,27 @@ The backend is a single Cloudflare Workers application (TypeScript/Hono, with Ru
 
 ## Open Questions
 
-1. **STOP classifier generalization.** The classifier was trained on masterclass audio (professional students, concert pianos). Will it generalize to beginner/intermediate students on upright pianos recorded with phones? Likely needs recalibration.
+1. **Minimum deviation floor.** Should there be a floor below which the system says "sounded good, keep going" instead of always finding something to critique? The system should not fabricate problems to fill silence.
 
-2. **Minimum STOP threshold.** Should there be a floor below which the system says "sounded good, keep going" instead of always finding something to critique? The system should not fabricate problems to fill silence.
+2. **Low-confidence scores.** When the MuQ model is uncertain (middle-range scores, no clear outlier), should the subagent flag a teaching moment at all?
 
-3. **Low-confidence scores.** When the MuQ model is uncertain (middle-range scores, no clear outlier), should the subagent flag a teaching moment at all?
+3. **Positive/corrective ratio.** How often should the subagent choose a positive observation over a corrective one? A real teacher probably does 70% correction, 30% positive -- but it varies by student personality and learning phase.
 
-4. **Positive/corrective ratio.** How often should the subagent choose a positive observation over a corrective one? A real teacher probably does 70% correction, 30% positive -- but it varies by student personality and learning phase.
+4. **Blind-spot prior validation.** The ordering (voicing > pedaling > phrasing > timing > dynamics > articulation) is a hypothesis. Validate with real user testing.
 
-5. **Blind-spot prior validation.** The ordering (voicing > pedaling > phrasing > timing > dynamics > articulation) is a hypothesis. Validate with real user testing.
+5. **Synthesis cadence.** When does the system synthesize facts from raw traces? After every N sessions? On a background timer? On-demand? More frequent = fresher context, but more D1 writes and LLM calls. See `03-memory-system.md`.
 
-6. **Synthesis cadence.** When does the system synthesize facts from raw traces? After every N sessions? On a background timer? On-demand? More frequent = fresher context, but more D1 writes and LLM calls. See `03-memory-system.md`.
+6. **Score alignment accuracy.** With student-reported piece and bar range, how accurate can timestamp-to-bar mapping be? Tempo changes, rubato, and pauses introduce error.
 
-7. **Score alignment accuracy.** With student-reported piece and bar range, how accurate can timestamp-to-bar mapping be? Tempo changes, rubato, and pauses introduce error.
+7. **Subagent prompt iteration.** The five-step reasoning framework needs testing with synthetic teaching moment data.
 
-8. **Subagent prompt iteration.** The five-step reasoning framework needs testing with synthetic teaching moment data.
-
-9. **A/B testing within model tiers.** Workers AI for subagent and Anthropic/Sonnet for teacher are decided, but A/B testing across alternative models within each tier remains open.
+8. **A/B testing within model tiers.** Workers AI for subagent and Anthropic/Sonnet for teacher are decided, but A/B testing across alternative models within each tier remains open.
 
 ---
 
 ## Pipeline Evaluation
 
-The pipeline layer (STOP classification, teaching moment selection, subagent reasoning, teacher output) requires its own eval framework. All evals live in `apps/evals/` -- pipeline evals in `apps/evals/pipeline/`, memory evals in `apps/evals/memory/`, model quality evals in `apps/evals/model/`.
+The pipeline layer (teaching moment selection, subagent reasoning, teacher output) requires its own eval framework. All evals live in `apps/evals/` -- pipeline evals in `apps/evals/pipeline/`, memory evals in `apps/evals/memory/`, model quality evals in `apps/evals/model/`.
 
 ### Teaching Moment Selection Eval
 
@@ -905,7 +871,7 @@ The pipeline layer (STOP classification, teaching moment selection, subagent rea
 
 **Approach:**
 - Construct 20-30 synthetic sessions with known "best teaching moment" (human-labeled or expert-authored)
-- Each session: 8-15 chunks with realistic 6-dim score patterns (some with STOP-worthy drops, some clean)
+- Each session: 8-15 chunks with realistic 6-dim score patterns (some with below-baseline drops, some clean)
 - Measure: selection accuracy (did it pick the right chunk?), dimension accuracy (did it pick the right dimension?), positive detection rate (did it correctly identify improvements?)
 
 **Metrics:**
@@ -958,7 +924,7 @@ Per-session cost estimates for a 30-minute practice session (120 chunks at 15s i
 | Component | Per-unit cost | Units/session | Session cost |
 |---|---|---|---|
 | HF inference (A1-Max endpoint) | ~$0.003-0.005/call | 96 chunks | $0.29-0.48 |
-| STOP classification | $0 (in-worker computation) | 96 chunks | $0 |
+| Teaching moment selection | $0 (in-worker computation) | 96 chunks | $0 |
 | Workers AI subagent | | 3-5 observations | |
 | Anthropic teacher (Sonnet 4.6) | ~$0.004/call (~700 input + 100 output tokens) | 3-5 observations | $0.01-0.02 |
 | Durable Object (web path) | ~$0.001-0.005/session | 1 | $0.001-0.005 |
@@ -983,7 +949,6 @@ These estimates are rough and depend on HF endpoint instance type (GPU-hours pri
 | Decision | Chosen | Rationale |
 |----------|--------|-----------|
 | Two-stage pipeline | Subagent + Teacher | Separates analysis (fast/cheap) from delivery (quality voice). Different tasks need different models and prompts. |
-| STOP classifier deployment | Option B first (6-dim scores in worker) | Simplest path. 0.649 AUC (6-dim balanced logistic regression; 2048-dim MuQ pooled reaches 0.845 but is not deployed). Upgrade to Option A (0.936 AUC, MuQ embeddings) if gap matters. |
 | Subagent provider | Workers AI (Gemma 4 26B) | Co-located with CF Workers; no extra routing hop. |
 | Teacher provider | Anthropic (Sonnet 4.6) | Best at following nuanced persona instructions. Native prompt caching for system prompt. |
 | Score alignment | AMT fingerprint + chroma-DTW (automated) | Replaces student-reported. AMT transcribes, fingerprint matches, MuQ extracts chroma, chroma-DTW aligns to score bars. No student input required. Graceful degradation for unknown pieces. |

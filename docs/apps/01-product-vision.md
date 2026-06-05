@@ -134,7 +134,6 @@ Three stages, one principle: the system does significant work to produce minimal
 | Audio capture (iOS) | COMPLETE | AVAudioEngine + ring buffer + chunking |
 | Audio capture (web) | COMPLETE | MediaRecorder + WebSocket streaming |
 | Cloud inference (MuQ) | DEPLOYED | A1-Max 4-fold ensemble, HF endpoint |
-| STOP classifier | REMOVED (2026-05-27) | Deleted; moment selection now gates on `deviation < 0`. See `docs/model/09-stop-classifier-removed.md` |
 | Teaching moment selection | COMPLETE | Deviation-magnitude gate (worst dim below baseline) + blind-spot ranking + positive-moment fallback + dedup |
 | Two-stage subagent | COMPLETE | Workers AI analysis + Anthropic/Sonnet teacher, AI Gateway |
 | Session synthesis | COMPLETE | Alarm-triggered, all exit paths, deferred recovery |
@@ -196,7 +195,7 @@ The student model is what turns CrescendAI from a stateless evaluator into a pra
 | Question | Current Status | Notes |
 |----------|---------------|-------|
 | Phone audio quality | PSEUDO-VALIDATED | YouTube AMT test (79.9% agreement on mediocre recordings) serves as proxy. Formal paired recordings remain nice-to-have. |
-| Teaching moment scoring | IMPLEMENTED (rules-based) | Worst-dimension `deviation < 0` gate + blind-spot ranking + positive-moment fallback. (A learned STOP classifier was tried and removed 2026-05-27 -- see `docs/model/09-stop-classifier-removed.md`.) Learned model revisited when we have engagement data. |
+| Teaching moment scoring | IMPLEMENTED (rules-based) | Worst-dimension `deviation < 0` gate + blind-spot ranking + positive-moment fallback. A learned model may be revisited when we have engagement data. |
 | Piece identification | AMT FINGERPRINT | Auto-detect via AMT MIDI fingerprint against 242-piece score library. Graceful degradation for unknown pieces. |
 | Exercise rendering | OPEN | MusicXML to notation in mobile browser. Candidates: VexFlow, OpenSheetMusicDisplay. |
 | Continuous inference cost | OPEN | Background MuQ inference on every 15s chunk. Per-session cost on HF endpoints needs measurement at scale. |

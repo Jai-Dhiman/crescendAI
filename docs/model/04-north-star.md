@@ -56,7 +56,7 @@ USER PRESSES RECORD
         |
         v
  STAGE 5: MULTI-SIGNAL TEACHING MOMENT SELECTION
-   Score-conditioned STOP classifier
+   Deviation-magnitude gate (worst dim below baseline)
    Blind spot detection (vs. student baselines)
    Positive moment detection (breakthroughs, improvements)
    Musical priority weighting (Chopin -> pedaling, Bach -> articulation)
@@ -87,7 +87,7 @@ USER PRESSES RECORD
 
 ## The Complete Perception System (8 Capabilities)
 
-The model v2 system targets 8 perceptual capabilities, from immediate inference outputs to downstream reasoning:
+The model v2 system targets 7 perceptual capabilities, from immediate inference outputs to downstream reasoning:
 
 | # | Capability | Description | Encoder | Status |
 |---|-----------|-------------|---------|--------|
@@ -95,10 +95,9 @@ The model v2 system targets 8 perceptual capabilities, from immediate inference 
 | 2 | **Piece identification** | Fuzzy matching against score library | Score following (DTW) | COMPLETE |
 | 3 | **Quality assessment** | 6-dimension relative quality scoring | MuQ + Aria (parallel streams + MPM extraction, supersedes gated fusion 2026-05-27) | BASELINE ESTABLISHED (clean folds: 77.5% pairwise, optimized weights found) |
 | 4 | **Skill level** | Beginner/intermediate/advanced classification | MuQ + Aria (ordinal training) | NOT STARTED (A1-Max has zero discrimination) |
-| 5 | ~~**STOP detection**~~ | REMOVED 2026-05-27 | -- | Deleted; deviation-magnitude gate replaces it (see `09-stop-classifier-removed.md`) |
-| 6 | **Difficulty estimation** | Per-passage technical difficulty | Score analysis + reference stats | COMPLETE (score infrastructure) |
-| 7 | **Temporal reasoning** | Rubato, repetition tracking, trajectory | Score following + onset analysis | NOT STARTED |
-| 8 | **Robustness** | Stable scores across audio conditions | AMT validation + calibration | VALIDATED |
+| 5 | **Difficulty estimation** | Per-passage technical difficulty | Score analysis + reference stats | COMPLETE (score infrastructure) |
+| 6 | **Temporal reasoning** | Rubato, repetition tracking, trajectory | Score following + onset analysis | NOT STARTED |
+| 7 | **Robustness** | Stable scores across audio conditions | AMT validation + calibration | VALIDATED |
 
 ---
 
@@ -127,13 +126,12 @@ See `docs/model/03-encoders.md` for parallel-stream architecture and training pr
 | **E2** | Per-dimension error correlation | r < 0.5 between audio and symbolic | Dual-encoder viability gate (was "fusion viability" pre-2026-05-27; same test, same threshold, parallel-stream interpretation now) |
 | **E3** | Skill-level discrimination | Cohen's d > 0.8 between adjacent levels | Multi-tier training validation |
 
-### Deployment Validation (E4-E6)
+### Deployment Validation (E4-E5)
 
 | Tier | Metric | Requirement | Purpose |
 |------|--------|-------------|---------|
 | **E4** | Competition correlation (Spearman rho) | > 0.6 on held-out competition | External validity |
-| ~~**E5**~~ | ~~STOP classifier AUC~~ OBSOLETE (STOP removed 2026-05-27) | -- | Teaching-moment quality now judged via synthesis eval |
-| **E6** | AMT robustness (pairwise drop) | < 5% across audio conditions | Production reliability |
+| **E5** | AMT robustness (pairwise drop) | < 5% across audio conditions | Production reliability |
 
 Evaluation uses single train/val/test split. T5 val (10%) for autoresearch optimization. T5 test (10%) + T1 test (20%) + T2 test (15%) for final reporting only (never seen during optimization). Bootstrap 95% CIs on all reported metrics.
 
@@ -222,7 +220,7 @@ Track warm-up (first 3-5 min, lower scores expected), peak phase (primary evalua
 
 Six signals combined:
 
-1. **Score-conditioned STOP:** "Would a teacher stop here given what the score asks?"
+1. **Score-conditioned deviation:** "Is the student below what this passage demands, given what the score asks?"
 2. **Blind spot detection:** Dimension deviated significantly from baseline
 3. **Positive moment detection:** Breakthrough, recovery, passage mastery, session best
 4. **Musical priority weighting:** Chopin -> pedaling/phrasing 2x; Bach -> articulation/timing 2x
@@ -356,7 +354,6 @@ Aria inference runs in parallel with MuQ on the same HF endpoint (or a separate 
 | A1-Max (deployed, numbers invalid) | DEPLOYED (needs retrain) | Audio stream encoder (parallel-stream architecture, 2026-05-27) |
 | MuQ backbone (160K hrs) | DEPLOYED | Pretrained audio foundation |
 | Aria base + embedding | AVAILABLE (HuggingFace) | Symbolic encoder, score encoder |
-| STOP classifier | REMOVED 2026-05-27 | Deleted; replaced by deviation-magnitude gate (`09-stop-classifier-removed.md`) |
 | Two-stage subagent | IMPLEMENTED | Same architecture, richer inputs |
 | Aria-AMT (replaces ByteDance) | LOCAL ONLY | Pending CF Container deploy (#9); prod = Tier 3 |
 | Score following (DTW) | COMPLETE | Bar alignment for score conditioning |

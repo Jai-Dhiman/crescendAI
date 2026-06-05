@@ -50,51 +50,7 @@ Code complete and merged to main (2026-03-22). N-gram index + rerank features co
 
 ---
 
-## 2. STOP Classification (REMOVED 2026-05-27)
-
-> **Removed.** The STOP classifier was deleted from the production pipeline on 2026-05-27. The gate is now a deviation-magnitude test in teaching-moment selection (section 3): a chunk is a candidate when its worst dimension is below the student's baseline (`deviation < 0`). The rest of this section is retained as **historical design rationale**. See `docs/model/09-stop-classifier-removed.md`.
-
-### What It Did
-
-Every 15-second chunk, the system asked: "Would a real teacher stop the student here to talk about something?" STOP was the gate -- if it didn't trigger, no teaching moment was selected. The deployed weights had an "always-trigger" bias floor (`sigmoid(1.7) ~= 0.85`), which is part of why it was removed.
-
-### Inputs / Outputs
-
-- **In:** 6-dim MuQ scores `[dynamics, timing, pedaling, articulation, phrasing, interpretation]` for one chunk
-- **Out:** `StopResult { probability, triggered, top_dimension, top_deviation }`
-- **Depends on:** MuQ model quality (scores must be meaningful for STOP to work)
-
-### How It Works
-
-Stateless logistic regression. Each chunk's 6 scores are z-normalized against training means, multiplied by learned weights, summed with bias, and passed through sigmoid. No temporal history, no previous-chunk memory.
-
-Weight interpretation:
-- Negative weights (dynamics, pedaling, interpretation): low score triggers STOP (musicality problems)
-- Positive weights (timing, articulation, phrasing): high score triggers STOP (technically accurate but musically flat)
-
-Threshold: 0.5 (default). Trained on 1,699 masterclass segments with balanced class weights.
-
-### Quality Targets
-
-| Metric | Beta | North Star |
-|--------|------|------------|
-| Skill discrimination (Cohen's d, adjacent buckets) | > 0.5 | > 0.8 |
-| Spearman rho (STOP rate vs skill level) | > 0.3 | > 0.5 |
-| Trigger rate: bucket 1 (weakest) | 50-80% | calibrated per piece |
-| Trigger rate: bucket 5 (strongest) | 15-40% | calibrated per piece |
-| No single dimension > X% of triggers | < 50% | < 35% |
-
-### Current State
-
-REMOVED 2026-05-27. Historically reached AUC 0.649 on training data (6-dim balanced logistic regression). An eval run (n=12, 2026-05-26) showed a 100% trigger rate across all skill levels -- the bias floor made it functionally an "always say stop" gate, so it was deleted rather than recalibrated. See `docs/model/09-stop-classifier-removed.md`.
-
-### Key Files
-
-- (deleted) `apps/api/src/wasm/score-analysis/src/stop.rs` and the `classify-stop-moment` atom. Weights kept only as a research artifact at `model/data/labels/stop_classifier_weights.json`.
-
----
-
-## 3. Teaching Moment Selection
+## 2. Teaching Moment Selection
 
 ### What It Does
 
@@ -137,7 +93,7 @@ Implemented with heuristic blind-spot ranking. The dedup window (3) and positive
 
 ---
 
-## 4. Practice Mode Detection
+## 3. Practice Mode Detection
 
 ### What It Does
 
@@ -184,7 +140,7 @@ Implemented with heuristic thresholds (Dice 0.6, bar overlap 0.5, 4-chunk window
 
 ---
 
-## 5. Session Synthesis
+## 4. Session Synthesis
 
 ### What It Does
 
@@ -235,7 +191,7 @@ Fully implemented: accumulator, synthesis prompt, LLM call, persistence, WebSock
 
 ---
 
-## 6. Exercise Generation
+## 5. Exercise Generation
 
 ### What It Does
 
@@ -284,7 +240,7 @@ Tool defined in prompts.rs. Catalog seeded with 25 curated exercises in migratio
 
 ---
 
-## 7. Score Following & Bar Analysis
+## 6. Score Following & Bar Analysis
 
 ### What It Does
 
@@ -335,26 +291,23 @@ AMT Transcription
   |
   +---> [1] Piece Identification ---> Score Context loads
   |                                        |
-  +---> [4] Practice Mode Detection        |
+  +---> [3] Practice Mode Detection        |
   |       (pitch bigrams, bar ranges)      |
   |                                        v
-  +---> [7] Score Following <-------- Score MIDI
+  +---> [6] Score Following <-------- Score MIDI
   |       (bar alignment, tier analysis)
   |
 MuQ Scores
   |
-  +---> [2] (STOP removed; deviation gate folded into [3])
-  |       |
-  |       v
-  +---> [3] Teaching Moment Selection <--- Student Baselines
-          |                                     (from Memory/D1)
+  +---> [2] Teaching Moment Selection <--- Student Baselines
+          |       (deviation-magnitude gate)    (from Memory/D1)
           v
         SessionAccumulator
           |
-          +---> [5] Session Synthesis <--- Piece Context, Drilling Records
+          +---> [4] Session Synthesis <--- Piece Context, Drilling Records
           |       |
           |       v
-          +---> [6] Exercise Generation (via tool_use)
+          +---> [5] Exercise Generation (via tool_use)
 ```
 
 Failures cascade downward. If AMT transcription is poor, piece ID fails, score following has no score to follow, and synthesis loses all musical grounding. If no chunk falls below baseline, no corrective teaching moments accumulate (a positive moment is surfaced instead). The eval must test each layer independently AND the full cascade.

@@ -2,7 +2,7 @@
 
 Anchor doc for CrescendAI's middle system -- everything between the model outputs and the student's screen. Parallel to `docs/architecture.md` (system-level view) and `docs/model/00-research-timeline.md` (model-level view).
 
-> **Status (2026-04-26):** V5 SHIPPED. Three-tier skill catalog is fully implemented: 14 atoms (the `classify-stop-moment` atom was removed 2026-05-27 with the STOP classifier), 9 molecules, 4 compounds live in `docs/harness/skills/`. Typed Zod artifact contracts (`DiagnosisArtifact`, `ExerciseArtifact`, `SynthesisArtifact`) and a catalog validator with cross-file dependency checks live in `apps/api/src/harness/`. Naming doc otherwise unchanged — `docs/apps/` contains implementation detail.
+> **Status (2026-04-26):** V5 SHIPPED. Three-tier skill catalog is fully implemented: 14 atoms, 9 molecules, 4 compounds live in `docs/harness/skills/`. Typed Zod artifact contracts (`DiagnosisArtifact`, `ExerciseArtifact`, `SynthesisArtifact`) and a catalog validator with cross-file dependency checks live in `apps/api/src/harness/`. Naming doc otherwise unchanged — `docs/apps/` contains implementation detail.
 
 ---
 
@@ -48,7 +48,7 @@ Durable primitives the harness is built from. Each has a precise definition; imp
 Bottom-up, model to user. Each vertical has a doc home and a tier.
 
 ### V1 -- Model & Signals
-MuQ (audio encoder), Aria (symbolic encoder), AMT (transcription), score follower, piece ID. (The STOP classifier was removed 2026-05-27 -- see `docs/model/09-stop-classifier-removed.md`.) Populates the enrichment cache with prompt-aware keys. Doc home: `docs/model/`.
+MuQ (audio encoder), Aria (symbolic encoder), AMT (transcription), score follower, piece ID. Populates the enrichment cache with prompt-aware keys. Doc home: `docs/model/`.
 **Tier:** NEXT (Phase B/C in flight).
 
 ### V2 -- Context Graph (Content / Entity / Fact)

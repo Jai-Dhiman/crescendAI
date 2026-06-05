@@ -30,7 +30,7 @@ See `docs/model/03-encoders.md` for Aria rationale and benchmarks.
 
 ### Inference: Cloud-Only (decided 2026-03-14)
 
-All MuQ inference runs on the HuggingFace inference endpoint. No on-device ML / Core ML conversion planned. This simplifies the iOS architecture -- the app captures audio and sends chunks to the API worker, which forwards to HF and runs STOP classifier logic server-side.
+All MuQ inference runs on the HuggingFace inference endpoint. No on-device ML / Core ML conversion planned. This simplifies the iOS architecture -- the app captures audio and sends chunks to the API worker, which forwards to HF for scoring server-side.
 
 ### Encoder-Combination Strategy: Parallel Streams (decided 2026-05-27, supersedes Separate-Then-Fuse)
 

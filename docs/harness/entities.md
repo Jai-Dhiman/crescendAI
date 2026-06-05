@@ -312,9 +312,8 @@ Scenario: the synthesis layer has determined that a student recurrently over-ped
 
 **How each evidence link traces back to a chunk:**
 
-- `kind: 'observation'` — `observation_id` resolves to a row in the `observations` table. That row carries a `session_id` and the chunk offset where the observation was generated. The pipeline LLM emitted this observation after seeing the MuQ and STOP signals from this chunk.
-- `kind: 'signal', schema_name: 'MuQQuality'` — `chunk_id` is the primary lookup key for the `chunk_results` table (or DO state). `row_id` disambiguates when multiple MuQ results exist for the same chunk (e.g., different producer versions). The MuQ 6-dim vector shows depressed `pedaling` score for this chunk.
-- `kind: 'signal', schema_name: 'StopMoment'` — same `chunk_id`; `row_id` points to the STOP classifier result. The STOP probability exceeded the threshold with `dimension: 'pedaling'`, which triggered the observation above and corroborates the MuQ signal.
+- `kind: 'observation'` — `observation_id` resolves to a row in the `observations` table. That row carries a `session_id` and the chunk offset where the observation was generated. The pipeline LLM emitted this observation after seeing the MuQ signals from this chunk.
+- `kind: 'signal', schema_name: 'MuQQuality'` — `chunk_id` is the primary lookup key for the `chunk_results` table (or DO state). `row_id` disambiguates when multiple MuQ results exist for the same chunk (e.g., different producer versions). The MuQ 6-dim vector shows depressed `pedaling` score for this chunk -- a worst-dimension deviation below baseline, which is what flagged this chunk as a teaching moment and triggered the observation above.
 
 All three evidence items share the same `chunk_id`, meaning the full evidence chain for this Fact is anchored to a single 15-second audio chunk from session 7.
 

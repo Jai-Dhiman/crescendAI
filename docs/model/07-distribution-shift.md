@@ -50,8 +50,8 @@ playing fragments.
 **Failure mode.** MuQ (and most audio foundation models) has never seen "15
 seconds of piano with a 3-second silent break followed by a restart of the
 same bar". The model's temporal-dynamics features assume continuity. The
-session chunker handles this at the session level (the STOP classifier that
-previously did was removed 2026-05-27); the per-clip scoring model does not.
+session chunker handles this at the session level; the per-clip scoring model
+does not.
 
 **Mitigation.** `practice_synthesis.insert_pauses` + upstream chunking logic
 in the session DO (`apps/api/src/do/session-brain.ts`) that splits on

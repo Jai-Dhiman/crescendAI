@@ -68,7 +68,7 @@ The `pipeline_client.py` WebSocket client needs:
 
 ### Session Isolation Fix
 
-The current eval creates fresh sessions via `POST /api/practice/start`. Each session maps to a unique Durable Object ID. The identical-STOP-values bug suggests either:
+The current eval creates fresh sessions via `POST /api/practice/start`. Each session maps to a unique Durable Object ID. The identical-score-values bug suggests either:
 - The inference cache is returning the same data for different recordings (cache key collision)
 - The DO is reusing in-memory state across sessions (unlikely given unique IDs, but verify)
 
@@ -186,50 +186,7 @@ A runtime-level `after_model` middleware that re-scores compound outputs in prod
 
 ---
 
-## 2. STOP Classification Eval
-
-> **[HISTORICAL -- STOP classifier removed 2026-05-27.]** This eval no longer applies; the classifier was deleted (see `docs/model/09-stop-classifier-removed.md`). The deviation-magnitude gate that replaced it is evaluated indirectly via synthesis quality (the `teaching_knowledge` eval). Retained below as design rationale.
-
-### Ideal Eval
-
-**Data:** 500+ recordings with per-chunk annotations from expert piano teachers: "Would you stop the student here? Which dimension?" Gold-standard STOP labels. Multiple annotators per chunk for inter-rater agreement.
-
-**Metrics:**
-- AUC against expert labels
-- Per-dimension precision/recall (when STOP triggers on "pedaling," how often does the expert agree?)
-- Cross-piece calibration: same skill level, different pieces -- do difficulty differences affect STOP appropriately?
-- Temporal patterns: does STOP trigger at musically meaningful boundaries (phrase ends, section transitions)?
-
-### Practical Eval (T5)
-
-**Data:** 361 T5 recordings with skill_level labels (1-5). No per-chunk STOP ground truth.
-
-**Methodology:**
-- Extract STOP probabilities from every chunk (from the `chunk_processed` responses or accumulator state)
-- No per-chunk correctness (no ground truth), but we can measure distributional properties
-
-**Metrics (computed offline, no LLM):**
-
-| Metric | How to compute | Target |
-|--------|---------------|--------|
-| Spearman rho (STOP rate vs skill) | Correlation between per-recording trigger rate and skill_level | > 0.3 |
-| Cohen's d (adjacent buckets) | Effect size between bucket N and N+1 STOP rate distributions | > 0.5 |
-| Trigger rate by bucket | `triggered_chunks / total_chunks` per skill bucket | Bucket 1: 50-80%, Bucket 5: 15-40% |
-| Dimension distribution | Frequency of each dimension as top_dimension across all triggers | No dimension > 50% |
-| Per-piece STOP rate | Same metric broken down by piece | Pieces with harder passages have higher rates |
-| STOP probability distribution | Histogram of probabilities (should be bimodal, not uniform) | Clear separation |
-
-**Advanced (requires LLM judge):**
-
-| Metric | How to compute | Target |
-|--------|---------------|--------|
-| STOP-synthesis alignment | When STOP triggers, does the eventual synthesis reference that moment? | > 60% |
-
-**Limitations:** No ground truth for individual chunks. We can only measure whether STOP correlates with skill level (a proxy for "there are more things to teach weaker students"). We cannot measure whether it triggers at the RIGHT moments within a recording.
-
----
-
-## 3. Teaching Moment Selection Eval
+## 2. Teaching Moment Selection Eval
 
 ### Ideal Eval
 
@@ -288,7 +245,7 @@ Answer: YES or NO, with a one-sentence justification.
 
 ---
 
-## 4. Practice Mode Detection Eval
+## 3. Practice Mode Detection Eval
 
 ### Ideal Eval
 
@@ -328,7 +285,7 @@ Answer: YES or NO, with a one-sentence justification.
 
 ---
 
-## 5. Session Synthesis Eval
+## 4. Session Synthesis Eval
 
 ### Ideal Eval
 
@@ -409,7 +366,7 @@ Target: > 70% rated HIGH or MEDIUM.
 
 ---
 
-## 6. Exercise Generation Eval
+## 5. Exercise Generation Eval
 
 ### Ideal Eval
 
@@ -457,7 +414,7 @@ Target: > 70% rated HIGH or MEDIUM.
 
 ---
 
-## 7. Score Following & Bar Analysis Eval
+## 6. Score Following & Bar Analysis Eval
 
 ### Ideal Eval
 
@@ -530,7 +487,7 @@ Target: > 70% rated HIGH or MEDIUM.
 
 **Phase 4: Analysis and iteration (ongoing)**
 - Identify worst-performing capabilities
-- Drill into failure modes (why did synthesis fail actionability? Was it STOP selection? Prompt? Missing context?)
+- Drill into failure modes (why did synthesis fail actionability? Was it moment selection? Prompt? Missing context?)
 - Iterate on prompts, thresholds, algorithms
 - Re-run eval to measure improvement
 

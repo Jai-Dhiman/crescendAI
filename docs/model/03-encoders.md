@@ -422,7 +422,7 @@ Best leaked-fold results for context only: S2 71.3% / S2H 70.2% / S3 70.0% / S1 
 
 ### Teaching Moment Selection -- Workable
 
-The STOP classifier (a 6-weight logistic regression on dimension scores, AUC 0.649) was **removed 2026-05-27** -- see `docs/model/09-stop-classifier-removed.md`. Teaching moment selection now gates on worst-dimension `deviation < 0` (student below their own baseline) with a positive-moment fallback, running in `teaching_moments.rs` (WASM) after HF scores return. Ranking quality matters more than absolute accuracy.
+Teaching moment selection gates on worst-dimension `deviation < 0` (student below their own baseline) with a positive-moment fallback, running in `teaching_moments.rs` (WASM) after HF scores return. Ranking quality matters more than absolute accuracy.
 
 ### Student Model / Blind Spot Detection -- Workable With Smoothing
 
@@ -500,7 +500,6 @@ Phase 1 of the pipeline roadmap (see `04-north-star.md`) builds the correct vers
 
 1. 4-fold piece-stratified CV, same folds as `model/data/labels/percepiano/folds.json` (CLEAN folds, post-leak fix)
 2. Pairwise accuracy (primary), R2 (secondary), robustness score_drop_pct (veto at >15%)
-3. STOP AUC >= 0.80
-4. Per-dimension breakdown reported
-5. Bootstrap CI on pairwise accuracy difference vs A1 baseline
+3. Per-dimension breakdown reported
+4. Bootstrap CI on pairwise accuracy difference vs A1 baseline
 6. Error correlation between audio and symbolic encoders (target: r < 0.5 for dual-encoder viability; same gate threshold pre- and post-2026-05-27 architecture pivot)
