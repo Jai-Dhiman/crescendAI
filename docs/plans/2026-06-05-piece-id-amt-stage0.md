@@ -60,7 +60,7 @@ import pytest
 
 from piece_id_eval.notes import Note, load_amt_notes, load_score_notes
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 BACH_SCORE = REPO_ROOT / "model/data/scores/bach.prelude.bwv_846.json"
 
 
@@ -398,8 +398,9 @@ from chroma_dtw_eval.amt_regen import (
 )
 
 _MODULE_DIR = Path(__file__).resolve().parent
-DEFAULT_PRACTICE_ROOT = _MODULE_DIR.parents[2] / "data/evals/practice_eval"
-DEFAULT_AMT_NOTES_ROOT = _MODULE_DIR.parents[2] / "data/evals/practice_eval_pseudo"
+# parents[0] = piece_id_eval/, parents[1] = model/ (crescendai/model/data/...)
+DEFAULT_PRACTICE_ROOT = _MODULE_DIR.parents[1] / "data/evals/practice_eval"
+DEFAULT_AMT_NOTES_ROOT = _MODULE_DIR.parents[1] / "data/evals/practice_eval_pseudo"
 
 
 def ensure_amt_notes(
@@ -2203,7 +2204,7 @@ import pytest
 from piece_id_eval.bakeoff import BakeoffReport, run
 from piece_id_eval.notes import Note
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _make_piece(root: int, n: int = 40) -> list[Note]:
@@ -2276,6 +2277,32 @@ def test_bakeoff_report_has_verdict() -> None:
         no_track=True,
     )
     assert report.verdict in {"KILL", "TUNE", "PROCEED"}
+
+
+def test_bakeoff_open_set_ok_is_true_on_well_separated_catalog() -> None:
+    """open_set_ok must be True when catalog pieces have distinct chroma (cosine oracle).
+
+    piece_a (root=60, pc=0 dominant) and piece_b (root=67, pc=7 dominant) are
+    clearly separated in cosine chroma space. The NoteChromaMatcher oracle must
+    produce in-catalog scores >> LOO scores so a qualifying FA<=0.05/TA>=0.60
+    threshold exists. This test FAILS if the open-set oracle is DtwCeilingMatcher
+    (scores always <= 0) because then TA=0 at every positive threshold.
+    """
+    catalog = _synthetic_catalog()
+    recordings = _synthetic_recordings()
+    report = run(
+        catalog=catalog,
+        recordings=recordings,
+        window_lengths=[None],
+        n_starts=1,
+        corruption_grid=[{"deletion_rate": 0.0, "insertion_rate": 0.0, "jitter_seconds": 0.0}],
+        seed=0,
+        no_track=True,
+    )
+    assert report.open_set_ok is True, (
+        "open_set_ok must be True for a well-separated 2-piece catalog "
+        "(fails if DtwCeilingMatcher is used as oracle instead of NoteChromaMatcher)"
+    )
 
 
 def test_bakeoff_cli_smoke(tmp_path: Path) -> None:
@@ -2365,15 +2392,17 @@ from piece_id_eval.open_set import best_point, operating_points
 from piece_id_eval.windowing import sample_windows
 
 _MODULE_DIR = Path(__file__).resolve().parent
-_DEFAULT_PRACTICE_ROOT = _MODULE_DIR.parents[2] / "data/evals/practice_eval"
-_DEFAULT_NOTES_ROOT = _MODULE_DIR.parents[2] / "data/evals/practice_eval_pseudo"
-_DEFAULT_SCORES_ROOT = _MODULE_DIR.parents[2] / "data/scores"
-_DEFAULT_PIECE_MAP = _MODULE_DIR.parents[2] / "data/evals/piece_id/eval_piece_map.json"
+# parents[0] = piece_id_eval/, parents[1] = model/ (crescendai/model/data/...)
+_DEFAULT_PRACTICE_ROOT = _MODULE_DIR.parents[1] / "data/evals/practice_eval"
+_DEFAULT_NOTES_ROOT = _MODULE_DIR.parents[1] / "data/evals/practice_eval_pseudo"
+_DEFAULT_SCORES_ROOT = _MODULE_DIR.parents[1] / "data/scores"
+_DEFAULT_PIECE_MAP = _MODULE_DIR.parents[1] / "data/evals/piece_id/eval_piece_map.json"
 
 _WINDOW_LENGTHS: list[float | None] = [15.0, 30.0, 60.0, 90.0, None]
 _N_STARTS = 5
 _SEED = 42
-_OPEN_SET_THRESHOLDS = [i / 20 for i in range(21)]  # 0.0, 0.05, ..., 1.0
+# NoteChromaMatcher produces cosine scores in [-1, 1]; sweep [0, 1] (positive matches).
+_OPEN_SET_THRESHOLDS = [i / 100 for i in range(0, 101)]  # 0.00, 0.01, ..., 1.00
 _MAX_FA = 0.05
 _MIN_TA = 0.60
 
@@ -2499,9 +2528,11 @@ def run(
                 "recall@10": recall_at_k(rankings, 10)
             }
 
-    # Compute ceiling + best indexable recall@10 (best across all window lengths)
-    dtw_name = DtwCeilingMatcher(catalog).name  # "dtw_ceiling"
-    indexable_names = {NoteChromaMatcher(catalog).name, LandmarkMatcher(catalog).name, ChromaSeqDtwMatcher(catalog).name}
+    # Compute ceiling + best indexable recall@10 (best across all window lengths).
+    # Use .name from the already-constructed matchers list — no extra instantiations.
+    # matchers = [NoteChromaMatcher, LandmarkMatcher, DtwCeilingMatcher, ChromaSeqDtwMatcher]
+    dtw_name = matchers[2].name  # "dtw_ceiling"
+    indexable_names = {matchers[0].name, matchers[1].name, matchers[3].name}
 
     for (mname, wlabel), vals in report.recall_table.items():
         r10 = vals["recall@10"]
@@ -2510,18 +2541,22 @@ def run(
         if mname in indexable_names:
             report.best_indexable_recall10 = max(report.best_indexable_recall10, r10)
 
-    # Open-set: leave-one-out (remove true piece from catalog, top-1 score)
+    # Open-set: leave-one-out (remove true piece from catalog, top-1 score).
+    # Uses NoteChromaMatcher (C1, cosine in [-1, 1]) as the open-set oracle:
+    # matched cosines are positive, so the [0, 1] threshold sweep is meaningful.
+    # DtwCeilingMatcher scores are -normalized_cost (always <= 0), making it
+    # incompatible with a [0, 1] threshold sweep (TA and FA both stuck at 0).
     in_scores: list[float] = []
     loo_scores: list[float] = []
-    best_matcher = matchers[2]  # DtwCeilingMatcher as open-set oracle
+    open_set_oracle = matchers[0]  # NoteChromaMatcher (C1, cosine similarity)
     for true_id, notes in recordings.items():
         # In-catalog: full catalog
-        ranked = best_matcher.rank(notes)
+        ranked = open_set_oracle.rank(notes)
         in_scores.append(ranked[0].score if ranked else 0.0)
         # LOO: catalog without true piece
         loo_catalog = {pid: n for pid, n in catalog.items() if pid != true_id}
         if loo_catalog:
-            loo_matcher = DtwCeilingMatcher(loo_catalog)
+            loo_matcher = NoteChromaMatcher(loo_catalog)
             loo_ranked = loo_matcher.rank(notes)
             loo_scores.append(loo_ranked[0].score if loo_ranked else 0.0)
 
@@ -2545,8 +2580,8 @@ def run(
                 "open_set_ok": report.open_set_ok,
                 "verdict": report.verdict,
             })
-        except Exception:
-            pass  # Trackio is optional; never fail the run on tracking errors
+        except (ImportError, RuntimeError) as exc:
+            print(f"WARNING: Trackio logging failed: {exc}", file=sys.stderr)
 
     return report
 
@@ -2743,3 +2778,229 @@ cd model && uv run python -m piece_id_eval.bakeoff --output-json bakeoff_results
 ```
 
 4. Read `VERDICT:` from stdout. If PROCEED, name the winning matcher and window length for the Rust/WASM Phase 1 plan.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**1. Premise Challenge**
+
+Right problem. The chroma KILL verdict (#21) was a cross-modal artifact, not a semantic one. Symbolic-to-symbolic matching eliminates the gap by construction. The plan correctly frames this as an unproven assumption requiring measurement before any Rust/WASM investment. No simpler framing exists — the experiment is already the minimum viable form of the question.
+
+Real pain: the current production pipeline (`ngram.rs`) fails on polyphonic/arpeggiated music. Without this experiment, the team has no defensible basis for choosing a replacement algorithm or even confirming replacement is worthwhile. Pain is real and specific.
+
+Direct path: yes. The plan measures the right thing (recall of real AMT notes vs score catalog) at the right operational conditions (arbitrary-start windows, realistic corruption). No proxy indirection.
+
+Existing coverage: `metrics.py` (`recall_at_k`, `Rankings` type) and `chroma_dtw_eval.amt_regen` (`_transcribe_clip`, `_read_wav_16k_mono`, `AmtRegenError`, `DEFAULT_AMT_URL`) are correctly reused. The spec cites them; the plan imports them correctly.
+
+**2. Scope Check**
+
+Scope matches the spec exactly. Phase-1 Rust/WASM exclusion is correct and intentional. The only speculative element is the corruption ablation grid, which is labelled diagnostic rather than gate-critical — acceptable.
+
+Complexity: 12 tasks, ~15 new files, ~10 deletions. The task count is high but each task is a single module with a single responsibility. No new services. Module count is justified by the need to sweep four independent matchers across two independent dimensions (window length, corruption).
+
+Simplest possible: the bakeoff could be a single flat script. The plan's modular decomposition pays for itself because each matcher will be benchmarked independently and potentially carried into Phase 1. The decomposition is genuinely load-bearing, not gold-plating.
+
+**3. Twelve-Month Alignment**
+
+```
+CURRENT STATE                    THIS PLAN                      12-MONTH IDEAL
+ngram.rs fails polyphonic     -> note-based bakeoff harness  -> Phase-1 note matcher in Rust/WASM
+chroma-of-audio KILL proven   -> measures AMT note quality   -> session-brain uses real piece-ID
+open-set gate threshold TBD   -> sets FA<=0.05 @ TA>=0.60   -> production gate validated
+```
+
+The plan moves toward the ideal. No tech debt is created that conflicts with Phase 1 — the pure-Python harness is intentionally throwaway (or reusable as a regression baseline).
+
+**4. Alternatives Check**
+
+Spec documents the trade-off choices (key-dependent vs OTI, ordinal time vs seconds, four matchers vs one). The alternatives-not-taken are documented inline. No gap here.
+
+---
+
+### Engineering Pass
+
+**5. Architecture**
+
+Data flow verified:
+
+```
+load_amt_notes(path) / load_score_notes(path)
+        |
+  list[Note] (substrate, sorted by onset)
+        |
+  sample_windows -> list[list[Note]] (swept window lengths)
+        |
+  optional: corrupt_notes -> list[Note]
+        |
+  Matcher.rank(query: list[Note]) -> list[Ranked]
+        |
+  recall_at_k(rankings, k) -> float
+        |
+  operating_points / best_point -> OperatingPoint | None
+        |
+  decide(...) -> "KILL"|"TUNE"|"PROCEED"
+        |
+  BakeoffReport (+ Trackio if not --no-track)
+```
+
+JSON shape correctness verified against actual files:
+- AMT notes: `{"onset": float, "offset": float, "pitch": int, "velocity": int}` — plan's `load_amt_notes` reads `d["onset"]`, `d["offset"]`, `d["pitch"]`, `d.get("velocity", 80)`. CORRECT.
+- Score JSON: `bars[].notes[].{onset_seconds, duration_seconds, pitch, velocity}` — plan's `load_score_notes` reads `n["onset_seconds"]`, `n.get("duration_seconds", 0.25)`, `n["pitch"]`, `n.get("velocity", 80)`. CORRECT.
+
+`_transcribe_clip` and `_read_wav_16k_mono` signatures verified present in `chroma_dtw_eval/amt_regen.py` at lines 77 and 118. Import is from private names — acceptable for an internal harness, but fragile.
+
+`metrics.py`'s `Rankings` type alias and `recall_at_k` match the bakeoff's usage exactly.
+
+**6. Module Depth Audit**
+
+| Module | Interface | Implementation | Verdict |
+|--------|-----------|----------------|---------|
+| `notes.py` | 2 functions + 1 NamedTuple | JSON parsing, sorting, validation | DEEP |
+| `transcribe.py` | 1 function + CLI | delegates to `amt_regen`, idempotent cache write | DEEP |
+| `windowing.py` | 1 function | uniform sampling, fallback logic, deterministic seed | DEEP |
+| `note_chroma.py` | 2 functions | pitch-class binning, framing, per-frame normalization | DEEP |
+| `corruption.py` | 1 function | 3 independent corruption modes, RNG, sort | DEEP |
+| `open_set.py` | 2 functions + 1 NamedTuple | threshold sweep, qualified-point filter | DEEP |
+| `decision.py` | 1 function | 3-branch gate, pre-registered constants | SHALLOW — but this is intentional; the shallowness is the point (pre-registered constants are the artifact) |
+| `matchers/base.py` | 1 Protocol + 1 NamedTuple | zero implementation | SHALLOW by design (protocol only) |
+| `matchers/note_chroma_matcher.py` | 1 class, 2 public members | pre-computed index, cosine similarity | DEEP |
+| `matchers/landmark.py` | 1 class, 2 public members | inverted token index, build + query | DEEP |
+| `matchers/dtw_ceiling.py` | 1 class, 2 public members | pitch extraction, subsequence DTW | DEEP |
+| `matchers/chroma_seq_dtw.py` | 1 class, 2 public members | chroma sequence, subsequence DTW | DEEP |
+| `bakeoff.py` | `run()` + CLI | full sweep orchestration, aggregation, Trackio | DEEP |
+
+All non-protocol modules are DEEP. No shallow module smell.
+
+**7. Code Quality**
+
+Silent Trackio failure (Task 12, `bakeoff.py` line ~2549):
+```python
+except Exception:
+    pass  # Trackio is optional; never fail the run on tracking errors
+```
+This violates the project rule "explicit exceptions, no silent fallbacks." The fix is: log the exception to stderr and continue (not swallow silently).
+
+Wasteful matcher instantiation in `bakeoff.py` `run()`:
+```python
+dtw_name = DtwCeilingMatcher(catalog).name  # creates a 4th DtwCeiling instance
+indexable_names = {NoteChromaMatcher(catalog).name, ...}  # creates 3 more instances
+```
+For a 254-entry catalog, this materializes 4 extra matchers (DtwCeiling twice, others once) just to call `.name`. Should use string literals or call `.name` on the existing `matchers` list.
+
+No other DRY violations or catch-all patterns detected.
+
+**8. Test Philosophy Audit**
+
+All tests verified as behavior-through-public-interface:
+- `test_notes.py`: exercises `load_amt_notes`/`load_score_notes` with real file I/O and synthetic fixtures. No internal state asserts.
+- `test_transcribe.py`: exercises `ensure_amt_notes` against a real stub HTTP server (not mocked at the function level). Idempotency is verified by counting server calls, not by inspecting internal state.
+- `test_windowing.py`: exercises `sample_windows` output counts and extents. Determinism test compares output, not RNG state.
+- `test_note_chroma.py`: exercises `chroma_vector`/`chroma_sequence` on synthetic inputs with physically meaningful assertions (dominant bin, normalization).
+- `test_corruption.py`: exercises statistical properties at known rates. Acceptably probabilistic (tolerance bands used).
+- `test_open_set.py`: exercises `operating_points`/`best_point` on controlled synthetic data.
+- `test_decision.py`: truth table — pure behavior.
+- `test_matchers.py`, `test_landmark.py`, `test_dtw_ceiling.py`, `test_chroma_seq_dtw.py`: self-query recall@1 == 1.0 on synthetic catalog. Correct behavior test.
+- `test_bakeoff.py`: exercises `run()` API and CLI via subprocess. No internal state inspection.
+
+One marginal test: `test_docstring_reflects_new_open_set_thresholds` (Task 7) reads `_mod.__doc__`. This is technically internal but acceptable since the docstring IS the externally auditable pre-registration artifact. Not flagged as blocker.
+
+**9. Vertical Slice Audit**
+
+All 12 tasks verified: each has exactly one test file written in Step 1, one implementation in Step 3, one commit in Step 5. No horizontal slicing detected.
+
+Group ordering is correct: Group 0 (notes.py, transcribe.py) -> Group 1 (windowing, note_chroma, corruption, open_set, decision) -> Group 2a (base.py + C1) -> Group 2b (C2, C3, C4 in parallel) -> Group 3 (bakeoff + deletions).
+
+Parallel correctness: Group 2b tasks (9, 10, 11) each create new files; none edits the same file as another. Group 1 tasks (3-7) each create/modify separate files. No conflict.
+
+**10. Test Coverage Gaps**
+
+```
+[+] notes.py
+    load_amt_notes()
+      [TESTED]  sorted order — Task 1 ★★★
+      [TESTED]  field values — Task 1 ★★★
+      [TESTED]  missing file -> FileNotFoundError — Task 1 ★★★
+      [GAP]     non-list JSON -> ValueError — test exists but via load_amt_notes only; ok
+    load_score_notes()
+      [TESTED]  sorted order — Task 1 ★★ (skipped if fixture missing)
+      [TESTED]  field plausibility — Task 1 ★★
+      [GAP]     missing file -> FileNotFoundError — tested; ok
+      [GAP]     bars with zero notes — no test
+
+[+] windowing.py
+    sample_windows()
+      [TESTED]  count == n_starts — Task 3 ★★★
+      [TESTED]  notes within window — Task 3 ★★★
+      [TESTED]  window_seconds=None -> single full window — Task 3 ★★★
+      [TESTED]  determinism — Task 3 ★★★
+      [TESTED]  short recording fallback — Task 3 ★★★
+      [GAP]     empty notes list -> returns [[]] (implementation quirk, no test)
+
+[+] note_chroma.py
+    chroma_vector()
+      [TESTED]  shape, normalization, dominant bin, multi-class — Task 4 ★★★
+      [TESTED]  empty -> ValueError — Task 4 ★★★
+    chroma_sequence()
+      [TESTED]  shape, normalization — Task 4 ★★
+      [GAP]     empty notes -> (12, 0) shape — no test
+
+[+] bakeoff.py open-set computation
+    DtwCeiling scores are always <= 0 (negated cost); thresholds [0.0..1.0]
+      [GAP]     No test verifies open_set_ok can ever be True on non-synthetic data
+                (the synthetic test uses identical catalog+recordings -> cost=0 -> score=0.0;
+                 real run: AMT vs score notes differ -> cost>0 -> score<0 -> all thresholds miss)
+```
+
+The open-set coverage gap is a functional correctness defect — not just a missing test but a bug that makes PROCEED unreachable on real data. See [BLOCKER-3] below.
+
+**11. Failure Modes**
+
+- `ensure_amt_notes` AMT failure: raises `AmtRegenError` (explicit). Cache is not written on failure (write happens after transcription). Recovery: re-run. SAFE.
+- `load_amt_notes` missing file: raises `FileNotFoundError`. Explicit. SAFE.
+- `corrupt_notes` with `deletion_rate=1.0`: returns empty list. `bakeoff.run` guards `if not corrupted: continue`. SAFE.
+- `DtwCeilingMatcher` O(R-Q) inner loop: for 254 catalog entries x 25 queries x 5 window lengths, with R~5000 notes per catalog piece and Q~1000 query notes, each DTW call is ~4000 iterations. Total: ~50 million inner-loop iterations. Runtime may be 30-60 minutes on M4. Not a correctness failure but worth noting as an operational risk.
+- `bakeoff.run` with empty `recordings`: `recall_at_k` raises `ValueError("rankings is empty")` because `rankings` is empty. This propagates as an unhandled exception from `run()`. EXPLICIT — acceptable.
+- Trackio failure: swallowed silently — violates project rules (see [RISK-1]).
+
+**12. Presumption Inventory**
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `chroma_dtw_eval.amt_regen._transcribe_clip` is importable as a private name | VALIDATE | It exists at line 118 of `amt_regen.py`; private prefix `_` means no stability guarantee but it's in the same codebase — safe for now |
+| `chroma_dtw_eval.amt_regen._read_wav_16k_mono` is importable | VALIDATE | Same file, line 77; same caveats |
+| `chroma_dtw_eval.amt_regen.DEFAULT_AMT_URL` is importable | SAFE | Confirmed present at line 41 |
+| Bach score JSON exists at `model/data/scores/bach.prelude.bwv_846.json` | SAFE | File verified present |
+| Real AMT notes JSON shape is `{onset, offset, pitch, velocity}` flat list | SAFE | Verified against actual cached file |
+| Score JSON uses `bars[].notes[].{onset_seconds, duration_seconds, pitch, velocity}` | SAFE | Verified against actual bach.prelude.bwv_846.json |
+| DtwCeilingMatcher scores fall in range compatible with thresholds [0.0..1.0] | RISKY | Scores = -normalized_cost are always <= 0; thresholds [0..1] make open-set PROCEED unreachable on real data |
+| `REPO_ROOT = parents[4]` is the crescendai/ directory | RISKY | Verified: parents[4] from `model/tests/piece_id_eval/*.py` = `/Documents/`; crescendai is parents[3] |
+| `_MODULE_DIR.parents[2]` in `transcribe.py` and `bakeoff.py` points to `model/` | RISKY | Verified: parents[2] from `model/src/piece_id_eval/` = `crescendai/`; `model/` is parents[1] |
+| `isinstance(m, Matcher)` Protocol check works at runtime | SAFE | Protocol is `@runtime_checkable`; check is structural (method presence only) |
+| Chopin Ballade #1 already has `amt_notes.json` | SAFE | Verified: 3 recordings cached |
+
+---
+
+### Summary
+
+**[BLOCKER-1] (confidence: 10/10)** — Task 1 (`test_notes.py`) and Task 12 (`test_bakeoff.py`): `REPO_ROOT = Path(__file__).resolve().parents[4]` resolves to `/Users/jdhiman/Documents/`, not the `crescendai/` repo root. Verified: `parents[3]` from `model/tests/piece_id_eval/*.py` is `crescendai/`. The identical pattern in `tests/chroma_dtw_eval/test_amt_regen.py` (the explicit reference the plan copies from) uses `parents[3]`. Must be `parents[3]` in both `test_notes.py` and `test_bakeoff.py`. Effect: `test_load_score_notes_*` silently skips (fixture path wrong), and `test_bakeoff_cli_smoke` / `test_bakeoff_cli_no_track_synthetic` fail because `cwd=REPO_ROOT / "model"` points to a nonexistent directory.
+
+**[BLOCKER-2] (confidence: 10/10)** — Task 2 (`transcribe.py`) and Task 12 (`bakeoff.py`): default path anchor `_MODULE_DIR.parents[2]` resolves to `crescendai/` not `model/`. Verified: `_MODULE_DIR` = `model/src/piece_id_eval/`; `parents[0]` = `model/src/`, `parents[1]` = `model/`, `parents[2]` = `crescendai/`. All `DEFAULT_PRACTICE_ROOT`, `DEFAULT_AMT_NOTES_ROOT`, `DEFAULT_SCORES_ROOT`, `DEFAULT_PIECE_MAP` in both `transcribe.py` and `bakeoff.py` point to `crescendai/data/...` instead of `crescendai/model/data/...`. This violates the project's "anchor to module" rule and makes the real operational run fail immediately on all default paths. Must be `_MODULE_DIR.parents[1]` throughout.
+
+**[BLOCKER-3] (confidence: 9/10)** — Task 12 (`bakeoff.py`, open-set computation): `_OPEN_SET_THRESHOLDS = [i / 20 for i in range(21)]` produces `[0.0, 0.05, ..., 1.0]`, but `DtwCeilingMatcher` scores are `= -normalized_cost` which are always `<= 0`. `operating_points` checks `score >= threshold`; for all thresholds `> 0`, no DtwCeiling score qualifies; at threshold `0.0`, only a score of exactly `0.0` qualifies (cost = 0 ↔ identical note sequence). On real AMT-vs-score data, costs are never 0, so `in_scores` are all `< 0`, `FA = 0`, `TA = 0` at every threshold. `open_set_ok` is permanently `False` in the real run. This makes the PROCEED verdict structurally unreachable regardless of actual recall quality — the experiment's primary go/no-go output is broken. Fix: either (a) use negative thresholds (e.g., `[-cost/Q for cost in range(0, 20)]` auto-derived from score distribution), or (b) switch the open-set oracle to `NoteChromaMatcher` (scores in `[-1, 1]`) and use `[i / 20 - 1.0 for i in range(21)]`, or (c) normalize `DtwCeilingMatcher` scores to `[0, 1]` before scoring. The synthetic test passes only because identical catalog+recording notes yield `cost=0 → score=0.0 ≥ 0.0`, masking the bug.
+
+[RISK-1] (confidence: 9/10) — Task 12 (`bakeoff.py`): `except Exception: pass` in the Trackio block silently swallows all errors. Project rules require explicit exceptions, no silent fallbacks. Fix: `except Exception as exc: print(f"[WARN] Trackio logging failed: {exc}", file=sys.stderr)` — then continue.
+
+[RISK-2] (confidence: 7/10) — Task 12 (`bakeoff.py`): creates 4 extra matcher instances just to read their `.name` property (e.g., `DtwCeilingMatcher(catalog).name`). For a 254-piece catalog, DtwCeiling extracts and stores 254 pitch arrays twice. Fix: use `matchers[i].name` from the existing `matchers` list.
+
+[OBS] — DtwCeilingMatcher's O(R × Q) inner loop (no dtaidistance) will run slowly for the full 254-piece catalog. With 16 recordings × 5 window lengths × 5 starts = 400 queries, and each query sliding over 254 reference sequences, real runtime may be 30-60 minutes on M4. This is operational, not a correctness issue.
+
+[OBS] — `test_transcribe.py` imports `numpy` and `soundfile` for the stub WAV fixture. These must be in the test dependencies. Check `pyproject.toml` — both are used elsewhere in the test suite so this should be fine.
+
+[BLOCKER] count: 3
+[RISK]    count: 2
+[QUESTION] count: 0
+
+VERDICT: NEEDS_REWORK — Three blockers must be resolved before execution: (1) `parents[4]` → `parents[3]` in `test_notes.py` and `test_bakeoff.py`; (2) `parents[2]` → `parents[1]` for all default paths in `transcribe.py` and `bakeoff.py`; (3) DtwCeiling open-set threshold range is incompatible with negative scores — fix the threshold range or switch the open-set oracle to a matcher with scores in [0, 1].
