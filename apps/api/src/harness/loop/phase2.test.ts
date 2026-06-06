@@ -107,7 +107,7 @@ describe("runPhase2 validation failure", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("yields validation_error and not artifact when input fails Zod", async () => {
+	it("yields validation_error and not artifact when every repair attempt fails Zod", async () => {
 		const malformed = {
 			session_id: "",
 			synthesis_scope: "session",
@@ -131,8 +131,10 @@ describe("runPhase2 validation failure", () => {
 			],
 			stop_reason: "tool_use",
 		};
-		fetchSpy.mockResolvedValueOnce(
-			new Response(JSON.stringify(anthropicResp), { status: 200 }),
+		// Model keeps returning an invalid artifact on every repair attempt.
+		// Fresh Response per call (a Response body can only be read once).
+		fetchSpy.mockImplementation(
+			async () => new Response(JSON.stringify(anthropicResp), { status: 200 }),
 		);
 
 		const events: HookEvent<unknown>[] = [];
@@ -140,9 +142,12 @@ describe("runPhase2 validation failure", () => {
 			events.push(ev);
 		}
 
+		// Only after the repair budget is exhausted does it surface validation_error.
 		expect(events[0]).toEqual({ type: "phase2_started" });
-		expect(events[1]?.type).toBe("validation_error");
+		expect(events.at(-1)?.type).toBe("validation_error");
 		expect(events.find((e) => e.type === "artifact")).toBeUndefined();
+		// Initial call + repair retries (the model was given the zod error to fix).
+		expect(fetchSpy.mock.calls.length).toBeGreaterThan(1);
 	});
 });
 
