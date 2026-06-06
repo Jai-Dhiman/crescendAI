@@ -1,11 +1,24 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
 	exerciseDimensions,
 	exercises,
+	pendingExercises,
 	studentExercises,
 } from "../db/schema/exercises";
 import { NotFoundError } from "../lib/errors";
 import type { ServiceContext } from "../lib/types";
+
+export type ExerciseSetPayload = {
+	sourcePassage: string;
+	targetSkill: string;
+	exercises: Array<{
+		title: string;
+		instruction: string;
+		focusDimension: string;
+		hands?: "left" | "right" | "both";
+		exerciseId: string;
+	}>;
+};
 
 export async function listExercises(
 	ctx: ServiceContext,
@@ -147,4 +160,53 @@ export async function completeExercise(
 		.returning();
 
 	return row;
+}
+
+export async function assignPendingExercise(
+	ctx: ServiceContext,
+	args: { studentId: string; sessionId: string; exerciseId: string },
+): Promise<ExerciseSetPayload> {
+	const [pendingRow] = await ctx.db
+		.select()
+		.from(pendingExercises)
+		.where(
+			and(
+				eq(pendingExercises.studentId, args.studentId),
+				eq(pendingExercises.sessionId, args.sessionId),
+				eq(pendingExercises.exerciseId, args.exerciseId),
+				eq(pendingExercises.consumed, false),
+			),
+		);
+
+	if (!pendingRow) {
+		throw new NotFoundError("pending exercise", args.exerciseId);
+	}
+
+	await assignExercise(ctx, {
+		studentId: args.studentId,
+		exerciseId: args.exerciseId,
+		sessionId: args.sessionId,
+	});
+
+	await ctx.db
+		.update(pendingExercises)
+		.set({ consumed: true })
+		.where(eq(pendingExercises.id, pendingRow.id));
+
+	const exerciseRow = await ctx.db.query.exercises.findFirst({
+		where: (e, { eq: eqFn }) => eqFn(e.id, args.exerciseId),
+	});
+
+	return {
+		sourcePassage: exerciseRow?.description ?? "",
+		targetSkill: pendingRow.focusDimension,
+		exercises: [
+			{
+				title: exerciseRow?.title ?? pendingRow.previewTitle,
+				instruction: exerciseRow?.instructions ?? "",
+				focusDimension: pendingRow.focusDimension,
+				exerciseId: args.exerciseId,
+			},
+		],
+	};
 }
