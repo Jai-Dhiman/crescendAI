@@ -73,3 +73,27 @@ export const studentExercises = pgTable(
 		index("idx_student_exercises").on(t.studentId, t.exerciseId),
 	],
 );
+
+export const pendingExercises = pgTable(
+	"pending_exercises",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		studentId: text("student_id").notNull(),
+		sessionId: uuid("session_id").notNull(),
+		exerciseId: uuid("exercise_id").notNull(),
+		focusDimension: text("focus_dimension").notNull(),
+		previewTitle: text("preview_title").notNull(),
+		consumed: boolean("consumed").notNull().default(false),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(t) => [
+		uniqueIndex("idx_pending_exercises_unique").on(
+			t.studentId,
+			t.sessionId,
+			t.exerciseId,
+		),
+		index("idx_pending_exercises_lookup").on(t.studentId, t.consumed),
+	],
+);
