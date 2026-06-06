@@ -4,6 +4,10 @@
 
 Multi-platform (iOS + web) practice companion for pianists.
 
+## Project Stage — PRE-BETA, local-first (see `docs/project-stage.md`)
+
+**Zero real users.** "Shipped to main" = a local merge, NOT a deploy. Production deploy (`just deploy-api`, web) is a deliberate, separate, manual step — do NOT deploy as part of normal feature work. Local dev runs against local Postgres `crescendai_dev` (Hyperdrive `localConnectionString` in `apps/api/wrangler.toml`); apply migrations locally with `DATABASE_URL="postgresql://jdhiman:postgres@localhost:5432/crescendai_dev" bun run migrate` (bare `bun run migrate` targets the hosted PlanetScale prod DB — only at deploy time). "Ready" = local green (tests + `wrangler dev` + manual click-through). Caveat: the eval harness measures the legacy `synthesize()` path, not the production V6 harness — eval numbers are a legacy proxy until the eval is made V6-aware.
+
 ## What CrescendAI Does
 
 - Evaluates *how* a piano performance sounds (tone, dynamics, phrasing, pedaling) -- not just note accuracy like MIDI-based apps
