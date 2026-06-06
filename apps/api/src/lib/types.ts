@@ -25,7 +25,6 @@ export interface Bindings {
 	MUQ_ENDPOINT: string;
 	AMT_ENDPOINT: string;
 	SESSION_BRAIN: DurableObjectNamespace;
-	HARNESS_V6_ENABLED: string;
 	ALLOW_EVAL_STUDENT_OVERRIDE: string;
 	EVAL_SHARED_SECRET: string;
 }

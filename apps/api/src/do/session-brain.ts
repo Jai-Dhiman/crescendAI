@@ -38,11 +38,7 @@ import type {
 	PastDiagnosisRecord,
 	SessionHistoryRecord,
 } from "../services/teacher";
-import {
-	type SynthesisInput,
-	synthesizeV6,
-	synthesize as teacherSynthesize,
-} from "../services/teacher";
+import { type SynthesisInput, synthesizeV6 } from "../services/teacher";
 import type { InlineComponent } from "../services/tool-processor";
 import type {
 	BarMapChroma,
@@ -1747,217 +1743,134 @@ export class SessionBrain extends DurableObject<Bindings> {
 
 		// teacher.synthesize() throws on failure — try/catch handles it
 		// synthesisCompleted stays true but DB needsSynthesis remains true, enabling deferred retry.
-		// Eval sessions bypass v6 (whose strict validation gates silently no-op on sparse accumulator
-		// state) and use the legacy teacher path — same path the locked ASCF baseline was measured on.
+		// V6 runs for ALL sessions, including eval replay. Its Phase 2 schema + validation-repair
+		// fixes (#28) make it emit valid artifacts on the sparse cold-start state typical of eval,
+		// so the locked baseline now measures the same path users hit (harness.md principle #16).
 		try {
-			if (this.env.HARNESS_V6_ENABLED === "true" && !state.isEvalSession) {
-				let artifact: SynthesisArtifact | null = null;
-				let validationError: string | null = null;
-				const phase1Results: Array<{ tool: string; output: unknown }> = [];
+			let artifact: SynthesisArtifact | null = null;
+			let validationError: string | null = null;
+			const phase1Results: Array<{ tool: string; output: unknown }> = [];
 
-				for await (const ev of synthesizeV6(
-					ctx,
-					synthInput,
+			for await (const ev of synthesizeV6(
+				ctx,
+				synthInput,
+				state.sessionId,
+				(p) => this.ctx.waitUntil(p),
+			)) {
+				if (ev.type === "artifact") {
+					artifact = ev.value;
+				} else if (ev.type === "validation_error") {
+					validationError = ev.zodError;
+				} else if (ev.type === "phase_error") {
+					console.error(
+						JSON.stringify({
+							level: "error",
+							message: "v6 phase_error",
+							phase: ev.phase,
+							error: ev.error,
+							sessionId: state.sessionId,
+						}),
+					);
+				} else if (ev.type === "phase1_tool_result" && ev.ok) {
+					phase1Results.push({ tool: ev.tool, output: ev.output });
+				}
+			}
+
+			// Persist diagnosis artifacts (non-fatal)
+			if (phase1Results.length > 0) {
+				await persistDiagnosisArtifacts(
+					db,
+					phase1Results,
 					state.sessionId,
-					(p) => this.ctx.waitUntil(p),
-				)) {
-					if (ev.type === "artifact") {
-						artifact = ev.value;
-					} else if (ev.type === "validation_error") {
-						validationError = ev.zodError;
-					} else if (ev.type === "phase_error") {
-						console.error(
-							JSON.stringify({
-								level: "error",
-								message: "v6 phase_error",
-								phase: ev.phase,
-								error: ev.error,
-								sessionId: state.sessionId,
-							}),
-						);
-					} else if (ev.type === "phase1_tool_result" && ev.ok) {
-						phase1Results.push({ tool: ev.tool, output: ev.output });
-					}
-				}
+					state.studentId,
+					state.pieceIdentification?.pieceId ?? null,
+				);
+			}
 
-				// Persist diagnosis artifacts (non-fatal)
-				if (phase1Results.length > 0) {
-					await persistDiagnosisArtifacts(
-						db,
-						phase1Results,
-						state.sessionId,
-						state.studentId,
-						state.pieceIdentification?.pieceId ?? null,
-					);
-				}
-
-				if (validationError !== null) {
-					console.error(
-						JSON.stringify({
-							level: "error",
-							message: "v6 validation_error",
-							error: validationError,
-							sessionId: state.sessionId,
-						}),
-					);
-					return; // leave needsSynthesis=true for retry
-				}
-
-				if (artifact === null) {
-					console.error(
-						JSON.stringify({
-							level: "error",
-							message: "v6 produced no artifact",
-							sessionId: state.sessionId,
-						}),
-					);
-					return;
-				}
-
-				const loopComponents = artifact.assigned_loops.map((ref) =>
-					toLoopComponent({
-						kind: "segment_loop",
-						id: ref.id,
-						studentId: state.studentId,
-						pieceId: ref.pieceId,
-						barsStart: ref.barsStart,
-						barsEnd: ref.barsEnd,
-						requiredCorrect: DEFAULT_LOOP_REQUIRED_CORRECT,
-						attemptsCompleted: 0,
-						status: "active",
-						dimension: null,
+			if (validationError !== null) {
+				console.error(
+					JSON.stringify({
+						level: "error",
+						message: "v6 validation_error",
+						error: validationError,
+						sessionId: state.sessionId,
 					}),
 				);
-				let pendingComponent: InlineComponent | null = null;
-				const proposedExercise = artifact.proposed_exercises[0];
-				if (proposedExercise !== undefined) {
-					try {
-						const staged = await stageDominantExercise(db, {
-							studentId: state.studentId,
-							sessionId: state.sessionId,
-							dominantDimension: artifact.dominant_dimension,
-							proposedExercise,
-							pieceMetadata: pieceCtx,
-						});
-						pendingComponent = buildPendingExerciseComponent(staged);
-					} catch (err) {
-						const error = err as Error;
-						console.log(
-							JSON.stringify({
-								level: "warn",
-								message:
-									"stageDominantExercise failed; synthesis delivered without pending component",
-								sessionId: state.sessionId,
-								error: error.message,
-							}),
-						);
-					}
-				}
-				const wsPayload = buildV6WsPayload(
-					artifact,
-					loopComponents,
-					pendingComponent,
+				return; // leave needsSynthesis=true for retry
+			}
+
+			if (artifact === null) {
+				console.error(
+					JSON.stringify({
+						level: "error",
+						message: "v6 produced no artifact",
+						sessionId: state.sessionId,
+					}),
 				);
-				const wsPayloadWithEval =
-					evalContext !== null
-						? { ...wsPayload, eval_context: evalContext }
-						: wsPayload;
-				const sockets = this.ctx.getWebSockets();
-				for (const sock of sockets) {
-					this.sendWs(sock, wsPayloadWithEval);
-				}
-
-				if (state.conversationId !== null) {
-					try {
-						await persistSynthesisMessage(
-							db,
-							state.conversationId,
-							wsPayload.text,
-							state.sessionId,
-							wsPayload.components.length > 0
-								? wsPayload.components
-								: undefined,
-						);
-						await persistAccumulatedMoments(
-							db,
-							state.studentId,
-							state.sessionId,
-							state.conversationId,
-							acc.teachingMoments,
-						);
-						await clearNeedsSynthesis(db, state.sessionId);
-					} catch (err) {
-						const error = err as Error;
-						console.error(
-							JSON.stringify({
-								level: "error",
-								message: "v6 synthesis DB persist failed",
-								sessionId: state.sessionId,
-								error: error.message,
-							}),
-						);
-					}
-				}
-
-				// Eval flywheel: sample ~5% of prod sessions into R2 eval queue.
-				// Skip eval sessions themselves to avoid self-feeding the queue.
-				if (!state.isEvalSession && Math.random() < 0.05) {
-					this.ctx.waitUntil(
-						this.env.CHUNKS.put(
-							`eval-queue/${state.sessionId}.json`,
-							JSON.stringify({
-								session_id: state.sessionId,
-								student_id: state.studentId,
-								piece_id: state.pieceIdentification?.pieceId ?? null,
-								synthesis_text: wsPayload.text,
-								top_moments: topMoments,
-								drilling_records: drillingRecords,
-								session_duration_ms: sessionDurationMs,
-								sampled_at: new Date().toISOString(),
-							}),
-							{ httpMetadata: { contentType: "application/json" } },
-						).catch((err: Error) => {
-							console.log(
-								JSON.stringify({
-									level: "warn",
-									message: "eval flywheel write failed",
-									sessionId: state.sessionId,
-									error: err.message,
-								}),
-							);
-						}),
-					);
-				}
-
 				return;
 			}
 
-			// Legacy path (HARNESS_V6_ENABLED !== "true"):
-			const result = await teacherSynthesize(ctx, synthInput);
-
-			// Send synthesis over WebSocket if connection still open
-			const components = result.toolResults.flatMap((r) => r.componentsJson);
+			const loopComponents = artifact.assigned_loops.map((ref) =>
+				toLoopComponent({
+					kind: "segment_loop",
+					id: ref.id,
+					studentId: state.studentId,
+					pieceId: ref.pieceId,
+					barsStart: ref.barsStart,
+					barsEnd: ref.barsEnd,
+					requiredCorrect: DEFAULT_LOOP_REQUIRED_CORRECT,
+					attemptsCompleted: 0,
+					status: "active",
+					dimension: null,
+				}),
+			);
+			let pendingComponent: InlineComponent | null = null;
+			const proposedExercise = artifact.proposed_exercises[0];
+			if (proposedExercise !== undefined) {
+				try {
+					const staged = await stageDominantExercise(db, {
+						studentId: state.studentId,
+						sessionId: state.sessionId,
+						dominantDimension: artifact.dominant_dimension,
+						proposedExercise,
+						pieceMetadata: pieceCtx,
+					});
+					pendingComponent = buildPendingExerciseComponent(staged);
+				} catch (err) {
+					const error = err as Error;
+					console.log(
+						JSON.stringify({
+							level: "warn",
+							message:
+								"stageDominantExercise failed; synthesis delivered without pending component",
+							sessionId: state.sessionId,
+							error: error.message,
+						}),
+					);
+				}
+			}
+			const wsPayload = buildV6WsPayload(
+				artifact,
+				loopComponents,
+				pendingComponent,
+			);
+			const wsPayloadWithEval =
+				evalContext !== null
+					? { ...wsPayload, eval_context: evalContext }
+					: wsPayload;
 			const sockets = this.ctx.getWebSockets();
 			for (const sock of sockets) {
-				const payload: Record<string, unknown> = {
-					type: "synthesis",
-					text: result.text,
-					components,
-					isFallback: false,
-				};
-				if (evalContext !== null) payload["eval_context"] = evalContext;
-				this.sendWs(sock, payload as Parameters<typeof this.sendWs>[1]);
+				this.sendWs(sock, wsPayloadWithEval);
 			}
 
-			// Persist to DB
 			if (state.conversationId !== null) {
 				try {
 					await persistSynthesisMessage(
 						db,
 						state.conversationId,
-						result.text,
+						wsPayload.text,
 						state.sessionId,
-						components.length > 0 ? components : undefined,
+						wsPayload.components.length > 0 ? wsPayload.components : undefined,
 					);
 					await persistAccumulatedMoments(
 						db,
@@ -1972,14 +1885,45 @@ export class SessionBrain extends DurableObject<Bindings> {
 					console.error(
 						JSON.stringify({
 							level: "error",
-							message: "synthesis DB persist failed",
+							message: "v6 synthesis DB persist failed",
 							sessionId: state.sessionId,
 							error: error.message,
 						}),
 					);
-					// Not fatal: accumulator_json persisted in finalizeSession as safety net
 				}
 			}
+
+			// Eval flywheel: sample ~5% of prod sessions into R2 eval queue.
+			// Skip eval sessions themselves to avoid self-feeding the queue.
+			if (!state.isEvalSession && Math.random() < 0.05) {
+				this.ctx.waitUntil(
+					this.env.CHUNKS.put(
+						`eval-queue/${state.sessionId}.json`,
+						JSON.stringify({
+							session_id: state.sessionId,
+							student_id: state.studentId,
+							piece_id: state.pieceIdentification?.pieceId ?? null,
+							synthesis_text: wsPayload.text,
+							top_moments: topMoments,
+							drilling_records: drillingRecords,
+							session_duration_ms: sessionDurationMs,
+							sampled_at: new Date().toISOString(),
+						}),
+						{ httpMetadata: { contentType: "application/json" } },
+					).catch((err: Error) => {
+						console.log(
+							JSON.stringify({
+								level: "warn",
+								message: "eval flywheel write failed",
+								sessionId: state.sessionId,
+								error: err.message,
+							}),
+						);
+					}),
+				);
+			}
+
+			return;
 		} catch (err) {
 			const error = err as Error;
 			console.error(
