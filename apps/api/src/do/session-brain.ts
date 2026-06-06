@@ -17,6 +17,10 @@ import {
 import { buildBarAnalysisFacts } from "../services/bar-analysis-facts";
 import { applyConfidenceGate } from "../services/confidence_gate";
 import { callAmtEndpoint, callMuqEndpoint } from "../services/inference";
+import {
+	buildPendingExerciseComponent,
+	stageDominantExercise,
+} from "../services/pending-exercise";
 import { type ChunkSignal, ModeDetector } from "../services/practice-mode";
 import {
 	findActiveForPiece,
@@ -1824,7 +1828,36 @@ export class SessionBrain extends DurableObject<Bindings> {
 						dimension: null,
 					}),
 				);
-				const wsPayload = buildV6WsPayload(artifact, loopComponents);
+				let pendingComponent: InlineComponent | null = null;
+				const proposedExercise = artifact.proposed_exercises[0];
+				if (proposedExercise !== undefined) {
+					try {
+						const staged = await stageDominantExercise(db, {
+							studentId: state.studentId,
+							sessionId: state.sessionId,
+							dominantDimension: artifact.dominant_dimension,
+							proposedExercise,
+							pieceMetadata: pieceCtx,
+						});
+						pendingComponent = buildPendingExerciseComponent(staged);
+					} catch (err) {
+						const error = err as Error;
+						console.log(
+							JSON.stringify({
+								level: "warn",
+								message:
+									"stageDominantExercise failed; synthesis delivered without pending component",
+								sessionId: state.sessionId,
+								error: error.message,
+							}),
+						);
+					}
+				}
+				const wsPayload = buildV6WsPayload(
+					artifact,
+					loopComponents,
+					pendingComponent,
+				);
 				const wsPayloadWithEval =
 					evalContext !== null
 						? { ...wsPayload, eval_context: evalContext }
