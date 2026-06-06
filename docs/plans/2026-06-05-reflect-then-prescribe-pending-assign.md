@@ -809,3 +809,40 @@ grep "CREATE TABLE \"pending_exercises\"" drizzle/*.sql
 
 Branch is shippable at this point. Open a PR with `Closes #<issue>` and request review
 before Plan D (web) merges.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+- **Premise (OBS):** Correct and necessary — the IDOR-guarded ownership link has no existing home; a dedicated `pending_exercises` table is the minimal honest solution (verified: no student↔exercise link exists pre-assignment).
+- **Scope (OBS):** Tight — 1 table, 1 service fn, 1 route, 3 vertical tasks. Ships independently (table+endpoint, no caller).
+- **Alternatives (OBS):** Spec documents the table-vs-sessions-column choice.
+
+### Engineering Pass
+- **[RISK] (confidence: 8/10) — Migration verification paths are wrong.** drizzle.config.ts uses `out: "./src/db/migrations"` (verified) and `schema: "./src/db/schema/index.ts"`. The plan's Step-2/Step-4 greps target `drizzle/*.sql` / `apps/api/drizzle/` — those dirs do not exist; migrations land in `src/db/migrations/`. The table DEF is correct and is auto-detected because `src/db/schema/index.ts` does `export * from "./exercises"` (verified). Build implementer MUST verify with `grep 'CREATE TABLE "pending_exercises"' src/db/migrations/*.sql`, not `drizzle/`.
+- **[RISK] (confidence: 7/10) — routes/exercises.test.ts must be REPLACED, not appended.** The existing file (verified, tabs, 3 tests, plain `new Hono().route(...)`, NO `onError`) differs from the plan's block which adds `.onError(errorHandler)` + a service-mock describe + `import * as exercisesService`. A literal append duplicates `import { Hono }` / `testApp` / describe. Implementer must overwrite the file with the new full version and use TAB indentation (biome).
+- **[RISK] (confidence: 6/10) — `vi.spyOn(exercisesService, "assignPendingExercise")` may not intercept the route's named import.** The existing 401 tests never reach the service (requireAuth throws first), so this mock pattern is unproven here. If the 200/404 tests hit the real service (with `db: {}`) they will 500. Fallback: switch to top-level `vi.mock("../services/exercises", ...)` (hoisted) if the spy does not intercept.
+- **[MINOR] — Dead spread** in `ExerciseSetPayload` `exercises[0]`: `...(dims.length === 1 && dims[0] ? {} : {})` is a no-op (both branches `{}`). Remove it; `hands` is not stored on `exercises` so it is correctly omitted.
+- **Architecture (OBS):** Service composes cleanly over existing `assignExercise` (verified signature `{studentId, exerciseId, sessionId?}`). Data flow: select unconsumed pending row → assignExercise → mark consumed → assemble payload from exercises + exerciseDimensions. Sound.
+- **Security (OBS):** IDOR guard verified correct — `studentId` from `c.var.studentId` (auth), never request body; foreign `exerciseId` → no matching row → `NotFoundError` → 404 (error-handler.ts verified). This is the #22 IDOR lesson applied correctly.
+- **Test Philosophy (OBS):** Service test mocks `ctx.db` (external boundary — OK) and asserts payload shape (behavior). `expect(ctx.db.update).toHaveBeenCalled()` is a weak implementation-detail assertion but acceptable as a secondary check. Route tests verify HTTP status mapping (200/404/401) — legitimate route-level behavior; mocking the separately-tested service at the route boundary is acceptable.
+- **Vertical Slice (OBS):** Task 1 (schema) / Task 2 (service) / Task 3 (route) — each one behavior + impl + commit. Task 1's "test" is the generate command (acceptable for a schema change; no behavior to TDD).
+
+### Presumption Inventory
+| Assumption | Verdict | Reason |
+|---|---|---|
+| NotFoundError→404, HTTPException→401 mapping | SAFE | Verified error-handler.ts |
+| `NotFoundError(entity, id)` 2-arg signature | SAFE | Verified lib/errors.ts:9 |
+| exercises.ts imports `eq, sql`; add `and`, `pendingExercises` | SAFE | Verified |
+| New table auto-detected by drizzle-kit | SAFE | index.ts re-exports exercises (verified) |
+| Migration output dir | RISKY | It is `src/db/migrations/`, not `drizzle/` — fix verify greps |
+| Existing route test structure | RISKY | File must be replaced (no onError today); use tabs |
+| vi.spyOn intercepts named service import | VALIDATE | Unproven in repo; vi.mock fallback documented |
+
+### Summary
+[BLOCKER] count: 0
+[RISK]    count: 3
+[QUESTION] count: 0
+
+VERDICT: PROCEED_WITH_CAUTION — (1) verify migration in `src/db/migrations/*.sql`, not `drizzle/`; (2) REPLACE routes/exercises.test.ts (don't append) with tabs; (3) if 200/404 route tests don't intercept via vi.spyOn, switch to vi.mock("../services/exercises"); (4) drop the dead spread in the payload.
