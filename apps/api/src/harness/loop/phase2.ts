@@ -38,6 +38,19 @@ async function callAnthropicMessage(
 	return (await res.json()) as AnthropicMessageResponse;
 }
 
+export function buildPhase2Prompt(
+  digest: Record<string, unknown>,
+  diagnoses: unknown[],
+  guardrail: string,
+): string {
+  return (
+    `Session digest:\n${JSON.stringify(digest, null, 2)}\n\n` +
+    `Collected diagnoses (${diagnoses.length}):\n${JSON.stringify(diagnoses, null, 2)}\n\n` +
+    guardrail +
+    `Write the SynthesisArtifact now using the write_synthesis_artifact tool.`
+  );
+}
+
 export async function* runPhase2(
 	ctx: PhaseContext,
 	binding: Phase2Binding,
@@ -57,11 +70,7 @@ export async function* runPhase2(
 			? `${FIRST_SESSION_GUARDRAIL}\n\n`
 			: "";
 
-	const userPrompt =
-		`Session digest:\n${JSON.stringify(ctx.digest, null, 2)}\n\n` +
-		`Collected diagnoses (${diagnoses.length}):\n${JSON.stringify(diagnoses, null, 2)}\n\n` +
-		guardrail +
-		`Write the SynthesisArtifact now using the ${binding.artifactToolName} tool.`;
+	const userPrompt = buildPhase2Prompt(ctx.digest, diagnoses, guardrail);
 
 	const client = routeModel("phase2_voice");
 	const response = await withRetries(() =>
