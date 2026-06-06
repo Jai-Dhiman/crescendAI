@@ -1,8 +1,8 @@
 # Plan A: Reflect-then-Prescribe — Phase-2 Prompt Extraction & Wording
 
 **Build-agent dispatch note:** This plan is consumed by `/build`. Each task runs in a fresh
-Sonnet 4.6 subagent inside an isolated git worktree branched from `issue-11-12-do-chunk-concurrency`.
-Tasks execute sequentially (Task 2 depends on Task 1 code). Do not parallelize.
+Sonnet 4.6 subagent inside an isolated git worktree branched from `main` (base branch
+`issue-27-reflect-then-prescribe`). Tasks execute sequentially (Task 2 depends on Task 1 code). Do not parallelize.
 
 **Goal:** Extract the inline Phase-2 user-prompt assembly in `phase2.ts` into a pure exported
 function `buildPhase2Prompt`, then update the wording so the artifact's `headline` is instructed
@@ -301,3 +301,40 @@ EOF
 Manual verification (required, after web plan ships): run `wrangler dev` with
 `HARNESS_V6_ENABLED=true`, complete a session, and confirm the synthesis headline reads as a
 light reflection ending in a directional question about the session's dominant dimension.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+- **Premise (OBS):** Correct target. `phase2.ts` is the single LLM-facing surface that produces the V6 `headline`; changing its prompt is the most direct route to a reflection+question close. No simpler framing exists given production runs V6.
+- **Scope (OBS):** Minimal and well-bounded — 1 file, 1 extracted pure function, 2 vertical tasks. No over-reach.
+- **12-Month (OBS):** Aligns — V6 is the production path. Only minor latent debt (see RISK on tool-name parameterization).
+- **Alternatives (OBS):** The V6-vs-legacy decision is documented in the spec; no missing rationale.
+
+### Engineering Pass
+- **Architecture (OBS):** Extraction matches the real `runPhase2` structure (phase2.ts:60-64). Verified the inline `userPrompt` is exactly digest + diagnoses + guardrail + tool-line.
+- **[RISK] (confidence: 7/10)** — Dispatch note originally named base branch `issue-11-12-do-chunk-concurrency` (the already-merged DO work). Corrected to base on `main` / `issue-27-reflect-then-prescribe`. Watch during `/build`: the worktree MUST branch from current `main` (which contains these plans + merged DO + piece-id work), not a stale branch.
+- **[RISK] (confidence: 5/10)** — The extracted `buildPhase2Prompt` hard-codes `"write_synthesis_artifact"` in the final line, whereas the current inline code uses `binding.artifactToolName`. Byte-identical today (the only Phase-2 binding uses that exact name — verified compound-registry.ts:21), so the Task-1 "pure refactor" claim holds in practice. Latent risk only: a future second Phase-2 binding with a different tool name would get the wrong tool named in the prompt. Optional hardening: pass the tool name as a 4th param. Verify this is actually worth fixing before acting.
+- **Module Depth:** `buildPhase2Prompt` — interface: 1 function `(digest, diagnoses, guardrail) => string`; implementation: pure template assembly (~20 LOC). Verdict: SHALLOW but acceptable — it exists as the testable seam for an otherwise-untestable LLM prompt, not to hide complexity.
+- **Test Philosophy (OBS):** Tests exercise the exported pure function's string output — behavior through a public interface, no internal mocking. Borderline "substring shape" assertions, but for a prompt-builder the substring IS the behavior. The end-to-end "headline reads as reflection+question" is inherently LLM-dependent and correctly deferred to manual verification.
+- **Vertical Slice (OBS):** Task 1 = extract + lock invariants (one behavior, one impl, one commit). Task 2 = add instructions + assert (one behavior, one impl, one commit). No horizontal slicing; Task 1's 5 assertions all probe the single "preserves current text" behavior, not future tasks.
+- **Test Coverage (OBS):** happy path + guardrail-empty branch covered. Verified no existing harness/loop test asserts the exact `userPrompt` string, so the Task-2 wording change will not regress `runHook`/`phase2` integration tests.
+- **Failure Modes (OBS):** pure function, no I/O, no failure path.
+
+### Presumption Inventory
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `phase2.test.ts` exists to append to | SAFE | Verified (3.7K file present) |
+| `harness/loop/**/*.test.ts` runs under node vitest config | SAFE | Verified vitest.node.config.ts:11 |
+| No existing test asserts the exact prompt string | SAFE | Verified — `content:` hits are mock responses, not request assertions |
+| `artifactToolName === "write_synthesis_artifact"` | SAFE | Verified compound-registry.ts:21 |
+| Pure-refactor extraction is byte-identical | SAFE | Holds while the only Phase-2 binding uses that tool name |
+| Build base branch | RISKY→fixed | Stale `issue-11-12` ref corrected to `main` |
+
+### Summary
+[BLOCKER] count: 0
+[RISK]    count: 2
+[QUESTION] count: 0
+
+VERDICT: PROCEED_WITH_CAUTION — (1) ensure `/build` branches the worktree from current `main`, not a stale branch; (2) optional: parameterize the artifact tool name in `buildPhase2Prompt` rather than hard-coding it.
