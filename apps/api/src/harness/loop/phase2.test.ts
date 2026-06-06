@@ -1,11 +1,11 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import type { CompoundBinding, PhaseContext, HookEvent } from "./types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Bindings } from "../../lib/types";
 import {
-	SynthesisArtifactSchema,
 	type SynthesisArtifact,
+	SynthesisArtifactSchema,
 } from "../artifacts/synthesis";
-import { runPhase2, buildPhase2Prompt } from "./phase2";
+import { buildPhase2Prompt, runPhase2 } from "./phase2";
+import type { CompoundBinding, HookEvent, PhaseContext } from "./types";
 
 const MOCK_BINDINGS = {
 	AI_GATEWAY_TEACHER: "https://gw.example",
@@ -146,33 +146,62 @@ describe("runPhase2 validation failure", () => {
 	});
 });
 
+describe("buildPhase2Prompt — reflection+prescribe instructions", () => {
+	const digest = { dominant_dimension: "dynamics", duration_minutes: 30 };
+	const diagnoses = [{ id: "d1" }];
+
+	it("instructs headline to be 2-4 sentences ending in one directional question", () => {
+		const prompt = buildPhase2Prompt(digest, diagnoses, "");
+		expect(prompt).toContain("2-4 sentences");
+		expect(prompt).toContain("directional question");
+		expect(prompt).toContain("dominant_dimension");
+	});
+
+	it("instructs proposed_exercises[0] to target dominant_dimension", () => {
+		const prompt = buildPhase2Prompt(digest, diagnoses, "");
+		expect(prompt).toContain("proposed_exercises[0]");
+		expect(prompt).toContain("target the dominant_dimension");
+	});
+
+	it("still passes all Task 1 invariants after the new instructions", () => {
+		const guardrail =
+			"This is the student's first session -- describe only what happened within this session; do not reference past sessions or claim improvement over time.";
+		const prompt = buildPhase2Prompt(digest, diagnoses, guardrail);
+		expect(prompt).toContain(JSON.stringify(digest, null, 2));
+		expect(prompt).toContain(`(${diagnoses.length})`);
+		expect(prompt).toContain(guardrail);
+		expect(prompt).toContain("write_synthesis_artifact");
+	});
+});
+
 describe("buildPhase2Prompt — current text invariants", () => {
-  const digest = { dominant_dimension: "phrasing", duration_minutes: 20 };
-  const diagnoses = [{ id: "d1" }, { id: "d2" }];
-  const guardrail = "This is the student's first session -- describe only what happened within this session; do not reference past sessions or claim improvement over time.";
+	const digest = { dominant_dimension: "phrasing", duration_minutes: 20 };
+	const diagnoses = [{ id: "d1" }, { id: "d2" }];
+	const guardrail =
+		"This is the student's first session -- describe only what happened within this session; do not reference past sessions or claim improvement over time.";
 
-  it("contains the digest JSON", () => {
-    const prompt = buildPhase2Prompt(digest, diagnoses, guardrail);
-    expect(prompt).toContain(JSON.stringify(digest, null, 2));
-  });
+	it("contains the digest JSON", () => {
+		const prompt = buildPhase2Prompt(digest, diagnoses, guardrail);
+		expect(prompt).toContain(JSON.stringify(digest, null, 2));
+	});
 
-  it("contains the diagnoses count", () => {
-    const prompt = buildPhase2Prompt(digest, diagnoses, guardrail);
-    expect(prompt).toContain(`(${diagnoses.length})`);
-  });
+	it("contains the diagnoses count", () => {
+		const prompt = buildPhase2Prompt(digest, diagnoses, guardrail);
+		expect(prompt).toContain(`(${diagnoses.length})`);
+	});
 
-  it("contains the guardrail when provided", () => {
-    const prompt = buildPhase2Prompt(digest, diagnoses, guardrail);
-    expect(prompt).toContain(guardrail);
-  });
+	it("contains the guardrail when provided", () => {
+		const prompt = buildPhase2Prompt(digest, diagnoses, guardrail);
+		expect(prompt).toContain(guardrail);
+	});
 
-  it("omits the guardrail when empty string", () => {
-    const prompt = buildPhase2Prompt(digest, diagnoses, "");
-    expect(prompt).not.toContain("first session");
-  });
+	it("omits the guardrail when empty string", () => {
+		const prompt = buildPhase2Prompt(digest, diagnoses, "");
+		expect(prompt).not.toContain("first session");
+	});
 
-  it("contains the write_synthesis_artifact tool name", () => {
-    const prompt = buildPhase2Prompt(digest, diagnoses, guardrail);
-    expect(prompt).toContain("write_synthesis_artifact");
-  });
+	it("contains the write_synthesis_artifact tool name", () => {
+		const prompt = buildPhase2Prompt(digest, diagnoses, guardrail);
+		expect(prompt).toContain("write_synthesis_artifact");
+	});
 });

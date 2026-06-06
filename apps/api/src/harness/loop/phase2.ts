@@ -3,7 +3,7 @@ import { InferenceError } from "../../lib/errors";
 import { FIRST_SESSION_GUARDRAIL } from "../../services/prompts";
 import { withRetries } from "./middleware";
 import { routeModel } from "./route-model";
-import type { Phase2Binding, HookEvent, PhaseContext } from "./types";
+import type { HookEvent, Phase2Binding, PhaseContext } from "./types";
 
 interface AnthropicMessageResponse {
 	content: Array<
@@ -39,16 +39,28 @@ async function callAnthropicMessage(
 }
 
 export function buildPhase2Prompt(
-  digest: Record<string, unknown>,
-  diagnoses: unknown[],
-  guardrail: string,
+	digest: Record<string, unknown>,
+	diagnoses: unknown[],
+	guardrail: string,
 ): string {
-  return (
-    `Session digest:\n${JSON.stringify(digest, null, 2)}\n\n` +
-    `Collected diagnoses (${diagnoses.length}):\n${JSON.stringify(diagnoses, null, 2)}\n\n` +
-    guardrail +
-    `Write the SynthesisArtifact now using the write_synthesis_artifact tool.`
-  );
+	const reflectionInstruction =
+		"Headline instructions: write a light reflection in 2-4 sentences about what happened " +
+		"in this session, ending in exactly one directional question about the dominant_dimension " +
+		"(e.g. 'Want a drill targeting that?'). The headline must be 300-500 characters total. " +
+		"Do not list all dimensions; focus on the one area that matters most.\n\n";
+
+	const exerciseInstruction =
+		"Exercise instructions: if proposed_exercises is non-empty, proposed_exercises[0] must " +
+		"target the dominant_dimension so that the pre-staged exercise aligns with the question.\n\n";
+
+	return (
+		`Session digest:\n${JSON.stringify(digest, null, 2)}\n\n` +
+		`Collected diagnoses (${diagnoses.length}):\n${JSON.stringify(diagnoses, null, 2)}\n\n` +
+		guardrail +
+		reflectionInstruction +
+		exerciseInstruction +
+		`Write the SynthesisArtifact now using the write_synthesis_artifact tool.`
+	);
 }
 
 export async function* runPhase2(
