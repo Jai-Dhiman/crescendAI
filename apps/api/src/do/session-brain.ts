@@ -1,35 +1,45 @@
 import { DurableObject } from "cloudflare:workers";
 import { eq, sql } from "drizzle-orm";
 import { createDb } from "../db/client";
-import { sessions } from "../db/schema/sessions";
-import { diagnosisArtifacts } from "../db/schema/diagnosis-artifacts";
 import { messages } from "../db/schema/conversations";
-import { persistDiagnosisArtifacts } from "../services/synthesis";
-import type { SessionHistoryRecord, PastDiagnosisRecord } from "../services/teacher";
+import { diagnosisArtifacts } from "../db/schema/diagnosis-artifacts";
+import { sessions } from "../db/schema/sessions";
+import type { SegmentLoopArtifact } from "../harness/artifacts/segment-loop";
+import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
 import type { Dimension } from "../lib/dims";
 import { DIMS_6 } from "../lib/dims";
+import { ValidationError } from "../lib/errors";
 import type { Bindings, ServiceContext } from "../lib/types";
-import { SessionAccumulator, type AccumulatedMoment } from "../services/accumulator";
+import {
+	type AccumulatedMoment,
+	SessionAccumulator,
+} from "../services/accumulator";
+import { buildBarAnalysisFacts } from "../services/bar-analysis-facts";
 import { applyConfidenceGate } from "../services/confidence_gate";
 import { callAmtEndpoint, callMuqEndpoint } from "../services/inference";
 import { type ChunkSignal, ModeDetector } from "../services/practice-mode";
 import {
+	findActiveForPiece,
+	incrementAttempts,
+	toLoopComponent,
+} from "../services/segment-loops";
+import {
 	clearNeedsSynthesis,
 	loadBaselinesFromDb,
 	persistAccumulatedMoments,
+	persistDiagnosisArtifacts,
 	persistSynthesisMessage,
 } from "../services/synthesis";
-import type { InlineComponent } from "../services/tool-processor";
-import { toLoopComponent, findActiveForPiece, incrementAttempts } from "../services/segment-loops";
-import { ValidationError } from "../lib/errors";
-import { PassageLoopDetector } from "./passage-loop-detector";
+import type {
+	PastDiagnosisRecord,
+	SessionHistoryRecord,
+} from "../services/teacher";
 import {
 	type SynthesisInput,
-	synthesize as teacherSynthesize,
 	synthesizeV6,
+	synthesize as teacherSynthesize,
 } from "../services/teacher";
-import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
-import type { SegmentLoopArtifact } from "../harness/artifacts/segment-loop";
+import type { InlineComponent } from "../services/tool-processor";
 import type {
 	BarMapChroma,
 	ChunkAnalysis,
@@ -44,7 +54,7 @@ import type {
 } from "../services/wasm-bridge";
 // WASM bridge — imported at top level (bridge handles missing pkg gracefully)
 import * as wasm from "../services/wasm-bridge";
-import { buildBarAnalysisFacts } from "../services/bar-analysis-facts";
+import { PassageLoopDetector } from "./passage-loop-detector";
 import {
 	createInitialState,
 	type SessionState,
@@ -59,6 +69,7 @@ import {
 export function buildV6WsPayload(
 	artifact: SynthesisArtifact,
 	loopComponents?: InlineComponent[],
+	pendingComponent?: InlineComponent | null,
 ): {
 	type: "synthesis";
 	text: string;
@@ -68,7 +79,10 @@ export function buildV6WsPayload(
 	return {
 		type: "synthesis",
 		text: artifact.headline,
-		components: loopComponents ?? [],
+		components: [
+			...(loopComponents ?? []),
+			...(pendingComponent ? [pendingComponent] : []),
+		],
 		isFallback: false,
 	};
 }
@@ -271,12 +285,16 @@ export class SessionBrain extends DurableObject<Bindings> {
 				});
 			}
 
-			const enrichedMap = await this.ctx.storage.list<EnrichedChunk>({ prefix: "chunk_enriched:" });
+			const enrichedMap = await this.ctx.storage.list<EnrichedChunk>({
+				prefix: "chunk_enriched:",
+			});
 			const enrichedChunks = Array.from(enrichedMap.values()).sort(
 				(a, b) => a.chunkIndex - b.chunkIndex,
 			);
 
-			const { buildPassageManifest } = await import("../services/passage-manifest");
+			const { buildPassageManifest } = await import(
+				"../services/passage-manifest"
+			);
 			const baseUrl = `https://${request.headers.get("host") ?? "api.crescend.ai"}`;
 			const result = buildPassageManifest({
 				enrichedChunks,
@@ -440,7 +458,13 @@ export class SessionBrain extends DurableObject<Bindings> {
 				await this.handleChunkReady(ws, msg.index, msg.r2Key);
 				break;
 			case "eval_chunk":
-				await this.handleEvalChunk(ws, msg.chunk_index, msg.predictions, msg.midi_notes, msg.pedal_events);
+				await this.handleEvalChunk(
+					ws,
+					msg.chunk_index,
+					msg.predictions,
+					msg.midi_notes,
+					msg.pedal_events,
+				);
 				break;
 			case "end_session":
 				await this.handleEndSession();
@@ -653,7 +677,13 @@ export class SessionBrain extends DurableObject<Bindings> {
 			return;
 		}
 
-		const { scores: muqScores, confidences: muqConfidences, chromaBytes, chromaFrames, chromaFrameRateHz } = muqResult.value;
+		const {
+			scores: muqScores,
+			confidences: muqConfidences,
+			chromaBytes,
+			chromaFrames,
+			chromaFrameRateHz,
+		} = muqResult.value;
 		const scoresArray: [number, number, number, number, number, number] = [
 			muqScores.dynamics,
 			muqScores.timing,
@@ -704,7 +734,8 @@ export class SessionBrain extends DurableObject<Bindings> {
 		let chunkAnalysisTier = 3;
 		let chunkBarRange: [number, number] | null = null;
 		let chunkAnalysis: ChunkAnalysis | null = null;
-		let barMapAlignments: import("../services/wasm-bridge").NoteAlignment[] = [];
+		const barMapAlignments: import("../services/wasm-bridge").NoteAlignment[] =
+			[];
 
 		if (perfNotes.length > 0) {
 			try {
@@ -749,7 +780,11 @@ export class SessionBrain extends DurableObject<Bindings> {
 					// Only invoke when chroma alignment failed; if chroma succeeded, tier is already
 					// promoted to 1 and bar_range is already set from chromaResult.
 					if (chromaResult === null) {
-						const analysis2 = wasm.analyzeTier2(perfNotes, perfPedal, scoresArray);
+						const analysis2 = wasm.analyzeTier2(
+							perfNotes,
+							perfPedal,
+							scoresArray,
+						);
 						chunkAnalysis = analysis2;
 						chunkAnalysisTier = analysis2.tier;
 						const barStr = analysis2.bar_range;
@@ -816,12 +851,17 @@ export class SessionBrain extends DurableObject<Bindings> {
 					? PassageLoopDetector.fromJSON(currentState.passageLoopDetector)
 					: new PassageLoopDetector();
 			const attempt = detector.processPosition(
-				{ startBar: chunkBarRange[0], endBar: chunkBarRange[1], durationMs: 15000 },
+				{
+					startBar: chunkBarRange[0],
+					endBar: chunkBarRange[1],
+					durationMs: 15000,
+				},
 				{
 					kind: "segment_loop",
 					...currentState.activeAssignment,
 					// dimension stored as string | null in schema; validated as DIMS_6 on write
-					dimension: currentState.activeAssignment.dimension as SegmentLoopArtifact["dimension"],
+					dimension: currentState.activeAssignment
+						.dimension as SegmentLoopArtifact["dimension"],
 					studentId: currentState.studentId,
 					status: "active",
 				},
@@ -852,7 +892,8 @@ export class SessionBrain extends DurableObject<Bindings> {
 							JSON.stringify({
 								level: "warn",
 								fn: "handleChunkReady",
-								message: "incrementAttempts rejected — assignment already completed",
+								message:
+									"incrementAttempts rejected — assignment already completed",
 								assignmentId,
 								error: (err as Error).message,
 							}),
@@ -1208,7 +1249,8 @@ export class SessionBrain extends DurableObject<Bindings> {
 		let chunkAnalysisTier = 3;
 		let chunkBarRange: [number, number] | null = null;
 		let chunkAnalysis: ChunkAnalysis | null = null;
-		let barMapAlignments: import("../services/wasm-bridge").NoteAlignment[] = [];
+		const barMapAlignments: import("../services/wasm-bridge").NoteAlignment[] =
+			[];
 
 		if (perfNotes.length > 0) {
 			try {
@@ -1218,13 +1260,21 @@ export class SessionBrain extends DurableObject<Bindings> {
 
 				if (scoreCtx !== null) {
 					// Chroma DTW alignment — no real audio in eval path; falls through to Tier 2.
-					const analysis2 = wasm.analyzeTier2(perfNotes, perfPedal, scoresArray);
+					const analysis2 = wasm.analyzeTier2(
+						perfNotes,
+						perfPedal,
+						scoresArray,
+					);
 					chunkAnalysis = analysis2;
 					chunkAnalysisTier = analysis2.tier;
 					const barStr = analysis2.bar_range;
 					if (barStr !== null) {
 						const parts = barStr.split("-").map(Number);
-						if (parts.length === 2 && parts[0] !== undefined && parts[1] !== undefined) {
+						if (
+							parts.length === 2 &&
+							parts[0] !== undefined &&
+							parts[1] !== undefined
+						) {
 							chunkBarRange = [parts[0], parts[1]];
 						}
 					}
@@ -1235,7 +1285,11 @@ export class SessionBrain extends DurableObject<Bindings> {
 					const barStr = analysis.bar_range;
 					if (barStr !== null) {
 						const parts = barStr.split("-").map(Number);
-						if (parts.length === 2 && parts[0] !== undefined && parts[1] !== undefined) {
+						if (
+							parts.length === 2 &&
+							parts[0] !== undefined &&
+							parts[1] !== undefined
+						) {
 							chunkBarRange = [parts[0], parts[1]];
 						}
 					}
@@ -1247,7 +1301,14 @@ export class SessionBrain extends DurableObject<Bindings> {
 
 		// Store enriched chunk
 		try {
-			const enriched = toEnrichedChunk(index, scoresArray as unknown as number[], perfNotes, perfPedal, barMapAlignments, chunkBarRange);
+			const enriched = toEnrichedChunk(
+				index,
+				scoresArray as unknown as number[],
+				perfNotes,
+				perfPedal,
+				barMapAlignments,
+				chunkBarRange,
+			);
 			await this.ctx.storage.put(`chunk_enriched:${index}`, enriched);
 		} catch {
 			// Non-fatal
@@ -1260,7 +1321,12 @@ export class SessionBrain extends DurableObject<Bindings> {
 				const loaded = await loadBaselinesFromDb(db, state.studentId);
 				state.baselines =
 					loaded !== null
-						? (Object.fromEntries(DIMS_6.map((d) => [d, (loaded as Record<string, number>)[d] ?? 0])) as Record<string, number>)
+						? (Object.fromEntries(
+								DIMS_6.map((d) => [
+									d,
+									(loaded as Record<string, number>)[d] ?? 0,
+								]),
+							) as Record<string, number>)
 						: null;
 				state.baselinesLoaded = true;
 			} catch {
@@ -1271,7 +1337,9 @@ export class SessionBrain extends DurableObject<Bindings> {
 		// Update ModeDetector
 		const acc = SessionAccumulator.fromJSON(state.accumulator);
 		const modeDetector =
-			state.modeDetector !== null ? ModeDetector.fromJSON(state.modeDetector) : new ModeDetector();
+			state.modeDetector !== null
+				? ModeDetector.fromJSON(state.modeDetector)
+				: new ModeDetector();
 
 		const pitchBigrams = new Set<string>();
 		for (let i = 0; i < perfNotes.length - 1; i++) {
@@ -1334,17 +1402,23 @@ export class SessionBrain extends DurableObject<Bindings> {
 
 		// Teaching moment selection (every TEACHING_MOMENT_INTERVAL chunks)
 		const chunkCount = state.scoredChunks.length;
-		const shouldAttemptMoment = chunkCount >= 2 && chunkCount % TEACHING_MOMENT_INTERVAL === 0;
+		const shouldAttemptMoment =
+			chunkCount >= 2 && chunkCount % TEACHING_MOMENT_INTERVAL === 0;
 
 		if (shouldAttemptMoment && state.baselines !== null) {
 			try {
 				const baselines: StudentBaselines = {
-					dynamics: (state.baselines as Record<string, number>)["dynamics"] ?? 0,
+					dynamics:
+						(state.baselines as Record<string, number>)["dynamics"] ?? 0,
 					timing: (state.baselines as Record<string, number>)["timing"] ?? 0,
-					pedaling: (state.baselines as Record<string, number>)["pedaling"] ?? 0,
-					articulation: (state.baselines as Record<string, number>)["articulation"] ?? 0,
-					phrasing: (state.baselines as Record<string, number>)["phrasing"] ?? 0,
-					interpretation: (state.baselines as Record<string, number>)["interpretation"] ?? 0,
+					pedaling:
+						(state.baselines as Record<string, number>)["pedaling"] ?? 0,
+					articulation:
+						(state.baselines as Record<string, number>)["articulation"] ?? 0,
+					phrasing:
+						(state.baselines as Record<string, number>)["phrasing"] ?? 0,
+					interpretation:
+						(state.baselines as Record<string, number>)["interpretation"] ?? 0,
 				};
 
 				const wasmChunks: ScoredChunk[] = state.scoredChunks.map((c) => ({
@@ -1352,8 +1426,14 @@ export class SessionBrain extends DurableObject<Bindings> {
 					scores: c.scores as [number, number, number, number, number, number],
 				}));
 
-				const recentObs = acc.teachingMoments.slice(-3).map((m) => ({ dimension: m.dimension }));
-				const moment = wasm.selectTeachingMoment(wasmChunks, baselines, recentObs);
+				const recentObs = acc.teachingMoments
+					.slice(-3)
+					.map((m) => ({ dimension: m.dimension }));
+				const moment = wasm.selectTeachingMoment(
+					wasmChunks,
+					baselines,
+					recentObs,
+				);
 
 				if (moment !== null) {
 					const momentDim = moment.dimension as Dimension;
@@ -1457,15 +1537,22 @@ export class SessionBrain extends DurableObject<Bindings> {
 		// values are bare score arrays. Duration and the cold-start branch both read
 		// this list so they do not silently no-op when state.scoredChunks is empty.
 		let effectiveScoredChunks: { chunkIndex: number; scores: number[] }[] =
-			state.scoredChunks.map((c) => ({ chunkIndex: c.chunkIndex, scores: c.scores }));
+			state.scoredChunks.map((c) => ({
+				chunkIndex: c.chunkIndex,
+				scores: c.scores,
+			}));
 		if (state.isEvalSession && effectiveScoredChunks.length === 0) {
-			const evalScoreMap = await this.ctx.storage.list<number[]>({ prefix: "eval_score:" });
+			const evalScoreMap = await this.ctx.storage.list<number[]>({
+				prefix: "eval_score:",
+			});
 			effectiveScoredChunks = Array.from(evalScoreMap.entries())
 				.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
 				.map(([, scores], i) => ({ chunkIndex: i, scores }));
 		}
 
-		const sessionDurationMs = computeSessionDurationMs(effectiveScoredChunks.length);
+		const sessionDurationMs = computeSessionDurationMs(
+			effectiveScoredChunks.length,
+		);
 
 		// Cold-start: a student with no stored baselines never accumulated live
 		// teaching moments (the live gate requires baselines !== null). Build
@@ -1476,7 +1563,10 @@ export class SessionBrain extends DurableObject<Bindings> {
 		if (state.baselines === null) {
 			referenceMode = "within_session";
 			try {
-				const coldStartMoments = buildColdStartMoments(effectiveScoredChunks, 6);
+				const coldStartMoments = buildColdStartMoments(
+					effectiveScoredChunks,
+					6,
+				);
 				for (const m of coldStartMoments) {
 					acc.accumulateMoment(m);
 				}
@@ -1545,18 +1635,26 @@ export class SessionBrain extends DurableObject<Bindings> {
 
 		// Bulk-read enriched chunks from DO storage
 		const enrichedChunkCount = state.scoredChunks.length;
-		const enrichedKeys = Array.from({ length: enrichedChunkCount }, (_, i) => `chunk_enriched:${i}`);
+		const enrichedKeys = Array.from(
+			{ length: enrichedChunkCount },
+			(_, i) => `chunk_enriched:${i}`,
+		);
 		let enrichedChunks: EnrichedChunk[] = [];
 		if (enrichedKeys.length > 0) {
 			try {
-				const enrichedMap = await this.ctx.storage.get<EnrichedChunk>(enrichedKeys);
+				const enrichedMap =
+					await this.ctx.storage.get<EnrichedChunk>(enrichedKeys);
 				enrichedChunks = enrichedKeys
 					.map((k) => enrichedMap.get(k))
 					.filter((v): v is EnrichedChunk => v !== undefined);
 			} catch (err) {
 				const error = err as Error;
 				console.log(
-					JSON.stringify({ level: "warn", message: "enriched chunk bulk read failed", error: error.message }),
+					JSON.stringify({
+						level: "warn",
+						message: "enriched chunk bulk read failed",
+						error: error.message,
+					}),
 				);
 			}
 		}
@@ -1574,8 +1672,13 @@ export class SessionBrain extends DurableObject<Bindings> {
 					synthesis: messages.content,
 				})
 				.from(sessions)
-				.leftJoin(messages, sql`${messages.sessionId} = ${sessions.id} AND ${messages.messageType} = 'synthesis'`)
-				.where(sql`${sessions.studentId} = ${state.studentId} AND ${sessions.id} != ${state.sessionId}`)
+				.leftJoin(
+					messages,
+					sql`${messages.sessionId} = ${sessions.id} AND ${messages.messageType} = 'synthesis'`,
+				)
+				.where(
+					sql`${sessions.studentId} = ${state.studentId} AND ${sessions.id} != ${state.sessionId}`,
+				)
 				.orderBy(sql`${sessions.startedAt} DESC`)
 				.limit(5);
 			sessionHistory = historyRows.map((r) => ({
@@ -1585,7 +1688,13 @@ export class SessionBrain extends DurableObject<Bindings> {
 			}));
 		} catch (err) {
 			const error = err as Error;
-			console.log(JSON.stringify({ level: "warn", message: "session history query failed", error: error.message }));
+			console.log(
+				JSON.stringify({
+					level: "warn",
+					message: "session history query failed",
+					error: error.message,
+				}),
+			);
 		}
 
 		// Query past diagnoses (last 20 for this student)
@@ -1607,7 +1716,13 @@ export class SessionBrain extends DurableObject<Bindings> {
 			}));
 		} catch (err) {
 			const error = err as Error;
-			console.log(JSON.stringify({ level: "warn", message: "past diagnoses query failed", error: error.message }));
+			console.log(
+				JSON.stringify({
+					level: "warn",
+					message: "past diagnoses query failed",
+					error: error.message,
+				}),
+			);
 		}
 
 		const synthInput: SynthesisInput = {
@@ -1711,7 +1826,9 @@ export class SessionBrain extends DurableObject<Bindings> {
 				);
 				const wsPayload = buildV6WsPayload(artifact, loopComponents);
 				const wsPayloadWithEval =
-					evalContext !== null ? { ...wsPayload, eval_context: evalContext } : wsPayload;
+					evalContext !== null
+						? { ...wsPayload, eval_context: evalContext }
+						: wsPayload;
 				const sockets = this.ctx.getWebSockets();
 				for (const sock of sockets) {
 					this.sendWs(sock, wsPayloadWithEval);
@@ -1947,13 +2064,20 @@ export class SessionBrain extends DurableObject<Bindings> {
 		// Delete enriched chunk storage keys
 		const enrichedKeyCount = latestState.scoredChunks.length;
 		if (enrichedKeyCount > 0) {
-			const keysToDelete = Array.from({ length: enrichedKeyCount }, (_, i) => `chunk_enriched:${i}`);
+			const keysToDelete = Array.from(
+				{ length: enrichedKeyCount },
+				(_, i) => `chunk_enriched:${i}`,
+			);
 			try {
 				await this.ctx.storage.delete(keysToDelete);
 			} catch (err) {
 				const error = err as Error;
 				console.log(
-					JSON.stringify({ level: "warn", message: "enriched chunk cleanup failed", error: error.message }),
+					JSON.stringify({
+						level: "warn",
+						message: "enriched chunk cleanup failed",
+						error: error.message,
+					}),
 				);
 			}
 		}

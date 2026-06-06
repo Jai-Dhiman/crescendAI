@@ -1,11 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { buildV6WsPayload, computeSessionDurationMs, buildColdStartMoments } from "./session-brain";
 import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
-import { parseMuqResponse } from "../services/inference";
-import { wsOutgoingMessageSchema } from "./session-brain.schema";
-import { SessionAccumulator, type AccumulatedMoment } from "../services/accumulator";
+import {
+	type AccumulatedMoment,
+	SessionAccumulator,
+} from "../services/accumulator";
 import { buildBarAnalysisFacts } from "../services/bar-analysis-facts";
+import { parseMuqResponse } from "../services/inference";
+import {
+	buildPendingExerciseComponent,
+	type PendingExercise,
+} from "../services/pending-exercise";
 import type { ChunkAnalysis } from "../services/wasm-bridge";
+import {
+	buildColdStartMoments,
+	buildV6WsPayload,
+	computeSessionDurationMs,
+} from "./session-brain";
+import { wsOutgoingMessageSchema } from "./session-brain.schema";
 
 const HEADLINE =
 	"You showed up and put in real work today. The session was short but focused, and we'll keep building from here. There is plenty to dig into next time, and I'll be ready when you are. Keep listening for the shape of each phrase as you play. " +
@@ -63,6 +74,57 @@ describe("buildV6WsPayload", () => {
 		expect(payload.components).toHaveLength(1);
 		expect(payload.components[0]?.type).toBe("segment_loop");
 	});
+
+	it("includes pendingComponent in components when provided", () => {
+		const staged: PendingExercise = {
+			exerciseId: "ex-staged-1",
+			focusDimension: "pedaling",
+			previewTitle: "Legato pedaling drill",
+		};
+		const pending = buildPendingExerciseComponent(staged);
+		const payload = buildV6WsPayload(ARTIFACT, [], pending);
+		expect(payload.components).toHaveLength(1);
+		expect(payload.components[0]).toEqual({
+			type: "pending_exercise",
+			config: {
+				exerciseId: "ex-staged-1",
+				focusDimension: "pedaling",
+				previewTitle: "Legato pedaling drill",
+			},
+		});
+	});
+
+	it("appends pendingComponent after loopComponents", () => {
+		const loopComp = { type: "segment_loop", config: { id: "loop-1" } };
+		const pendingComp = {
+			type: "pending_exercise",
+			config: {
+				exerciseId: "ex-1",
+				focusDimension: "dynamics",
+				previewTitle: "drill",
+			},
+		};
+		const payload = buildV6WsPayload(
+			ARTIFACT_WITH_LOOP,
+			[loopComp],
+			pendingComp,
+		);
+		expect(payload.components).toHaveLength(2);
+		expect(payload.components[0]?.type).toBe("segment_loop");
+		expect(payload.components[1]?.type).toBe("pending_exercise");
+	});
+
+	it("omits pendingComponent when null", () => {
+		const loopComp = { type: "segment_loop", config: { id: "loop-1" } };
+		const payload = buildV6WsPayload(ARTIFACT_WITH_LOOP, [loopComp], null);
+		expect(payload.components).toHaveLength(1);
+		expect(payload.components[0]?.type).toBe("segment_loop");
+	});
+
+	it("omits pendingComponent when undefined (backward-compatible)", () => {
+		const payload = buildV6WsPayload(ARTIFACT);
+		expect(payload.components).toEqual([]);
+	});
 });
 
 describe("parseMuqResponse chroma extraction", () => {
@@ -117,9 +179,9 @@ describe("parseMuqResponse chroma extraction", () => {
 				interpretation: 0.72,
 			},
 		};
-		expect(() => parseMuqResponse(raw as Parameters<typeof parseMuqResponse>[0])).toThrow(
-			"MuQ response missing dimensions: timing",
-		);
+		expect(() =>
+			parseMuqResponse(raw as Parameters<typeof parseMuqResponse>[0]),
+		).toThrow("MuQ response missing dimensions: timing");
 	});
 });
 
@@ -156,20 +218,24 @@ describe("session-brain accumulation contract", () => {
 			],
 		};
 		const baselines = {
-			dynamics: 0.5, timing: 0.5, pedaling: 0.5,
-			articulation: 0.5, phrasing: 0.5, interpretation: 0.5,
+			dynamics: 0.5,
+			timing: 0.5,
+			pedaling: 0.5,
+			articulation: 0.5,
+			phrasing: 0.5,
+			interpretation: 0.5,
 		};
 		const scores: [number, number, number, number, number, number] = [
-			0.20, 0.30, 0.50, 0.50, 0.50, 0.50,
+			0.2, 0.3, 0.5, 0.5, 0.5, 0.5,
 		];
 		const facts = buildBarAnalysisFacts(analysis, scores, baselines, "timing");
 
 		const moment: AccumulatedMoment = {
 			chunkIndex: 0,
 			dimension: "timing",
-			score: 0.30,
-			baseline: 0.50,
-			deviation: -0.20,
+			score: 0.3,
+			baseline: 0.5,
+			deviation: -0.2,
 			isPositive: false,
 			reasoning: "rushing",
 			barRange: [4, 7],
@@ -182,7 +248,9 @@ describe("session-brain accumulation contract", () => {
 		const top = acc.topMoments();
 		expect(top[0]?.llmAnalysis).not.toBeNull();
 		expect(top[0]?.llmAnalysis?.selected.dimension).toBe("timing");
-		expect(top[0]?.llmAnalysis?.correlated.map((d) => d.dimension)).toContain("dynamics");
+		expect(top[0]?.llmAnalysis?.correlated.map((d) => d.dimension)).toContain(
+			"dynamics",
+		);
 	});
 });
 
@@ -218,7 +286,9 @@ describe("buildColdStartMoments", () => {
 	});
 
 	it("returns an empty array for a single-chunk session", () => {
-		const scoredChunks = [{ chunkIndex: 0, scores: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3] }];
+		const scoredChunks = [
+			{ chunkIndex: 0, scores: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3] },
+		];
 		expect(buildColdStartMoments(scoredChunks, 6)).toEqual([]);
 	});
 });
