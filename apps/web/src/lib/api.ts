@@ -1,6 +1,7 @@
 import { client } from "./api-client";
 import { API_BASE } from "./config";
 import { Sentry } from "./sentry";
+import type { ExerciseSetConfig } from "./types";
 
 export class ApiError extends Error {
 	constructor(
@@ -360,6 +361,16 @@ export const api = {
 				throw err;
 			}
 			return res.json() as unknown as Promise<StudentExercise>;
+		},
+
+		async assignPending(body: {
+			sessionId: string;
+			exerciseId: string;
+		}): Promise<ExerciseSetConfig> {
+			return request<ExerciseSetConfig>("/api/exercises/assign-pending", {
+				method: "POST",
+				body: JSON.stringify(body),
+			});
 		},
 	},
 
