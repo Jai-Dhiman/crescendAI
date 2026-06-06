@@ -1,4 +1,8 @@
-import { exerciseDimensions, exercises, pendingExercises } from "../db/schema/exercises";
+import {
+	exerciseDimensions,
+	exercises,
+	pendingExercises,
+} from "../db/schema/exercises";
 import { InferenceError } from "../lib/errors";
 import type { Db } from "../lib/types";
 import type { InlineComponent } from "./tool-processor";
@@ -21,7 +25,9 @@ export async function stageDominantExercise(
 ): Promise<PendingExercise> {
 	const trimmed = args.proposedExercise.trim();
 	const previewTitle =
-		trimmed.length > 0 ? trimmed.slice(0, 60) : `${args.dominantDimension} focus drill`;
+		trimmed.length > 0
+			? trimmed.slice(0, 60)
+			: `${args.dominantDimension} focus drill`;
 
 	const [inserted] = await db
 		.insert(exercises)
@@ -53,10 +59,16 @@ export async function stageDominantExercise(
 		consumed: false,
 	});
 
-	return { exerciseId: inserted.id, focusDimension: args.dominantDimension, previewTitle };
+	return {
+		exerciseId: inserted.id,
+		focusDimension: args.dominantDimension,
+		previewTitle,
+	};
 }
 
-export function buildPendingExerciseComponent(staged: PendingExercise): InlineComponent {
+export function buildPendingExerciseComponent(
+	staged: PendingExercise,
+): InlineComponent {
 	return {
 		type: "pending_exercise",
 		config: {

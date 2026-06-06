@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { stageDominantExercise } from "./pending-exercise";
+import {
+	buildPendingExerciseComponent,
+	type PendingExercise,
+	stageDominantExercise,
+} from "./pending-exercise";
 
 describe("stageDominantExercise", () => {
 	function makeMockDb(exerciseId = "ex-uuid-1") {
@@ -13,7 +17,9 @@ describe("stageDominantExercise", () => {
 					values: vi.fn().mockImplementation((v: unknown) => {
 						insertedValues.push({ call, values: v });
 						if (call === 1) {
-							return { returning: vi.fn().mockResolvedValue([{ id: exerciseId }]) };
+							return {
+								returning: vi.fn().mockResolvedValue([{ id: exerciseId }]),
+							};
 						}
 						return Promise.resolve(undefined);
 					}),
@@ -26,7 +32,9 @@ describe("stageDominantExercise", () => {
 	it("inserts exercises, exerciseDimensions, pendingExercises and returns ref", async () => {
 		const { mockDb, insertedValues } = makeMockDb("ex-uuid-1");
 		const result = await stageDominantExercise(mockDb as never, {
-			studentId: "stu-1", sessionId: "sess-1", dominantDimension: "pedaling",
+			studentId: "stu-1",
+			sessionId: "sess-1",
+			dominantDimension: "pedaling",
 			proposedExercise: "Practice slow legato pedaling in bars 1-4.",
 			pieceMetadata: { title: "Nocturne", composer: "Chopin" },
 		});
@@ -35,25 +43,40 @@ describe("stageDominantExercise", () => {
 		expect(ex.values).toMatchObject({
 			description: "Staged from session synthesis",
 			instructions: "Practice slow legato pedaling in bars 1-4.",
-			difficulty: "intermediate", category: "generated", source: "teacher_llm",
+			difficulty: "intermediate",
+			category: "generated",
+			source: "teacher_llm",
 		});
 		expect((ex.values.title as string).length).toBeGreaterThan(0);
 		const dim = insertedValues[1] as { values: Record<string, unknown> };
-		expect(dim.values).toMatchObject({ exerciseId: "ex-uuid-1", dimension: "pedaling" });
+		expect(dim.values).toMatchObject({
+			exerciseId: "ex-uuid-1",
+			dimension: "pedaling",
+		});
 		const pend = insertedValues[2] as { values: Record<string, unknown> };
 		expect(pend.values).toMatchObject({
-			studentId: "stu-1", sessionId: "sess-1", exerciseId: "ex-uuid-1",
-			focusDimension: "pedaling", consumed: false,
+			studentId: "stu-1",
+			sessionId: "sess-1",
+			exerciseId: "ex-uuid-1",
+			focusDimension: "pedaling",
+			consumed: false,
 		});
 		expect(typeof pend.values.previewTitle).toBe("string");
-		expect(result).toEqual({ exerciseId: "ex-uuid-1", focusDimension: "pedaling", previewTitle: expect.any(String) });
+		expect(result).toEqual({
+			exerciseId: "ex-uuid-1",
+			focusDimension: "pedaling",
+			previewTitle: expect.any(String),
+		});
 	});
 
 	it("derives previewTitle from first 60 chars of proposedExercise", async () => {
 		const { mockDb } = makeMockDb();
 		const result = await stageDominantExercise(mockDb as never, {
-			studentId: "s", sessionId: "sess", dominantDimension: "dynamics",
-			proposedExercise: "A".repeat(100), pieceMetadata: null,
+			studentId: "s",
+			sessionId: "sess",
+			dominantDimension: "dynamics",
+			proposedExercise: "A".repeat(100),
+			pieceMetadata: null,
 		});
 		expect(result.previewTitle).toBe("A".repeat(60));
 	});
@@ -61,17 +84,57 @@ describe("stageDominantExercise", () => {
 	it("falls back to dimension focus drill when proposedExercise is blank", async () => {
 		const { mockDb } = makeMockDb();
 		const result = await stageDominantExercise(mockDb as never, {
-			studentId: "s", sessionId: "sess", dominantDimension: "timing",
-			proposedExercise: "   ", pieceMetadata: null,
+			studentId: "s",
+			sessionId: "sess",
+			dominantDimension: "timing",
+			proposedExercise: "   ",
+			pieceMetadata: null,
 		});
 		expect(result.previewTitle).toBe("timing focus drill");
 	});
 
 	it("throws InferenceError when exercises insert returns empty array", async () => {
-		const mockDb = { insert: vi.fn().mockReturnValue({ values: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }) }) };
-		await expect(stageDominantExercise(mockDb as never, {
-			studentId: "s", sessionId: "sess", dominantDimension: "pedaling",
-			proposedExercise: "drill", pieceMetadata: null,
-		})).rejects.toThrow("Failed to insert staged exercise");
+		const mockDb = {
+			insert: vi.fn().mockReturnValue({
+				values: vi
+					.fn()
+					.mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+			}),
+		};
+		await expect(
+			stageDominantExercise(mockDb as never, {
+				studentId: "s",
+				sessionId: "sess",
+				dominantDimension: "pedaling",
+				proposedExercise: "drill",
+				pieceMetadata: null,
+			}),
+		).rejects.toThrow("Failed to insert staged exercise");
+	});
+});
+
+describe("buildPendingExerciseComponent", () => {
+	it("returns a pending_exercise InlineComponent", () => {
+		const staged: PendingExercise = {
+			exerciseId: "ex-1",
+			focusDimension: "dynamics",
+			previewTitle: "Soft entry in bars 1-4",
+		};
+		const comp = buildPendingExerciseComponent(staged);
+		expect(comp.type).toBe("pending_exercise");
+		expect(comp.config).toEqual({
+			exerciseId: "ex-1",
+			focusDimension: "dynamics",
+			previewTitle: "Soft entry in bars 1-4",
+		});
+	});
+	it("config is a plain non-null object", () => {
+		const comp = buildPendingExerciseComponent({
+			exerciseId: "ex-2",
+			focusDimension: "timing",
+			previewTitle: "drill",
+		});
+		expect(typeof comp.config).toBe("object");
+		expect(comp.config).not.toBeNull();
 	});
 });
