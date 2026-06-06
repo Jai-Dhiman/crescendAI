@@ -5,6 +5,7 @@ import { validate } from "../lib/validate";
 import { requireAuth } from "../middleware/auth-session";
 import {
 	assignExercise,
+	assignPendingExercise,
 	completeExercise,
 	listExercises,
 } from "../services/exercises";
@@ -20,6 +21,11 @@ const completeSchema = z.object({
 	dimensionBeforeJson: z.unknown().optional(),
 	dimensionAfterJson: z.unknown().optional(),
 	notes: z.string().optional(),
+});
+
+const assignPendingSchema = z.object({
+	sessionId: z.string().uuid(),
+	exerciseId: z.string().uuid(),
 });
 
 const listQuerySchema = z.object({
@@ -55,6 +61,15 @@ const exercisesRoutes = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 			{ studentId: c.var.studentId, ...body },
 		);
 		return c.json(result);
+	})
+	.post("/assign-pending", validate("json", assignPendingSchema), async (c) => {
+		requireAuth(c.var.studentId);
+		const { sessionId, exerciseId } = c.req.valid("json");
+		const payload = await assignPendingExercise(
+			{ db: c.var.db, env: c.env },
+			{ studentId: c.var.studentId, sessionId, exerciseId },
+		);
+		return c.json(payload);
 	});
 
 export { exercisesRoutes };
