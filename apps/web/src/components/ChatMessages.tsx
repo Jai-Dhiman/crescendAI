@@ -184,9 +184,11 @@ const MessageBubble = memo(function MessageBubble({
 	const displayToolCalls =
 		message.toolCalls ?? (persistedBars.length > 0 ? persistedBars : undefined);
 
-	// Don't pass search_catalog_result through to Artifact — it has no renderer
+	// Don't pass search_catalog_result or pending_exercise through to Artifact — they have no renderer
 	const renderableComponents = (message.components ?? []).filter(
-		(c) => (c as { type: string }).type !== "search_catalog_result",
+		(c) =>
+			(c as { type: string }).type !== "search_catalog_result" &&
+			(c as { type: string }).type !== "pending_exercise",
 	);
 
 	return (

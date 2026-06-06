@@ -30,3 +30,7 @@ class MockIntersectionObserver {
 	constructor(_cb: IntersectionObserverCallback) {}
 }
 globalThis.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver;
+
+// jsdom does not implement Element.scrollTo — stub it so scroll-aware components
+// (e.g. ChatMessages) don't throw during render in tests.
+Element.prototype.scrollTo = vi.fn() as unknown as typeof Element.prototype.scrollTo;

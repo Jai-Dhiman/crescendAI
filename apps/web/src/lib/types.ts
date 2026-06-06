@@ -32,7 +32,8 @@ export type InlineComponent =
 	| { type: "score_highlight"; config: ScoreHighlightConfig }
 	| { type: "keyboard_guide"; config: KeyboardGuideConfig }
 	| { type: "play_passage"; config: PlayPassageConfig }
-	| { type: "segment_loop"; config: SegmentLoopConfig };
+	| { type: "segment_loop"; config: SegmentLoopConfig }
+	| { type: "pending_exercise"; config: PendingExerciseConfig };
 
 export interface ExerciseSetConfig {
 	sourcePassage: string;
@@ -87,4 +88,10 @@ export interface SegmentLoopConfig {
 	attemptsCompleted: number;
 	status: "pending" | "active" | "completed" | "dismissed" | "superseded";
 	dimension: string | null;
+}
+
+export interface PendingExerciseConfig {
+	exerciseId: string;
+	focusDimension: string;
+	previewTitle: string;
 }
