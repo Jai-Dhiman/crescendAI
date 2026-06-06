@@ -713,3 +713,41 @@ Staging failure is non-fatal: synthesis delivers without the component and logs 
 | `apps/api/src/services/pending-exercise.test.ts` | NEW — mock-db tests for both functions |
 | `apps/api/src/do/session-brain.ts` | MODIFY — extend `buildV6WsPayload` signature; wire staging into V6 block |
 | `apps/api/src/do/session-brain.unit.test.ts` | MODIFY — add `buildV6WsPayload` pending-component cases |
+
+---
+
+## Challenge Review
+
+### CEO Pass
+- **Premise (OBS):** Correct — staging deterministically from the artifact's own `proposed_exercises[0]` + `dominant_dimension` is the minimal way to add a persisted, ownable exercise to the V6 path without a new LLM tool or schema migration. Direct parallel to the live `assigned_loops` path.
+- **Scope (OBS):** 1 new service file + 1 signature extension + 1 wiring block. Tight.
+
+### Engineering Pass — all seams verified against real code
+- **Db type** `export type Db = PostgresJsDatabase<typeof schema>` (lib/types.ts:4) — plan's `import type { Db }` correct. SAFE.
+- **Wiring site** `const wsPayload = buildV6WsPayload(artifact, loopComponents);` at session-brain.ts:1712 — exact, singular, inside the V6 gate (1634) after `loopComponents` (1698). SAFE.
+- **`db` + `pieceCtx` in scope** — `const db = createDb(this.env.HYPERDRIVE)` (1564), `pieceCtx` (1509). SAFE.
+- **Test fixtures present** — `session-brain.unit.test.ts` already defines `ARTIFACT` (14), `ARTIFACT_WITH_LOOP` (28), `describe("buildV6WsPayload")` (35); Task 3's appended cases will compile. SAFE.
+- **exercises insert columns** (title, description, instructions, difficulty, category, source) match the schema's notNull columns. SAFE.
+- **[RISK] (confidence: 4/10)** — `artifact.proposed_exercises[0]` under `noUncheckedIndexedAccess` may be typed `string | undefined`; the `length > 0` guard doesn't narrow the index access. Plan already notes using `!`. Build implementer: add `!` or a local const if typecheck flags it.
+- **[OBS]** `ExerciseSetPayload.sourcePassage` will be the generic `description = "Staged from session synthesis"` (the staged exercise has no real source passage). Acceptable for MVP; the instruction body carries the actual drill text. Revisit if the web reveal reads awkwardly.
+- **[OBS]** A staged `exercises` + `pending_exercises` row is written on every session exit with `proposed_exercises` even if the student never confirms — the user's explicit "eager pre-stage for instant reveal" tradeoff. Unconsumed rows are harmless.
+- **Failure modes (OBS):** staging failure is caught, logged (`level: warn`), and synthesis still delivers without the component — correct non-fatal handling, no silent swallow (it logs).
+- **Test Philosophy (OBS):** mock-db tests assert insert shapes + return (behavior at the db boundary); pure-function tests for the component mapper and payload builder. Task 4 is integration wiring verified by regression + typecheck (acceptable — behavior covered by Tasks 1–3).
+- **Vertical Slice (OBS):** Tasks 1/2/3 each one behavior+impl+commit; Task 4 wiring. Group A (1–3) parallel-safe (1&2 same new file → must serialize 1 before 2; 3 is a different file). NOTE: Tasks 1 and 2 both edit `pending-exercise.ts`/`.test.ts` so they CANNOT run in true parallel — serialize 1→2; 3 is independent.
+
+### Presumption Inventory
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `Db` type from lib/types | SAFE | Verified line 4 |
+| `buildV6WsPayload` call at 1712, singular | SAFE | Verified |
+| `db`/`pieceCtx`/`state.*` in V6 scope | SAFE | Verified |
+| unit-test fixtures ARTIFACT(_WITH_LOOP) exist | SAFE | Verified |
+| pendingExercises table available (Plan B merged) | SAFE | Plan B shipped to main |
+| `proposed_exercises[0]` index-access typing | VALIDATE | May need `!` |
+
+### Summary
+[BLOCKER] count: 0
+[RISK]    count: 1
+[QUESTION] count: 0
+
+VERDICT: PROCEED_WITH_CAUTION — (1) Tasks 1 & 2 touch the same new file; serialize them (1 then 2), do NOT dispatch in parallel; (2) add `!` to `proposed_exercises[0]` if typecheck flags it.
