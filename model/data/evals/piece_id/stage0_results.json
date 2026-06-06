@@ -1,0 +1,45 @@
+{
+  "experiment": "piece-id AMT stage-0 feasibility (#26)",
+  "date": "2026-06-06",
+  "catalog_pieces": 254,
+  "recordings": 16,
+  "query_model": "arbitrary-start windows, 5 starts x {15,30,60,90,full}s, real amateur AMT notes",
+  "verdict_honest": "TUNE",
+  "verdict_automated_note": "decision.py emits KILL via the dtw_ceiling<0.70 arm, but that arm's premise (DTW=ceiling) is FALSE here: C1 chroma beats C3 DTW at every window. The KILL is a gate bug, not the real conclusion.",
+  "recall_table": {
+    "note_chroma_cosine_C1": {"15s": {"r1": 0.179, "r10": 0.577}, "30s": {"r1": 0.224, "r10": 0.658}, "60s": {"r1": 0.355, "r10": 0.842}, "90s": {"r1": 0.461, "r10": 0.908}, "full": {"r1": 0.875, "r10": 0.938}},
+    "landmark_C2": {"15s": {"r1": 0.000, "r10": 0.179}, "30s": {"r1": 0.000, "r10": 0.158}, "60s": {"r1": 0.000, "r10": 0.118}, "90s": {"r1": 0.000, "r10": 0.118}, "full": {"r1": 0.000, "r10": 0.125}},
+    "dtw_ceiling_C3": {"15s": {"r1": 0.487, "r10": 0.628}, "30s": {"r1": 0.513, "r10": 0.645}, "60s": {"r1": 0.487, "r10": 0.645}, "90s": {"r1": 0.395, "r10": 0.645}, "full": {"r1": 0.500, "r10": 0.562}},
+    "chroma_seq_dtw_C4": {"15s": {"r1": 0.295, "r10": 0.654}, "30s": {"r1": 0.408, "r10": 0.711}, "60s": {"r1": 0.289, "r10": 0.750}, "90s": {"r1": 0.039, "r10": 0.566}, "full": {"r1": 0.750, "r10": 0.812}}
+  },
+  "open_set": {
+    "oracle": "C1 note-chroma cosine, full-piece query, leave-one-out negatives (n=16)",
+    "in_catalog_top1_cosine": {"min": 0.960, "median": 0.997, "max": 0.999},
+    "loo_wrong_piece_top1_cosine": {"min": 0.952, "median": 0.981, "max": 0.994},
+    "absolute_threshold_best_point_FA<=0.05_TA>=0.60": null,
+    "margin_top1_minus_top2": {"in_catalog": {"min": 0.0019, "median": 0.0144, "max": 0.0378}, "loo_wrong": {"min": 0.0001, "median": 0.0066, "max": 0.0144}, "best_point_FA<=0.05_TA>=0.60": null},
+    "open_set_ok": false,
+    "conclusion": "Global pitch-class chroma cannot separate correct piece from harmonically-similar wrong piece. Neither absolute cosine nor top1-top2 margin yields an FA<=0.05 @ TA>=0.60 operating point. Open-set rejection via chroma alone is infeasible."
+  },
+  "corruption_ablation_full_window": {
+    "note": "C1 vs C2; seed=42",
+    "del0.0_ins0.0_jit0.00": {"C1_r1": 0.875, "C1_r10": 0.938, "C2_r10": 0.125},
+    "del0.2_ins0.0_jit0.05": {"C1_r1": 0.875, "C1_r10": 0.938, "C2_r10": 0.000},
+    "del0.4_ins0.1_jit0.10": {"C1_r1": 0.812, "C1_r10": 0.875, "C2_r10": 0.000},
+    "del0.6_ins0.2_jit0.15": {"C1_r1": 0.812, "C1_r10": 0.875, "C2_r10": 0.000}
+  },
+  "findings": [
+    "Modality diagnosis CONFIRMED: note-to-note recall recovered from 0.26 cross-modal floor to C1 R@10=0.938 / R@1=0.875 (full piece).",
+    "C1 note-chroma wins ranking decisively, is ~free (0.0003s/query), and is highly corruption-robust (R@10 0.875 under severe note errors).",
+    "C2 landmark hashing FALSIFIED: R@1=0.000 at every window, collapses to 0.000 under any corruption. Do NOT build it.",
+    "C3 DTW-ceiling and C4 chroma-seq-DTW are slower AND worse than C1; C3 is not a real ceiling.",
+    "OPEN-SET REJECTION FAILS for chroma (absolute and margin) -- the blocking issue. A wrong lock poisons the session, so C1 alone is not shippable.",
+    "Recall climbs strongly with window length (C1 R@10: 0.577@15s -> 0.908@90s -> 0.938@full); more notes = more discriminative, as predicted."
+  ],
+  "phase1_recommendation": "Use C1 note-chroma for recall (top-K), but open-set accept/reject needs a different signal than chroma similarity. Natural candidate: align the top-1 chroma candidate via the existing onset+pitch DTW score-follower (dtw_confirm.rs already exists) and threshold the alignment cost as the unknown-gate -- DTW on ONE candidate is cheap, unlike the 254x standalone C3 measured here. This must be validated (DTW-confirm as open-set gate on C1 top-1) before committing Phase-1 Rust.",
+  "harness_defects_found": [
+    "decision.py KILL arm keys on dtw_ceiling<0.70 assuming DTW is the discrimination ceiling; empirically C1 beats C3, so the arm misfires. Gate should not treat DTW as the ceiling.",
+    "run() was silent during ~hours of compute (no progress) -- added per-phase stderr logging.",
+    "corruption sweep (secondary diagnostic) runs the slow C3/C4 on full-length recordings BEFORE the primary open-set gate; ordering should put the primary gate first and bound/skip slow matchers in corruption."
+  ]
+}

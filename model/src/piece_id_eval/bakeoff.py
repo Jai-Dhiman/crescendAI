@@ -119,12 +119,16 @@ def run(
         ChromaSeqDtwMatcher(catalog),
     ]
 
+    import time as _time
+
     report = BakeoffReport()
 
     # Recall sweep: window x matcher (no corruption)
     for window_seconds in window_lengths:
         wlabel = _window_label(window_seconds)
         for matcher in matchers:
+            _t0 = _time.time()
+            print(f"[recall] window={wlabel} matcher={matcher.name} ...", file=sys.stderr, flush=True)
             rankings: Rankings = []
             for true_id, notes in recordings.items():
                 windows = sample_windows(notes, window_seconds, n_starts, seed)
@@ -134,10 +138,12 @@ def run(
                     ranked = matcher.rank(win)
                     rankings.append((true_id, [(r.piece_id, r.score) for r in ranked]))
             if not rankings:
+                print(f"[recall] window={wlabel} matcher={matcher.name} -> no rankings", file=sys.stderr, flush=True)
                 continue
             r1 = recall_at_k(rankings, 1)
             r5 = recall_at_k(rankings, 5)
             r10 = recall_at_k(rankings, 10)
+            print(f"[recall] window={wlabel} matcher={matcher.name} R@1={r1:.3f} R@10={r10:.3f} ({_time.time()-_t0:.1f}s)", file=sys.stderr, flush=True)
             report.recall_table[(matcher.name, wlabel)] = {
                 "recall@1": r1,
                 "recall@5": r5,
@@ -148,6 +154,8 @@ def run(
     for entry in corruption_grid:
         clabel = _corruption_label(entry)
         for matcher in matchers:
+            _t0 = _time.time()
+            print(f"[corrupt] {clabel} matcher={matcher.name} ...", file=sys.stderr, flush=True)
             rankings = []
             for true_id, notes in recordings.items():
                 corrupted = corrupt_notes(
@@ -163,8 +171,10 @@ def run(
                 rankings.append((true_id, [(r.piece_id, r.score) for r in ranked]))
             if not rankings:
                 continue
+            _r10 = recall_at_k(rankings, 10)
+            print(f"[corrupt] {clabel} matcher={matcher.name} R@10={_r10:.3f} ({_time.time()-_t0:.1f}s)", file=sys.stderr, flush=True)
             report.corruption_curves[(matcher.name, clabel)] = {
-                "recall@10": recall_at_k(rankings, 10)
+                "recall@10": _r10
             }
 
     # Compute ceiling + best indexable recall@10 (best across all window lengths).
@@ -184,6 +194,7 @@ def run(
     # matched cosines are positive, so the [0, 1] threshold sweep is meaningful.
     # DtwCeilingMatcher scores are -normalized_cost (always <= 0), making it
     # incompatible with a [0, 1] threshold sweep (TA and FA both stuck at 0).
+    print(f"[open-set] leave-one-out FA/TA over {len(recordings)} recordings ...", file=sys.stderr, flush=True)
     in_scores: list[float] = []
     loo_scores: list[float] = []
     open_set_oracle = matchers[0]  # NoteChromaMatcher (C1, cosine similarity)
