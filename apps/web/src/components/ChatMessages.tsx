@@ -1,21 +1,28 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ArtifactScrollContext } from "../contexts/artifact-scroll";
 import { useMountEffect } from "../hooks/useFoundation";
-import type { RichMessage, ToolCallStatus } from "../lib/types";
+import type {
+	PendingExerciseConfig,
+	RichMessage,
+	ToolCallStatus,
+} from "../lib/types";
 import { Artifact } from "./Artifact";
 import { MessageContent } from "./MessageContent";
+import { ReflectionMessage } from "./ReflectionMessage";
 import { ToolCallBar } from "./ToolCallBar";
 
 interface ChatMessagesProps {
 	messages: RichMessage[];
 	children?: React.ReactNode;
 	onTryExercises?: (dimension: string) => Promise<void>;
+	onDecline?: (focusDimension: string) => void;
 }
 
 export function ChatMessages({
 	messages,
 	children,
 	onTryExercises,
+	onDecline,
 }: ChatMessagesProps) {
 	const scrollContainerRef = useRef<HTMLDivElement>(null);
 	const isNearBottomRef = useRef(true);
@@ -88,6 +95,7 @@ export function ChatMessages({
 							key={msg.id}
 							message={msg}
 							onTryExercises={onTryExercises}
+							onDecline={onDecline}
 						/>
 					))}
 				</div>
@@ -100,9 +108,11 @@ export function ChatMessages({
 const MessageBubble = memo(function MessageBubble({
 	message,
 	onTryExercises,
+	onDecline,
 }: {
 	message: RichMessage;
 	onTryExercises?: (dimension: string) => Promise<void>;
+	onDecline?: (focusDimension: string) => void;
 }) {
 	const [tryState, setTryState] = useState<"idle" | "loading" | "error">(
 		"idle",
@@ -190,6 +200,29 @@ const MessageBubble = memo(function MessageBubble({
 			(c as { type: string }).type !== "search_catalog_result" &&
 			(c as { type: string }).type !== "pending_exercise",
 	);
+
+	const pendingExerciseComponent = (message.components ?? []).find(
+		(c): c is { type: "pending_exercise"; config: PendingExerciseConfig } =>
+			(c as { type: string }).type === "pending_exercise",
+	);
+	if (
+		message.messageType === "synthesis" &&
+		pendingExerciseComponent &&
+		message.sessionId
+	) {
+		return (
+			<div className="flex justify-start animate-fade-in">
+				<div className="max-w-[80%]">
+					<ReflectionMessage
+						sessionId={message.sessionId}
+						reflectionText={message.content}
+						pendingConfig={pendingExerciseComponent.config}
+						onDecline={onDecline ?? (() => {})}
+					/>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="flex justify-start animate-fade-in">

@@ -1,4 +1,4 @@
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -76,5 +76,62 @@ describe("ChatMessages — pending_exercise filter", () => {
 		expect(mockArtifact).toHaveBeenCalledWith(
 			expect.objectContaining({ type: "exercise_set" }),
 		);
+	});
+});
+
+describe("ChatMessages — ReflectionMessage routing", () => {
+	it("routes a synthesis message with a pending_exercise component to ReflectionMessage", async () => {
+		vi.resetModules();
+		vi.doMock("./ReflectionMessage", () => ({
+			ReflectionMessage: () =>
+				React.createElement(
+					"div",
+					{ "data-testid": "reflection-message" },
+					null,
+				),
+		}));
+		// re-mock the siblings that the fresh module graph will pull in
+		vi.doMock("./Artifact", () => ({ Artifact: () => null }));
+		vi.doMock("./MessageContent", () => ({
+			MessageContent: ({ content }: { content: string }) =>
+				React.createElement(
+					"div",
+					{ "data-testid": "message-content" },
+					content,
+				),
+		}));
+		vi.doMock("./ToolCallBar", () => ({ ToolCallBar: () => null }));
+
+		const { ChatMessages } = await import("./ChatMessages");
+		const message = {
+			id: "msg-synth",
+			role: "assistant" as const,
+			content: "Your pedaling smeared the line. Want a drill?",
+			createdAt: new Date().toISOString(),
+			messageType: "synthesis" as const,
+			sessionId: "sess-abc",
+			components: [
+				{
+					type: "pending_exercise" as const,
+					config: {
+						exerciseId: "ex-789",
+						focusDimension: "pedaling",
+						previewTitle: "Pedaling clarity drill",
+					},
+				},
+			],
+		};
+		render(
+			React.createElement(ChatMessages, {
+				messages: [message],
+				onDecline: vi.fn(),
+			}),
+		);
+		await waitFor(() =>
+			expect(screen.getByTestId("reflection-message")).toBeTruthy(),
+		);
+		expect(
+			document.querySelectorAll("[data-testid='message-content']"),
+		).toHaveLength(0);
 	});
 });

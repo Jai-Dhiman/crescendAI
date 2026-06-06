@@ -656,6 +656,14 @@ export default function AppChat() {
 		}
 	}
 
+	const handleSendRef = useRef(handleSend);
+	handleSendRef.current = handleSend;
+	const handleDecline = useCallback((focusDimension: string) => {
+		void handleSendRef.current(
+			`Not right now -- something else? (focus: ${focusDimension})`,
+		);
+	}, []);
+
 	const handleTryExercises = useCallback(async (dimension: string) => {
 		const { exercises } = await api.exercises.fetch({ dimension });
 		if (exercises.length === 0) return;
@@ -1028,6 +1036,7 @@ export default function AppChat() {
 					<ChatMessages
 						messages={displayMessages}
 						onTryExercises={handleTryExercises}
+						onDecline={handleDecline}
 					>
 						<div className="sticky bottom-0">
 							<ChatInput
