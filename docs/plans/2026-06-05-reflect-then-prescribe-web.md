@@ -904,3 +904,39 @@ Full suite gate before opening PR:
 ```bash
 cd apps/web && bunx vitest run && bunx tsc --noEmit
 ```
+
+---
+
+## Challenge Review
+
+### CEO Pass
+- **Premise/Scope (OBS):** Minimal web surface that reuses the existing `Artifact → InlineCard → ExerciseSetCard` reveal chain; adds only the confirm gate. Correct and tight.
+
+### Engineering Pass — edit targets verified against source
+- **`request<T>`** (api.ts:15) uses `fetch(\`${API_BASE}${path}\`, { credentials: "include" })` + `ApiError` (29) + `Sentry.captureException`/`addBreadcrumb` (33/39), importing `./config` (API_BASE) and `./sentry` — exactly what Task 2's test mocks. SAFE.
+- **ChatMessages filter** at ~line 188 (`!== "search_catalog_result"`) + `renderableComponents` + `MessageBubble` (memo, line 100) + the `Artifact` map — all confirmed; Task 1 (extend filter) and Task 4 (route before return) targets exist. SAFE.
+- **types.ts** has `exercise_set`/`segment_loop` variants + `ExerciseSetConfig` (37); Task 1's `pending_exercise` variant + `PendingExerciseConfig` slot in cleanly. SAFE.
+- **AppChat** has `handleSend` (412) and renders the chat area (onSend at 1019). SAFE.
+- **[RISK] (confidence: 5/10)** — Task 2 test asserts `Sentry.captureException` extra includes `path: "/api/exercises/assign-pending"`. Confirm `request<T>`'s error `extra` actually carries the request path under key `path`; if it uses a different key, adjust the assertion (read api.ts:33-37 before writing the test).
+- **[RISK] (confidence: 5/10)** — Task 4 `handleDecline` as `useCallback(..., [])` referencing `handleSend` (a per-render function declaration) risks a stale closure. For a decline turn this is low-impact (handleSend reads live state via refs), but prefer a ref-to-handleSend or include stable deps. Not caught by tsc/tests — note for manual check.
+- **[RISK] (confidence: 5/10)** — Task 4 appends `vi.doMock("./ReflectionMessage", ...)` to a test file whose earlier tests already imported `ChatMessages` with the REAL ReflectionMessage. `vi.doMock` is non-hoisted; the module cache may serve the already-imported ChatMessages, making the mock ineffective. Fallback: `vi.resetModules()` before the dynamic import in that test, or hoist a top-level `vi.mock("./ReflectionMessage")`. Build agent: if the routing test sees the real component, apply the resetModules fallback.
+- **Test Philosophy (OBS):** Component tests use testing-library DOM queries with api/Artifact mocked at module boundaries — behavior through the rendered UI, not internals. Good. Task 4 is integration wiring verified by full suite + `tsc` (behavior covered by Task 3).
+- **Vertical Slice (OBS):** Tasks 1–4 each one behavior + impl + commit.
+
+### Presumption Inventory
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `request<T>` (fetch+API_BASE+credentials+ApiError+Sentry) | SAFE | Verified api.ts:15-46 |
+| `./config` API_BASE, `./sentry` modules | SAFE | Verified |
+| ChatMessages filter line + MessageBubble render path | SAFE | Verified ~183-216 |
+| ExerciseSetConfig/segment_loop in types | SAFE | Verified |
+| Sentry extra carries `path` key | VALIDATE | Read api.ts:33 before writing test |
+| handleDecline useCallback closure | VALIDATE | Possible stale closure; low impact |
+| Task 4 vi.doMock effectiveness | VALIDATE | May need resetModules fallback |
+
+### Summary
+[BLOCKER] count: 0
+[RISK]    count: 3
+[QUESTION] count: 0
+
+VERDICT: PROCEED_WITH_CAUTION — (1) match the Sentry `extra` key shape from request<T> in the Task-2 test; (2) Task-4 routing test may need `vi.resetModules()` for the ReflectionMessage mock; (3) consider a stable ref for handleSend in handleDecline.
