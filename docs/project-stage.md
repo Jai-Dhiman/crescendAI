@@ -33,11 +33,14 @@ DATABASE_URL="postgresql://jdhiman:postgres@localhost:5432/crescendai_dev" bun r
 
 If local is green, we are **deploy-ready**. Pulling the trigger is a separate, explicit choice.
 
-## Known measurement caveat (do not forget)
+## Synthesis path (V6-only as of #28)
 
-Production runs the **V6 harness** (`HARNESS_V6_ENABLED="true"` → `synthesizeV6` → the hook-driven two-phase compound loop in `apps/api/src/harness/`). The **eval harness bypasses V6** and replays through the legacy single-prompt `synthesize()` path. So:
+The **V6 harness** is now the single synthesis path (`synthesizeV6` → the hook-driven two-phase compound loop in `apps/api/src/harness/`). The `HARNESS_V6_ENABLED` flag and the legacy single-prompt `synthesize()`/`buildSynthesisFraming()` path are **deleted**; the eval now replays through the same V6 DO path users hit (`docs/harness.md` principle #16).
 
-- Eval numbers (incl. the locked `_SONNET_BASELINE`, #22) measure the **legacy path, not what users hit**. Treat them as a legacy proxy.
-- Making the eval V6-aware is the prerequisite for automatically measuring the real agentic system. Until then, harness behavior is verified by unit tests + manual local click-through.
+History worth keeping: before #28, V6 Phase 2 was silently broken for **every** session — its forced-tool schema (`zodToJsonSchema(target:"openApi3")`) was rejected by the Anthropic API (HTTP 400, JSON Schema draft 2020-12), so V6 emitted no artifact and the eval was wired around it to the legacy path. Unnoticed only because pre-beta = 0 users. Fixed in #28 (draft-07 inlined schema + a Phase-2 validation-repair loop).
+
+Open measurement item (NOT yet done):
+
+- The locked `_SONNET_BASELINE` (#22) still reflects the **retired legacy path**. Re-locking it on V6 requires a live `wrangler dev` run over the 98-recording holdout (`run_eval.py --do-path`), which needs `ALLOW_EVAL_STUDENT_OVERRIDE`+`EVAL_SHARED_SECRET` in `.dev.vars` **and Anthropic credits**. Until that run, V6 synthesis is verified by unit tests + the live sparse-cold-start repro (3/3 valid artifacts), not the baseline.
 
 See `docs/harness.md` for the V6 architecture and `docs/architecture.md` for the full system.
