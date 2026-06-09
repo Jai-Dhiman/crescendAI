@@ -273,6 +273,25 @@ def test_untagged_dimension_raises_before_key_resolution(tmp_path: Path):
         )
 
 
+def test_build_briefing_propagates_file_not_found_for_missing_score_json(tmp_path: Path):
+    """FileNotFoundError propagates when the diagnosis piece has no score JSON.
+
+    tmp_path contains no JSON files, so load_passage_key raises for any piece_id.
+    A tagged dimension (timing) is used so NoPrimitiveForDimensionError is never
+    raised first; only the key-resolution step can raise here.
+    """
+    db = _make_catalog(tmp_path, ["hanon_001", "hanon_002"])
+    tags = _tags({pid: ["timing", "articulation"] for pid in ["hanon_001", "hanon_002"]})
+    diag = Diagnosis(
+        dimension="timing",
+        severity="moderate",
+        bar_range=(5, 8),
+        piece_id="nonexistent_piece_xyz",
+    )
+    with pytest.raises(FileNotFoundError):
+        build_briefing(diag, tags, history=[], now=0, db_path=db, scores_dir=tmp_path)
+
+
 def test_end_to_end_briefing_transform_is_realizable():
     """Full loop on the real catalog: tag-match -> plan -> execute the transform."""
     if not REAL_DB.exists():
