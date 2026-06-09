@@ -162,16 +162,22 @@ pub fn identify_piece(
     notes_js: JsValue,
     artifact_json: &str,
     margin_threshold: f64,
-) -> Result<JsValue, JsValue> {
+) -> Result<Option<String>, JsValue> {
     let notes: Vec<types::PerfNote> =
         serde_wasm_bindgen::from_value(notes_js).map_err(|e| JsValue::from_str(&e.to_string()))?;
     let index: types::PieceIndex =
         serde_json::from_str(artifact_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    // Return the result as a JSON string (parsed JS-side), `None` -> `undefined`.
+    // serde-wasm-bindgen's to_value mismarshals the bool field when the call also
+    // deserializes a JS array and takes a &str arg (externref-table aliasing); the
+    // JSON round-trip avoids it.
     match identify::run_identify(&notes, &index, margin_threshold) {
         Some(result) => {
-            serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+            let json = serde_json::to_string(&result)
+                .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            Ok(Some(json))
         }
-        None => Ok(JsValue::NULL),
+        None => Ok(None),
     }
 }
 

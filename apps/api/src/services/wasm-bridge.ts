@@ -373,3 +373,33 @@ export function dtwConfirm(
 		threshold,
 	) as DtwConfirmResult;
 }
+
+/** Result of identify_piece. null when no confident identification is possible. */
+export interface IdentifyResult {
+	piece_id: string;
+	composer: string;
+	title: string;
+	margin: number;
+	locked: boolean;
+}
+
+/**
+ * Identify the piece for the accumulated performance notes against the v2 catalog
+ * artifact (raw `fingerprint/v2/piece_index.json` text). Locks only when the margin
+ * gate clears `marginThreshold` (certified 0.0935); otherwise returns a non-locking
+ * result or null. Runs chroma recall + the elastic-DTW margin gate inside WASM.
+ */
+export function identifyPiece(
+	notes: PerfNote[],
+	artifactJson: string,
+	marginThreshold = 0.0935,
+): IdentifyResult | null {
+	// The WASM export returns a JSON string (or undefined) — see identify_piece in
+	// lib.rs for why the result is JSON-encoded rather than marshaled as a JS object.
+	const json = pieceIdentifyModule.identify_piece(
+		notes,
+		artifactJson,
+		marginThreshold,
+	) as string | undefined;
+	return json == null ? null : (JSON.parse(json) as IdentifyResult);
+}

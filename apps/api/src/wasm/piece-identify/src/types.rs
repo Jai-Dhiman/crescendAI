@@ -79,7 +79,7 @@ pub struct PieceIndex {
 }
 
 /// Result of identify_piece (marshaled to JS).
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IdentifyResult {
     pub piece_id: String,
     pub composer: String,
