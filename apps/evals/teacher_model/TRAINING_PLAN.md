@@ -267,7 +267,7 @@ LoRA on 35B-A3B fits on 1-2 nodes. Per-stage rough estimate:
 
 | Workstream | Status under this plan |
 |---|---|
-| **CPT-corpus pipeline** (`apps/evals/teacher_model/data/corpus/`, 16M / 100M words) | Pivots from "CPT-ready dataset" to **"SFT data synthesis source corpus."** Same cleaning/dedup work; downstream consumer changes. Still ships as v1 dataset -- load-bearing infra regardless of training shape. |
+| **CPT-corpus pipeline** (`apps/evals/teacher_model/data/corpus/`, ~147M words / 100M target reached, #35 closed 2026-06-06) | Pivots from "CPT-ready dataset" to **"SFT data synthesis source corpus."** Same cleaning/dedup work; downstream consumer changes. Still ships as v1 dataset -- load-bearing infra regardless of training shape. Quantity target met (147%); remaining work is composition: corpus is 93% tier3 academic, only 2% tier1 teacher-voice transcripts. |
 | **Translation layer** (TS-side Anthropic <-> Qwen tool format) | **Likely obsolete after Stage 1.** Stops being needed once tool-format SFT lands. Stopgap for the pre-finetune period only. |
 | **Domain probe** (`domain_knowledge_probe.py`) | **Promoted to Stage 0 anchor.** Probe + free-form synthesis eval on base model becomes the gating step for the rest of the plan. |
 | **Rubric calibration** | **Phase 1 tooling SHIPPED** (`apps/evals/teacher_model/calibration/`). Stratified sample selection, founder rater CLI, per-sub-score weighted kappa, drift detection, and filter-recipe emission are code-complete with 40 passing tests. Ready to run founder ratings. Phase 2 (expert pianist, 3 outcome dims: ASCF, Scaffolded, Style-Consistent) deferred. Sits on critical path twice (Stage 2 filter + Stage 4 signal). |
