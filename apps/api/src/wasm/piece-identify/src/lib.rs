@@ -8,6 +8,7 @@
 use wasm_bindgen::prelude::*;
 
 mod chroma;
+mod gate;
 mod dtw_confirm;
 mod ngram;
 mod rerank;
