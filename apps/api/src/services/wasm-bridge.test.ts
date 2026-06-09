@@ -14,6 +14,7 @@ const mockSelectTeachingMoment = vi.fn();
 const mockNgramRecall = vi.fn();
 const mockRerankCandidates = vi.fn();
 const mockDtwConfirm = vi.fn();
+const mockIdentifyPiece = vi.fn();
 
 vi.mock("../wasm/score-analysis/pkg/score_analysis", () => ({
 	align_chunk_chroma: mockAlignChunkChroma,
@@ -26,6 +27,7 @@ vi.mock("../wasm/piece-identify/pkg/piece_identify", () => ({
 	ngram_recall: mockNgramRecall,
 	rerank_candidates: mockRerankCandidates,
 	dtw_confirm: mockDtwConfirm,
+	identify_piece: mockIdentifyPiece,
 }));
 
 describe("alignChunkChroma", () => {
@@ -91,5 +93,17 @@ describe("ngramRecall", () => {
 		ngramRecall(notes, index);
 
 		expect(mockNgramRecall).toHaveBeenCalledWith(notes, index);
+	});
+});
+
+describe("identifyPiece", () => {
+	it("forwards notes, artifact JSON, and threshold to identify_piece", async () => {
+		const { identifyPiece } = await import("./wasm-bridge");
+		mockIdentifyPiece.mockReturnValue(
+			JSON.stringify({ piece_id: "p", composer: "c", title: "t", margin: 0.2, locked: true }),
+		);
+		const notes = [{ pitch: 60, onset: 0, offset: 0.5, velocity: 80 }];
+		identifyPiece(notes, '{"version":"v2","onset_tol_ms":50,"pieces":[]}', 0.0935);
+		expect(mockIdentifyPiece).toHaveBeenCalledWith(notes, '{"version":"v2","onset_tol_ms":50,"pieces":[]}', 0.0935);
 	});
 });

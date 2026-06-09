@@ -171,3 +171,51 @@ describe("selectSessionMoments (real WASM)", () => {
 		expect(selectSessionMoments(chunks, reference, 6)).toEqual([]);
 	});
 });
+
+import { identifyPiece } from "./wasm-bridge";
+
+describe("identifyPiece (real WASM)", () => {
+	// Minimal v2 artifact: two pieces. "exact" shares the query's chord-events; "decoy" is disjoint.
+	const artifact = JSON.stringify({
+		version: "v2",
+		onset_tol_ms: 50,
+		pieces: [
+			{ piece_id: "decoy", composer: "X", title: "Decoy", chroma: new Array(12).fill(0), events: [16, 32, 64, 128] },
+			{
+				piece_id: "exact",
+				composer: "Y",
+				title: "Exact",
+				chroma: (() => {
+					const a = new Array(12).fill(0);
+					a[0] = 0.5;
+					a[4] = 0.5;
+					a[7] = 0.5;
+					return a;
+				})(),
+				events: [1, 16, 128, 1],
+			},
+		],
+	});
+	const notes: PerfNote[] = [
+		{ pitch: 60, onset: 0.0, offset: 0.4, velocity: 100 }, // C  -> bit 0
+		{ pitch: 64, onset: 0.5, offset: 0.9, velocity: 100 }, // E  -> bit 4
+		{ pitch: 67, onset: 1.0, offset: 1.4, velocity: 100 }, // G  -> bit 7
+		{ pitch: 72, onset: 1.5, offset: 1.9, velocity: 100 }, // C  -> bit 0 (octave)
+	];
+
+	it("locks to the matching piece", () => {
+		const r = identifyPiece(notes, artifact, 0.0935);
+		expect(r).not.toBeNull();
+		expect(r!.piece_id).toBe("exact");
+		expect(r!.locked).toBe(true);
+	});
+
+	it("returns null when the artifact has fewer than two pieces", () => {
+		const tiny = JSON.stringify({
+			version: "v2",
+			onset_tol_ms: 50,
+			pieces: [{ piece_id: "only", composer: "X", title: "Only", chroma: new Array(12).fill(0), events: [1, 2] }],
+		});
+		expect(identifyPiece(notes, tiny, 0.0935)).toBeNull();
+	});
+});
