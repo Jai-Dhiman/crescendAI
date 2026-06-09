@@ -854,8 +854,10 @@ Expected: FAIL — `TypeError: build_briefing() got an unexpected keyword argume
 
 Edit `model/src/exercise_corpus/briefing.py`:
 
-(a) Replace the match import:
+(a) Replace the match import AND remove the now-dead `import numpy as np` (its only use was the `query_embedding: np.ndarray` hint being deleted):
 ```python
+# DELETE this line (no longer used after query_embedding is dropped):
+#   import numpy as np
 from exercise_corpus.match import CatalogIndex, Match, match_by_dimension
 from exercise_corpus.tags import TagSet
 ```
@@ -982,3 +984,67 @@ git commit -m "test(exercise-corpus): build_briefing raises on untagged dimensio
 - Tasks 2, 3, 5, 8 are **guard tests** for behavior implemented in an earlier task in the same module. They are expected to PASS on first run. This is deliberate vertical-slice pinning of distinct behaviors, not horizontal test-batching — each still gets its own commit. If a guard test FAILS, the earlier task's implementation is wrong; fix it before committing.
 - The real-catalog E2E test (`test_end_to_end_briefing_transform_is_realizable`) SKIPS in this worktree because `data/exercise_primitives.db` is gitignored/absent. The offline `test_shipped_tags_yield_expected_dimension_buckets` (Task 6) is the binding verification of the shipped tags.
 - Do not modify `match_exercises`, `transforms.py`, `catalog.py`, or any file outside `model/src/exercise_corpus/` and its tests.
+
+---
+
+## Challenge Review
+
+Reviewer read: this plan, the spec, `briefing.py` (full), `match.py`, `catalog.py`, `__init__.py` (`Primitive`), the existing `test_match.py`/`test_briefing.py`, `sources.toml`, and the corpus inventory. Findings grounded in that code.
+
+### CEO Pass
+
+**Premise.** Correct, and well-defended. The rejected score-embedding bridge fails because `aria.embedding.get_global_embedding_from_midi` is a contrastive *content* embedding (verified in `model/.venv/.../aria/embedding.py`: "unweighted average of chunk embeddings") and a score MIDI carries flat velocity / quantized timing — orthogonal to the diagnosed dimension. Routing on the categorical `diagnosis.dimension` is the most direct path to a dimension-relevant prescription.
+
+**[OBS] — Retrieval is deterministic-constant per dimension on today's corpus.** Because ranking is `(source_exercise_number, primitive_id)` with no tiebreaker, `timing`/`articulation` ALWAYS return `hanon_001` first and `phrasing`/`interpretation` ALWAYS `burgmuller_001`. On this 22-primitive corpus the matcher effectively collapses to a 4-entry `dimension → primitive` constant. A skeptic could say the catalog/embedding/match machinery is over-built for a lookup table. It earns its place as (a) the forward-compatible seam for #17's embedding tiebreaker, (b) reuse of the catalog as the single source of primitive metadata (title, midi_path), and (c) correct `raise` semantics for untagged dimensions. The user explicitly chose "tag-based retrieval now, embedding deferred," so this is an accepted trade-off, not drift. Monitor: when #17 lands breadth, the within-bucket tiebreaker must actually be wired or this stays constant.
+
+**Scope.** Matches the spec exactly. 4 source files + 3 test files, 2 new symbols (`TagSet`, `match_by_dimension`) + 1 new exception + 1 data file. Under the complexity-smell threshold. Nothing to cut without losing the core goal.
+
+**12-month alignment.** `CURRENT: build_briefing needs a query embedding nothing produces` → `THIS PLAN: dimension-tag retrieval, embedding deferred` → `IDEAL: dimension filter + embedding tiebreaker on a broad corpus, wired to real diagnoses (#29)`. Moves toward the ideal; the kept-but-dormant `match_exercises` is the deliberate seam, not debt.
+
+### Engineering Pass
+
+**Architecture.** No import cycle: `tags.py` imports only stdlib; `match.py` will add `from exercise_corpus.tags import TagSet`; `briefing.py` imports both. Verified `tags.py` has no back-edge. Package path for the shipped TOML resolves to `.../model/src/exercise_corpus` (verified via `exercise_corpus.__file__`), and is CWD-independent — satisfies the project's "anchor paths to `__file__`" rule.
+
+**Module depth.** `tags.py`: interface = 1 type + 1 function, hides TOML parse + 2 validation passes → DEEP. `match_by_dimension`: interface = 1 function + 1 exception, hides catalog load + filter + empty-bucket raise + deterministic rank + nan construction → DEEP. Both pass.
+
+**[RISK → fixed in plan] (confidence: 9/10) — dead `import numpy as np`.** Dropping `query_embedding` removes `np`'s only use in `briefing.py` (verified: line 17 import, line 139 the only reference). Left in, ruff's `F` rule (selected in `pyproject.toml`) flags F401. Task 7 Step 3(a) has been amended to delete the import. Resolved.
+
+**[OBS] — `ExerciseBriefing.match_score` becomes `nan`.** `build_briefing` sets `match_score=top.score`; in tag mode `top.score` is the `nan` sentinel. No test asserts on it, so harmless here, but the api-side `ExerciseArtifact` wiring (#29) must not treat `match_score` as a meaningful confidence — note carried to #29.
+
+**[OBS] — transient unused import in Task 7 commit.** The migrated `test_briefing.py` imports `NoPrimitiveForDimensionError` but doesn't use it until Task 8 — one commit with an unused import (pytest unaffected; ruff F401 if run standalone). Acceptable; self-resolves at Task 8.
+
+**Test philosophy.** All tests exercise public interfaces (`load_tags`, `match_by_dimension`, `build_briefing`). No internal mocking. nan asserted via `math.isnan` (behavior, not shape). Determinism asserted by re-invocation equality. Clean.
+
+**Vertical slice audit.** Tasks 1, 4, 6, 7 are true test-fails-first slices. Tasks 2, 3, 5, 8 are **guard tests that pass on first run** because the behavior was front-loaded in the group's first implementation task. This is the one place the strict "watch it fail" discipline is relaxed. Verdict: acceptable — each pins a *distinct* rejection/propagation behavior and gets its own commit (bisectable), and the plan labels them explicitly. Not horizontal slicing (no bulk-test task, no deferred implementation). If the build agent prefers, Tasks 2/3 could be folded into Task 1 and 5 into 4, but the separate-commit form is defensible.
+
+**Test coverage.**
+```
+[+] tags.py::load_tags        happy [T1★★] · unknown-dim [T2★★] · unknown-pid [T3★★]
+[~] match.py::match_by_dimension  filter+rank+top_k+nan [T4★★★] · empty→raise [T5★★]
+[+] technique_tags.toml       real buckets offline [T6★★★]
+[~] briefing.py::build_briefing  dimension-retrieval [T7★★] · untagged→raise [T8★★] · cooldown/severity migrated [T7] · E2E realizable [T7, skips]
+[=] match.py::match_exercises  untouched; existing tests guard regression [T5/T8 full-suite]
+```
+No gaps on the changed paths. The Iron Rule (regression test for modified behavior) is satisfied: the `match_exercises` suite is unchanged and re-run; the `build_briefing` suite is fully migrated, not deleted.
+
+**Failure modes.** Every new failure path raises an explicit, named exception surfaced to the caller (`ValueError`, `NoPrimitiveForDimensionError`, `CooldownError`, `FileNotFoundError`). No catch-all, no silent fallback. Meets the zero-silent-failure standard.
+
+### Presumption Inventory
+| Assumption | Verdict | Reason |
+|---|---|---|
+| No external caller uses `build_briefing(query_embedding=...)` | SAFE | grep across repo: only the definition exists |
+| `np` is unused after dropping the hint | SAFE | grep: lines 17 + 139 only |
+| `tags.py`→`match.py`→`briefing.py` has no import cycle | SAFE | `tags.py` imports only stdlib |
+| Shipped TOML path resolves CWD-independently | SAFE | verified via `exercise_corpus.__file__` |
+| `tomllib` available | SAFE | stdlib (3.12); already used in `run.py` |
+| `source_exercise_number` gives a total deterministic order | SAFE | ties broken by unique `primitive_id` (PK) |
+| Real catalog DB absent → E2E skips, offline test binds | SAFE | DB gitignored; verified absent in worktree |
+| Deterministic ranking is acceptable until #17 | VALIDATE | accepted trade-off; revisit when breadth lands |
+
+### Summary
+[BLOCKER] count: 0
+[RISK]    count: 1 (dead `np` import — already fixed in the plan)
+[QUESTION] count: 0
+[OBS]     count: 4
+
+VERDICT: PROCEED
