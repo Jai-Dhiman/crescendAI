@@ -45,3 +45,27 @@ dimensions = ["phrasing", "interpretation"]
         {"phrasing", "interpretation"}
     )
     assert tags["burgmuller_001"].techniques == frozenset()
+
+
+def test_load_tags_rejects_unknown_dimension(tmp_path: Path):
+    toml = _write_toml(
+        tmp_path,
+        """
+[hanon_001]
+dimensions = ["timing", "tempo"]
+""",
+    )
+    with pytest.raises(ValueError, match="unknown dimension"):
+        load_tags(toml, known_primitive_ids={"hanon_001"})
+
+
+def test_load_tags_rejects_unknown_primitive(tmp_path: Path):
+    toml = _write_toml(
+        tmp_path,
+        """
+[ghost_999]
+dimensions = ["timing"]
+""",
+    )
+    with pytest.raises(ValueError, match="unknown primitive_id"):
+        load_tags(toml, known_primitive_ids={"hanon_001"})
