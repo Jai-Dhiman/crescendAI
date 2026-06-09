@@ -162,6 +162,117 @@ def test_untagged_dimension_raises(tmp_path: Path):
         build_briefing(_diagnosis("dynamics"), tags, history=[], now=0, db_path=db)
 
 
+FIXTURES_SCORES = Path(__file__).resolve().parent / "fixtures" / "scores"
+
+
+def test_build_briefing_transpose_semitones_eb(tmp_path: Path):
+    """C-major drill transposed +3 when passage is in Eb."""
+    db = _make_catalog(tmp_path, ["hanon_001", "hanon_002"])
+    tags = _tags({pid: ["timing", "articulation"] for pid in ["hanon_001", "hanon_002"]})
+    diag = Diagnosis(
+        dimension="timing",
+        severity="moderate",
+        bar_range=(5, 8),
+        piece_id="test_piece_eb",
+    )
+    briefing = build_briefing(
+        diag, tags, history=[], now=0, db_path=db, scores_dir=FIXTURES_SCORES
+    )
+    assert briefing.transpose_semitones == 3
+    assert briefing.target_key == "Eb"
+
+
+def test_build_briefing_transpose_none_when_key_absent(tmp_path: Path):
+    """transpose_semitones and target_key are None when piece JSON has null key_signature."""
+    db = _make_catalog(tmp_path, ["hanon_001"])
+    tags = _tags({"hanon_001": ["timing", "articulation"]})
+    # Write a fixture with null key_signature into tmp_path
+    null_key_json = tmp_path / "no_key_piece.json"
+    null_key_json.write_text('{"piece_id": "no_key_piece", "key_signature": null}')
+    diag = Diagnosis(
+        dimension="timing",
+        severity="moderate",
+        bar_range=(3, 6),
+        piece_id="no_key_piece",
+    )
+    briefing = build_briefing(
+        diag, tags, history=[], now=0, db_path=db, scores_dir=tmp_path
+    )
+    assert briefing.transpose_semitones is None
+    assert briefing.target_key is None
+
+
+def test_build_briefing_excerpt_end_bar_from_bar_range_8_bars(tmp_path: Path):
+    """excerpt transform_params["end_bar"] equals bar_range length (8 bars)."""
+    db = _make_catalog(tmp_path, ["hanon_001"])
+    tags = _tags({"hanon_001": ["timing", "articulation"]})
+    null_key_json = tmp_path / "no_key_piece.json"
+    null_key_json.write_text('{"piece_id": "no_key_piece", "key_signature": null}')
+    diag = Diagnosis(
+        dimension="timing",
+        severity="moderate",
+        bar_range=(5, 12),
+        piece_id="no_key_piece",
+    )
+    briefing = build_briefing(
+        diag, tags, history=[], now=0, db_path=db, scores_dir=tmp_path
+    )
+    assert briefing.transform == "excerpt"
+    assert briefing.transform_params["start_bar"] == 1
+    assert briefing.transform_params["end_bar"] == 8  # 12 - 5 + 1
+
+
+def test_build_briefing_excerpt_end_bar_from_bar_range_4_bars(tmp_path: Path):
+    """excerpt transform_params["end_bar"] equals bar_range length (4 bars)."""
+    db = _make_catalog(tmp_path, ["hanon_001"])
+    tags = _tags({"hanon_001": ["timing", "articulation"]})
+    null_key_json = tmp_path / "no_key_piece.json"
+    null_key_json.write_text('{"piece_id": "no_key_piece", "key_signature": null}')
+    diag = Diagnosis(
+        dimension="timing",
+        severity="moderate",
+        bar_range=(5, 8),
+        piece_id="no_key_piece",
+    )
+    briefing = build_briefing(
+        diag, tags, history=[], now=0, db_path=db, scores_dir=tmp_path
+    )
+    assert briefing.transform == "excerpt"
+    assert briefing.transform_params["end_bar"] == 4  # 8 - 5 + 1
+
+
+def test_build_briefing_target_key_in_instruction(tmp_path: Path):
+    """When target_key is set, instruction text contains the key name."""
+    db = _make_catalog(tmp_path, ["hanon_001"])
+    tags = _tags({"hanon_001": ["timing", "articulation"]})
+    diag = Diagnosis(
+        dimension="timing",
+        severity="moderate",
+        bar_range=(5, 8),
+        piece_id="test_piece_eb",
+    )
+    briefing = build_briefing(
+        diag, tags, history=[], now=0, db_path=db, scores_dir=FIXTURES_SCORES
+    )
+    assert "Eb" in briefing.instruction
+
+
+def test_untagged_dimension_raises_before_key_resolution(tmp_path: Path):
+    """NoPrimitiveForDimensionError is raised before any key resolution attempt."""
+    db = _make_catalog(tmp_path, ["hanon_001"])
+    tags = _tags({"hanon_001": ["timing", "articulation"]})
+    diag = Diagnosis(
+        dimension="dynamics",
+        severity="moderate",
+        bar_range=(5, 8),
+        piece_id="test_piece_eb",
+    )
+    with pytest.raises(NoPrimitiveForDimensionError):
+        build_briefing(
+            diag, tags, history=[], now=0, db_path=db, scores_dir=FIXTURES_SCORES
+        )
+
+
 def test_end_to_end_briefing_transform_is_realizable():
     """Full loop on the real catalog: tag-match -> plan -> execute the transform."""
     if not REAL_DB.exists():

@@ -13,7 +13,9 @@ not re-prescribed back-to-back.
 """
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
+from exercise_corpus.keys import load_passage_key, parse_key_to_pc, transpose_interval
 from exercise_corpus.match import CatalogIndex, Match, match_by_dimension
 from exercise_corpus.tags import TagSet
 
@@ -54,6 +56,8 @@ class ExerciseBriefing:
     match_score: float
     transform: str | None  # "tempo" | "excerpt" | None
     transform_params: dict | None
+    transpose_semitones: int | None  # key shift; None if passage key unknown
+    target_key: str | None           # resolved passage key string e.g. "Eb"
     bar_range: tuple[int, int]  # student's piece bars (from the diagnosis)
     estimated_minutes: int
     instruction: str
@@ -76,9 +80,6 @@ _DIMENSION_PLAN: dict[str, tuple[str, str | None, str | None]] = {
 }
 
 _MINUTES = {"moderate": 5, "significant": 8}
-
-# Loop window (primitive-relative bars) for excerpt-based exercises.
-_EXCERPT_BARS = (1, 4)
 
 _INSTRUCTION = {
     "segment_loop": "Loop bars {start}-{end} with a metronome using the matched drill ({title}). Match the click exactly; do not accelerate or slow down.",
@@ -124,12 +125,15 @@ def should_prescribe(
     return True
 
 
-def _transform_params(transform: str | None, severity: str) -> dict | None:
+def _transform_params(
+    transform: str | None, severity: str, bar_range: tuple[int, int]
+) -> dict | None:
     if transform == "tempo":
         # Slow harder for the worse problem.
         return {"factor": 0.5 if severity == "significant" else 0.66}
     if transform == "excerpt":
-        return {"start_bar": _EXCERPT_BARS[0], "end_bar": _EXCERPT_BARS[1]}
+        length = bar_range[1] - bar_range[0] + 1
+        return {"start_bar": 1, "end_bar": length}
     return None
 
 
@@ -141,6 +145,7 @@ def build_briefing(
     db_path=None,
     index: CatalogIndex | None = None,
     top_k: int = 5,
+    scores_dir: Path | None = None,
 ) -> ExerciseBriefing:
     """Match a diagnosed weakness to an exercise and emit a prescription briefing.
 
@@ -174,8 +179,29 @@ def build_briefing(
     )
     top = matches[0]
 
+    # Key resolution: transpose C-major exercise into the student's passage key.
+    exercise_pc = parse_key_to_pc(tags[top.primitive_id].key)
+    passage_key_str = load_passage_key(diagnosis.piece_id, scores_dir)
+    if passage_key_str is None:
+        transpose_semitones = None
+        target_key = None
+    else:
+        passage_pc = parse_key_to_pc(passage_key_str)
+        transpose_semitones = transpose_interval(exercise_pc, passage_pc)
+        target_key = passage_key_str
+
     exercise_type, transform, action_binding = _DIMENSION_PLAN[diagnosis.dimension]
     start, end = diagnosis.bar_range
+    t_params = _transform_params(transform, diagnosis.severity, diagnosis.bar_range)
+
+    base_instruction = _INSTRUCTION[exercise_type].format(
+        start=start, end=end, title=top.title
+    )
+    if target_key is not None:
+        instruction = base_instruction + f" Transpose into the key of {target_key}."
+    else:
+        instruction = base_instruction
+
     return ExerciseBriefing(
         target_dimension=diagnosis.dimension,
         severity=diagnosis.severity,
@@ -185,12 +211,12 @@ def build_briefing(
         matched_title=top.title,
         match_score=top.score,
         transform=transform,
-        transform_params=_transform_params(transform, diagnosis.severity),
+        transform_params=t_params,
+        transpose_semitones=transpose_semitones,
+        target_key=target_key,
         bar_range=diagnosis.bar_range,
         estimated_minutes=_MINUTES[diagnosis.severity],
-        instruction=_INSTRUCTION[exercise_type].format(
-            start=start, end=end, title=top.title
-        ),
+        instruction=instruction,
         success_criterion=_SUCCESS[exercise_type],
         action_binding=action_binding,
         candidates=matches,
