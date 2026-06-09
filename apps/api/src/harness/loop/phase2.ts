@@ -162,7 +162,7 @@ export async function* runPhase2(
 	};
 }
 
-function artifactInputSchema(
+export function artifactInputSchema(
 	schema: Phase2Binding["artifactSchema"],
 ): Record<string, unknown> {
 	// The Anthropic Messages API requires tool input_schema to be valid JSON

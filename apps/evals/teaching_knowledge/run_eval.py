@@ -37,7 +37,6 @@ REPO_ROOT = EVALS_ROOT.parents[1]
 CACHE_DIR = REPO_ROOT / "model" / "data" / "eval" / "inference_cache" / "auto-t5_http"
 SKILL_EVAL_DIR = REPO_ROOT / "model" / "data" / "evals" / "skill_eval"
 RESULTS_DIR = EVALS_ROOT / "results"
-SYNTHESIS_SYSTEM_PATH = REPO_ROOT / "apps" / "shared" / "teacher-style" / "synthesis_system.txt"
 
 # MuQ global mean from Rust STOP classifier (synthesis.ts SCALER_MEAN)
 SCALER_MEAN: dict[str, float] = {
@@ -49,9 +48,6 @@ SCALER_MEAN: dict[str, float] = {
     "interpretation": 0.5064,
 }
 DIMS = list(SCALER_MEAN.keys())
-
-# Loaded from apps/shared/teacher-style/synthesis_system.txt (keep in sync with prompts.ts SESSION_SYNTHESIS_SYSTEM)
-SESSION_SYNTHESIS_SYSTEM = SYNTHESIS_SYSTEM_PATH.read_text().strip()
 
 
 def _assert_models_compatible(teacher_model: str, judge_model: str) -> None:
@@ -194,6 +190,61 @@ def _build_row(
     }
 
 
+def render_artifact_text(artifact: dict[str, Any] | None) -> str | None:
+    """Render the full V6 SynthesisArtifact into the prose the judge scores.
+
+    The live WS `text` carries only `headline` (the student's lead-in). The eval must
+    grade the COMPLETE V6 teaching output, so we render the headline plus the focus
+    areas, strengths, and proposed exercises that the headline omits (#28). Returns
+    None when no structured artifact is present (caller falls back to the headline).
+
+    Mirrors the TS shape attached in session-brain.ts buildEvalContext: keys
+    `headline`, `focus_areas` [{dimension, one_liner, severity}], `strengths`
+    [{dimension, one_liner}], `proposed_exercises` [str].
+    """
+    if not artifact:
+        return None
+
+    sections: list[str] = []
+
+    headline = (artifact.get("headline") or "").strip()
+    if headline:
+        sections.append(headline)
+
+    focus_areas = artifact.get("focus_areas") or []
+    if focus_areas:
+        lines = ["Focus areas:"]
+        for fa in focus_areas:
+            severity = fa.get("severity", "")
+            dimension = fa.get("dimension", "")
+            one_liner = (fa.get("one_liner") or "").strip()
+            prefix = f"[{severity}] " if severity else ""
+            lines.append(f"- {prefix}{dimension}: {one_liner}")
+        sections.append("\n".join(lines))
+
+    strengths = artifact.get("strengths") or []
+    if strengths:
+        lines = ["Strengths:"]
+        for st in strengths:
+            dimension = st.get("dimension", "")
+            one_liner = (st.get("one_liner") or "").strip()
+            lines.append(f"- {dimension}: {one_liner}")
+        sections.append("\n".join(lines))
+
+    exercises = artifact.get("proposed_exercises") or []
+    if exercises:
+        lines = ["Suggested exercises:"]
+        for ex in exercises:
+            ex_text = (ex or "").strip()
+            if ex_text:
+                lines.append(f"- {ex_text}")
+        if len(lines) > 1:
+            sections.append("\n".join(lines))
+
+    rendered = "\n\n".join(sections).strip()
+    return rendered or None
+
+
 def build_do_row(
     session_result,
     meta: dict[str, Any],
@@ -237,7 +288,13 @@ def build_do_row(
         base["error"] = "; ".join(errors) if errors else "DO returned no synthesis text"
         return base
 
-    base["synthesis_text"] = synthesis.text
+    # Judge the COMPLETE V6 teaching output, not the headline alone. The DO attaches
+    # the full structured artifact under eval_context.artifact (#28); render it to prose.
+    # Fall back to the headline only when no artifact is present (e.g. an older payload).
+    eval_context = getattr(synthesis, "eval_context", {}) or {}
+    artifact = eval_context.get("artifact")
+    judged_text = render_artifact_text(artifact) or synthesis.text
+    base["synthesis_text"] = judged_text
 
     if dry_run:
         base["judge_model"] = "dry_run"
@@ -249,7 +306,7 @@ def build_do_row(
         "skill_level": meta.get("skill_bucket", 3),
     }
     jr = judge_fn(
-        synthesis.text,
+        judged_text,
         judge_ctx,
         provider=judge_provider,
         model=judge_model,
@@ -389,244 +446,52 @@ def run_do_baseline(
     print(f"Done. processed={processed} errors={errors} -> {out_path}")
 
 
-def run(
-    limit: int | None = None,
-    out_path: Path | None = None,
-    dry_run: bool = False,
-    split: str = "all",
-    split_path: Path | None = None,
-    teacher_model: str = "claude-sonnet-4-6",
-    judge_model: str = "@cf/google/gemma-4-26b-a4b-it",
-    atomic_threshold: float | None = 2.0,
-    system_prompt_path: Path | None = None,
-) -> None:
-    from teaching_knowledge.llm_client import LLMClient
-    from shared.judge import judge_synthesis_v2
-
-    if not dry_run:
-        _assert_models_compatible(teacher_model, judge_model)
-
-    system_prompt = (
-        system_prompt_path.read_text().strip()
-        if system_prompt_path is not None
-        else SESSION_SYNTHESIS_SYSTEM
-    )
-
-    if out_path is None:
-        RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-        out_path = RESULTS_DIR / "baseline_v1.jsonl"
-
-    print(f"Output: {out_path}")
-    print(f"Cache:  {CACHE_DIR}")
-
-    manifest_lookup = load_manifests()
-    print(f"Manifest entries loaded: {len(manifest_lookup)}")
-
-    if not CACHE_DIR.exists():
-        raise FileNotFoundError(f"Cache directory not found: {CACHE_DIR}")
-
-    cache_files = [
-        f for f in sorted(CACHE_DIR.glob("*.json"))
-        if f.name != "_fingerprint.json"
-    ]
-    print(f"Cache files: {len(cache_files)}")
-    cache_files = _filter_cache_files_by_split(cache_files, split_path, which=split)
-    print(f"After split filter ({split}): {len(cache_files)}")
-
-    completed_ids = load_completed_ids(out_path)
-    if completed_ids:
-        print(f"Resuming -- {len(completed_ids)} already completed")
-
-    synthesis_client = LLMClient(provider="anthropic", model=teacher_model)
-    print(f"Synthesis: {synthesis_client.model}")
-    if not dry_run:
-        print(f"Judge:     {judge_model}")
-
-    provenance = make_run_provenance()
-    print(f"run_id: {provenance.run_id}")
-    print(f"git_sha: {provenance.git_sha}{' (dirty)' if provenance.git_dirty else ''}")
-
-    processed = 0
-    skipped_no_manifest = 0
-    errors = 0
-
-    with out_path.open("a") as fout:
-        for cache_path in cache_files:
-            if limit is not None and processed >= limit:
-                break
-
-            data = json.loads(cache_path.read_text())
-            recording_id = data.get("recording_id", cache_path.stem)
-
-            if recording_id in completed_ids:
-                continue
-
-            meta = manifest_lookup.get(recording_id)
-            if meta is None:
-                skipped_no_manifest += 1
-                continue
-
-            chunks = data.get("chunks", [])
-            if not chunks:
-                skipped_no_manifest += 1
-                continue
-
-            muq_means = aggregate_muq(chunks)
-            duration_seconds = data.get("total_duration_seconds", 0.0)
-
-            try:
-                raise NotImplementedError(
-                    "Thin-framing synthesis path removed (issue #22). "
-                    "Use run_do_baseline via --do-path."
-                )
-
-            except Exception as exc:
-                errors += 1
-                result = _build_row(
-                    recording_id=recording_id,
-                    meta=meta,
-                    muq_means=muq_means,
-                    synthesis_text="",
-                    synthesis_latency_ms=0,
-                    judge_dimensions=[],
-                    judge_model="",
-                    judge_latency_ms=0,
-                    error=str(exc),
-                    provenance=provenance,
-                )
-
-            fout.write(json.dumps(result) + "\n")
-            fout.flush()
-            processed += 1
-
-            # Progress line
-            mean_score_str = ""
-            if result.get("judge_dimensions"):
-                scores = [
-                    d["score"]
-                    for d in result["judge_dimensions"]
-                    if isinstance(d.get("score"), (int, float))
-                ]
-                if scores:
-                    mean_score_str = f" | mean={round(sum(scores)/len(scores), 2)}"
-
-            status = (
-                f"[{processed}] {recording_id} | {meta['piece_slug']} "
-                f"sk={meta['skill_bucket']}{mean_score_str}"
-            )
-            if result["error"]:
-                status += f" | ERROR: {result['error'][:80]}"
-            print(status)
-
-    print(
-        f"\nDone. processed={processed} errors={errors} "
-        f"skipped_no_manifest={skipped_no_manifest}"
-    )
-    print(f"Results: {out_path}")
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Teaching quality eval runner")
+    """Run the teaching-quality eval through the real SessionBrain V6 DO.
+
+    The DO replay is the ONLY path: it drives each holdout recording's cached
+    inference through wrangler dev and judges the full V6 SynthesisArtifact
+    (#28). The legacy Python-framed `run()` synthesis path is gone.
+    """
+    parser = argparse.ArgumentParser(
+        description="Teaching quality eval runner (V6 DO path)."
+    )
     parser.add_argument(
-        "--limit",
-        type=int,
-        default=None,
+        "--limit", type=int, default=None,
         help="Max recordings to process (default: all)",
     )
     parser.add_argument(
-        "--out",
-        type=Path,
-        default=None,
-        help="Output JSONL path (default: results/baseline_v1.jsonl)",
+        "--out", type=Path, default=None,
+        help="Output JSONL path (default: results/baseline_v2_do.jsonl)",
     )
     parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Synthesis only, skip judge (faster for prompt tuning checks)",
+        "--dry-run", action="store_true",
+        help="Run synthesis through the DO but skip the judge (smoke check).",
     )
     parser.add_argument(
-        "--split",
-        choices=["train", "holdout", "all"],
-        default="all",
-        help="Filter recordings by split membership (default: all)",
-    )
-    parser.add_argument(
-        "--split-file",
-        type=Path,
-        default=None,
-        help="Path to splits.json (default: data/splits.json if present)",
-    )
-    parser.add_argument(
-        "--teacher-model",
-        default="claude-sonnet-4-6",
-        help="Teacher model name (default: claude-sonnet-4-6)",
-    )
-    parser.add_argument(
-        "--judge-model",
-        default="@cf/google/gemma-4-26b-a4b-it",
+        "--judge-model", default="@cf/google/gemma-4-26b-a4b-it",
         help="Judge model name (default: @cf/google/gemma-4-26b-a4b-it)",
     )
     parser.add_argument(
-        "--atomic-threshold",
-        type=float,
-        default=2.0,
-        help="Run atomic-matrix judge when mean judge score is below this threshold (default: %(default)s).",
-    )
-    parser.add_argument(
-        "--system-prompt",
-        type=Path,
-        default=None,
-        help="Path to a synthesis system prompt .txt file (default: apps/shared/teacher-style/synthesis_system.txt).",
-    )
-    parser.add_argument(
-        "--do-path",
-        action="store_true",
-        help="Drive synthesis through the real SessionBrain DO (requires wrangler dev).",
-    )
-    parser.add_argument(
-        "--wrangler-url",
-        default="http://localhost:8787",
-        help="wrangler dev base URL for --do-path (default: %(default)s).",
+        "--wrangler-url", default="http://localhost:8787",
+        help="wrangler dev base URL (default: %(default)s).",
     )
     args = parser.parse_args()
 
-    if args.do_path:
-        from shared.judge import judge_synthesis_v2
+    from shared.judge import judge_synthesis_v2
 
-        judge_provider = _judge_provider_for(args.judge_model)
-        holdout = EVALS_ROOT / "teacher_model" / "stage0" / "data" / "stage0_holdout.jsonl"
-        out = args.out if args.out is not None else (RESULTS_DIR / "baseline_v2_do.jsonl")
-        run_do_baseline(
-            holdout_path=holdout,
-            out_path=out,
-            wrangler_url=args.wrangler_url,
-            judge_fn=judge_synthesis_v2,
-            limit=args.limit,
-            dry_run=args.dry_run,
-            judge_provider=judge_provider,
-            judge_model=args.judge_model,
-        )
-        return
-
-    default_split_file = EVALS_ROOT / "teaching_knowledge" / "data" / "splits.json"
-    split_path = args.split_file
-    if split_path is None and args.split != "all" and default_split_file.exists():
-        split_path = default_split_file
-    if args.split != "all" and split_path is None:
-        raise FileNotFoundError(
-            f"--split {args.split} requires a splits.json file. "
-            f"Expected at {default_split_file}, or pass --split-file explicitly."
-        )
-    run(
+    judge_provider = _judge_provider_for(args.judge_model)
+    holdout = EVALS_ROOT / "teacher_model" / "stage0" / "data" / "stage0_holdout.jsonl"
+    out = args.out if args.out is not None else (RESULTS_DIR / "baseline_v2_do.jsonl")
+    run_do_baseline(
+        holdout_path=holdout,
+        out_path=out,
+        wrangler_url=args.wrangler_url,
+        judge_fn=judge_synthesis_v2,
         limit=args.limit,
-        out_path=args.out,
         dry_run=args.dry_run,
-        split=args.split,
-        split_path=split_path,
-        teacher_model=args.teacher_model,
+        judge_provider=judge_provider,
         judge_model=args.judge_model,
-        atomic_threshold=args.atomic_threshold,
-        system_prompt_path=args.system_prompt,
     )
 
 

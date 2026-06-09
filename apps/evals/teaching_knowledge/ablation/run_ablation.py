@@ -1,88 +1,47 @@
 # apps/evals/teaching_knowledge/ablation/run_ablation.py
-"""4-condition signal ablation orchestrator."""
-from __future__ import annotations
-import json
-import time
-from pathlib import Path
-from typing import Any, Protocol
+"""4-condition signal ablation orchestrator (V6 DO path, #28).
 
-from teaching_knowledge.ablation.corrupt_signals import corrupt
+Replays each recording's chunks through the real SessionBrain V6 DO under four
+conditions -- real / shuffle / marginal / flip -- corrupting the per-chunk MuQ
+predictions the DO ingests (not a Python-framed prompt). If the V6 output is
+invariant to corrupted signals, the teacher is hallucinating rather than reading
+the data; analyze.py turns the real-vs-corrupted judge deltas into a verdict.
+
+The DO driver is injected so the orchestration is unit-testable without a live
+wrangler dev; the live verdict needs Anthropic credits.
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+from pathlib import Path
+from typing import Any
+
+from shared.provenance import make_run_provenance
+from teaching_knowledge.ablation.corrupt_signals import corrupt_chunks
+from teaching_knowledge.run_eval import build_do_row
 
 CONDITIONS = ("real", "shuffle", "marginal", "flip")
-SCALER_MEAN = {
-    "dynamics": 0.545, "timing": 0.4848, "pedaling": 0.4594,
-    "articulation": 0.5369, "phrasing": 0.5188, "interpretation": 0.5064,
-}
-
-JUDGE_SYSTEM = "You are a careful evaluator. Score the teacher synthesis on 7 pedagogical dimensions. Output a JSON array."
 
 
-class SynthesisClient(Protocol):
-    def complete(self, *, user: str, system: str, max_tokens: int) -> str: ...
+def _default_driver(wrangler_url, recording_cache, student_id, piece_query):
+    """Default DO-replay driver: real run_recording over wrangler dev."""
+    from shared.pipeline_client import run_recording
 
-
-class JudgeClient(Protocol):
-    def complete(self, *, user: str, system: str, max_tokens: int) -> str: ...
-
-
-SYNTHESIS_SYSTEM = (
-    "You are a warm, perceptive piano teacher reviewing a practice session. "
-    "Respond in 3-6 sentences."
-)
-
-
-def _muq_to_top_moments(muq_means: dict[str, float]) -> list[dict]:
-    moments = []
-    for dim, score in muq_means.items():
-        dev = score - SCALER_MEAN.get(dim, 0.5)
-        if abs(dev) >= 0.05:
-            moments.append({
-                "dimension": dim, "score": score,
-                "deviation_from_mean": round(dev, 3),
-                "direction": "above_average" if dev > 0 else "below_average",
-            })
-    moments.sort(key=lambda m: abs(m["deviation_from_mean"]), reverse=True)
-    return moments[:4]
-
-
-def _build_user_msg(top_moments, duration_seconds, meta) -> str:
-    payload = {
-        "duration_minutes": round(duration_seconds / 60, 1),
-        "practice_pattern": "continuous_play",
-        "top_moments": top_moments,
-        "drilling_records": [],
-        "piece": {"title": meta["title"], "composer": meta["composer"], "skill_level": meta["skill_bucket"]},
-    }
-    return f"<session_data>\n{json.dumps(payload, indent=2)}\n</session_data>\n<task>Write 3-6 sentences.</task>"
-
-
-def _call_judge(judge_client: JudgeClient, synthesis_text: str, meta: dict) -> list[dict]:
-    """Call the judge and return parsed dimension list. Raises on parse failure."""
-    user = (
-        f"Piece: {meta['title']} by {meta['composer']}\n"
-        f"Student skill level: {meta['skill_bucket']}\n\n"
-        f"## AI Teacher Output to Evaluate\n{synthesis_text}"
+    return asyncio.run(
+        run_recording(
+            wrangler_url,
+            recording_cache,
+            student_id=student_id,
+            piece_query=piece_query,
+        )
     )
-    raw = judge_client.complete(user=user, system=JUDGE_SYSTEM, max_tokens=4000)
-    text = raw.strip()
-    if text.startswith("```"):
-        text = text.split("```", 2)[1]
-        if text.startswith("json"):
-            text = text[4:]
-        text = text.strip().rstrip("`").strip()
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"judge returned non-JSON: {exc}; raw={raw[:200]!r}") from exc
-    if not isinstance(data, list):
-        raise ValueError(f"judge response is not a list: raw={raw[:200]!r}")
-    return data
 
 
 def _load_completed(out_path: Path) -> set[tuple[str, str]]:
     if not out_path.exists():
         return set()
-    done = set()
+    done: set[tuple[str, str]] = set()
     for line in out_path.read_text().splitlines():
         line = line.strip()
         if not line:
@@ -94,49 +53,77 @@ def _load_completed(out_path: Path) -> set[tuple[str, str]]:
 
 def run_ablation(
     *,
-    sessions: list[dict],
+    recordings: list[dict[str, Any]],
     out_path: Path,
-    synthesis_client: SynthesisClient,
-    judge_client: JudgeClient | None = None,
+    wrangler_url: str = "http://localhost:8787",
+    driver=_default_driver,
+    judge_fn=None,
+    judge_provider: str = "workers-ai",
+    judge_model: str = "@cf/google/gemma-4-26b-a4b-it",
     seed: int = 42,
     skip_judge: bool = False,
 ) -> None:
+    """Drive each recording through the DO under all four conditions.
+
+    `recordings` items: {recording_id, chunks: [{chunk_index, predictions, ...}], meta}.
+    `driver(wrangler_url, recording_cache, student_id, piece_query) -> SessionResult`
+    is injected (default: shared.pipeline_client.run_recording).
+    """
+    if not skip_judge and judge_fn is None:
+        raise ValueError("judge_fn is required unless skip_judge=True")
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     completed = _load_completed(out_path)
-    all_real_top_moments = [_muq_to_top_moments(s["muq_means"]) for s in sessions]
+    provenance = make_run_provenance()
+    all_chunks = [rec["chunks"] for rec in recordings]
 
     with out_path.open("a") as fout:
-        for idx, session in enumerate(sessions):
-            real_tm = all_real_top_moments[idx]
+        for idx, rec in enumerate(recordings):
+            real_chunks = rec["chunks"]
             for condition in CONDITIONS:
-                key = (session["recording_id"], condition)
+                key = (rec["recording_id"], condition)
                 if key in completed:
                     continue
+
                 if condition == "real":
-                    used_tm = real_tm
+                    used_chunks = real_chunks
                 else:
-                    corpus = all_real_top_moments
-                    if len(corpus) < 2:
-                        corpus = corpus + [list(corpus[0])]
-                    used_tm = corrupt(real_tm, mode=condition, seed=seed + idx,
-                                      all_top_moments=corpus)
-                user_msg = _build_user_msg(used_tm, session["duration_seconds"], session["meta"])
-                t0 = time.monotonic()
-                synth = synthesis_client.complete(user=user_msg, system=SYNTHESIS_SYSTEM, max_tokens=1024)
-                lat = round((time.monotonic() - t0) * 1000)
+                    used_chunks = corrupt_chunks(
+                        real_chunks,
+                        mode=condition,
+                        seed=seed + idx,
+                        all_chunks=all_chunks,
+                    )
 
-                judge_dimensions: list[dict] = []
-                if not skip_judge and judge_client is not None:
-                    judge_dimensions = _call_judge(judge_client, synth, session["meta"])
-
-                row = {
-                    "recording_id": session["recording_id"],
-                    "condition": condition,
-                    "top_moments_used": used_tm,
-                    "synthesis_text": synth,
-                    "synthesis_latency_ms": lat,
-                    "judge_dimensions": judge_dimensions,
-                    "judge_skipped": skip_judge or judge_client is None,
+                recording_cache = {
+                    "recording_id": rec["recording_id"],
+                    "chunks": used_chunks,
                 }
+                # Fresh per-condition eval identity -> cold-start fidelity and no
+                # cross-condition longitudinal bleed in sessionHistory/pastDiagnoses.
+                student_id = f"eval-ablation-{rec['recording_id']}-{condition}"
+                meta = rec.get("meta", {})
+
+                session_result = driver(
+                    wrangler_url,
+                    recording_cache,
+                    student_id,
+                    meta.get("piece_slug") or None,
+                )
+
+                # Reuse the baseline row shaping: judges the FULL V6 artifact (#28),
+                # not the headline alone. skip_judge -> dry_run (judge not called).
+                row = build_do_row(
+                    session_result,
+                    meta,
+                    judge_fn,
+                    provenance,
+                    dry_run=skip_judge,
+                    judge_provider=judge_provider,
+                    judge_model=judge_model,
+                )
+                row["condition"] = condition
+                row["judge_skipped"] = skip_judge
+
                 fout.write(json.dumps(row) + "\n")
                 fout.flush()

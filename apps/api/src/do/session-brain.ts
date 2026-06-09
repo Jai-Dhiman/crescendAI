@@ -87,6 +87,25 @@ export function buildV6WsPayload(
 	};
 }
 
+/**
+ * Compose the `eval_context` attached to the synthesis WS payload during eval replay.
+ *
+ * The live WS `text` field carries only `artifact.headline` (what the student reads as
+ * the lead). For the eval, that under-measures V6: the judge would score the headline
+ * alone while focus_areas / proposed_exercises / strengths — the bulk of the teaching
+ * output — go ungraded. So we attach the FULL structured artifact here; the Python eval
+ * renders it to the judged text. Merges into the accumulator snapshot (which carries the
+ * raw signals) so a single `eval_context` object carries both inputs and output.
+ *
+ * Exported for unit testing.
+ */
+export function buildEvalContext(
+	snapshot: Record<string, unknown>,
+	artifact: SynthesisArtifact,
+): Record<string, unknown> {
+	return { ...snapshot, artifact };
+}
+
 // Per-instance non-persisted state (lost on hibernation/eviction — intentional)
 // Used only for AMT overlap context: previous chunk audio bytes
 const previousChunkAudio = new WeakMap<SessionBrain, ArrayBuffer | null>();
@@ -1856,7 +1875,10 @@ export class SessionBrain extends DurableObject<Bindings> {
 			);
 			const wsPayloadWithEval =
 				evalContext !== null
-					? { ...wsPayload, eval_context: evalContext }
+					? {
+							...wsPayload,
+							eval_context: buildEvalContext(evalContext, artifact),
+						}
 					: wsPayload;
 			const sockets = this.ctx.getWebSockets();
 			for (const sock of sockets) {

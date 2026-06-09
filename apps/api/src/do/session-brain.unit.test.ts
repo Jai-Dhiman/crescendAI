@@ -13,6 +13,7 @@ import {
 import type { ChunkAnalysis } from "../services/wasm-bridge";
 import {
 	buildColdStartMoments,
+	buildEvalContext,
 	buildV6WsPayload,
 	computeSessionDurationMs,
 } from "./session-brain";
@@ -124,6 +125,49 @@ describe("buildV6WsPayload", () => {
 	it("omits pendingComponent when undefined (backward-compatible)", () => {
 		const payload = buildV6WsPayload(ARTIFACT);
 		expect(payload.components).toEqual([]);
+	});
+});
+
+describe("buildEvalContext", () => {
+	const RICH_ARTIFACT: SynthesisArtifact = {
+		...ARTIFACT,
+		strengths: [{ dimension: "timing", one_liner: "Steady pulse throughout" }],
+		focus_areas: [
+			{ dimension: "pedaling", one_liner: "Blurred harmonies", severity: "significant" },
+		],
+		proposed_exercises: ["Half-pedal the cadence at bar 12"],
+	};
+
+	const SNAPSHOT = {
+		scored_chunks: [{ scores: [0.5, 0.6] }],
+		teaching_moments: [],
+		baselines: {},
+	};
+
+	it("merges the full artifact into the accumulator snapshot", () => {
+		const ctx = buildEvalContext(SNAPSHOT, RICH_ARTIFACT);
+		// Raw-signal snapshot fields are preserved...
+		expect(ctx.scored_chunks).toEqual(SNAPSHOT.scored_chunks);
+		expect(ctx.baselines).toEqual({});
+		// ...and the structured artifact is attached whole.
+		expect(ctx.artifact).toBe(RICH_ARTIFACT);
+	});
+
+	it("carries the teaching output the headline alone omits", () => {
+		const ctx = buildEvalContext(SNAPSHOT, RICH_ARTIFACT);
+		const artifact = ctx.artifact as SynthesisArtifact;
+		// These are exactly the fields the WS `text` (headline-only) drops and that
+		// the eval judge must see to grade the full V6 output (#28).
+		expect(artifact.focus_areas).toHaveLength(1);
+		expect(artifact.strengths).toHaveLength(1);
+		expect(artifact.proposed_exercises).toHaveLength(1);
+		expect(artifact.headline).toBe(HEADLINE);
+	});
+
+	it("does not mutate the input snapshot", () => {
+		const snapshot = { ...SNAPSHOT };
+		buildEvalContext(snapshot, RICH_ARTIFACT);
+		expect(snapshot).not.toHaveProperty("artifact");
 	});
 });
 

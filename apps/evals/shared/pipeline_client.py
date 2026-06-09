@@ -247,8 +247,12 @@ async def run_recording(
 
                     if msg_type == "synthesis":
                         synthesis_result = SynthesisResult(
+                            # The DO emits the camelCase `isFallback` (buildV6WsPayload);
+                            # accept the snake_case spelling too for any legacy payload.
                             text=response.get("text", ""),
-                            is_fallback=response.get("is_fallback", False),
+                            is_fallback=response.get(
+                                "isFallback", response.get("is_fallback", False)
+                            ),
                             eval_context=response.get("eval_context", {}),
                         )
                     elif msg_type == "observation":

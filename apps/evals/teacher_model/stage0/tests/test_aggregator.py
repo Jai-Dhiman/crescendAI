@@ -12,11 +12,17 @@ from teacher_model.stage0.aggregator import (
     build_dossier,
 )
 
-# Honest DO-path baseline (#22): measured over the 98-recording holdout through the
-# real SessionBrain DO + buildSynthesisFraming (claude-sonnet-4-6), replacing the thin
-# Python-strawman numbers. ASCF 0.959 (was 1.387) / composite 1.060 (was 2.483) is a
-# truer cold-start first-session baseline, not a regression — see baseline_v2_do_aggregate.json.
-_SONNET_BASELINE = {
+# Illustrative baseline FIXTURE — exercises the aggregator mechanics (7-row dossier,
+# error-rate gate, inconsistency flag). These are NOT the canonical baseline anymore.
+#
+# HISTORICAL (#22, retired by #28): the numbers below were the locked DO-path Sonnet
+# baseline measured through the legacy `buildSynthesisFraming` path — ASCF mean_outcome
+# 0.959 / composite 1.060 over the 98-recording holdout. That path was DELETED when V6
+# became canon (#28): synthesis now replays through the V6 SynthesisArtifact and the eval
+# judges the full teaching output, so these figures no longer describe the shipping system.
+# A FRESH V6 baseline must be locked from a live `--do-path` holdout run (Anthropic credits
+# pending). Until then these values stand only as fixture inputs, not a quality lock.
+_BASELINE_FIXTURE = {
     "dimensions": [
         {"name": "Audible-Specific Corrective Feedback", "mean_outcome": 0.959, "n": 97},
         {"name": "Concrete Artifact Provision", "mean_outcome": 0.452, "n": 93},
@@ -84,7 +90,7 @@ def test_dossier_emits_seven_capability_rows(tmp_path: Path) -> None:
         "accuracy": 0.7, "total": 50, "correct": 35,
         "by_topic": {"concepts": {"accuracy": 0.7, "total": 10, "correct": 7}}
     }))
-    base.write_text(json.dumps(_SONNET_BASELINE))
+    base.write_text(json.dumps(_BASELINE_FIXTURE))
 
     dossier = build_dossier(
         synthesis_jsonl=synth,
@@ -119,7 +125,7 @@ def test_error_rate_gate_refuses_emission_above_five_percent(tmp_path: Path) -> 
         {"case_id": "p1", "expected_call": True, "called": True, "discipline_correct": True, "format_valid": True, "category": None, "error": ""}
     ])
     mcq.write_text(json.dumps({"accuracy": 0.5, "total": 50, "correct": 25, "by_topic": {}}))
-    base.write_text(json.dumps(_SONNET_BASELINE))
+    base.write_text(json.dumps(_BASELINE_FIXTURE))
 
     with pytest.raises(DossierEmissionRefused, match="error rate"):
         build_dossier(
@@ -143,7 +149,7 @@ def test_inconsistency_flag_when_primary_and_corroborator_disagree(tmp_path: Pat
         "accuracy": 0.0, "total": 50, "correct": 0,
         "by_topic": {"concepts": {"accuracy": 0.0, "total": 10, "correct": 0}}
     }))
-    base.write_text(json.dumps(_SONNET_BASELINE))
+    base.write_text(json.dumps(_BASELINE_FIXTURE))
 
     dossier = build_dossier(
         synthesis_jsonl=synth, tool_jsonl=tool, mcq_json=mcq,
@@ -165,7 +171,7 @@ def test_continuation_metrics_appear_in_dossier_when_provided(tmp_path: Path) ->
         {"case_id": "p1", "expected_call": True, "called": True, "discipline_correct": True, "format_valid": True, "category": None, "error": ""}
     ])
     mcq.write_text(json.dumps({"accuracy": 0.5, "total": 50, "correct": 25, "by_topic": {}}))
-    base.write_text(json.dumps(_SONNET_BASELINE))
+    base.write_text(json.dumps(_BASELINE_FIXTURE))
     _write_jsonl(cont, [
         {"case_id": "p1", "category": "clean", "is_degenerate": False},
         {"case_id": "p2", "category": "refusal", "is_degenerate": True},
