@@ -1,6 +1,5 @@
 import json
 from argparse import Namespace
-from pathlib import Path
 
 from score_library.cli import cmd_fingerprint
 

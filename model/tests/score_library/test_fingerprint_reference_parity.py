@@ -1,10 +1,9 @@
 import json
 from pathlib import Path
 
-import numpy as np
 import pytest
 
-from score_library.fingerprint import build_piece_index, _piece_events
+from score_library.fingerprint import build_piece_index
 from piece_id_eval.notes import load_score_notes
 from piece_id_eval.stage0c_elastic_dtwgate import _notes_to_events
 

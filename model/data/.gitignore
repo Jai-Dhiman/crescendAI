@@ -19,5 +19,6 @@
 /evals/skill_eval/*/results.json
 /evals/practice_eval_pseudo/
 /evals/piece_id
+!/evals/piece_id/parity_fixtures.json
 
 review.html

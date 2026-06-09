@@ -78,6 +78,8 @@ fn certified_operating_point_holds() {
     let in_cat: Vec<&ParityQuery> = fx.queries.iter().filter(|q| q.in_catalog).collect();
     let ood: Vec<&ParityQuery> = fx.queries.iter().filter(|q| !q.in_catalog).collect();
     let in_locked = in_cat.iter().filter(|q| q.expected_locked).count();
+    // Pins the EXACT recorded certified operating point (TA=0.875 -> 14/16), not a tolerance band:
+    // all 14 fixtures must lock, so `>=` carries zero headroom here. Do not read it as slack.
     assert!(in_locked >= 14, "in-catalog locks {in_locked}/16 below certified TA");
     assert_eq!(ood.iter().filter(|q| q.expected_locked).count(), 0, "an OOD query locked");
 }
