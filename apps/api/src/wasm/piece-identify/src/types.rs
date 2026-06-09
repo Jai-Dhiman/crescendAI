@@ -60,3 +60,30 @@ pub struct CatalogEntry {
     pub composer: String,
     pub title: String,
 }
+
+/// One catalog piece in the v2 artifact: chroma recall vector + chord-event masks.
+#[derive(Serialize, Deserialize)]
+pub struct PieceArtifact {
+    pub piece_id: String,
+    pub composer: String,
+    pub title: String,
+    pub chroma: [f64; 12],
+    pub events: Vec<u16>,
+}
+
+/// The v2 piece-ID artifact loaded from R2 (`fingerprint/v2/piece_index.json`).
+#[derive(Serialize, Deserialize)]
+pub struct PieceIndex {
+    pub onset_tol_ms: f64,
+    pub pieces: Vec<PieceArtifact>,
+}
+
+/// Result of identify_piece (marshaled to JS).
+#[derive(Serialize, Deserialize)]
+pub struct IdentifyResult {
+    pub piece_id: String,
+    pub composer: String,
+    pub title: String,
+    pub margin: f64,
+    pub locked: bool,
+}
