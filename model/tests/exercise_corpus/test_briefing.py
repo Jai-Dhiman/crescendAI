@@ -1,14 +1,14 @@
 """Tests for briefing.py -- the matcher + transform + memory loop.
 
-build_briefing ties slice B (match) and slice C (transforms) together: given a
-diagnosed weakness and a query embedding, it emits an ExerciseBriefing that maps
-onto the api-side ExerciseArtifact contract, choosing a dimension-appropriate
-exercise type + deterministic transform, and respecting a 3-day cooldown so the
-same weakness is not re-prescribed back-to-back.
+build_briefing ties dimension-tag retrieval (slice B, match_by_dimension) and
+slice C (transforms) together: given a diagnosed weakness and a tag map, it emits
+an ExerciseBriefing that maps onto the api-side ExerciseArtifact contract,
+choosing a dimension-appropriate exercise type + deterministic transform, and
+respecting a 3-day cooldown so the same weakness is not re-prescribed back-to-back.
 
 Synthetic-catalog tests cover the planning logic without Aria weights; one
-end-to-end test runs the whole loop against the real 22-MIDI catalog and
-actually executes the planned transform to prove the plan is realizable.
+end-to-end test runs the whole loop against the real catalog (skipped when the
+gitignored catalog DB is absent) and executes the planned transform.
 """
 
 from pathlib import Path
@@ -18,6 +18,7 @@ import pytest
 import torch
 from partitura.score import Note
 
+import exercise_corpus
 from exercise_corpus import Primitive
 from exercise_corpus.briefing import (
     CooldownError,
@@ -28,15 +29,19 @@ from exercise_corpus.briefing import (
     should_prescribe,
 )
 from exercise_corpus.catalog import write_primitives
+from exercise_corpus.match import NoPrimitiveForDimensionError, load_index
+from exercise_corpus.tags import TagSet, load_tags
 from exercise_corpus.transforms import load_primitive, scale_tempo
 
 DAY = 86_400
 REAL_DB = Path("data/exercise_primitives.db")
+SHIPPED_TAGS = Path(exercise_corpus.__file__).resolve().parent / "technique_tags.toml"
 
 
-def _make_catalog(tmp_path: Path, vectors: dict[str, np.ndarray]) -> Path:
+def _make_catalog(tmp_path: Path, primitive_ids: list[str]) -> Path:
+    rng = np.random.default_rng(0)
     primitives, embeddings = [], {}
-    for i, (pid, vec) in enumerate(vectors.items(), start=1):
+    for i, pid in enumerate(primitive_ids, start=1):
         source = pid.split("_")[0]
         primitives.append(
             Primitive(
@@ -49,10 +54,14 @@ def _make_catalog(tmp_path: Path, vectors: dict[str, np.ndarray]) -> Path:
                 n_notes=100 + i,
             )
         )
-        embeddings[pid] = torch.from_numpy(vec.astype(np.float32))
+        embeddings[pid] = torch.from_numpy(rng.standard_normal(512).astype(np.float32))
     db = tmp_path / "cat.db"
     write_primitives(primitives, embeddings, db)
     return db
+
+
+def _tags(mapping: dict[str, list[str]]) -> dict[str, TagSet]:
+    return {pid: TagSet(frozenset(dims), frozenset()) for pid, dims in mapping.items()}
 
 
 def _diagnosis(dimension="timing", severity="moderate", bars=(5, 8)) -> Diagnosis:
@@ -65,128 +74,109 @@ def _diagnosis(dimension="timing", severity="moderate", bars=(5, 8)) -> Diagnosi
 
 
 def test_build_briefing_emits_briefing_for_a_weakness(tmp_path: Path):
-    rng = np.random.default_rng(0)
-    vectors = {f"hanon_{i:03d}": rng.standard_normal(512) for i in range(1, 6)}
-    db = _make_catalog(tmp_path, vectors)
-
-    briefing = build_briefing(
-        _diagnosis(), query_embedding=vectors["hanon_003"], db_path=db, history=[], now=0
+    db = _make_catalog(tmp_path, ["hanon_001", "hanon_002", "hanon_003"])
+    tags = _tags(
+        {pid: ["timing", "articulation"] for pid in ["hanon_001", "hanon_002", "hanon_003"]}
     )
 
+    briefing = build_briefing(_diagnosis(), tags, history=[], now=0, db_path=db)
+
     assert isinstance(briefing, ExerciseBriefing)
-    assert briefing.matched_primitive_id == "hanon_003"  # self-match ranks #1
+    # Deterministic ranking -> lowest (source_exercise_number, primitive_id) first.
+    assert briefing.matched_primitive_id == "hanon_001"
+    assert briefing.matched_primitive_id in {"hanon_001", "hanon_002", "hanon_003"}
     assert briefing.target_dimension == "timing"
     assert briefing.exercise_type == "segment_loop"
-    assert briefing.bar_range == (5, 8)  # student's piece bars pass through
+    assert briefing.bar_range == (5, 8)
     assert "5" in briefing.instruction and "8" in briefing.instruction
     assert briefing.estimated_minutes == 5  # moderate
     assert len(briefing.candidates) >= 1
 
 
-def test_dimension_selects_appropriate_transform(tmp_path: Path):
-    rng = np.random.default_rng(1)
-    vectors = {f"hanon_{i:03d}": rng.standard_normal(512) for i in range(1, 4)}
-    db = _make_catalog(tmp_path, vectors)
-    q = vectors["hanon_001"]
+def test_phrasing_selects_slow_practice_tempo(tmp_path: Path):
+    db = _make_catalog(tmp_path, ["burgmuller_001"])
+    tags = _tags({"burgmuller_001": ["phrasing", "interpretation"]})
 
     phrasing = build_briefing(
-        _diagnosis("phrasing", "significant"), query_embedding=q, db_path=db, history=[], now=0
+        _diagnosis("phrasing", "significant"), tags, history=[], now=0, db_path=db
     )
     assert phrasing.exercise_type == "slow_practice"
     assert phrasing.transform == "tempo"
     assert phrasing.estimated_minutes == 8  # significant
 
-    dynamics = build_briefing(
-        _diagnosis("dynamics"), query_embedding=q, db_path=db, history=[], now=0
-    )
-    assert dynamics.exercise_type == "dynamic_exaggeration"
-    # no deterministic symbolic transform exists for dynamics in slice C
-    assert dynamics.transform is None
-
 
 def test_minor_severity_rejected(tmp_path: Path):
-    rng = np.random.default_rng(2)
-    vectors = {f"hanon_{i:03d}": rng.standard_normal(512) for i in range(1, 4)}
-    db = _make_catalog(tmp_path, vectors)
+    db = _make_catalog(tmp_path, ["hanon_001"])
+    tags = _tags({"hanon_001": ["timing", "articulation"]})
     with pytest.raises(ValueError, match="severity"):
-        build_briefing(
-            _diagnosis(severity="minor"),
-            query_embedding=vectors["hanon_001"],
-            db_path=db,
-            history=[],
-            now=0,
-        )
+        build_briefing(_diagnosis(severity="minor"), tags, history=[], now=0, db_path=db)
 
 
 def test_cooldown_blocks_recent_repeat(tmp_path: Path):
-    rng = np.random.default_rng(3)
-    vectors = {f"hanon_{i:03d}": rng.standard_normal(512) for i in range(1, 4)}
-    db = _make_catalog(tmp_path, vectors)
-    q = vectors["hanon_001"]
+    db = _make_catalog(tmp_path, ["hanon_001", "hanon_002"])
+    tags = _tags({pid: ["timing", "articulation"] for pid in ["hanon_001", "hanon_002"]})
     now = 10 * DAY
     history = [
         PrescriptionRecord(
             primitive_id="hanon_002",
             dimension="timing",
             bar_range=(5, 8),
-            prescribed_at=now - 1 * DAY,  # yesterday, overlaps bars 5-8
+            prescribed_at=now - 1 * DAY,
         )
     ]
     with pytest.raises(CooldownError):
-        build_briefing(_diagnosis(bars=(6, 9)), query_embedding=q, db_path=db, history=history, now=now)
+        build_briefing(_diagnosis(bars=(6, 9)), tags, history=history, now=now, db_path=db)
 
 
 def test_cooldown_expired_allows_represcribe(tmp_path: Path):
-    rng = np.random.default_rng(4)
-    vectors = {f"hanon_{i:03d}": rng.standard_normal(512) for i in range(1, 4)}
-    db = _make_catalog(tmp_path, vectors)
-    q = vectors["hanon_001"]
+    db = _make_catalog(tmp_path, ["hanon_001", "hanon_002"])
+    tags = _tags({pid: ["timing", "articulation"] for pid in ["hanon_001", "hanon_002"]})
     now = 10 * DAY
     history = [
         PrescriptionRecord(
             primitive_id="hanon_002",
             dimension="timing",
             bar_range=(5, 8),
-            prescribed_at=now - 5 * DAY,  # 5 days ago, outside 3-day window
+            prescribed_at=now - 5 * DAY,
         )
     ]
-    briefing = build_briefing(_diagnosis(bars=(5, 8)), query_embedding=q, db_path=db, history=history, now=now)
+    briefing = build_briefing(_diagnosis(bars=(5, 8)), tags, history=history, now=now, db_path=db)
     assert isinstance(briefing, ExerciseBriefing)
 
 
 def test_should_prescribe_predicate():
     now = 10 * DAY
     rec = PrescriptionRecord("hanon_001", "timing", (5, 8), now - 1 * DAY)
-    # same dimension, overlapping bars, within window -> blocked
     assert should_prescribe("timing", (6, 9), [rec], now) is False
-    # different dimension -> allowed
     assert should_prescribe("dynamics", (6, 9), [rec], now) is True
-    # non-overlapping bars -> allowed
     assert should_prescribe("timing", (20, 24), [rec], now) is True
-    # outside window -> allowed
     assert should_prescribe("timing", (6, 9), [rec], now + 5 * DAY) is True
 
 
+def test_untagged_dimension_raises(tmp_path: Path):
+    db = _make_catalog(tmp_path, ["hanon_001", "hanon_002"])
+    tags = _tags({pid: ["timing", "articulation"] for pid in ["hanon_001", "hanon_002"]})
+    # dynamics is a valid teacher dimension (passes the _DIMENSION_PLAN check) but
+    # nothing in this catalog is tagged for it -> honest failure at retrieval.
+    with pytest.raises(NoPrimitiveForDimensionError):
+        build_briefing(_diagnosis("dynamics"), tags, history=[], now=0, db_path=db)
+
+
 def test_end_to_end_briefing_transform_is_realizable():
-    """Full loop on the real catalog: match -> plan -> execute the transform."""
+    """Full loop on the real catalog: tag-match -> plan -> execute the transform."""
     if not REAL_DB.exists():
         pytest.skip("real catalog DB not present")
-    idx_q = None
-    # Use a real primitive's embedding as the query (deterministic self-match).
-    from exercise_corpus.match import load_index
-
     idx = load_index(REAL_DB)
-    idx_q = next(r.embedding for r in idx.rows if r.primitive_id == "hanon_005")
+    tags = load_tags(
+        SHIPPED_TAGS, known_primitive_ids={r.primitive_id for r in idx.rows}
+    )
 
     briefing = build_briefing(
-        _diagnosis("phrasing", "significant"),
-        query_embedding=idx_q,
-        db_path=REAL_DB,
-        history=[],
-        now=0,
+        _diagnosis("phrasing", "significant"), tags, history=[], now=0, index=idx
     )
-    # Execute the planned transform against the matched primitive's MIDI.
-    part = load_primitive(Path("data/midi/exercise_primitives") / f"{briefing.matched_primitive_id}.mid")
+    part = load_primitive(
+        Path("data/midi/exercise_primitives") / f"{briefing.matched_primitive_id}.mid"
+    )
     assert briefing.transform == "tempo"
     variant = scale_tempo(part, briefing.transform_params["factor"])
     assert len(list(variant.part.iter_all(Note))) == len(list(part.iter_all(Note)))

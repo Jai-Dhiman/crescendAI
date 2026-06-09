@@ -14,9 +14,8 @@ not re-prescribed back-to-back.
 
 from dataclasses import dataclass, field
 
-import numpy as np
-
-from exercise_corpus.match import CatalogIndex, Match, match_exercises
+from exercise_corpus.match import CatalogIndex, Match, match_by_dimension
+from exercise_corpus.tags import TagSet
 
 # The 6 teacher dimensions (mirrors apps/api .../artifacts/diagnosis DIMENSIONS).
 VALID_SEVERITIES = ("moderate", "significant")
@@ -136,7 +135,7 @@ def _transform_params(transform: str | None, severity: str) -> dict | None:
 
 def build_briefing(
     diagnosis: Diagnosis,
-    query_embedding: np.ndarray,
+    tags: dict[str, TagSet],
     history: list[PrescriptionRecord],
     now: float,
     db_path=None,
@@ -145,10 +144,15 @@ def build_briefing(
 ) -> ExerciseBriefing:
     """Match a diagnosed weakness to an exercise and emit a prescription briefing.
 
+    Retrieval is by diagnosed dimension via curated technique tags
+    (match.match_by_dimension), not by a query embedding.
+
     Raises:
         ValueError: if severity is not in {moderate, significant} or the
             dimension is unknown.
         CooldownError: if the diagnosis was addressed within the cooldown window.
+        NoPrimitiveForDimensionError: if no catalog primitive is tagged for the
+            diagnosis dimension (e.g. pedaling or dynamics on the current corpus).
     """
     if diagnosis.severity not in VALID_SEVERITIES:
         raise ValueError(
@@ -165,9 +169,9 @@ def build_briefing(
             f"within the last {COOLDOWN_DAYS} days"
         )
 
-    matches = match_exercises(query_embedding, db_path=db_path, index=index, top_k=top_k)
-    if not matches:
-        raise ValueError("matcher returned no candidates")
+    matches = match_by_dimension(
+        diagnosis.dimension, tags, db_path=db_path, index=index, top_k=top_k
+    )
     top = matches[0]
 
     exercise_type, transform, action_binding = _DIMENSION_PLAN[diagnosis.dimension]
