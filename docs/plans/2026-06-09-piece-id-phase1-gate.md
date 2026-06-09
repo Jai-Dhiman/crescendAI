@@ -1345,7 +1345,14 @@ git commit -m "chore(#26): seed-fingerprint recipe lands v2 artifact in local R2
 
 ---
 
-## Challenge Review
+## Challenge Review (SUPERSEDED — pre-revision, deletion framing)
+
+> The review below was run against the EARLIER plan version that DELETED the legacy
+> surface in Tasks 11+13. That design was reworked: the PR is now purely ADDITIVE and
+> the legacy deletion + `session-brain.ts` rewire are deferred to a post-#28 slice.
+> [BLOCKER-1] is therefore RESOLVED by the revision (nothing is deleted, so nothing
+> dangles). The Task-1 RISK is RESOLVED (Task 1 is now verify-only against a committed
+> fixture). See "## Challenge Review (revision 2)" at the end for the current verdict.
 
 Reviewed against the spec and the actual code: the FROZEN Python reference (`stage0c_elastic_dtwgate.py`, `stage0f_hard_ood_certify.py`, `note_chroma.py`, `note_chroma_matcher.py`), the current Rust crate (`lib.rs`, `types.rs`, `Cargo.toml`), the TS bridge (`wasm-bridge.ts`), and the live consumer (`session-brain.ts`). I did NOT re-litigate the algorithm (frozen/certified). I empirically validated the load-bearing port question by running the reference through `librosa` on this machine.
 
@@ -1402,3 +1409,72 @@ Reviewed against the spec and the actual code: the FROZEN Python reference (`sta
 [QUESTION] count: 0
 
 VERDICT: NEEDS_REWORK — [BLOCKER-1] Deleting the `ngramRecall`/`rerankCandidates`/`dtwConfirm` bridge wrappers and `NgramIndex`/`RerankFeatures` types (Tasks 11+13) leaves `session-brain.ts:50,54,2229,2233,2259` referencing now-nonexistent symbols, so `apps/api` no longer compiles and the vitest/typecheck "local green" bar is unreachable. Add a surgical step that neutralizes those dangling references in `session-brain.ts` (stub `tryIdentifyPiece` to `return null` + drop the dead imports/callsites) WITHOUT performing the #28 note-buffer rewire — the deferral applies to the rewire, not to keeping the tree compilable. Also address the Task-1 offloaded-data RISK (generate + commit `parity_fixtures.json` from the primary checkout before `/build`, since MAESTRO/ASAP/pseudo-truth may be absent in a fresh worktree).
+
+---
+
+## Challenge Review (revision 2)
+
+Re-review of the REVISED plan. Two changes since the superseded review: (1) the PR is now purely ADDITIVE — `identify_piece`/`identifyPiece` + the v2 artifact land ALONGSIDE the retained legacy ngram/rerank/dtw_confirm surface, and the legacy deletion + `session-brain.ts` rewire are deferred to a post-#28 slice; (2) Task 1 is now verify-only against a committed golden fixture. Scope of this pass: (a) is the additive framing internally consistent and does it keep `apps/api` compiling, (b) vertical-slice TDD integrity of the remaining tasks, (c) any NEW inconsistency the revision introduced, (d) is Task-1-verify-only sound given Task 12 depends on the committed fixture. I did NOT re-litigate the frozen algorithm (settled by Phase-0) and treat the legacy-deletion/session-brain deferrals as intentional, per instruction.
+
+Verified against actual code on this checkout.
+
+### (a) Additive framing — compiles, no dangling refs
+
+The prior [BLOCKER-1] is RESOLVED. I confirmed the legacy surface the plan promises to RETAIN actually exists and is still consumed:
+- `apps/api/src/do/session-brain.ts` still imports `NgramIndex` (`:50`), `RerankFeatures` (`:54`) and calls `wasm.ngramRecall` (`:2229`), `wasm.rerankCandidates` (`:2233`), `wasm.dtwConfirm` (`:2259`), loading `fingerprint/v1/*` (`:2198-2200`). The revised plan touches NONE of these and forbids editing `session-brain.ts` — verified: no active task edits `session-brain.ts` (all 14 mentions are either the additive/forbid notes, the DEFERRED table, or the superseded review).
+- `apps/api/src/wasm/piece-identify/src/lib.rs` declares `mod dtw_confirm/ngram/rerank/text_match/types` and exports `ngram_recall`/`compute_rerank_features`/`rerank_candidates`/`dtw_confirm`. Task 11 INSERTS `mod chroma/gate/identify` + `identify_piece` alongside these and explicitly keeps them. No symbol `session-brain.ts` needs is removed.
+- `apps/api/src/services/wasm-bridge.ts` exports `ngramRecall`/`rerankCandidates`/`dtwConfirm` (`:334/345/365`). Task 13 ADDS `identifyPiece`/`IdentifyResult` alongside them and keeps the legacy wrappers.
+
+Because nothing is deleted, the `tsc`/vitest "local green" bar that the prior review found unreachable is reachable. The additive claim is consistent across Task 11 (lines 932-1048), Task 13 (1171-1286), the spec File-Changes table, and the "Parallel-group file safety" note (line 1342, now correctly stating the blast radius does NOT reach `session-brain.ts`). Internally consistent.
+
+`[OBS]` — The "Parallel-group file safety" note still says "Group B touches `apps/api/src/wasm/**` only ... Group D depends on B." This is now accurate under the additive framing (Group D / Task 13 touches `services/wasm-bridge.ts` + its two test files, none of which is `session-brain.ts`). The earlier contradiction the superseded review flagged is gone.
+
+### (b) Task-1-verify-only soundness vs Task 12 dependency — VALIDATED EMPIRICALLY
+
+I inspected the committed `model/data/evals/piece_id/parity_fixtures.json` (git-tracked, force-added) and ran the committed `test_parity_fixtures.py`: **1 passed**. The fixture is fully consistent with everything Task 12's Rust parity test asserts:
+- Shape matches the Task-12 serde structs exactly: top-level `margin_threshold` + `queries`; per-query `query_id`/`in_catalog`/`query_events`/`candidates`/`expected_best_piece_id`/`expected_margin`/`expected_locked`; per-candidate `piece_id`/`events`/`expected_cost`. (Extra top-level `onset_tol_ms`/`top_k` keys are ignored by serde — fine.)
+- 28 queries: 16 in-catalog (14 locked), 12 OOD (0 locked). Task 12's `certified_operating_point_holds` asserts `in_locked >= 14` and `ood_locked == 0` — both hold (the `>=14` is satisfied EXACTLY; see `[RISK]` below).
+- Every query has >=2-event `query_events` and exactly 5 candidates each with >=2 events, so `elastic_cost` is never `+inf` and `margin_gate` never returns `None` → Task 12's `unwrap_or_else(panic)` is safe (no spurious panic).
+- No infinite/huge `expected_cost` values, so the `1e-4` cost comparison is well-posed.
+- `argmin(expected_cost) == expected_best_piece_id` for ALL 28 queries, and `expected_margin == (2nd_cost − best_cost)` for ALL 28 — so Task 12's `best_index → candidates[best_index].piece_id == expected_best_piece_id` and margin assertions are internally satisfiable by a faithful port.
+- All event values fit `u16` (max observed 3720 < 65535; 12-bit masks ≤ 4095).
+
+Task-1-as-verify-only is sound: the file Task 12 reads is committed, travels into the `/build` worktree, and the verify-only step (`pytest test_parity_fixtures.py`) confirms it still reproduces the certified point without needing the offloaded ASAP/MAESTRO corpora. The prior Task-1 data RISK is resolved.
+
+### (c) NEW inconsistencies introduced by the revision
+
+`[OBS]` — Task 12 still references `gate` (`use crate::gate::{elastic_cost, margin_gate}`) correctly; `parity_test.rs` is added as a placeholder in Task 11 (`mod parity_test;` under `#[cfg(test)]`, empty body `// populated in Task 12`) and overwritten in Task 12. Type/name/artifact-key consistency holds end-to-end: `PerfNote`/`PieceArtifact`/`PieceIndex`/`IdentifyResult`/`GateDecision` (Rust), `identifyPiece`/`IdentifyResult`/`PerfNote` (TS), `build_piece_index`/`_piece_events`/`_piece_chroma` (Python), and artifact keys (`version`,`onset_tol_ms`,`pieces`,`piece_id`,`composer`,`title`,`chroma`,`events`) are identical across generator, Rust, bridge, and fixtures. No new inconsistency from the revision.
+
+`[OBS]` — `PieceIndex` (Task 10) is `{ onset_tol_ms: f64, pieces }` and ignores the artifact's `version` field; the v2 generator emits `version: "v2"`. serde ignores unknown fields by default, so this is harmless, but the Rust side never validates `version == "v2"`. Since the DEFERRED slice is the only thing that loads `v2` from R2, and this PR doesn't wire the DO, no action — just note the version is unenforced at the Rust boundary.
+
+### (d) Vertical-slice TDD integrity of remaining tasks
+
+Every task is one failing test → one implementation → one passing run → one commit. Spot checks:
+- Task 11 writes ONE crate-level smoke test (`crate_exposes_identify_pipeline`) and the implementation is purely additive (module decls + one export + the placeholder file). The test fails-to-compile until the new `mod` decls exist — genuine red→green, one behavior. Good (and notably cleaner than the superseded version, which bundled a large deletion into this commit).
+- Tasks 4 and 12 carry the anti-vacuous-pass guard (perturb-and-revert) — correct for parity-against-reference tests a faithful prior task may already satisfy.
+- Task 13 splits into a real-WASM workerd test (behavior) + a node-mocked forwarding test (mocks the WASM module — an external boundary, acceptable). Both in one task/commit; one new behavior (`identifyPiece` exposed). Acceptable.
+- Task 14's "test" is a local-R2 shell assertion — appropriate for a seed recipe, a genuine servable-object check, not a shape test.
+
+`[RISK]` (confidence: 7/10) — **Task 12's `certified_operating_point_holds` asserts `in_locked >= 14` and the committed fixture has EXACTLY 14 in-catalog locks (the 2 unlocked in-catalog queries are the certified TA=0.875 misses).** This is a zero-slack assertion: if the Rust port differs from Python on even ONE borderline in-catalog query's lock decision (e.g. a margin that lands within 1e-4 of the 0.0935 threshold but on the wrong side due to f64 rounding across the librosa-vs-Rust DP), `in_locked` drops to 13 and the test fails. The minimum LOCKED margin in the fixture is 0.118 (comfortably > 0.0935), and the 2 misses are presumably well below threshold, so the boundary is likely not actually tight in margin-space even though it is tight in count-space. Watch during execution: if `certified_operating_point_holds` fails at 13/16 while `rust_margin_gate_matches_python_decision` (the per-query 1e-4 assertion) PASSES, that is contradictory and indicates a fixture/threshold-comparison bug, not a port bug. Fallback: the per-query margin/cost assertions (1e-4) are the real fidelity gate; the aggregate count assertion is a sanity ribbon and can be loosened to `>= 13` only if a genuine sub-1e-4 threshold-straddle is demonstrated (do NOT loosen pre-emptively).
+
+`[OBS]` — Task 12 derives the best piece from `margin_gate`'s `best_index` (argmin of Rust-computed cost). If two candidates tie on cost, Rust's stable sort keeps slice order while Python's selection may differ; `best_index` could then point to an equal-cost-but-different piece, failing `best piece mismatch`. The fixture shows unique argmins for all 28 queries, so this is not currently triggered — but it is a latent fragility if the fixture is ever regenerated with a tie. No action now.
+
+### Presumption Inventory (revision 2)
+
+| ASSUMPTION | VERDICT | REASON |
+|---|---|---|
+| Nothing in this PR edits `session-brain.ts` | SAFE | Verified: no active task touches it; all legacy symbols it needs are retained |
+| Legacy surface (lib.rs exports, wasm-bridge wrappers, types) still exists to retain | SAFE | Verified file-by-file: `lib.rs:10-13/34/54/69/101`, `wasm-bridge.ts:334/345/365`, `session-brain.ts:50/54/2229/2233/2259` |
+| Tree compiles after this additive PR | SAFE | No symbol removed; only additions + a placeholder file declared under `#[cfg(test)]` |
+| Committed fixture matches Task-12 serde structs | SAFE | Inspected: all required keys present, types compatible, u16-safe |
+| Fixture lets Task-12 assertions pass for a faithful port | SAFE | argmin==best, margin==2nd−1st, no None/inf, for all 28 queries |
+| Task-1 verify-only is sufficient (no regen needed) | SAFE | `pytest test_parity_fixtures.py` passes on committed fixture; no offloaded data required |
+| `in_locked >= 14` aggregate assertion has slack | RISKY (mitigated) | Exactly 14 locked; count-space tight, margin-space loose (min lock margin 0.118) — see RISK |
+| Port fidelity (Rust DP == librosa subseq DTW) | SAFE (carried) | Validated in the superseded review (2,300 cases, 0 mismatch); algorithm unchanged by the revision |
+
+### Summary (revision 2)
+[BLOCKER] count: 0
+[RISK]    count: 1
+[QUESTION] count: 0
+
+VERDICT: PROCEED_WITH_CAUTION — [RISK] Task 12's `certified_operating_point_holds` asserts `in_locked >= 14` against a fixture with EXACTLY 14 in-catalog locks (zero count-slack). If a sub-1e-4 threshold straddle ever flips one borderline lock, this aggregate assertion fails while the per-query 1e-4 fidelity assertions still pass — a contradictory signal. Treat the per-query margin/cost assertions as the real fidelity gate; loosen the aggregate to `>= 13` only if a genuine threshold straddle is demonstrated, never pre-emptively. The additive framing is internally consistent, keeps `apps/api` compiling (no task edits `session-brain.ts`, no retained symbol is deleted), and Task-1-as-verify-only is sound (committed fixture passes its test and satisfies every Task-12 assertion).
