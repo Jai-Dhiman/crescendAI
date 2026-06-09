@@ -82,7 +82,7 @@ seed-scores:
         cd apps/api && wrangler r2 object put "crescendai-bucket/$key" --file="../../$f" --local && cd ../..
     done
 
-# Generate fingerprint index + rerank features from score library
+# Generate the v2 piece-ID index (chroma + chord-events) from the score library
 fingerprint:
     cd model && uv run python -m score_library.cli fingerprint --scores-dir data/scores --output-dir data/fingerprints
 

@@ -128,34 +128,18 @@ def cmd_reupload_mxl(args):
 
 
 def cmd_fingerprint(args):
-    from score_library.fingerprint import build_ngram_index, build_rerank_features
+    from score_library.fingerprint import build_piece_index
 
     scores_dir = Path(args.scores_dir)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    json_files = [f for f in scores_dir.glob("*.json") if f.name not in ("titles.json", "seed.sql")]
-    print(f"Building fingerprints for {len(json_files)} scores in {scores_dir}")
-
-    print(f"Building N-gram index (max_freq={args.max_freq})...")
-    ngram_index = build_ngram_index(scores_dir, max_freq=args.max_freq)
-    ngram_path = output_dir / "ngram_index.json"
-    with open(ngram_path, "w") as f:
-        json.dump(ngram_index, f)
-    ngram_size_kb = ngram_path.stat().st_size / 1024
-    print(f"  N-gram index: {len(ngram_index)} trigrams -> {ngram_path} ({ngram_size_kb:.1f} KB)")
-    if ngram_size_kb > 5120:
-        logger.warning("N-gram index exceeds 5MB (%.1f KB) -- lower --max-freq to reduce size", ngram_size_kb)
-
-    print("Building rerank features...")
-    rerank_features = build_rerank_features(scores_dir)
-    rerank_path = output_dir / "rerank_features.json"
-    with open(rerank_path, "w") as f:
-        json.dump(rerank_features, f)
-    rerank_size_kb = rerank_path.stat().st_size / 1024
-    print(f"  Rerank features: {len(rerank_features)} pieces -> {rerank_path} ({rerank_size_kb:.1f} KB)")
-
-    print("\nDone.")
+    index = build_piece_index(scores_dir)
+    out_path = output_dir / "piece_index.json"
+    with open(out_path, "w") as f:
+        json.dump(index, f)
+    size_kb = out_path.stat().st_size / 1024
+    print(f"  Piece index: {len(index['pieces'])} pieces -> {out_path} ({size_kb:.1f} KB)")
 
 
 def cmd_parse_manual(args):
@@ -209,15 +193,9 @@ def main():
     p_reupload_mxl.add_argument("--version", default="v1", help="R2 key version prefix (default: v1)")
     p_reupload_mxl.add_argument("--dry-run", action="store_true", help="Print what would be re-uploaded without uploading")
 
-    p_fingerprint = sub.add_parser("fingerprint", help="Build N-gram index and rerank features")
+    p_fingerprint = sub.add_parser("fingerprint", help="Build the v2 piece-ID index (chroma + chord-events)")
     p_fingerprint.add_argument("--scores-dir", required=True, help="Directory containing score JSON files")
     p_fingerprint.add_argument("--output-dir", required=True, help="Output directory for fingerprint artifacts")
-    p_fingerprint.add_argument(
-        "--max-freq",
-        type=int,
-        default=3,
-        help="Prune trigrams appearing in more than N locations (default: 3, keeps index under 5MB)",
-    )
 
     p_parse_manual = sub.add_parser(
         "parse-manual", help="Ingest manual score MIDIs from a ranked-URL manifest"
