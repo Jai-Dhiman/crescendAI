@@ -2,7 +2,7 @@
 
 import pytest
 
-from exercise_corpus.keys import parse_key_to_pc, transpose_interval
+from exercise_corpus.keys import parse_key_to_pc, transpose_interval, load_passage_key
 
 
 # --- parse_key_to_pc ---
@@ -96,3 +96,27 @@ def test_range_is_bounded():
         for to_pc in range(12):
             result = transpose_interval(from_pc, to_pc)
             assert -5 <= result <= 6, f"out of range for {from_pc}->{to_pc}: {result}"
+
+
+# --- load_passage_key ---
+
+from pathlib import Path
+
+
+def test_load_passage_key_returns_key_from_committed_fixture():
+    # Uses the git-committed bach.prelude.bwv_846.json which has key_signature "C major"
+    scores_dir = Path(__file__).resolve().parents[3] / "model" / "data" / "scores"
+    result = load_passage_key("bach.prelude.bwv_846", scores_dir=scores_dir)
+    assert result == "C major"
+
+
+def test_load_passage_key_raises_for_missing_piece(tmp_path: Path):
+    with pytest.raises(FileNotFoundError, match="nonexistent_piece"):
+        load_passage_key("nonexistent_piece", scores_dir=tmp_path)
+
+
+def test_load_passage_key_returns_none_when_key_signature_is_null(tmp_path: Path):
+    fixture = tmp_path / "no_key_piece.json"
+    fixture.write_text('{"piece_id": "no_key_piece", "key_signature": null}')
+    result = load_passage_key("no_key_piece", scores_dir=tmp_path)
+    assert result is None
