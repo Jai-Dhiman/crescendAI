@@ -104,9 +104,10 @@ from pathlib import Path
 
 
 def test_load_passage_key_returns_key_from_committed_fixture():
-    # Uses the git-committed bach.prelude.bwv_846.json which has key_signature "C major"
-    scores_dir = Path(__file__).resolve().parents[3] / "model" / "data" / "scores"
-    result = load_passage_key("bach.prelude.bwv_846", scores_dir=scores_dir)
+    # Uses the git-committed bach.prelude.bwv_846.json which has key_signature "C major".
+    # No scores_dir arg: exercises load_passage_key's anchored default (_DEFAULT_SCORES_DIR),
+    # so this test is robust to test-file relocation.
+    result = load_passage_key("bach.prelude.bwv_846")
     assert result == "C major"
 
 
