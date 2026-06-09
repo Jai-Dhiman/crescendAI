@@ -163,3 +163,37 @@ def test_match_by_dimension_raises_for_untagged_dimension(tmp_path: Path):
     }
     with pytest.raises(NoPrimitiveForDimensionError, match="pedaling"):
         match_by_dimension("pedaling", tags, db_path=db, top_k=5)
+
+
+# Resolve the shipped tag file relative to the installed package, not CWD.
+_PKG_DIR = Path(exercise_corpus.__file__).resolve().parent
+SHIPPED_TAGS = _PKG_DIR / "technique_tags.toml"
+
+# The 22 real primitive_ids (Hanon 1-20 + Czerny no.1 + Burgmuller no.1).
+_REAL_IDS = [f"hanon_{i:03d}" for i in range(1, 21)] + ["czerny_001", "burgmuller_001"]
+
+
+def test_shipped_tags_yield_expected_dimension_buckets(tmp_path: Path):
+    # Synthetic catalog over the REAL ids -> no real DB / Aria weights needed.
+    db = _dummy_catalog(tmp_path, _REAL_IDS)
+    tags = load_tags(SHIPPED_TAGS, known_primitive_ids=set(_REAL_IDS))
+
+    timing = {
+        m.primitive_id
+        for m in match_by_dimension("timing", tags, db_path=db, top_k=50)
+    }
+    assert "hanon_001" in timing
+    assert "czerny_001" in timing
+    assert "burgmuller_001" not in timing  # Hanon/Czerny are not phrasing studies
+
+    phrasing = {
+        m.primitive_id
+        for m in match_by_dimension("phrasing", tags, db_path=db, top_k=50)
+    }
+    assert phrasing == {"burgmuller_001"}
+
+    # Conservative authoring: nothing in this corpus teaches pedaling or dynamics.
+    with pytest.raises(NoPrimitiveForDimensionError):
+        match_by_dimension("pedaling", tags, db_path=db, top_k=50)
+    with pytest.raises(NoPrimitiveForDimensionError):
+        match_by_dimension("dynamics", tags, db_path=db, top_k=50)

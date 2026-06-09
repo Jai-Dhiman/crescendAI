@@ -1,0 +1,101 @@
+# Editorial technique tags per exercise primitive (issue #36).
+#
+# Retrieval (match.match_by_dimension) filters candidate exercises by `dimensions`.
+# An empty bucket for a requested dimension raises NoPrimitiveForDimensionError --
+# there is NO off-dimension fallback. Conservative authoring: only high-confidence
+# dimension claims are made.
+#
+# This corpus (Hanon premiere partie 1-20 + Czerny op.299 no.1 + Burgmuller op.100
+# no.1) contains no pedaling or dynamics study, so `pedaling` and `dynamics` are
+# intentionally untagged and will raise -- that error is the issue #17 corpus-
+# breadth gap made legible, not a bug.
+#
+# `techniques` is free vocabulary used only as human-readable annotation today.
+
+[hanon_001]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_002]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_003]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_004]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_005]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_006]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_007]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_008]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_009]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_010]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_011]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_012]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_013]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_014]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_015]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_016]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_017]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_018]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_019]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[hanon_020]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_independence", "evenness"]
+
+[czerny_001]
+dimensions = ["timing", "articulation"]
+techniques = ["velocity", "finger_facility"]
+
+[burgmuller_001]
+dimensions = ["phrasing", "interpretation"]
+techniques = ["cantabile", "legato"]
