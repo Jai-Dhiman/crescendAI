@@ -20,208 +20,45 @@
 - **Group D (TS bridge, depends on Task 11):** Task 13
 - **Group E (local R2 seed, depends on Task 3 + Task 11):** Task 14
 
-`[SHIPS INDEPENDENTLY]` — Groups 0+A+B+C together (the WASM gate + artifact + proven parity) are a self-contained, shippable PR. Group D makes the bridge call the new export; Group E enables `wrangler dev`. The `session-brain.ts` rewire is the DEFERRED slice (BLOCKED-ON-#28, spec §"DEFERRED slice"), NOT in this plan.
+`[SHIPS INDEPENDENTLY]` — Groups 0+A+B+C together (the WASM gate + artifact + proven parity) are a self-contained, shippable PR. Group D makes the bridge expose the new export; Group E enables `wrangler dev`. This PR is purely ADDITIVE — `identify_piece`/`identifyPiece` + the v2 artifact land alongside the retained legacy 3-stage surface. The `session-brain.ts` rewire AND the coupled legacy-surface deletion are the DEFERRED slice (BLOCKED-ON-#28, spec §"DEFERRED slice"), NOT in this plan: the legacy modules/exports/wrappers/v1-artifact are deleted only when the rewire that stops calling them lands.
 
 ---
 
-### Task 1: Freeze the Python-reference decisions into golden parity fixtures
+### Task 1: Freeze the Python-reference decisions into golden parity fixtures — ALREADY COMPLETE (verify-only)
 **Group:** 0 (FIRST — the harness everything else is verified against)
 
+> **ALREADY DONE — DO NOT RE-RUN THE EXPORTER.** The exporter, its test, and the
+> generated golden fixture are already committed (commit message
+> `test(#26): freeze certified gate decisions into golden parity fixtures`):
+> `model/src/piece_id_eval/export_parity_fixtures.py`,
+> `model/src/piece_id_eval/test_parity_fixtures.py`, and the tracked (force-added,
+> since `data/evals/piece_id/**` is gitignored) fixture
+> `model/data/evals/piece_id/parity_fixtures.json` (28 queries: 16 in-catalog,
+> 12 OOD; 14/16 in-catalog lock, 0/12 OOD lock).
+>
+> **Why the build agent must NOT re-run the exporter:** the exporter needs the
+> offloaded raw corpora (`model/data/raw/maestro-v3.0.0`,
+> `model/data/raw/asap-dataset/metadata.csv`, and the in-catalog recording
+> notes) which are gitignored and absent from a fresh `/build` worktree —
+> re-running it there would raise `FileNotFoundError` (no silent fallback). The
+> fixture was generated in the data-present primary checkout and committed so it
+> travels into the worktree. This task is now purely a **verification gate**.
+
 **Behavior being verified:** the committed `parity_fixtures.json` reproduces the certified operating point — in-catalog full-piece queries lock at threshold 0.0935 at the certified TA rate (≥14/16) and out-of-catalog queries never lock.
-**Interface under test:** the golden fixture file `model/data/evals/piece_id/parity_fixtures.json` (produced by `python -m piece_id_eval.export_parity_fixtures`).
+**Interface under test:** the committed golden fixture file `model/data/evals/piece_id/parity_fixtures.json`.
 
-**Files:**
-- Create: `model/src/piece_id_eval/export_parity_fixtures.py`
-- Create (generated, committed): `model/data/evals/piece_id/parity_fixtures.json`
-- Test: `model/src/piece_id_eval/test_parity_fixtures.py`
+**Files (already committed — do not modify):**
+- `model/src/piece_id_eval/export_parity_fixtures.py`
+- `model/data/evals/piece_id/parity_fixtures.json` (git-tracked via `git add -f`)
+- `model/src/piece_id_eval/test_parity_fixtures.py`
 
-- [ ] **Step 1: Write the failing test**
-```python
-# model/src/piece_id_eval/test_parity_fixtures.py
-import json
-from pathlib import Path
-
-_FIXTURES = Path(__file__).resolve().parents[2] / "data/evals/piece_id/parity_fixtures.json"
-
-
-def test_parity_fixtures_reproduce_certified_operating_point():
-    data = json.loads(_FIXTURES.read_text())
-    assert data["margin_threshold"] == 0.0935
-    queries = data["queries"]
-
-    in_cat = [q for q in queries if q["in_catalog"]]
-    ood = [q for q in queries if not q["in_catalog"]]
-    assert len(in_cat) == 16, f"expected 16 in-catalog queries, got {len(in_cat)}"
-    assert len(ood) >= 10, f"expected >=10 OOD queries, got {len(ood)}"
-
-    # Certified TA point estimate is 0.875 -> >=14/16 in-catalog queries lock.
-    assert sum(q["expected_locked"] for q in in_cat) >= 14
-    # Certified false-accept axis: OOD queries must not lock.
-    assert sum(q["expected_locked"] for q in ood) == 0
-
-    for q in queries:
-        assert len(q["query_events"]) >= 2
-        assert 2 <= len(q["candidates"]) <= 5
-        for c in q["candidates"]:
-            assert all(0 <= m <= 0x0FFF for m in c["events"])  # 12-bit pc masks
-        # margin is (2nd-best - best) over candidate costs
-        costs = sorted(c["expected_cost"] for c in q["candidates"])
-        assert abs(q["expected_margin"] - (costs[1] - costs[0])) < 1e-9
-        assert q["expected_locked"] == (q["expected_margin"] >= 0.0935)
-```
-
-- [ ] **Step 2: Run test — verify it FAILS**
+- [ ] **Step 1: Verify the committed test passes** (the only action for the build agent)
 ```bash
 cd model && uv run pytest src/piece_id_eval/test_parity_fixtures.py -q
 ```
-Expected: FAIL — `FileNotFoundError`/`No such file ... parity_fixtures.json` (the fixture has not been generated yet).
+Expected: PASS (the fixture is already committed and reproduces the certified point). Do NOT run `python -m piece_id_eval.export_parity_fixtures` — the worktree lacks the offloaded ASAP/MAESTRO data.
 
-- [ ] **Step 3: Implement the exporter, then generate + commit the fixture**
-```python
-# model/src/piece_id_eval/export_parity_fixtures.py
-"""Freeze the FROZEN Phase-0 gate (Stage-0c/0f, pitch-only chord-Jaccard elastic
-margin) into a golden fixture the Rust/WASM port is asserted against.
-
-For each in-catalog recording (full piece) and a deterministic OOD sample, emit:
-  - query_events: u16 12-bit pitch-class-set masks (onsets collapsed within 50ms)
-  - candidates: chroma top-5, each with its u16 events + Python elastic cost
-  - expected_best_piece_id / expected_margin / expected_locked at threshold 0.0935
-
-Requires ASAP + MAESTRO present (data/raw); raises if missing (no silent fallback).
-Run: cd model && uv run python -m piece_id_eval.export_parity_fixtures
-"""
-from __future__ import annotations
-
-import json
-import random
-import sys
-from pathlib import Path
-
-import numpy as np
-
-from piece_id_eval.matchers.note_chroma_matcher import NoteChromaMatcher
-from piece_id_eval.stage0c_elastic_dtwgate import (
-    _TOP_K,
-    _W_PITCH,
-    ElasticGate,
-    _notes_to_events,
-    load_data,
-)
-from piece_id_eval.stage0f_hard_ood_certify import (
-    _MAESTRO_DIR,
-    _MAX_OOD_EVENTS,
-    _candidates,
-    _load_perf_midi,
-)
-
-_MODULE_DIR = Path(__file__).resolve().parent
-_MODEL_ROOT = _MODULE_DIR.parents[1]
-_OUT = _MODEL_ROOT / "data/evals/piece_id/parity_fixtures.json"
-_THRESHOLD = 0.0935
-_N_OOD = 12
-_SEED = 42
-
-
-def _log(msg: str) -> None:
-    print(msg, file=sys.stderr, flush=True)
-
-
-def _pc_mat_to_masks(pc_mat: np.ndarray) -> list[int]:
-    """Each event row (E,12) binary -> a 12-bit pitch-class-set mask (bit pc set)."""
-    masks: list[int] = []
-    for i in range(pc_mat.shape[0]):
-        m = 0
-        for pc in range(12):
-            if pc_mat[i, pc] > 0:
-                m |= 1 << pc
-        masks.append(m)
-    return masks
-
-
-def _query_record(query_id: str, in_catalog: bool, notes, full_chroma: NoteChromaMatcher, gate: ElasticGate) -> dict | None:
-    q_pc, q_li = _notes_to_events(notes)
-    if q_pc.shape[0] < 2:
-        return None
-    topk = [r.piece_id for r in full_chroma.rank(notes)[:_TOP_K]]
-    cands: list[dict] = []
-    for cid in topk:
-        c = gate.cost(q_pc, q_li, cid, _W_PITCH, 0.0)  # pitch-only (w_time=0)
-        if c is None or not np.isfinite(c):
-            continue
-        r_pc, _ = gate._events[cid]
-        cands.append({"piece_id": cid, "events": _pc_mat_to_masks(r_pc), "expected_cost": round(float(c), 6)})
-    if len(cands) < 2:
-        return None
-    by_cost = sorted(cands, key=lambda x: x["expected_cost"])
-    margin = by_cost[1]["expected_cost"] - by_cost[0]["expected_cost"]
-    return {
-        "query_id": query_id,
-        "in_catalog": in_catalog,
-        "query_events": _pc_mat_to_masks(q_pc),
-        "candidates": cands,  # chroma-rank order — matches the order the WASM receives
-        "expected_best_piece_id": by_cost[0]["piece_id"],
-        "expected_margin": round(float(margin), 6),
-        "expected_locked": bool(margin >= _THRESHOLD),
-    }
-
-
-def main() -> None:
-    catalog, recordings = load_data()
-    full_chroma = NoteChromaMatcher(catalog)
-    gate = ElasticGate(catalog)
-
-    queries: list[dict] = []
-    for true_id, notes in recordings.items():
-        rec = _query_record(f"in:{true_id}", True, notes, full_chroma, gate)
-        if rec is None:
-            raise RuntimeError(f"in-catalog query produced no record: {true_id}")
-        queries.append(rec)
-
-    if not _MAESTRO_DIR.exists():
-        raise FileNotFoundError(f"MAESTRO required for OOD fixtures, missing: {_MAESTRO_DIR}")
-    cands = _candidates()
-    rng = random.Random(_SEED)
-    rng.shuffle(cands)
-    n_ood = 0
-    for c in cands:
-        if n_ood >= _N_OOD:
-            break
-        midi = _MAESTRO_DIR / c["row"]["midi_filename"]
-        if not midi.exists():
-            continue
-        notes = _load_perf_midi(midi, _MAX_OOD_EVENTS)
-        rec = _query_record(f"ood:{c['row']['canonical_title']}", False, notes, full_chroma, gate)
-        if rec is None:
-            continue
-        queries.append(rec)
-        n_ood += 1
-    if n_ood < 10:
-        raise RuntimeError(f"only {n_ood} OOD queries materialized; need >=10")
-
-    out = {"margin_threshold": _THRESHOLD, "onset_tol_ms": 50, "top_k": _TOP_K, "queries": queries}
-    _OUT.write_text(json.dumps(out))
-    _log(f"Wrote {_OUT}: {len(queries)} queries ({n_ood} OOD)")
-
-
-if __name__ == "__main__":
-    main()
-```
-Then generate and stage the golden fixture:
-```bash
-cd model && uv run python -m piece_id_eval.export_parity_fixtures
-```
-
-- [ ] **Step 4: Run test — verify it PASSES**
-```bash
-cd model && uv run pytest src/piece_id_eval/test_parity_fixtures.py -q
-```
-Expected: PASS
-
-- [ ] **Step 5: Commit**
-```bash
-git add model/src/piece_id_eval/export_parity_fixtures.py model/src/piece_id_eval/test_parity_fixtures.py model/data/evals/piece_id/parity_fixtures.json
-git commit -m "test(#26): freeze certified gate decisions into golden parity fixtures"
-```
+- [ ] **Step 2: No commit** — the harness is already committed; nothing to add for this task.
 
 ---
 
@@ -1092,16 +929,25 @@ git commit -m "feat(#26): run_identify orchestrates chroma recall + margin gate"
 
 ---
 
-### Task 11: `identify_piece` WASM export; delete the legacy pipeline; wire `just test-piece-id`
+### Task 11: `identify_piece` WASM export (ADDITIVE — legacy pipeline retained until #28 rewire); wire `just test-piece-id`
 **Group:** B (depends on Task 10; last in B)
 
-**Behavior being verified:** the crate exposes a single `identify_piece(notes_js, artifact_json, margin_threshold)` WASM export, the legacy 3-stage exports/modules are gone, `text_match` is retained, and the crate builds for both native test and the `bundler` WASM target.
+> **ADDITIVE ONLY — DO NOT DELETE THE LEGACY SURFACE IN THIS PR.** `session-brain.ts`
+> still imports `NgramIndex`/`RerankFeatures` and calls `wasm.ngramRecall`/
+> `rerankCandidates`/`dtwConfirm` (and the plan forbids editing `session-brain.ts`,
+> since #28 is rewriting it). Deleting the legacy modules/exports/types here would
+> break `tsc`/`vitest` compilation and make the "local green" bar unreachable.
+> The legacy deletion is therefore COUPLED to the `session-brain.ts` rewire and
+> moves to the DEFERRED post-#28 slice (spec §"DEFERRED slice"). This task only
+> ADDS `identify_piece` alongside the existing pipeline.
+
+**Behavior being verified:** the crate exposes a new `identify_piece(notes_js, artifact_json, margin_threshold)` WASM export ALONGSIDE the retained legacy 3-stage exports, `text_match` is retained, and the crate builds for both native test and the `bundler` WASM target.
 **Interface under test:** `#[wasm_bindgen] identify_piece` (compiled via `cargo build` + `wasm-pack build`); native `lib`-level smoke through `run_identify`.
 
 **Files:**
-- Modify: `apps/api/src/wasm/piece-identify/src/lib.rs` (add export; remove `ngram_recall`/`compute_rerank_features`/`rerank_candidates`/`dtw_confirm` exports + `mod ngram`/`mod rerank`/`mod dtw_confirm`/`mod real_recording_test`)
-- Delete: `apps/api/src/wasm/piece-identify/src/ngram.rs`, `rerank.rs`, `dtw_confirm.rs`, `real_recording_test.rs`
-- Modify: `apps/api/src/wasm/piece-identify/src/types.rs` (remove `NgramIndex`, `RerankFeatures`, `NgramCandidate`, `RerankResult`, `DtwConfirmResult`; keep `PerfNote`, `CatalogEntry`, `TextMatchResult`, plus the new Task-10 types)
+- Modify: `apps/api/src/wasm/piece-identify/src/lib.rs` (INSERT the `identify_piece` export + new `mod chroma; mod gate; mod identify; #[cfg(test)] mod parity_test;` decls alongside the existing modules/exports — do NOT remove `mod ngram`/`mod rerank`/`mod dtw_confirm`/`mod real_recording_test` or their exports)
+- Modify: `apps/api/src/wasm/piece-identify/src/types.rs` (KEEP the legacy `NgramIndex`, `RerankFeatures`, `NgramCandidate`, `RerankResult`, `DtwConfirmResult`; the Task-10 types `PieceArtifact`/`PieceIndex`/`IdentifyResult` were already added in Task 10)
+- Create: `apps/api/src/wasm/piece-identify/src/parity_test.rs` (empty placeholder — Task 12 overwrites it)
 - Modify: `Justfile` (add `test-piece-id`)
 - Test: in `lib.rs` `#[cfg(test)]`
 
@@ -1136,26 +982,22 @@ mod lib_tests {
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test crate_exposes_identify_pipeline
 ```
-Expected: FAIL — compile error: `lib.rs` still declares `mod ngram; mod rerank; mod dtw_confirm; mod real_recording_test;` whose files reference deleted types, and `identify_piece` is not yet exported (or the legacy modules still reference removed `types`). The test cannot compile until the legacy surface is removed.
+Expected: FAIL — compile error: `crate::identify::run_identify` is not yet reachable because `mod chroma; mod gate; mod identify; mod parity_test;` have not been added to `lib.rs` (the new modules exist as files from Tasks 5–10 but are not declared, and `parity_test.rs` does not exist yet). The test cannot compile until the new module decls + placeholder are added.
 
-- [ ] **Step 3: Implement**
-Rewrite `apps/api/src/wasm/piece-identify/src/lib.rs` module section and exports so the file reads:
+- [ ] **Step 3: Implement (ADDITIVE — insert alongside the legacy modules; do NOT rewrite the whole file)**
+INSERT the new module declarations and the `identify_piece` export into `apps/api/src/wasm/piece-identify/src/lib.rs`, KEEPING every existing line (the `mod ngram; mod rerank; mod dtw_confirm; mod real_recording_test; mod text_match; mod types;` decls and the existing `ngram_recall`/`compute_rerank_features`/`rerank_candidates`/`dtw_confirm`/`match_piece_text` exports all stay).
+
+Add the new module decls alongside the existing ones (e.g. after `mod text_match;`):
 ```rust
-//! piece-identify: the certified open-set piece identification gate
-//! (chroma recall -> pitch-only chord-Jaccard elastic-DTW margin gate) plus
-//! free-text query matching, for use from TypeScript workers.
-
-use wasm_bindgen::prelude::*;
-
 mod chroma;
 mod gate;
 mod identify;
-mod text_match;
-mod types;
 
 #[cfg(test)]
 mod parity_test;
-
+```
+And add the new export (alongside the existing `#[wasm_bindgen]` exports — do not remove any):
+```rust
 /// Identify the piece for the accumulated performance notes against the v2
 /// catalog artifact. Locks only when the margin gate clears `margin_threshold`.
 ///
@@ -1181,39 +1023,28 @@ pub fn identify_piece(
         None => Ok(JsValue::NULL),
     }
 }
-
-/// Match a free-text query against the piece catalog using Dice similarity on bigrams.
-/// `catalog_js`: `Array<{ piece_id, composer, title }>`. Returns `{ piece_id, confidence } | null`.
-#[wasm_bindgen]
-pub fn match_piece_text(query: &str, catalog_js: JsValue) -> Result<JsValue, JsValue> {
-    let catalog: Vec<types::CatalogEntry> = serde_wasm_bindgen::from_value(catalog_js)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
-    let result = text_match::match_piece_text(query, &catalog);
-    serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
-}
 ```
-Then append the `#[cfg(test)] mod lib_tests` block from Step 1. Delete the four legacy files. In `types.rs`, delete `NgramIndex`, `RerankFeatures`, `NgramCandidate`, `RerankResult`, `DtwConfirmResult` (keep `PerfNote`, `CatalogEntry`, `TextMatchResult`, and the Task-10 types). Add the `test-piece-id` recipe to the `Justfile`:
+Then append the `#[cfg(test)] mod lib_tests` block from Step 1. **Do NOT delete any legacy files or types** — `ngram.rs`/`rerank.rs`/`dtw_confirm.rs`/`real_recording_test.rs` and the legacy types in `types.rs` (`NgramIndex`/`RerankFeatures`/`NgramCandidate`/`RerankResult`/`DtwConfirmResult`) are retained (their deletion is in the DEFERRED post-#28 slice). Add the `test-piece-id` recipe to the `Justfile`:
 ```
 # Run the piece-identify Rust unit + parity tests (native target).
 test-piece-id:
     cd apps/api/src/wasm/piece-identify && cargo test
 ```
-NOTE: `parity_test.rs` is referenced by `mod parity_test;` but created in Task 12. Until Task 12 lands, temporarily guard it: create an empty `apps/api/src/wasm/piece-identify/src/parity_test.rs` containing only `// populated in Task 12` so the crate compiles. (Task 12 overwrites it.)
+NOTE: `parity_test.rs` is referenced by `mod parity_test;` but populated in Task 12. Create an empty `apps/api/src/wasm/piece-identify/src/parity_test.rs` containing only `// populated in Task 12` so the crate compiles. (Task 12 overwrites it.)
 
 - [ ] **Step 4: Run test — verify it PASSES + crate builds for WASM**
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test crate_exposes_identify_pipeline
 cd /Users/jdhiman/Documents/crescendai/apps/api && bun run build:wasm
 ```
-Expected: PASS, and `build:wasm` regenerates `apps/api/src/wasm/piece-identify/pkg/` with `identify_piece` + `match_piece_text` exports (and no `ngram_recall`).
+Expected: PASS, and `build:wasm` regenerates `apps/api/src/wasm/piece-identify/pkg/` with the new `identify_piece` export ADDED alongside the existing `ngram_recall`/`rerank_candidates`/`dtw_confirm`/`match_piece_text` exports.
 
 - [ ] **Step 5: Commit**
 ```bash
 cd /Users/jdhiman/Documents/crescendai
-git add apps/api/src/wasm/piece-identify/src/lib.rs apps/api/src/wasm/piece-identify/src/types.rs apps/api/src/wasm/piece-identify/src/parity_test.rs Justfile
-git rm apps/api/src/wasm/piece-identify/src/ngram.rs apps/api/src/wasm/piece-identify/src/rerank.rs apps/api/src/wasm/piece-identify/src/dtw_confirm.rs apps/api/src/wasm/piece-identify/src/real_recording_test.rs
+git add apps/api/src/wasm/piece-identify/src/lib.rs apps/api/src/wasm/piece-identify/src/parity_test.rs Justfile
 git add apps/api/src/wasm/piece-identify/pkg
-git commit -m "feat(#26): identify_piece WASM export; delete legacy 3-stage pipeline"
+git commit -m "feat(#26): add identify_piece WASM export (legacy pipeline retained until #28 rewire)"
 ```
 
 ---
@@ -1337,18 +1168,25 @@ git commit -m "test(#26): port-fidelity parity gate (rust reproduces python refe
 
 ---
 
-### Task 13: `wasm-bridge.ts` exposes `identifyPiece`; remove legacy wrappers
+### Task 13: `wasm-bridge.ts` adds `identifyPiece` (ADDITIVE — legacy wrappers retained)
 **Group:** D (depends on Task 11)
+
+> **ADDITIVE ONLY — DO NOT REMOVE THE LEGACY WRAPPERS.** `session-brain.ts` still
+> calls `ngramRecall`/`rerankCandidates`/`dtwConfirm` and imports
+> `NgramIndex`/`RerankFeatures`, and the plan forbids editing `session-brain.ts`
+> (#28 owns that rewire). Removing the wrappers here would break compilation. This
+> task ADDS `identifyPiece` + `IdentifyResult` alongside the retained legacy
+> wrappers/interfaces. Their removal is in the DEFERRED post-#28 slice.
 
 **Behavior being verified:** through the real WASM in workerd, `identifyPiece` locks to the correct piece on an in-catalog fixture and returns `locked: false` (or a non-locking result) on an out-of-catalog query, via the typed bridge.
 **Interface under test:** `wasm-bridge.identifyPiece(notes, artifactJson, threshold)`
 
 **Files:**
-- Modify: `apps/api/src/services/wasm-bridge.ts`
-- Modify: `apps/api/src/services/wasm-bridge.workerd.test.ts`
-- Modify: `apps/api/src/services/wasm-bridge.test.ts`
+- Modify: `apps/api/src/services/wasm-bridge.ts` (ADD `identifyPiece` + `IdentifyResult`; KEEP `ngramRecall`/`rerankCandidates`/`dtwConfirm` + their interfaces)
+- Modify: `apps/api/src/services/wasm-bridge.workerd.test.ts` (ADD a new `identifyPiece (real WASM)` describe block; KEEP the existing `ngramRecall` test)
+- Modify: `apps/api/src/services/wasm-bridge.test.ts` (ADD `identify_piece: mockIdentifyPiece` to the existing `piece_identify` `vi.mock` keeping the legacy mocks; ADD an `identifyPiece` forwarding test; KEEP the `ngramRecall` block)
 
-- [ ] **Step 1: Write the failing test** (replace the `ngramRecall` block in `wasm-bridge.workerd.test.ts`)
+- [ ] **Step 1: Write the failing test** (ADD a new `identifyPiece (real WASM)` describe block to `wasm-bridge.workerd.test.ts`; do NOT delete the existing `ngramRecall` block)
 ```typescript
 // apps/api/src/services/wasm-bridge.workerd.test.ts
 import { describe, it, expect } from "vitest";
@@ -1393,7 +1231,7 @@ cd apps/api && bun run build:wasm && bun run test -- --run wasm-bridge.workerd
 Expected: FAIL — `identifyPiece is not exported from ./wasm-bridge`.
 
 - [ ] **Step 3: Implement** — in `apps/api/src/services/wasm-bridge.ts`:
-Remove the `ngramRecall`, `rerankCandidates`, `dtwConfirm` wrappers and the `NgramCandidate`/`RerankResult`/`DtwConfirmResult`/`NgramIndex`/`RerankFeatures` interfaces. Add:
+KEEP the `ngramRecall`, `rerankCandidates`, `dtwConfirm` wrappers and the `NgramCandidate`/`RerankResult`/`DtwConfirmResult`/`NgramIndex`/`RerankFeatures` interfaces (they are still consumed by `session-brain.ts`; removal is in the DEFERRED post-#28 slice). ADD alongside them:
 ```typescript
 /** Result of identify_piece. null when no confident identification is possible. */
 export interface IdentifyResult {
@@ -1422,7 +1260,7 @@ export function identifyPiece(
   ) as IdentifyResult | null;
 }
 ```
-In `wasm-bridge.test.ts` (node, mocked): replace the `vi.mock` of `piece_identify` to export `identify_piece: mockIdentifyPiece` (drop the three legacy mocks) and replace the `ngramRecall` describe block with:
+In `wasm-bridge.test.ts` (node, mocked): ADD `identify_piece: mockIdentifyPiece` to the existing `vi.mock` of `piece_identify` (KEEP the legacy `ngram_recall`/`rerank_candidates`/`dtw_confirm` mocks; declare the new `mockIdentifyPiece` alongside the existing mock fns) and ADD (do NOT remove the existing `ngramRecall` describe block) a new forwarding test:
 ```typescript
 describe("identifyPiece", () => {
   it("forwards notes, artifact JSON, and threshold to identify_piece", async () => {
@@ -1444,7 +1282,7 @@ Expected: PASS (both the real-WASM workerd test and the mocked node test).
 - [ ] **Step 5: Commit**
 ```bash
 git add apps/api/src/services/wasm-bridge.ts apps/api/src/services/wasm-bridge.workerd.test.ts apps/api/src/services/wasm-bridge.test.ts
-git commit -m "feat(#26): wasm-bridge identifyPiece; drop legacy ngram/rerank/dtw wrappers"
+git commit -m "feat(#26): add wasm-bridge identifyPiece wrapper (legacy retained)"
 ```
 
 ---
@@ -1499,8 +1337,68 @@ git commit -m "chore(#26): seed-fingerprint recipe lands v2 artifact in local R2
 ---
 
 ## Plan self-review notes
-- **Spec coverage:** chroma recall (T5,6), events (T7), Jaccard DTW (T8), margin gate (T9), orchestration (T10), WASM export + legacy deletion (T11), artifact generator (T2,3), generator↔reference parity (T4), port-fidelity (T12), bridge (T13), local R2 (T14), harness (T1). The DEFERRED `session-brain.ts` rewire is intentionally excluded (BLOCKED-ON-#28) and documented in the spec.
+- **Spec coverage:** chroma recall (T5,6), events (T7), Jaccard DTW (T8), margin gate (T9), orchestration (T10), additive WASM export (T11), artifact generator (T2,3), generator↔reference parity (T4), port-fidelity (T12), bridge (T13), local R2 (T14), harness (T1). The DEFERRED `session-brain.ts` rewire AND the coupled legacy-surface deletion are intentionally excluded (BLOCKED-ON-#28) and documented in the spec; this PR is purely additive.
 - **Type consistency:** `PerfNote`/`PieceArtifact`/`PieceIndex`/`IdentifyResult`/`GateDecision` names are identical across Rust tasks; `identifyPiece`/`IdentifyResult` identical across TS tasks; `build_piece_index`/`_piece_events`/`_piece_chroma` identical across Python tasks; artifact keys (`version`,`onset_tol_ms`,`pieces`,`piece_id`,`composer`,`title`,`chroma`,`events`) identical across generator, Rust, bridge, fixtures.
-- **Parallel-group file safety:** Group A touches `model/**` only; Group B touches `apps/api/src/wasm/**` only — disjoint, safe to run concurrently. Within B, tasks share `lib.rs`/`types.rs` so they are sequential. Group C/D/E each depend on B completing.
+- **Parallel-group file safety:** Group A touches `model/**` only; Group B touches `apps/api/src/wasm/**` only — disjoint, safe to run concurrently. Within B, tasks share `lib.rs`/`types.rs` so they are sequential. Group C/D/E each depend on B completing. **Group D's blast radius does NOT reach `session-brain.ts`:** this PR is purely additive (Task 13 ADDS `identifyPiece` to `wasm-bridge.ts` and keeps every legacy wrapper/interface; Task 11 keeps every legacy module/export/type), so `session-brain.ts` — which imports `NgramIndex`/`RerankFeatures` and calls `ngramRecall`/`rerankCandidates`/`dtwConfirm` — is untouched and still compiles. No `session-brain.ts` edit is needed or made (#28 owns its rewire). The legacy deletion that WOULD reach `session-brain.ts` is deferred to the post-#28 slice, where it lands together with the rewire that stops calling the legacy surface.
 - **Vertical-slice check:** every task = one failing test → one implementation → one passing run → one commit. Tasks 4 and 12 add an explicit anti-vacuous-pass guard (perturb-and-revert) because they assert parity against a reference that a faithful prior task may already satisfy.
 - **Behavior-through-public-interface check:** all tests exercise public functions (`chroma_vector`, `rank_top_k`, `notes_to_events`, `elastic_cost`, `margin_gate`, `run_identify`, `identify_piece`, `identifyPiece`, `build_piece_index`, `cmd_fingerprint`) or committed artifacts; none mock internal collaborators or assert on private state. The node-mocked `wasm-bridge.test.ts` forwarding test is the established bridge pattern (the real behavior is covered by the workerd test in the same task).
+
+---
+
+## Challenge Review
+
+Reviewed against the spec and the actual code: the FROZEN Python reference (`stage0c_elastic_dtwgate.py`, `stage0f_hard_ood_certify.py`, `note_chroma.py`, `note_chroma_matcher.py`), the current Rust crate (`lib.rs`, `types.rs`, `Cargo.toml`), the TS bridge (`wasm-bridge.ts`), and the live consumer (`session-brain.ts`). I did NOT re-litigate the algorithm (frozen/certified). I empirically validated the load-bearing port question by running the reference through `librosa` on this machine.
+
+### CEO Pass
+
+**Premise / scope.** Right problem, direct path. The spec is a faithful PORT of a certified algorithm; production currently runs the FALSIFIED 3-stage pipeline (`session-brain.ts:2229-2259`), so replacing it has real value. The 14-task decomposition is justified by the vertical-slice discipline, not gold-plating. The deferral of the `session-brain.ts` rewire (BLOCKED-ON-#28) is intentional and correct — but see [BLOCKER-1]: deferring the *rewire* is not the same as deferring *making the tree compile*, and the plan conflates the two.
+
+**Existing coverage.** The plan correctly identifies and deletes the dead legacy surface (verified: `ngram.rs`/`rerank.rs`/`dtw_confirm.rs`/`real_recording_test.rs` and the matching types all exist exactly as the plan claims).
+
+**12-month alignment.** Moves toward the ideal (single-source-of-truth Rust gate pinned to the Python reference via a golden fixture). No tech debt introduced beyond the temporary `parity_test.rs` placeholder (Task 11→12), which is acceptable.
+
+**Alternatives.** Spec §"Key decisions" documents the rejected TS-recall split and the JSON-string-vs-parsed-object boundary. Adequate.
+
+### Engineering Pass
+
+**Port fidelity (the primary risk) — VALIDATED.** I ported the plan's exact Task-8 Rust DP to Python and compared it against `librosa.sequence.dtw(C=C, subseq=True)` (the reference) on 2,300 randomized event-pair cases (lengths 2-60, 12-bit masks): **zero mismatches, worst delta 0.0**. The shorter-on-rows transpose, normalize-by-shorter (`/nr`), free-start row-0 = `C[0,:]`, column-0 vertical-only accumulation, and 3-direction `min` all reproduce librosa exactly. The hand-asserted unit-test values in Task 8 (`0.0`, `0.0`, `1.0`) also match the reference. Jaccard/chroma/event encodings match `note_chroma.chroma_vector` and `_notes_to_events` (strict `>` boundary, `pitch % 12`, ascending-onset sort). High confidence the port is faithful.
+
+- `[OBS]` — `elastic_cost(q,r)` is NOT symmetric when `len(q) == len(r)` (the `<=` tie puts a different sequence on rows depending on arg order). I confirmed **librosa itself is asymmetric in exactly the same 9/300 equal-length cases** — so the port is faithful, not buggy. Task 8's `elastic_cost_free_start_embeds_short_query` asserts symmetry only on an *unequal*-length pair (`len 2` vs `len 4`), where the shorter is always on rows regardless of order, so that test is safe. No action; just don't add an equal-length symmetry assertion.
+
+- `[BLOCKER]` (confidence: 10/10) — **Task 13 deletes the `ngramRecall`/`rerankCandidates`/`dtwConfirm` wrappers and Task 11 deletes the `NgramIndex`/`RerankFeatures` types, but `session-brain.ts` still imports and calls all of them** (`session-brain.ts:50` `NgramIndex`, `:54` `RerankFeatures`, `:2229` `wasm.ngramRecall`, `:2233` `wasm.rerankCandidates`, `:2259` `wasm.dtwConfirm`; loads `fingerprint/v1/ngram_index.json` etc. at `:2198-2199`). The plan forbids editing `session-brain.ts`. Net effect: after Task 13 the `apps/api` tree no longer compiles — `tsc --noEmit` (the `typecheck` script) fails, and the six `session-brain.*.test.ts` suites plus `passage-manifest.test.ts` (which import the DO) fail to compile in the workerd vitest pool. The plan's own "done = local green (cargo test + vitest + wrangler dev)" bar is therefore UNREACHABLE as scoped. This is the deferral done wrong: deferring the note-buffer *rewire* is fine, but the PR must still leave a compiling, green tree. **Fix before executing:** add a minimal step (in Task 13 or a new Task 13b) that neutralizes the dangling references in `session-brain.ts` WITHOUT doing the #28 rewire — e.g. stub `tryIdentifyPiece` to `return null` and remove the now-dead `NgramIndex`/`RerankFeatures` imports + `ngramRecall`/`rerankCandidates`/`dtwConfirm` callsites (and ideally call `identifyPiece` against `fingerprint/v2/...` in the trivial path, or leave identification disabled until the #28 follow-up). This is a surgical change traceable directly to "delete the legacy surface," not a redesign. Either that, or keep deprecated no-op shims for the three wrappers in `wasm-bridge.ts` until #28 — but stale shims that load `v1` keys are worse than a clean stub. Note the plan's "Parallel-group file safety" claim ("Group B touches `apps/api/src/wasm/**` only") is wrong for the same reason: Task 13 (Group D) touches `services/` and its blast radius reaches `do/session-brain.ts`.
+
+- `[RISK]` (confidence: 7/10) — **Task 1 (fixture generation) depends on local-only / offloaded data** (`data/raw/maestro-v3.0.0/`, `data/raw/asap-dataset/metadata.csv`, `data/evals/practice_eval_pseudo/` AMT notes). I confirmed all are present on THIS checkout (255 scores, MAESTRO csv, ASAP csv, eval_piece_map, pseudo-truth dir). But `/build` runs tasks in a fresh git worktree, and `model/CLAUDE.md` lists `data/raw/asap` and the AMT validation sets as offloaded/regen-only. If the worktree lacks them, Task 1 raises `FileNotFoundError`/`RuntimeError` (explicit, no silent fallback — good) and the entire parity gate (Task 12) cannot be built. Fallback: generate `parity_fixtures.json` in the primary checkout (where the data exists) and commit it before dispatching `/build`, or run Group 0 outside the worktree. Name this in the plan.
+
+- `[OBS]` — Fixture cost is computed in Python from the `pc_mat`/`log_ioi` arrays (`gate.cost(q_pc, q_li, cid, _W_PITCH, 0.0)`) while the Rust parity test recomputes cost from the emitted `events`/`query_events` masks. These are a faithful bijection (mask bit `i` ⇔ pc `i` ∈ set) and my 2,300-case validation used masks directly, so they agree within `1e-4`. No action.
+
+- `[OBS]` — `build:wasm` DOES rebuild `piece-identify/pkg/` (full script chains `cd ../piece-identify && wasm-pack build --target bundler --release && ... patch-wasm-shims.ts`). Task 11/13 build steps are correct. The plan never mentions `patch-wasm-shims.ts` runs afterward; harmless but worth knowing if the shim patch touches the new export.
+
+**Module depth.** `chroma.rs` (2 pub fns), `gate.rs` (3 pub fns hiding the entire certified gate), `identify.rs` (1 pub fn), `build_piece_index` — all DEEP per the spec. `wasm-bridge.identifyPiece` is SHALLOW-by-design (thin forwarder), correctly flagged in the spec and consistent with the existing bridge convention. No shallow-module smell.
+
+**Test philosophy.** All tests exercise public fns or the committed golden artifact; none mock internal collaborators or assert private state. The node-mocked `wasm-bridge.test.ts` forwarding test mocks the WASM module (an external boundary) — acceptable, and the real behavior is covered by the workerd test in the same task. Tasks 4 and 12 include an explicit anti-vacuous-pass guard (perturb-and-revert), which is exactly right for a parity-against-reference test that a faithful prior task already satisfies.
+
+**Vertical slice.** Every task is one failing test → one implementation → one commit. No horizontal slicing. Task 11 writes a single smoke test for the crate-level wiring while doing a large deletion in the same commit — acceptable because the deletion is what makes the test compile (the test fails to compile until the legacy modules are gone), so it is still one behavior.
+
+- `[OBS]` — Task 14's "test" is a shell assertion (R2 object present), not a unit test. Appropriate for an infra/seed recipe; it is a genuine behavior check (object servable from local R2), not a shape test.
+
+**Failure modes.** The runtime contract is graceful: `run_identify` returns `None` (→ `null` → Tier-3 unknown) on `< 2` events or `< 2` pieces or `< 2` finite candidate costs; `margin_gate` locks only when `margin >= threshold`. No wrong-lock path. Python exporter raises explicitly on missing data (no silent fallback, per CLAUDE.md). The only corrupt-state scenario is [BLOCKER-1]'s non-compiling tree.
+
+### Presumption Inventory
+
+| ASSUMPTION | VERDICT | REASON |
+|---|---|---|
+| Rust DP reproduces `librosa.sequence.dtw(subseq=True)` | SAFE | Empirically validated, 2,300 cases, 0 mismatch |
+| `elastic_cost` is symmetric under arg swap | RISKY (mitigated) | False at equal lengths; librosa agrees; Task 8 test only asserts it at unequal lengths, so safe |
+| Deleting the 3 legacy wrappers/types is self-contained to wasm-bridge + crate | RISKY → FALSE | `session-brain.ts` consumes all of them; tree won't compile ([BLOCKER-1]) |
+| `build:wasm` rebuilds `piece-identify/pkg` | SAFE | Full script chains the piece-identify wasm-pack build |
+| Fixture-generation data is available to the build agent | VALIDATE | Present on this checkout; may be absent in a fresh `/build` worktree (offloaded) |
+| Crate has serde_json + serde-wasm-bindgen deps | SAFE | Cargo.toml confirms both |
+| Legacy file/type deletion list matches reality | SAFE | Verified file-by-file against `lib.rs`/`types.rs`/`src/` |
+| Generator masks == reference masks == Rust-consumed masks | SAFE | Same `pitch%12` + strict-`>` 50ms collapse; Task 4 pins it on real scores |
+
+### Summary
+[BLOCKER] count: 1
+[RISK]    count: 1
+[QUESTION] count: 0
+
+VERDICT: NEEDS_REWORK — [BLOCKER-1] Deleting the `ngramRecall`/`rerankCandidates`/`dtwConfirm` bridge wrappers and `NgramIndex`/`RerankFeatures` types (Tasks 11+13) leaves `session-brain.ts:50,54,2229,2233,2259` referencing now-nonexistent symbols, so `apps/api` no longer compiles and the vitest/typecheck "local green" bar is unreachable. Add a surgical step that neutralizes those dangling references in `session-brain.ts` (stub `tryIdentifyPiece` to `return null` + drop the dead imports/callsites) WITHOUT performing the #28 note-buffer rewire — the deferral applies to the rewire, not to keeping the tree compilable. Also address the Task-1 offloaded-data RISK (generate + commit `parity_fixtures.json` from the primary checkout before `/build`, since MAESTRO/ASAP/pseudo-truth may be absent in a fresh worktree).

@@ -40,7 +40,7 @@ Reference (present on this branch): `model/src/piece_id_eval/stage0c_elastic_dtw
 
 - **Chroma recall in Rust/WASM, not TS.** One WASM export `identify_piece` runs the whole chain. Rationale: single source of truth with the Python reference (the port-fidelity test pins both), the artifact already loads into WASM, recall runs once/session off the hot path so Rust↔TS perf is irrelevant. Trade-off rejected: a TS recall would split the algorithm across two languages and double the surfaces the parity test must cover.
 - **Artifact crosses the WASM boundary as a JSON string**, parsed by `serde_json` inside Rust — not `serde_wasm_bindgen` on a ~2–4 MB parsed object. Cleaner boundary, faster deserialize, matches "once per session."
-- **The legacy 3-stage pipeline is deleted, not extended.** `ngram.rs`, `rerank.rs`, `dtw_confirm.rs`, `real_recording_test.rs` are removed; `ngram_recall` / `compute_rerank_features` / `rerank_candidates` / `dtw_confirm` exports removed from `lib.rs`. `text_match.rs` + `match_piece_text` untouched.
+- **This PR is ADDITIVE; the legacy 3-stage pipeline is retained, not extended.** It adds `identify_piece` + the v2 artifact ALONGSIDE the retained legacy surface (`ngram.rs`/`rerank.rs`/`dtw_confirm.rs`/`real_recording_test.rs`, the `ngram_recall`/`compute_rerank_features`/`rerank_candidates`/`dtw_confirm` exports, the legacy types, the `ngramRecall`/`rerankCandidates`/`dtwConfirm` bridge wrappers, and the `v1` artifact). The legacy modules/exports/wrappers/v1-artifact are deleted in the DEFERRED post-#28 rewire slice — deletion is COUPLED to the `session-brain.ts` rewire that stops calling them (the plan forbids editing `session-brain.ts`, which still consumes the legacy surface, so deleting it now would break compilation). `text_match.rs` + `match_piece_text` untouched.
 - **Artifact is versioned `v2`** (`fingerprint/v2/piece_index.json`) to avoid clobbering the live `v1` keys and to make the DO's load path an explicit cutover (DEFERRED slice).
 - **Subsequence-DTW port replicates librosa exactly:** free-start row-0 = `C[0,:]`, free-end `min(D[last,:])`, 3-direction min — which the existing `subsequence_dtw` already does — PLUS transpose-shorter-to-rows and normalize-by-shorter (the two behaviors the legacy version lacked).
 
@@ -80,6 +80,7 @@ This single file replaces the legacy `ngram_index.json` + `rerank_features.json`
 
 ### `lib.rs` `identify_piece` (NEW export; MODIFY `lib.rs`)
 - **Interface:** `#[wasm_bindgen] pub fn identify_piece(notes_js: JsValue, artifact_json: &str, margin_threshold: f64) -> Result<JsValue, JsValue>` → `{ piece_id, composer, title, margin, locked } | null`. Returns `null` when query has < 2 events or artifact has < 2 pieces.
+- **Additive:** this export is INSERTED alongside the existing `ngram_recall`/`compute_rerank_features`/`rerank_candidates`/`dtw_confirm`/`match_piece_text` exports — the legacy exports are RETAINED until the DEFERRED post-#28 slice deletes them (they are still consumed by `session-brain.ts`).
 - **Hides:** artifact JSON parse, chroma recall (top-5), per-candidate elastic cost, margin gate, result marshaling.
 - **Tested through:** `cargo test` integration (notes + small artifact → expected decision) and a workerd `vitest` test through `wasm-bridge.ts`.
 - **Depth:** DEEP (the public face of the whole feature; one call, full decision).
@@ -98,7 +99,7 @@ This single file replaces the legacy `ngram_index.json` + `rerank_features.json`
 
 ### `identifyPiece` (MODIFY `apps/api/src/services/wasm-bridge.ts`)
 - **Interface:** `export function identifyPiece(notes: PerfNote[], artifactJson: string, marginThreshold?: number): IdentifyResult | null` with `IdentifyResult { piece_id: string; composer: string; title: string; margin: number; locked: boolean }`.
-- **Hides:** the `serde_wasm_bindgen` call boundary; replaces `ngramRecall`/`rerankCandidates`/`dtwConfirm` wrappers.
+- **Hides:** the `serde_wasm_bindgen` call boundary. Added ALONGSIDE the retained `ngramRecall`/`rerankCandidates`/`dtwConfirm` wrappers (which it supersedes functionally); the legacy wrappers are removed in the DEFERRED post-#28 slice.
 - **Tested through:** workerd `vitest` (real WASM) — lock on in-catalog fixture, unknown on OOD fixture.
 - **Depth:** SHALLOW-by-design (a thin typed forwarder, the established `wasm-bridge.ts` pattern). Justified: matches the existing bridge convention; the depth lives in the WASM module it fronts.
 
@@ -116,26 +117,34 @@ This single file replaces the legacy `ngram_index.json` + `rerank_features.json`
 | `model/data/evals/piece_id/parity_fixtures.json` | Committed golden fixtures (the harness output) | New |
 | `apps/api/src/wasm/piece-identify/src/chroma.rs` | Chroma vector + top-k recall | New |
 | `apps/api/src/wasm/piece-identify/src/gate.rs` | Events + Jaccard elastic cost + margin gate | New |
-| `apps/api/src/wasm/piece-identify/src/lib.rs` | Add `identify_piece` export; remove legacy exports + modules | Modify |
-| `apps/api/src/wasm/piece-identify/src/types.rs` | Add `PieceArtifact`, `PieceIndex`, `IdentifyResult`; keep `PerfNote`, `CatalogEntry` | Modify |
+| `apps/api/src/wasm/piece-identify/src/lib.rs` | INSERT `identify_piece` export + `mod chroma; mod gate; mod identify; #[cfg(test)] mod parity_test;` alongside the retained legacy modules/exports | Modify |
+| `apps/api/src/wasm/piece-identify/src/types.rs` | Add `PieceArtifact`, `PieceIndex`, `IdentifyResult`; keep `PerfNote`, `CatalogEntry`, and the legacy types | Modify |
 | `apps/api/src/wasm/piece-identify/src/parity_test.rs` | Rust parity test reading `parity_fixtures.json` | New |
-| `apps/api/src/wasm/piece-identify/src/ngram.rs` | Legacy recall — delete | Delete |
-| `apps/api/src/wasm/piece-identify/src/rerank.rs` | Legacy rerank — delete | Delete |
-| `apps/api/src/wasm/piece-identify/src/dtw_confirm.rs` | Legacy monophonic DTW — delete (superseded by `gate.rs`) | Delete |
-| `apps/api/src/wasm/piece-identify/src/real_recording_test.rs` | Legacy 3-stage test — delete | Delete |
-| `model/src/score_library/fingerprint.py` | Replace ngram/rerank builders with `build_piece_index` | Modify |
+| `model/src/score_library/fingerprint.py` | Add `build_piece_index` (v2 generator); drop the unused legacy ngram/rerank builders | Modify |
 | `model/src/score_library/cli.py` | `fingerprint` subcommand emits `piece_index.json` | Modify |
 | `Justfile` | `fingerprint` emits v2 artifact; add `seed-fingerprint` (local R2) + `test-piece-id` (cargo test) | Modify |
-| `apps/api/src/services/wasm-bridge.ts` | Replace 3 legacy wrappers with `identifyPiece` | Modify |
-| `apps/api/src/services/wasm-bridge.workerd.test.ts` | Replace `ngramRecall` real-WASM test with `identifyPiece` lock/unknown | Modify |
-| `apps/api/src/services/wasm-bridge.test.ts` | Replace mocked `ngramRecall` forwarding test with `identifyPiece` | Modify |
+| `apps/api/src/services/wasm-bridge.ts` | ADD `identifyPiece` + `IdentifyResult` alongside the retained legacy wrappers/interfaces | Modify |
+| `apps/api/src/services/wasm-bridge.workerd.test.ts` | ADD an `identifyPiece (real WASM)` lock/unknown test (keep the `ngramRecall` test) | Modify |
+| `apps/api/src/services/wasm-bridge.test.ts` | ADD a mocked `identifyPiece` forwarding test (keep the `ngramRecall` test) | Modify |
+
+Note: `model/src/score_library/fingerprint.py` drops only the now-unused ngram/rerank *builder* functions (a self-contained Python cleanup in this PR's generator); this is unrelated to the Rust/TS legacy surface that `session-brain.ts` consumes, which is deleted in the DEFERRED slice below.
 
 ### DEFERRED slice (BLOCKED-ON-#28, spec only — no edits this PR)
 
+The legacy-surface deletion lands HERE, WITH the `session-brain.ts` rewire — because the rewire is what stops calling the legacy surface, so the two cannot be separated without breaking compilation.
+
 | File | Change (follow-up) |
 |------|--------|
+| `apps/api/src/wasm/piece-identify/src/ngram.rs` | Legacy recall — delete |
+| `apps/api/src/wasm/piece-identify/src/rerank.rs` | Legacy rerank — delete |
+| `apps/api/src/wasm/piece-identify/src/dtw_confirm.rs` | Legacy monophonic DTW — delete (superseded by `gate.rs`) |
+| `apps/api/src/wasm/piece-identify/src/real_recording_test.rs` | Legacy 3-stage test — delete |
+| `apps/api/src/wasm/piece-identify/src/lib.rs` | Remove the `ngram_recall`/`compute_rerank_features`/`rerank_candidates`/`dtw_confirm` exports + `mod ngram`/`mod rerank`/`mod dtw_confirm`/`mod real_recording_test` |
+| `apps/api/src/wasm/piece-identify/src/types.rs` | Remove `NgramIndex`, `RerankFeatures`, `NgramCandidate`, `RerankResult`, `DtwConfirmResult` |
+| `apps/api/src/services/wasm-bridge.ts` | Remove the `ngramRecall`/`rerankCandidates`/`dtwConfirm` wrappers + their interfaces |
+| `apps/api/src/services/wasm-bridge.workerd.test.ts` / `.test.ts` | Remove the legacy `ngramRecall` tests/mocks |
 | `apps/api/src/do/session-brain.schema.ts` | Add `identificationNoteBuffer: z.array(perfNoteSchema).default([])` (Zod-versioned), cap at `MAX_IDENTIFICATION_BUFFER` notes |
-| `apps/api/src/do/session-brain.ts` | Replace `tryIdentifyPiece(perfNotes,...)` + `identificationNoteCount` count with: append chunk notes to buffer; once `buffer.length >= MIN_NOTES_FOR_IDENTIFICATION`, fetch `fingerprint/v2/piece_index.json` text, call `wasm.identifyPiece(buffer, artifactJson, 0.0935)`; on `locked` set `pieceLocked` + `pieceIdentification`; else stay unknown (Tier-3). Re-verify line numbers at build time. |
+| `apps/api/src/do/session-brain.ts` | Replace `tryIdentifyPiece(perfNotes,...)` + `identificationNoteCount` count (and the `NgramIndex`/`RerankFeatures` imports + `ngramRecall`/`rerankCandidates`/`dtwConfirm` callsites + `fingerprint/v1/*` loads) with: append chunk notes to buffer; once `buffer.length >= MIN_NOTES_FOR_IDENTIFICATION`, fetch `fingerprint/v2/piece_index.json` text, call `wasm.identifyPiece(buffer, artifactJson, 0.0935)`; on `locked` set `pieceLocked` + `pieceIdentification`; else stay unknown (Tier-3). Re-verify line numbers at build time. |
 
 ## Open Questions
 
