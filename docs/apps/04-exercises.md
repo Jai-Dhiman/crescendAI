@@ -280,3 +280,48 @@ The two-stage subagent pipeline (02-pipeline.md) uses exercise history as contex
 5. **Focus mode timing.** Should focus mode interrupt a regular practice session mid-stream, or always be a separate mini-session?
 6. **No improvement path.** What happens if the student doesn't improve during focus mode? Encouraging message + suggest trying again tomorrow? Adapt exercises on the fly? Lower expectations?
 7. **Multi-session focus plans.** "Work on pedaling for the next 3 sessions" is not in scope for V1. When does it become worth building?
+
+---
+
+## Recommendation Model: FILTER → RANK → ADAPT (added 2026-06-08, #36)
+
+> Status: design model agreed. `FILTER` stage partially built (dimension gating shipped on `issue-36-exercise-matcher-transforms-briefing`); `ADAPT` and the rest of `FILTER`/`RANK` are scoped as follow-on issues below. Supersedes the "embedding-similarity retrieval" framing in the rebuild index for the *runtime selection* step.
+
+Recommending an exercise is not one decision keyed on one signal. It is a pipeline of three decisions, each failing differently, each tuned independently:
+
+| Stage | Question | Signals | Failure mode if wrong |
+|---|---|---|---|
+| **1. FILTER** (hard, AND'd) | Which exercises are *eligible*? | dimension (shipped), difficulty-vs-student-level, `finding_type` (issue vs strength), `scope`, cooldown (shipped) | prescribes a *harmful* exercise (too hard, or "fixes" a strength) |
+| **2. RANK** (soft, weighted) | Of the eligible, which *fits this passage*? | technique/structural match to the passage, multi-dimension coverage, key/register proximity, variety | prescribes a *suboptimal* exercise |
+| **3. ADAPT** (transform) | How do I *shape* the chosen drill to this weakness? | severity → tempo + dosage, passage key → transpose, passage length → excerpt span, history → progression | prescribes a *mis-dosed / non-transferring* exercise |
+
+The signals named loosely in discussion map cleanly: "dimension" is FILTER, "techniques for the passage" is RANK, "alterations" is ADAPT.
+
+### Signal inventory (what actually exists vs is aspirational)
+
+**Available at diagnosis time** (`DiagnosisArtifact`, `apps/api/src/harness/artifacts/diagnosis.ts`): `primary_dimension`, `dimensions[]` (plural — multi-dimension, currently unused by `build_briefing`), `severity`, `scope` (stop_moment/passage/session), `bar_range` (student-piece bars), `evidence_refs`, `one_sentence_finding` (free text, rich, underused), `confidence`, `finding_type` (issue/strength/neutral), `piece_id`.
+
+**Derivable from the score now** (`model/data/scores/*.json`, per-bar `notes` with pitch/onset/velocity/duration, `pedal_events`, `key_signature`, `pitch_range`): structural demands of the weak passage — scalar runs, arpeggios, wide leaps, repeated notes, voicing density, register, tempo. This is the **honest source of the "technique" signal** — nameable and debuggable, unlike an opaque embedding.
+
+**Available about the catalog**: dimension tags (shipped), `techniques` free-vocab tags (exist on `TagSet`, currently annotation-only — not load-bearing), implicit difficulty (sources are *graded* series: Burgmüller op.100 "progressive studies", Czerny op.299, Hanon 1-20). The API-side `exercises` table already has `difficulty`, `repertoire_tags`, `variants_json` columns.
+
+**Gated on AMT deploy** (all sessions Tier 3 today): the student's *transcribed performance MIDI* of the passage — the ONLY signal that encodes *how they played* (timing deviations, dynamics). This is the honest version of the rejected score-embedding bridge: embed/analyze what they DID, not what's written.
+
+**Gated on users**: exercise-completion + re-diagnosis outcomes — the *positive* efficacy/progression memory (today's memory is cooldown-only, i.e. negative memory).
+
+### The load-bearing timeline insight
+
+**Within-bucket discrimination — all of RANK, and difficulty's discriminating power — is gated on corpus breadth (#17).** On 22 mostly-Hanon primitives, a difficulty filter or a technique ranker resolves to the same tiny degenerate set; you cannot validate ranking machinery you build now. Three tracks:
+
+- **Track 1 — corpus-independent, buildable now:** the ADAPT layer (transform params operate on the *single chosen* exercise — transposing it to the student's key, slowing by severity, excerpting the passage all deliver visible value with one exercise per dimension) and FILTER *correctness* (skip strengths, handle session scope, multi-dimension) — about right behavior, not discrimination.
+- **Track 2 — gated on #17:** difficulty *discrimination*, the technique axis, the soft weighted ranker. Design now, value waits on data. (A soft ranker with untunable weights on a 22-item / 0-user system is just hidden hardcoding — defer it.)
+- **Track 3 — gated on AMT + users:** performance-delta matching, efficacy/progression memory.
+
+### Strategic fork to decide
+
+The most transfer-positive "exercise" is often *"loop bars 5-8 of your own piece, slowly"* — the student's own excerpted passage + the existing `excerpt`/`scale_tempo` transforms, needing **no catalog at all**. If the student's piece is the primary substrate and the catalog is supplementary technique-builders, the system's dependence on #17 corpus breadth drops sharply. Decide this before investing further in catalog matching.
+
+### What is shipped vs follow-on (as of 2026-06-08)
+
+- **Shipped** (branch `issue-36-...`, not merged): FILTER/dimension gating via `technique_tags.toml` + `match_by_dimension`; untagged dimensions raise instead of returning off-dimension drills; ADAPT params still hardcoded and passage-blind; `transpose()` implemented but unwired.
+- **Follow-on issues:** ADAPT/passage-driven transform params (Track 1, next), FILTER/difficulty+finding_type+scope (Track 1 correctness + Track 2 discrimination), RANK/dimension∧technique matching (Track 2).
