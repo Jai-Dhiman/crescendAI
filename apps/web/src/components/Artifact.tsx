@@ -46,6 +46,27 @@ export function getCollapsedProps(component: InlineComponent): {
 		};
 	}
 
+	if (component.type === "keyboard_guide") {
+		return {
+			title: component.config.title,
+			subtitle: component.config.description,
+			badge: component.config.hands,
+		};
+	}
+
+	if (component.type === "session_data") {
+		const count = Array.isArray(component.config.data)
+			? component.config.data.length
+			: component.config.data
+				? 1
+				: 0;
+		return {
+			title: component.config.queryType.replace(/_/g, " "),
+			subtitle: "",
+			badge: `${count} record${count === 1 ? "" : "s"}`,
+		};
+	}
+
 	return {
 		title: component.type.replace(/_/g, " "),
 		subtitle: "",

@@ -31,6 +31,7 @@ export type InlineComponent =
 	| { type: "exercise_set"; config: ExerciseSetConfig }
 	| { type: "score_highlight"; config: ScoreHighlightConfig }
 	| { type: "keyboard_guide"; config: KeyboardGuideConfig }
+	| { type: "session_data"; config: SessionDataConfig }
 	| { type: "play_passage"; config: PlayPassageConfig }
 	| { type: "segment_loop"; config: SegmentLoopConfig }
 	| { type: "pending_exercise"; config: PendingExerciseConfig };
@@ -58,7 +59,44 @@ export interface ScoreHighlightConfig {
 }
 
 export interface KeyboardGuideConfig {
-	[key: string]: unknown;
+	title: string;
+	description: string;
+	hands: "left" | "right" | "both";
+	fingering?: string;
+}
+
+// Emitted by the API `show_session_data` tool. `data` shape depends on `queryType`.
+// Timestamps arrive as ISO strings (Date.toJSON over SSE); `real` columns as number | null.
+export interface SessionDataObservationRow {
+	id: string;
+	dimension: string;
+	dimensionScore: number | null;
+	observationText: string;
+	framing: string | null;
+	createdAt: string;
+	sessionId: string;
+}
+
+export interface SessionDataSessionRow {
+	id: string;
+	startedAt: string;
+	endedAt: string | null;
+	avgDynamics: number | null;
+	avgTiming: number | null;
+	avgPedaling: number | null;
+	avgArticulation: number | null;
+	avgPhrasing: number | null;
+	avgInterpretation: number | null;
+}
+
+export interface SessionDataConfig {
+	queryType: "dimension_history" | "recent_sessions" | "session_detail";
+	studentId: string;
+	data:
+		| SessionDataObservationRow[]
+		| SessionDataSessionRow[]
+		| SessionDataSessionRow
+		| null;
 }
 
 export interface PlayPassageConfig {

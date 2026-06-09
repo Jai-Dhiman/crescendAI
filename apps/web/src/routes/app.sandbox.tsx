@@ -11,6 +11,7 @@ import { scoreRenderer } from "../lib/score-renderer";
 import type {
 	ExerciseSetConfig,
 	KeyboardGuideConfig,
+	SessionDataConfig,
 	PassageManifest,
 	PlayPassageConfig,
 	ScoreHighlightConfig,
@@ -139,7 +140,42 @@ const scoreHighlightLate: ScoreHighlightConfig = {
 	],
 };
 
-const keyboardGuide: KeyboardGuideConfig = {};
+const keyboardGuide: KeyboardGuideConfig = {
+	title: "Thumb-under in the C major scale",
+	description:
+		"Pass the thumb under the third finger smoothly so the scale stays even — no bump on the join.",
+	hands: "right",
+	fingering: "1 2 3 1 2 3 4 5",
+};
+
+const sessionDataRecent: SessionDataConfig = {
+	queryType: "recent_sessions",
+	studentId: "sandbox-student",
+	data: [
+		{
+			id: "sandbox-session-1",
+			startedAt: "2026-06-01T10:00:00.000Z",
+			endedAt: "2026-06-01T10:28:00.000Z",
+			avgDynamics: 3.2,
+			avgTiming: 4.1,
+			avgPedaling: 2.8,
+			avgArticulation: 3.5,
+			avgPhrasing: 4.0,
+			avgInterpretation: 3.9,
+		},
+		{
+			id: "sandbox-session-2",
+			startedAt: "2026-05-29T18:00:00.000Z",
+			endedAt: "2026-05-29T18:35:00.000Z",
+			avgDynamics: 2.9,
+			avgTiming: 3.4,
+			avgPedaling: null,
+			avgArticulation: 3.1,
+			avgPhrasing: 3.6,
+			avgInterpretation: 3.3,
+		},
+	],
+};
 
 // ---------------------------------------------------------------------------
 // PlayPassage sandbox fixtures
@@ -450,6 +486,7 @@ const SANDBOX_IDS = {
 	scoreHighlightSingleBar: "sandbox-score-highlight-single-bar",
 	scoreHighlightOutOfRange: "sandbox-score-highlight-out-of-range",
 	keyboardGuide: "sandbox-keyboard-guide-1",
+	sessionData: "sandbox-session-data-1",
 	ppTiming: "sandbox-pp-timing",
 	ppDynamics: "sandbox-pp-dynamics",
 	ppPedaling: "sandbox-pp-pedaling",
@@ -1355,12 +1392,25 @@ function ArtifactSandbox() {
 					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">Keyboard</h2>
 
 					<SandboxSection
-						title="KeyboardGuide (placeholder)"
+						title="KeyboardGuide"
 						artifactId={SANDBOX_IDS.keyboardGuide}
 					>
 						<Artifact
 							artifactId={SANDBOX_IDS.keyboardGuide}
 							component={{ type: "keyboard_guide", config: keyboardGuide }}
+						/>
+					</SandboxSection>
+
+					{/* ── SESSION DATA ──────────────────────────────────────────── */}
+					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">Session Data</h2>
+
+					<SandboxSection
+						title="SessionData (recent sessions)"
+						artifactId={SANDBOX_IDS.sessionData}
+					>
+						<Artifact
+							artifactId={SANDBOX_IDS.sessionData}
+							component={{ type: "session_data", config: sessionDataRecent }}
 						/>
 					</SandboxSection>
 				</div>
