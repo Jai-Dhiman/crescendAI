@@ -32,6 +32,7 @@ class TagSet:
 
     dimensions: frozenset[str]
     techniques: frozenset[str]
+    key: str
 
 
 def load_tags(path: Path, known_primitive_ids: set[str]) -> dict[str, TagSet]:
@@ -71,7 +72,12 @@ def load_tags(path: Path, known_primitive_ids: set[str]) -> dict[str, TagSet]:
                     f"valid dimensions are {DIMENSIONS}"
                 )
         techs = tuple(entry.get("techniques", ()))
+        raw_key = entry.get("key")
+        if raw_key is None:
+            raise ValueError(
+                f"missing required 'key' field for {primitive_id!r} in {path}"
+            )
         tags[primitive_id] = TagSet(
-            dimensions=frozenset(dims), techniques=frozenset(techs)
+            dimensions=frozenset(dims), techniques=frozenset(techs), key=raw_key
         )
     return tags

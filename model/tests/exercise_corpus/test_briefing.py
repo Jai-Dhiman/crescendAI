@@ -61,7 +61,7 @@ def _make_catalog(tmp_path: Path, primitive_ids: list[str]) -> Path:
 
 
 def _tags(mapping: dict[str, list[str]]) -> dict[str, TagSet]:
-    return {pid: TagSet(frozenset(dims), frozenset()) for pid, dims in mapping.items()}
+    return {pid: TagSet(frozenset(dims), frozenset(), key="C") for pid, dims in mapping.items()}
 
 
 def _diagnosis(dimension="timing", severity="moderate", bars=(5, 8)) -> Diagnosis:
@@ -69,7 +69,7 @@ def _diagnosis(dimension="timing", severity="moderate", bars=(5, 8)) -> Diagnosi
         dimension=dimension,
         severity=severity,
         bar_range=bars,
-        piece_id="fur_elise",
+        piece_id="bach.prelude.bwv_846",
     )
 
 
