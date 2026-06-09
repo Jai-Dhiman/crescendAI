@@ -124,6 +124,10 @@ check-api:
 test-api:
     cd apps/api && bun run test -- --run && bunx vitest run --config vitest.node.config.ts
 
+# Run the piece-identify Rust unit + parity tests (native target).
+test-piece-id:
+    cd apps/api/src/wasm/piece-identify && cargo test
+
 # Run web type check
 check-web:
     cd apps/web && bun run typecheck

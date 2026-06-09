@@ -1,7 +1,7 @@
 //! Orchestrates the certified pipeline: chroma recall (top-5) -> margin gate.
 use crate::chroma;
 use crate::gate;
-use crate::types::{IdentifyResult, PieceArtifact, PieceIndex};
+use crate::types::{IdentifyResult, PieceIndex};
 
 /// Run the certified pipeline over the artifact. Returns None when the query has
 /// < 2 chord-events or the artifact has < 2 pieces (cannot form a margin).
@@ -36,7 +36,7 @@ pub fn run_identify(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::PerfNote;
+    use crate::types::{PerfNote, PieceArtifact};
 
     fn note(pitch: u8, onset: f64) -> PerfNote {
         PerfNote { pitch, onset, offset: onset + 0.4, velocity: 100 }
