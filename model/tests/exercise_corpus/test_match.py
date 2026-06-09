@@ -129,11 +129,11 @@ def test_match_by_dimension_filters_to_tagged_primitives(tmp_path: Path):
         tmp_path, ["hanon_001", "hanon_002", "hanon_003", "burgmuller_001"]
     )
     tags = {
-        "hanon_001": TagSet(frozenset({"timing", "articulation"}), frozenset()),
-        "hanon_002": TagSet(frozenset({"timing", "articulation"}), frozenset()),
-        "hanon_003": TagSet(frozenset({"timing", "articulation"}), frozenset()),
+        "hanon_001": TagSet(frozenset({"timing", "articulation"}), frozenset(), key="C"),
+        "hanon_002": TagSet(frozenset({"timing", "articulation"}), frozenset(), key="C"),
+        "hanon_003": TagSet(frozenset({"timing", "articulation"}), frozenset(), key="C"),
         "burgmuller_001": TagSet(
-            frozenset({"phrasing", "interpretation"}), frozenset()
+            frozenset({"phrasing", "interpretation"}), frozenset(), key="C"
         ),
     }
 
@@ -158,8 +158,8 @@ def test_match_by_dimension_filters_to_tagged_primitives(tmp_path: Path):
 def test_match_by_dimension_raises_for_untagged_dimension(tmp_path: Path):
     db = _dummy_catalog(tmp_path, ["hanon_001", "hanon_002"])
     tags = {
-        "hanon_001": TagSet(frozenset({"timing", "articulation"}), frozenset()),
-        "hanon_002": TagSet(frozenset({"timing", "articulation"}), frozenset()),
+        "hanon_001": TagSet(frozenset({"timing", "articulation"}), frozenset(), key="C"),
+        "hanon_002": TagSet(frozenset({"timing", "articulation"}), frozenset(), key="C"),
     }
     with pytest.raises(NoPrimitiveForDimensionError, match="pedaling"):
         match_by_dimension("pedaling", tags, db_path=db, top_k=5)
