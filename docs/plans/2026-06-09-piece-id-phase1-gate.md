@@ -52,13 +52,13 @@
 - `model/data/evals/piece_id/parity_fixtures.json` (git-tracked via `git add -f`)
 - `model/src/piece_id_eval/test_parity_fixtures.py`
 
-- [ ] **Step 1: Verify the committed test passes** (the only action for the build agent)
+- [x] **Step 1: Verify the committed test passes** (the only action for the build agent)
 ```bash
 cd model && uv run pytest src/piece_id_eval/test_parity_fixtures.py -q
 ```
 Expected: PASS (the fixture is already committed and reproduces the certified point). Do NOT run `python -m piece_id_eval.export_parity_fixtures` — the worktree lacks the offloaded ASAP/MAESTRO data.
 
-- [ ] **Step 2: No commit** — the harness is already committed; nothing to add for this task.
+- [x] **Step 2: No commit** — the harness is already committed; nothing to add for this task.
 
 ---
 
@@ -72,7 +72,7 @@ Expected: PASS (the fixture is already committed and reproduces the certified po
 - Modify: `model/src/score_library/fingerprint.py`
 - Test: `model/src/score_library/test_fingerprint_v2.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 ```python
 # model/src/score_library/test_fingerprint_v2.py
 import json
@@ -110,13 +110,13 @@ def test_build_piece_index_chroma_and_events(tmp_path):
     assert beta["events"] == [(1 << 0) | (1 << 4), (1 << 2)]  # [17, 4]
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 ```bash
 cd model && uv run pytest src/score_library/test_fingerprint_v2.py -q
 ```
 Expected: FAIL — `ImportError: cannot import name 'build_piece_index'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 Add to `model/src/score_library/fingerprint.py` (keep `_collect_all_notes`; the legacy `build_ngram_index`/`build_rerank_features`/`compute_rerank_features`/`extract_pitch_trigrams` are removed in Task 3):
 ```python
 import math
@@ -179,13 +179,13 @@ def build_piece_index(scores_dir: Path, onset_tol_s: float = 0.05) -> dict:
     return {"version": "v2", "onset_tol_ms": int(round(onset_tol_s * 1000)), "pieces": pieces}
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 ```bash
 cd model && uv run pytest src/score_library/test_fingerprint_v2.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add model/src/score_library/fingerprint.py model/src/score_library/test_fingerprint_v2.py
 git commit -m "feat(#26): build_piece_index emits v2 chroma+events artifact"
@@ -205,7 +205,7 @@ git commit -m "feat(#26): build_piece_index emits v2 chroma+events artifact"
 - Modify: `Justfile`
 - Test: `model/src/score_library/test_fingerprint_cli.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 ```python
 # model/src/score_library/test_fingerprint_cli.py
 import json
@@ -235,13 +235,13 @@ def test_cmd_fingerprint_writes_only_piece_index(tmp_path):
     assert not (out / "rerank_features.json").exists()
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 ```bash
 cd model && uv run pytest src/score_library/test_fingerprint_cli.py -q
 ```
 Expected: FAIL — `AssertionError` on `piece_index.json` missing (cmd_fingerprint still writes ngram_index.json / rerank_features.json).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 Replace `cmd_fingerprint` in `model/src/score_library/cli.py`:
 ```python
 def cmd_fingerprint(args):
@@ -265,13 +265,13 @@ fingerprint:
     cd model && uv run python -m score_library.cli fingerprint --scores-dir data/scores --output-dir data/fingerprints
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 ```bash
 cd model && uv run pytest src/score_library/test_fingerprint_cli.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add model/src/score_library/cli.py model/src/score_library/fingerprint.py Justfile model/src/score_library/test_fingerprint_cli.py
 git commit -m "feat(#26): fingerprint CLI emits v2 piece_index; drop legacy ngram/rerank builders"
@@ -288,7 +288,7 @@ git commit -m "feat(#26): fingerprint CLI emits v2 piece_index; drop legacy ngra
 **Files:**
 - Test: `model/src/score_library/test_fingerprint_reference_parity.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 ```python
 # model/src/score_library/test_fingerprint_reference_parity.py
 from pathlib import Path
@@ -326,22 +326,22 @@ def test_generator_events_match_stage0c_reference():
         assert gen == ref, f"event mismatch for {jf.stem}"
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS or PASSES-for-the-right-reason**
+- [x] **Step 2: Run test — verify it FAILS or PASSES-for-the-right-reason**
 ```bash
 cd model && uv run pytest src/score_library/test_fingerprint_reference_parity.py -q
 ```
 Expected: if it FAILS, the failure is a real event-encoding divergence (e.g. unsorted notes, off-by-one in the 50 ms boundary) that must be fixed in `_piece_events` until masks match `_notes_to_events`. If it PASSES immediately, confirm by temporarily perturbing `onset_tol_s` (e.g. 0.0) and re-running to see it FAIL — then revert. (This guards against a test that passes vacuously.)
 
-- [ ] **Step 3: Implement / fix until parity holds**
+- [x] **Step 3: Implement / fix until parity holds**
 If masks diverge, the cause is the onset-collapse boundary or note ordering. Align `_piece_events` to `_notes_to_events`: both sort ascending by onset, reset the anchor to the first note that exceeds `anchor + tol` (strict `>`), and OR each note's `pitch % 12` bit into the current event. No code change is expected if Task 2 was faithful; if a divergence is found, the fix lives in `_piece_events` only.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 ```bash
 cd model && uv run pytest src/score_library/test_fingerprint_reference_parity.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add model/src/score_library/test_fingerprint_reference_parity.py model/src/score_library/fingerprint.py
 git commit -m "test(#26): generator events match Stage-0c reference on real scores"
@@ -360,7 +360,7 @@ git commit -m "test(#26): generator events match Stage-0c reference on real scor
 - Modify: `apps/api/src/wasm/piece-identify/src/lib.rs` (add `mod chroma;`)
 - Test: in `chroma.rs` `#[cfg(test)]`
 
-- [ ] **Step 1: Write the failing test** (in `chroma.rs`)
+- [x] **Step 1: Write the failing test** (in `chroma.rs`)
 ```rust
 //! C1 recall: key-dependent velocity-weighted pitch-class chroma + cosine top-k.
 use crate::types::PerfNote;
@@ -388,13 +388,13 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test chroma_is_velocity_weighted
 ```
 Expected: FAIL — `cannot find function chroma_vector in this scope`.
 
-- [ ] **Step 3: Implement** (prepend to `chroma.rs`, above the test module; add `mod chroma;` after `mod text_match;` in `lib.rs`)
+- [x] **Step 3: Implement** (prepend to `chroma.rs`, above the test module; add `mod chroma;` after `mod text_match;` in `lib.rs`)
 ```rust
 /// 12-bin key-dependent velocity-weighted pitch-class histogram, L2-normalized.
 /// Mirrors piece_id_eval.note_chroma.chroma_vector.
@@ -413,13 +413,13 @@ pub fn chroma_vector(notes: &[PerfNote]) -> [f64; 12] {
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test chroma_is_velocity_weighted
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add apps/api/src/wasm/piece-identify/src/chroma.rs apps/api/src/wasm/piece-identify/src/lib.rs
 git commit -m "feat(#26): rust chroma_vector (velocity-weighted, L2-normalized)"
@@ -437,7 +437,7 @@ git commit -m "feat(#26): rust chroma_vector (velocity-weighted, L2-normalized)"
 - Modify: `apps/api/src/wasm/piece-identify/src/chroma.rs`
 - Test: in `chroma.rs` `#[cfg(test)]`
 
-- [ ] **Step 1: Write the failing test** (add to `chroma.rs` tests)
+- [x] **Step 1: Write the failing test** (add to `chroma.rs` tests)
 ```rust
     #[test]
     fn rank_top_k_orders_by_cosine_desc() {
@@ -451,13 +451,13 @@ git commit -m "feat(#26): rust chroma_vector (velocity-weighted, L2-normalized)"
     }
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test rank_top_k_orders
 ```
 Expected: FAIL — `cannot find function rank_top_k in this scope`.
 
-- [ ] **Step 3: Implement** (add to `chroma.rs`)
+- [x] **Step 3: Implement** (add to `chroma.rs`)
 ```rust
 fn dot12(a: &[f64; 12], b: &[f64; 12]) -> f64 {
     let mut s = 0.0;
@@ -481,13 +481,13 @@ pub fn rank_top_k(query: &[f64; 12], catalog: &[[f64; 12]], k: usize) -> Vec<usi
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test rank_top_k_orders
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add apps/api/src/wasm/piece-identify/src/chroma.rs
 git commit -m "feat(#26): rust rank_top_k cosine recall"
@@ -506,7 +506,7 @@ git commit -m "feat(#26): rust rank_top_k cosine recall"
 - Modify: `apps/api/src/wasm/piece-identify/src/lib.rs` (add `mod gate;`)
 - Test: in `gate.rs` `#[cfg(test)]`
 
-- [ ] **Step 1: Write the failing test** (in `gate.rs`)
+- [x] **Step 1: Write the failing test** (in `gate.rs`)
 ```rust
 //! The certified open-set gate: 50ms chord-events, Jaccard subsequence-DTW, margin.
 use crate::types::PerfNote;
@@ -536,13 +536,13 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test notes_to_events
 ```
 Expected: FAIL — `cannot find function notes_to_events in this scope`.
 
-- [ ] **Step 3: Implement** (prepend to `gate.rs`; add `mod gate;` after `mod chroma;` in `lib.rs`)
+- [x] **Step 3: Implement** (prepend to `gate.rs`; add `mod gate;` after `mod chroma;` in `lib.rs`)
 ```rust
 /// Collapse onsets within `onset_tol_s` into chord-events (12-bit pc-set masks).
 /// Mirrors piece_id_eval.stage0c_elastic_dtwgate._notes_to_events (pitch-only).
@@ -568,13 +568,13 @@ pub fn notes_to_events(notes: &[PerfNote], onset_tol_s: f64) -> Vec<u16> {
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test notes_to_events
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add apps/api/src/wasm/piece-identify/src/gate.rs apps/api/src/wasm/piece-identify/src/lib.rs
 git commit -m "feat(#26): rust notes_to_events (50ms chord-event masks)"
@@ -592,7 +592,7 @@ git commit -m "feat(#26): rust notes_to_events (50ms chord-event masks)"
 - Modify: `apps/api/src/wasm/piece-identify/src/gate.rs`
 - Test: in `gate.rs` `#[cfg(test)]`
 
-- [ ] **Step 1: Write the failing test** (add to `gate.rs` tests)
+- [x] **Step 1: Write the failing test** (add to `gate.rs` tests)
 ```rust
     #[test]
     fn elastic_cost_zero_for_identical_subsequence() {
@@ -627,13 +627,13 @@ git commit -m "feat(#26): rust notes_to_events (50ms chord-event masks)"
     }
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test elastic_cost
 ```
 Expected: FAIL — `cannot find function elastic_cost in this scope`.
 
-- [ ] **Step 3: Implement** (add to `gate.rs`)
+- [x] **Step 3: Implement** (add to `gate.rs`)
 ```rust
 /// Jaccard distance between two 12-bit pitch-class-set masks: 1 - |A∩B|/|A∪B|.
 fn jaccard_dist(a: u16, b: u16) -> f64 {
@@ -680,13 +680,13 @@ pub fn elastic_cost(q: &[u16], r: &[u16]) -> f64 {
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test elastic_cost
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add apps/api/src/wasm/piece-identify/src/gate.rs
 git commit -m "feat(#26): rust Jaccard subsequence-DTW elastic_cost"
@@ -704,7 +704,7 @@ git commit -m "feat(#26): rust Jaccard subsequence-DTW elastic_cost"
 - Modify: `apps/api/src/wasm/piece-identify/src/gate.rs`
 - Test: in `gate.rs` `#[cfg(test)]`
 
-- [ ] **Step 1: Write the failing test** (add to `gate.rs` tests)
+- [x] **Step 1: Write the failing test** (add to `gate.rs` tests)
 ```rust
     #[test]
     fn margin_gate_locks_on_clear_winner() {
@@ -738,13 +738,13 @@ git commit -m "feat(#26): rust Jaccard subsequence-DTW elastic_cost"
     }
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test margin_gate
 ```
 Expected: FAIL — `cannot find function margin_gate` / `cannot find type GateDecision`.
 
-- [ ] **Step 3: Implement** (add to `gate.rs`)
+- [x] **Step 3: Implement** (add to `gate.rs`)
 ```rust
 /// Outcome of the open-set margin gate over chroma top-K candidates.
 pub struct GateDecision {
@@ -773,13 +773,13 @@ pub fn margin_gate(query: &[u16], candidates: &[&[u16]], threshold: f64) -> Opti
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test margin_gate
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add apps/api/src/wasm/piece-identify/src/gate.rs
 git commit -m "feat(#26): rust margin_gate open-set decision"
@@ -799,7 +799,7 @@ git commit -m "feat(#26): rust margin_gate open-set decision"
 - Modify: `apps/api/src/wasm/piece-identify/src/lib.rs` (add `mod identify;`)
 - Test: in `identify.rs` `#[cfg(test)]`
 
-- [ ] **Step 1: Write the failing test** (in `identify.rs`)
+- [x] **Step 1: Write the failing test** (in `identify.rs`)
 ```rust
 //! Orchestrates the certified pipeline: chroma recall (top-5) -> margin gate.
 use crate::chroma;
@@ -845,13 +845,13 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test run_identify
 ```
 Expected: FAIL — `cannot find function run_identify` / unresolved `PieceIndex` import.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 Add to `apps/api/src/wasm/piece-identify/src/types.rs`:
 ```rust
 /// One catalog piece in the v2 artifact: chroma recall vector + chord-event masks.
@@ -915,13 +915,13 @@ pub fn run_identify(
 ```
 Add `mod identify;` after `mod gate;` in `lib.rs`. Ensure `types.rs` has `use serde::{Serialize, Deserialize};` at the top (it already derives Serialize/Deserialize for existing types — reuse the existing import).
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test run_identify
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add apps/api/src/wasm/piece-identify/src/identify.rs apps/api/src/wasm/piece-identify/src/types.rs apps/api/src/wasm/piece-identify/src/lib.rs
 git commit -m "feat(#26): run_identify orchestrates chroma recall + margin gate"
@@ -951,7 +951,7 @@ git commit -m "feat(#26): run_identify orchestrates chroma recall + margin gate"
 - Modify: `Justfile` (add `test-piece-id`)
 - Test: in `lib.rs` `#[cfg(test)]`
 
-- [ ] **Step 1: Write the failing test** (add a `#[cfg(test)]` block at the bottom of `lib.rs`)
+- [x] **Step 1: Write the failing test** (add a `#[cfg(test)]` block at the bottom of `lib.rs`)
 ```rust
 #[cfg(test)]
 mod lib_tests {
@@ -978,13 +978,13 @@ mod lib_tests {
 }
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test crate_exposes_identify_pipeline
 ```
 Expected: FAIL — compile error: `crate::identify::run_identify` is not yet reachable because `mod chroma; mod gate; mod identify; mod parity_test;` have not been added to `lib.rs` (the new modules exist as files from Tasks 5–10 but are not declared, and `parity_test.rs` does not exist yet). The test cannot compile until the new module decls + placeholder are added.
 
-- [ ] **Step 3: Implement (ADDITIVE — insert alongside the legacy modules; do NOT rewrite the whole file)**
+- [x] **Step 3: Implement (ADDITIVE — insert alongside the legacy modules; do NOT rewrite the whole file)**
 INSERT the new module declarations and the `identify_piece` export into `apps/api/src/wasm/piece-identify/src/lib.rs`, KEEPING every existing line (the `mod ngram; mod rerank; mod dtw_confirm; mod real_recording_test; mod text_match; mod types;` decls and the existing `ngram_recall`/`compute_rerank_features`/`rerank_candidates`/`dtw_confirm`/`match_piece_text` exports all stay).
 
 Add the new module decls alongside the existing ones (e.g. after `mod text_match;`):
@@ -1032,14 +1032,14 @@ test-piece-id:
 ```
 NOTE: `parity_test.rs` is referenced by `mod parity_test;` but populated in Task 12. Create an empty `apps/api/src/wasm/piece-identify/src/parity_test.rs` containing only `// populated in Task 12` so the crate compiles. (Task 12 overwrites it.)
 
-- [ ] **Step 4: Run test — verify it PASSES + crate builds for WASM**
+- [x] **Step 4: Run test — verify it PASSES + crate builds for WASM**
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test crate_exposes_identify_pipeline
 cd /Users/jdhiman/Documents/crescendai/apps/api && bun run build:wasm
 ```
 Expected: PASS, and `build:wasm` regenerates `apps/api/src/wasm/piece-identify/pkg/` with the new `identify_piece` export ADDED alongside the existing `ngram_recall`/`rerank_candidates`/`dtw_confirm`/`match_piece_text` exports.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 cd /Users/jdhiman/Documents/crescendai
 git add apps/api/src/wasm/piece-identify/src/lib.rs apps/api/src/wasm/piece-identify/src/parity_test.rs Justfile
@@ -1058,7 +1058,7 @@ git commit -m "feat(#26): add identify_piece WASM export (legacy pipeline retain
 **Files:**
 - Modify (overwrite the Task-11 placeholder): `apps/api/src/wasm/piece-identify/src/parity_test.rs`
 
-- [ ] **Step 1: Write the failing test** (overwrite `parity_test.rs`)
+- [x] **Step 1: Write the failing test** (overwrite `parity_test.rs`)
 ```rust
 //! Port-fidelity: the Rust gate must reproduce the FROZEN Python reference
 //! (Stage-0c/0f) decisions + margins on the committed golden fixtures.
@@ -1145,22 +1145,22 @@ fn certified_operating_point_holds() {
 }
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS (for the right reason if at all)**
+- [x] **Step 2: Run test — verify it FAILS (for the right reason if at all)**
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test --test-threads=1 rust_
 ```
 Expected: the test compiles and runs. If `rust_elastic_cost_matches_python_per_candidate` FAILS, it is a genuine port-fidelity gap (DTW transpose/normalize/boundary divergence) that must be fixed in `gate.rs` until costs match within 1e-4. If all three PASS immediately, the port is faithful — confirm by temporarily breaking `jaccard_dist` (e.g. return `inter/union` instead of `1 - inter/union`) and re-running to see the cost test FAIL, then revert.
 
-- [ ] **Step 3: Implement / fix until parity holds**
+- [x] **Step 3: Implement / fix until parity holds**
 No new feature code is expected if Tasks 7–9 were faithful. If the per-candidate cost test fails, the divergence is in `elastic_cost` — check (a) shorter-on-rows transpose, (b) normalize by shorter length, (c) row-0 free-start vs column-0 accumulation, (d) the 3-direction `min`. Adjust `gate::elastic_cost` only; re-run until `rust_elastic_cost_matches_python_per_candidate` passes within 1e-4.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 ```bash
 cd apps/api/src/wasm/piece-identify && cargo test
 ```
 Expected: PASS (all crate tests, including the three parity tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add apps/api/src/wasm/piece-identify/src/parity_test.rs apps/api/src/wasm/piece-identify/src/gate.rs
 git commit -m "test(#26): port-fidelity parity gate (rust reproduces python reference)"
@@ -1186,7 +1186,7 @@ git commit -m "test(#26): port-fidelity parity gate (rust reproduces python refe
 - Modify: `apps/api/src/services/wasm-bridge.workerd.test.ts` (ADD a new `identifyPiece (real WASM)` describe block; KEEP the existing `ngramRecall` test)
 - Modify: `apps/api/src/services/wasm-bridge.test.ts` (ADD `identify_piece: mockIdentifyPiece` to the existing `piece_identify` `vi.mock` keeping the legacy mocks; ADD an `identifyPiece` forwarding test; KEEP the `ngramRecall` block)
 
-- [ ] **Step 1: Write the failing test** (ADD a new `identifyPiece (real WASM)` describe block to `wasm-bridge.workerd.test.ts`; do NOT delete the existing `ngramRecall` block)
+- [x] **Step 1: Write the failing test** (ADD a new `identifyPiece (real WASM)` describe block to `wasm-bridge.workerd.test.ts`; do NOT delete the existing `ngramRecall` block)
 ```typescript
 // apps/api/src/services/wasm-bridge.workerd.test.ts
 import { describe, it, expect } from "vitest";
@@ -1224,13 +1224,13 @@ describe("identifyPiece (real WASM)", () => {
 ```
 (The `events` values in the artifact must be the masks `notes_to_events` produces for the query so `exact` aligns at ~0 cost; the build agent computes them from the query: C={1}, E={16}, G={128}, C={1} → after 50ms collapse the four distinct onsets give `[1,16,128,1]`. Use exactly the masks the gate yields for `notes`; if the arpeggio onsets differ, recompute. The decoy is disjoint → margin large → lock to `exact`.)
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 ```bash
 cd apps/api && bun run build:wasm && bun run test -- --run wasm-bridge.workerd
 ```
 Expected: FAIL — `identifyPiece is not exported from ./wasm-bridge`.
 
-- [ ] **Step 3: Implement** — in `apps/api/src/services/wasm-bridge.ts`:
+- [x] **Step 3: Implement** — in `apps/api/src/services/wasm-bridge.ts`:
 KEEP the `ngramRecall`, `rerankCandidates`, `dtwConfirm` wrappers and the `NgramCandidate`/`RerankResult`/`DtwConfirmResult`/`NgramIndex`/`RerankFeatures` interfaces (they are still consumed by `session-brain.ts`; removal is in the DEFERRED post-#28 slice). ADD alongside them:
 ```typescript
 /** Result of identify_piece. null when no confident identification is possible. */
@@ -1273,13 +1273,13 @@ describe("identifyPiece", () => {
 });
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 ```bash
 cd apps/api && bun run test -- --run wasm-bridge.workerd && bun run test:scripts -- --run wasm-bridge.test
 ```
 Expected: PASS (both the real-WASM workerd test and the mocked node test).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add apps/api/src/services/wasm-bridge.ts apps/api/src/services/wasm-bridge.workerd.test.ts apps/api/src/services/wasm-bridge.test.ts
 git commit -m "feat(#26): add wasm-bridge identifyPiece wrapper (legacy retained)"
@@ -1296,19 +1296,19 @@ git commit -m "feat(#26): add wasm-bridge identifyPiece wrapper (legacy retained
 **Files:**
 - Modify: `Justfile`
 
-- [ ] **Step 1: Write the failing check** (the verification is a shell assertion; record it as the test)
+- [x] **Step 1: Write the failing check** (the verification is a shell assertion; record it as the test)
 ```bash
 # Verification command (run after Step 3). Must succeed and print the object.
 cd apps/api && wrangler r2 object get "crescendai-bucket/fingerprint/v2/piece_index.json" --local --pipe | head -c 32
 ```
 Expected before Step 3: FAIL — `The specified key does not exist` (no `seed-fingerprint` recipe has run; the object is absent from local R2).
 
-- [ ] **Step 2: Generate the artifact**
+- [x] **Step 2: Generate the artifact**
 ```bash
 just fingerprint   # writes model/data/fingerprints/piece_index.json (Task 3)
 ```
 
-- [ ] **Step 3: Implement the recipe** — add to `Justfile`:
+- [x] **Step 3: Implement the recipe** — add to `Justfile`:
 ```
 # Seed the v2 piece-ID artifact into LOCAL wrangler R2 for `wrangler dev`.
 # Run `just fingerprint` first to produce model/data/fingerprints/piece_index.json.
@@ -1321,14 +1321,14 @@ Then run it:
 just seed-fingerprint
 ```
 
-- [ ] **Step 4: Run the verification — confirm it SUCCEEDS**
+- [x] **Step 4: Run the verification — confirm it SUCCEEDS**
 ```bash
 cd apps/api && wrangler r2 object get "crescendai-bucket/fingerprint/v2/piece_index.json" --local --pipe | head -c 32
 ```
 Expected: prints the leading bytes of the artifact JSON (e.g. `{"version": "v2", "onset_tol_ms"`), confirming the object is in local R2.
 Manual click-through (the local-first "done" bar): `just dev-light`, start a practice session in the web app, and confirm no console/Sentry error from the piece-ID load path. (The DEFERRED slice wires the DO call; until it lands, this confirms only that the artifact is servable.)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add Justfile
 git commit -m "chore(#26): seed-fingerprint recipe lands v2 artifact in local R2"
