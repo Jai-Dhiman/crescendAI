@@ -68,6 +68,32 @@ pub fn elastic_cost(q: &[u16], r: &[u16]) -> f64 {
     best / nr as f64
 }
 
+/// Outcome of the open-set margin gate over chroma top-K candidates.
+pub struct GateDecision {
+    pub best_index: usize, // index into the candidates slice
+    pub margin: f64,
+    pub locked: bool,
+}
+
+/// Cost each candidate, take the best and 2nd-best; lock iff the margin
+/// (2nd-best − best) ≥ threshold. Returns None if fewer than two candidates
+/// produce a finite cost. Mirrors stage0f._score_candidate + the certified
+/// margin operating point.
+pub fn margin_gate(query: &[u16], candidates: &[&[u16]], threshold: f64) -> Option<GateDecision> {
+    let mut costs: Vec<(usize, f64)> = candidates
+        .iter()
+        .enumerate()
+        .map(|(i, ev)| (i, elastic_cost(query, ev)))
+        .filter(|(_, c)| c.is_finite())
+        .collect();
+    if costs.len() < 2 {
+        return None;
+    }
+    costs.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+    let margin = costs[1].1 - costs[0].1;
+    Some(GateDecision { best_index: costs[0].0, margin, locked: margin >= threshold })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -121,5 +147,36 @@ mod tests {
     #[test]
     fn elastic_cost_too_short_is_infinite() {
         assert!(elastic_cost(&[1], &[1, 2, 3]).is_infinite());
+    }
+
+    #[test]
+    fn margin_gate_locks_on_clear_winner() {
+        let query: Vec<u16> = vec![1, 2, 4, 8];
+        let exact: Vec<u16> = vec![1, 2, 4, 8];       // cost ~0 (best)
+        let wrong: Vec<u16> = vec![16, 32, 64, 128];  // cost ~1 (far)
+        let cands: Vec<&[u16]> = vec![&exact, &wrong];
+        let d = margin_gate(&query, &cands, 0.0935).expect("two finite candidates");
+        assert_eq!(d.best_index, 0);
+        assert!(d.margin > 0.9, "margin {} should be large", d.margin);
+        assert!(d.locked);
+    }
+
+    #[test]
+    fn margin_gate_stays_unknown_on_ambiguous() {
+        let query: Vec<u16> = vec![1, 2, 4, 8];
+        let a: Vec<u16> = vec![1, 2, 4, 8];
+        let b: Vec<u16> = vec![1, 2, 4, 8]; // identical -> margin 0 < threshold
+        let cands: Vec<&[u16]> = vec![&a, &b];
+        let d = margin_gate(&query, &cands, 0.0935).unwrap();
+        assert!(d.margin.abs() < 1e-12);
+        assert!(!d.locked);
+    }
+
+    #[test]
+    fn margin_gate_needs_two_finite_candidates() {
+        let query: Vec<u16> = vec![1, 2, 4, 8];
+        let only: Vec<u16> = vec![1, 2, 4, 8];
+        let cands: Vec<&[u16]> = vec![&only];
+        assert!(margin_gate(&query, &cands, 0.0935).is_none());
     }
 }
