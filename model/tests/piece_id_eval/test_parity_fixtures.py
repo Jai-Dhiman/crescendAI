@@ -1,4 +1,4 @@
-# model/src/piece_id_eval/test_parity_fixtures.py
+# model/tests/piece_id_eval/test_parity_fixtures.py
 import json
 from pathlib import Path
 
