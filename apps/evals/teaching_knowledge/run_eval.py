@@ -21,15 +21,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import time
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from shared.provenance import RunProvenance, make_run_provenance
-from shared.judge_compatibility import assert_judge_compatible
-from shared.judge_atomic import judge_atomic_matrix
 
 # Root paths
 EVALS_ROOT = Path(__file__).resolve().parents[1]
@@ -37,21 +34,6 @@ REPO_ROOT = EVALS_ROOT.parents[1]
 CACHE_DIR = REPO_ROOT / "model" / "data" / "eval" / "inference_cache" / "auto-t5_http"
 SKILL_EVAL_DIR = REPO_ROOT / "model" / "data" / "evals" / "skill_eval"
 RESULTS_DIR = EVALS_ROOT / "results"
-
-# MuQ global mean from Rust STOP classifier (synthesis.ts SCALER_MEAN)
-SCALER_MEAN: dict[str, float] = {
-    "dynamics": 0.545,
-    "timing": 0.4848,
-    "pedaling": 0.4594,
-    "articulation": 0.5369,
-    "phrasing": 0.5188,
-    "interpretation": 0.5064,
-}
-DIMS = list(SCALER_MEAN.keys())
-
-
-def _assert_models_compatible(teacher_model: str, judge_model: str) -> None:
-    assert_judge_compatible(teacher_model, judge_model)
 
 
 def _judge_provider_for(judge_model: str) -> str:
@@ -61,29 +43,6 @@ def _judge_provider_for(judge_model: str) -> str:
     here -- the family guard blocks them upstream).
     """
     return "openrouter" if "/" in judge_model and not judge_model.startswith("@cf/") else "workers-ai"
-
-
-def _maybe_atomic_judge(
-    *, synthesis_text: str, context: dict, judge_dimensions: list[dict],
-    threshold: float, client,
-) -> dict | None:
-    scores = [
-        float(d["score"]) for d in judge_dimensions
-        if isinstance(d.get("score"), (int, float))
-    ]
-    if not scores:
-        return None
-    mean_score = sum(scores) / len(scores)
-    if mean_score >= threshold:
-        return None
-    result = judge_atomic_matrix(synthesis_text=synthesis_text, context=context, client=client)
-    return {
-        "moves": [
-            {"move_id": m.move_id, "attempted": m.attempted, "criteria": m.criteria}
-            for m in result.moves
-        ],
-        "threshold": threshold,
-    }
 
 
 def load_manifests() -> dict[str, dict[str, Any]]:
@@ -106,21 +65,6 @@ def load_manifests() -> dict[str, dict[str, Any]]:
     return lookup
 
 
-def aggregate_muq(chunks: list[dict[str, Any]]) -> dict[str, float]:
-    """Compute per-dimension mean MuQ scores across all chunks."""
-    accum: dict[str, list[float]] = {dim: [] for dim in DIMS}
-    for chunk in chunks:
-        preds = chunk.get("predictions", {})
-        for dim in DIMS:
-            if dim in preds and preds[dim] is not None:
-                accum[dim].append(float(preds[dim]))
-    return {
-        dim: round(sum(vals) / len(vals), 4)
-        for dim, vals in accum.items()
-        if vals
-    }
-
-
 def load_completed_ids(out_path: Path) -> set[str]:
     """Return recording_ids already written to the output JSONL."""
     if not out_path.exists():
@@ -138,56 +82,6 @@ def load_completed_ids(out_path: Path) -> set[str]:
         except json.JSONDecodeError:
             pass
     return completed
-
-
-def _filter_cache_files_by_split(
-    cache_files: list[Path],
-    split_path: Path | None,
-    which: str,
-) -> list[Path]:
-    """Filter cache files by split membership.
-
-    When split_path is None, returns the full list unchanged.
-    When which == "all", returns only files whose stem is in (train + holdout).
-    """
-    if split_path is None:
-        return cache_files
-    from teaching_knowledge.scripts.split import load_split
-
-    allowed = load_split(split_path, which=which)
-    return [f for f in cache_files if f.stem in allowed]
-
-
-def _build_row(
-    recording_id: str,
-    meta: dict,
-    muq_means: dict[str, float],
-    synthesis_text: str,
-    synthesis_latency_ms: int,
-    judge_dimensions: list[dict],
-    judge_model: str,
-    judge_latency_ms: int,
-    error: str,
-    provenance: RunProvenance,
-) -> dict:
-    """Build a single output-JSONL row with provenance stamped in."""
-    return {
-        "recording_id": recording_id,
-        "run_id": provenance.run_id,
-        "git_sha": provenance.git_sha,
-        "git_dirty": provenance.git_dirty,
-        "piece_slug": meta["piece_slug"],
-        "title": meta["title"],
-        "composer": meta["composer"],
-        "skill_bucket": meta["skill_bucket"],
-        "muq_means": muq_means,
-        "synthesis_text": synthesis_text,
-        "synthesis_latency_ms": synthesis_latency_ms,
-        "judge_dimensions": judge_dimensions,
-        "judge_model": judge_model,
-        "judge_latency_ms": judge_latency_ms,
-        "error": error,
-    }
 
 
 def render_artifact_text(artifact: dict[str, Any] | None) -> str | None:

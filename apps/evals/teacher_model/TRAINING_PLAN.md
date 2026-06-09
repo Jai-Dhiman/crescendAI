@@ -296,7 +296,7 @@ LoRA on 35B-A3B fits on 1-2 nodes. Per-stage rough estimate:
 - `apps/evals/teacher_model/data/corpus/` -- 100M-token cleaned corpus (Stage 2/3 source material).
 - `apps/api/src/services/tool-processor.ts` -- 5-tool palette (Stage 1 target format).
 - `apps/api/src/services/teacher.ts` -- unified teacher service (deployment target).
-- `apps/shared/teacher-style/synthesis_system.txt` -- canonical synthesis prompt (briefing format anchor).
+- `apps/api/src/harness/loop/phase2.ts` (`buildPhase2Prompt`) + `apps/api/src/harness/artifacts/synthesis.ts` -- V6 synthesis prompt + artifact schema (briefing format anchor; replaced the deleted `synthesis_system.txt` when V6 became canon, #28).
 - `model/data/eval/inference_cache/auto-t5_http/` -- 890 real briefings (Stage 2 source).
 - `apps/evals/teaching_knowledge/data/raw_teaching_db.json` -- 379 masterclass moments (Stage 3 source).
 - `apps/evals/shared/prompts/synthesis_quality_judge_v2.txt` -- 8-dim rubric judge (Stage 2 filter, Stage 4 signal).
