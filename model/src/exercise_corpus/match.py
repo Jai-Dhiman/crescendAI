@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 
 from exercise_corpus.catalog import CatalogRow, read_primitives
+from exercise_corpus.tags import TagSet
 
 EMBED_DIM = 512
 
@@ -123,4 +124,65 @@ def match_exercises(
             score=float(sims[i]),
         )
         for i in candidates[:top_k]
+    ]
+
+
+class NoPrimitiveForDimensionError(Exception):
+    """Raised when no catalog primitive is tagged for the requested dimension."""
+
+
+def match_by_dimension(
+    dimension: str,
+    tags: dict[str, TagSet],
+    db_path: Path | None = None,
+    index: CatalogIndex | None = None,
+    top_k: int = 5,
+) -> list[Match]:
+    """Return catalog exercises tagged for `dimension`, deterministically ranked.
+
+    Unlike match_exercises, this does NOT rank by cosine similarity to a query --
+    it filters the catalog to primitives whose technique tags include `dimension`
+    and ranks them deterministically by (source_exercise_number, primitive_id).
+    Match.score is therefore not a cosine; it is nan (no query was scored).
+
+    Args:
+        dimension: the diagnosed weakness dimension (one of tags.DIMENSIONS).
+        tags: {primitive_id: TagSet} from tags.load_tags.
+        db_path: path to the SQLite catalog. Mutually sufficient with index.
+        index: a preloaded CatalogIndex (avoids re-reading SQLite).
+        top_k: maximum number of matches to return.
+
+    Returns:
+        List of Match (score=nan) ordered by (source_exercise_number,
+        primitive_id), length <= top_k.
+
+    Raises:
+        ValueError: if neither db_path nor index is given.
+        NoPrimitiveForDimensionError: if no primitive is tagged for `dimension`
+            (no off-dimension fallback).
+    """
+    if index is None:
+        if db_path is None:
+            raise ValueError("match_by_dimension requires db_path or index")
+        index = load_index(db_path)
+
+    bucket = [
+        r
+        for r in index.rows
+        if (ts := tags.get(r.primitive_id)) is not None and dimension in ts.dimensions
+    ]
+    if not bucket:
+        raise NoPrimitiveForDimensionError(
+            f"no catalog primitive is tagged for dimension {dimension!r}"
+        )
+    bucket.sort(key=lambda r: (r.source_exercise_number, r.primitive_id))
+    return [
+        Match(
+            primitive_id=r.primitive_id,
+            source=r.source,
+            title=r.title,
+            midi_path=r.midi_path,
+            score=float("nan"),
+        )
+        for r in bucket[:top_k]
     ]

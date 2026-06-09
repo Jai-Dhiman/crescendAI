@@ -6,15 +6,24 @@ no Aria weights required) and assert ranking behavior through the public
 match_exercises interface.
 """
 
+import math
 from pathlib import Path
 
 import numpy as np
 import pytest
 import torch
 
+import exercise_corpus
 from exercise_corpus import Primitive
 from exercise_corpus.catalog import write_primitives
-from exercise_corpus.match import Match, load_index, match_exercises
+from exercise_corpus.match import (
+    Match,
+    NoPrimitiveForDimensionError,
+    load_index,
+    match_by_dimension,
+    match_exercises,
+)
+from exercise_corpus.tags import TagSet, load_tags
 
 
 def _make_catalog(tmp_path: Path, vectors: dict[str, np.ndarray]) -> Path:
@@ -106,3 +115,51 @@ def test_load_index_reuse_matches_db_path(tmp_path: Path):
     via_index = match_exercises(vectors["hanon_002"], index=index, top_k=5)
     via_db = match_exercises(vectors["hanon_002"], db_path=db, top_k=5)
     assert [r.primitive_id for r in via_index] == [r.primitive_id for r in via_db]
+
+
+def _dummy_catalog(tmp_path: Path, primitive_ids: list[str]) -> Path:
+    """Synthetic catalog with arbitrary (unused-by-tag-retrieval) embeddings."""
+    rng = np.random.default_rng(0)
+    vectors = {pid: rng.standard_normal(512) for pid in primitive_ids}
+    return _make_catalog(tmp_path, vectors)
+
+
+def test_match_by_dimension_filters_to_tagged_primitives(tmp_path: Path):
+    db = _dummy_catalog(
+        tmp_path, ["hanon_001", "hanon_002", "hanon_003", "burgmuller_001"]
+    )
+    tags = {
+        "hanon_001": TagSet(frozenset({"timing", "articulation"}), frozenset()),
+        "hanon_002": TagSet(frozenset({"timing", "articulation"}), frozenset()),
+        "hanon_003": TagSet(frozenset({"timing", "articulation"}), frozenset()),
+        "burgmuller_001": TagSet(
+            frozenset({"phrasing", "interpretation"}), frozenset()
+        ),
+    }
+
+    results = match_by_dimension("timing", tags, db_path=db, top_k=5)
+
+    ids = [m.primitive_id for m in results]
+    assert ids == ["hanon_001", "hanon_002", "hanon_003"]  # burgmuller excluded
+    assert "burgmuller_001" not in ids
+    assert all(isinstance(m, Match) for m in results)
+    # No cosine query in tag mode -> score is the nan sentinel.
+    assert all(math.isnan(m.score) for m in results)
+    # Deterministic across repeated calls.
+    again = [
+        m.primitive_id
+        for m in match_by_dimension("timing", tags, db_path=db, top_k=5)
+    ]
+    assert again == ids
+    # top_k bounds the result count.
+    assert len(match_by_dimension("timing", tags, db_path=db, top_k=2)) == 2
+
+
+def test_match_by_dimension_raises_for_untagged_dimension(tmp_path: Path):
+    db = _dummy_catalog(tmp_path, ["hanon_001", "hanon_002"])
+    tags = {
+        "hanon_001": TagSet(frozenset({"timing", "articulation"}), frozenset()),
+        "hanon_002": TagSet(frozenset({"timing", "articulation"}), frozenset()),
+    }
+    with pytest.raises(NoPrimitiveForDimensionError, match="pedaling"):
+        match_by_dimension("pedaling", tags, db_path=db, top_k=5)
