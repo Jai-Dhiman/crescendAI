@@ -17,6 +17,27 @@ pub fn chroma_vector(notes: &[PerfNote]) -> [f64; 12] {
     cv
 }
 
+fn dot12(a: &[f64; 12], b: &[f64; 12]) -> f64 {
+    let mut s = 0.0;
+    for i in 0..12 {
+        s += a[i] * b[i];
+    }
+    s
+}
+
+/// Rank catalog chroma vectors by cosine to the query (dot, since both are
+/// L2-normalized) and return the top-k catalog indices, descending. Stable on ties.
+pub fn rank_top_k(query: &[f64; 12], catalog: &[[f64; 12]], k: usize) -> Vec<usize> {
+    let mut scored: Vec<(usize, f64)> = catalog
+        .iter()
+        .enumerate()
+        .map(|(i, v)| (i, dot12(query, v)))
+        .collect();
+    // stable sort by descending score (ties keep catalog order)
+    scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    scored.into_iter().take(k).map(|(i, _)| i).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -36,5 +57,16 @@ mod tests {
         assert!((cv[0] - expected_c).abs() < 1e-12);
         assert!((cv[7] - 40.0 / (30.0_f64 * 30.0 + 40.0 * 40.0).sqrt()).abs() < 1e-12);
         assert!(cv[1].abs() < 1e-12);
+    }
+
+    #[test]
+    fn rank_top_k_orders_by_cosine_desc() {
+        let q = chroma_vector(&[note(60, 100), note(64, 100)]); // C + E
+        let exact = chroma_vector(&[note(60, 100), note(64, 100)]); // identical -> cosine 1
+        let close = chroma_vector(&[note(60, 100), note(64, 100), note(67, 5)]); // C+E+tiny G
+        let far = chroma_vector(&[note(61, 100), note(66, 100)]); // C#+F# -> orthogonal-ish
+        let catalog = vec![far, close, exact]; // indices 0,1,2
+        let top = rank_top_k(&q, &catalog, 2);
+        assert_eq!(top, vec![2, 1], "expected exact (2) then close (1)");
     }
 }
