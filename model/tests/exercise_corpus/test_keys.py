@@ -120,3 +120,10 @@ def test_load_passage_key_returns_none_when_key_signature_is_null(tmp_path: Path
     fixture.write_text('{"piece_id": "no_key_piece", "key_signature": null}')
     result = load_passage_key("no_key_piece", scores_dir=tmp_path)
     assert result is None
+
+
+def test_load_passage_key_from_test_fixture():
+    # Uses a committed fixture at tests/exercise_corpus/fixtures/scores/
+    fixtures_scores = Path(__file__).resolve().parent / "fixtures" / "scores"
+    result = load_passage_key("test_piece_eb", scores_dir=fixtures_scores)
+    assert result == "Eb"
