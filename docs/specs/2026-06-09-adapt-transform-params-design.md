@@ -27,7 +27,8 @@ After this change:
 
 - A student struggling with timing in bars 5–12 of a Chopin nocturne in Eb minor receives: an 8-bar Hanon drill segment (matching the bar count), transposed +3 semitones, with instruction text that says "...in the key of Eb."
 - A student struggling with phrasing in bars 3–6 of a Bach prelude in C major receives: a 4-bar Burgmuller drill with transpose_semitones=0 (no shift needed), and the instruction says nothing about a key (C is the default).
-- If the piece's key signature is unavailable, `transpose_semitones` and `target_key` are `None`; the drill is still emitted without transposition, and no error is raised (the key being absent is legitimately possible for piece IDs without a score JSON on disk).
+- If the piece's `key_signature` field is `null` in the score JSON, `transpose_semitones` and `target_key` are `None`; the drill is still emitted without transposition, and no error is raised (null key is a legitimate musical absence — e.g., an atonal piece or an entry intentionally left unset).
+- If the piece's score JSON file is missing entirely (piece_id not in the catalog), `load_passage_key` raises `FileNotFoundError` and `build_briefing` lets it propagate. A diagnosed piece must exist in the catalog; a missing JSON is a real error, not a graceful degradation case.
 
 ---
 
@@ -55,13 +56,17 @@ Every exercise primitive is in a specific key. The tag layer already knows which
 
 ### Error handling
 
-| Condition | Behavior |
-|-----------|----------|
-| `diagnosis.piece_id` score JSON absent | `FileNotFoundError` from `load_passage_key` |
-| `key_signature` null in JSON | `transpose_semitones=None`, `target_key=None` — not an error |
-| `key_signature` non-null but unparseable | `ValueError` from `parse_key_to_pc` |
-| TOML entry lacks `key` | `ValueError` from `load_tags` |
-| Transpose pushes pitch off 88-key range | `ValueError` from `transforms.transpose()` (pre-existing, unchanged) |
+These are two distinct conditions that must not be conflated:
+
+| Condition | Behavior | Rationale |
+|-----------|----------|-----------|
+| `diagnosis.piece_id` score JSON file absent | `FileNotFoundError` from `load_passage_key`; propagates uncaught through `build_briefing` | The diagnosed piece must exist in the catalog. Missing file = caller error. |
+| `key_signature` is JSON `null` in an existing score JSON | `load_passage_key` returns `None`; `build_briefing` sets `transpose_semitones=None`, `target_key=None` — no error raised | Null key is a legitimate musical absence (atonal piece, entry intentionally unset). The drill is still emitted without transposition. |
+| `key_signature` non-null but unparseable | `ValueError` from `parse_key_to_pc` | Malformed data in catalog — explicit error. |
+| TOML entry lacks `key` | `ValueError` from `load_tags` | Catalog invariant violation — explicit error. |
+| Transpose pushes pitch off 88-key range | `ValueError` from `transforms.transpose()` (pre-existing, unchanged) | Out-of-range shift — explicit error. |
+
+**Pre-existing tests:** All `test_briefing.py` tests that call `build_briefing` must use a `piece_id` that resolves to a real committed score JSON. The `_diagnosis()` helper's default `piece_id` is `"bach.prelude.bwv_846"` — `model/data/scores/bach.prelude.bwv_846.json` is git-committed with `key_signature: "C major"`. Tests that specifically exercise the null-key path write a `key_signature: null` fixture into `tmp_path` and pass `scores_dir=tmp_path` explicitly.
 
 ---
 

@@ -505,7 +505,9 @@ techniques = ["finger_independence", "evenness"]
 
 Add `key = "C"` as a third line to every entry. All 22 entries (hanon_001 through hanon_020, czerny_001, burgmuller_001) are C major.
 
-**3c. Update `model/tests/exercise_corpus/test_briefing.py`** — the `_tags` helper constructs `TagSet` directly:
+**3c. Update `model/tests/exercise_corpus/test_briefing.py`** — two changes:
+
+First, update the `_tags` helper which constructs `TagSet` directly:
 
 ```python
 def _tags(mapping: dict[str, list[str]]) -> dict[str, TagSet]:
@@ -518,6 +520,35 @@ Change to:
 def _tags(mapping: dict[str, list[str]]) -> dict[str, TagSet]:
     return {pid: TagSet(frozenset(dims), frozenset(), key="C") for pid, dims in mapping.items()}
 ```
+
+Second, update the `_diagnosis()` helper's default `piece_id` from `"fur_elise"` to `"bach.prelude.bwv_846"`:
+
+```python
+# Before:
+def _diagnosis(**kw) -> Diagnosis:
+    return Diagnosis(
+        dimension=kw.get("dimension", "timing"),
+        severity=kw.get("severity", "moderate"),
+        bar_range=kw.get("bar_range", (3, 6)),
+        piece_id=kw.get("piece_id", "fur_elise"),
+    )
+```
+
+Change to:
+
+```python
+def _diagnosis(**kw) -> Diagnosis:
+    return Diagnosis(
+        dimension=kw.get("dimension", "timing"),
+        severity=kw.get("severity", "moderate"),
+        bar_range=kw.get("bar_range", (3, 6)),
+        piece_id=kw.get("piece_id", "bach.prelude.bwv_846"),
+    )
+```
+
+Rationale: `model/data/scores/bach.prelude.bwv_846.json` is git-committed and has `key_signature: "C major"`. When `build_briefing` is wired in Task 5 to call `load_passage_key(diagnosis.piece_id, scores_dir)`, the pre-existing tests will use the anchored default `scores_dir` and resolve this real file — so they will NOT raise `FileNotFoundError`. The resolved key is C major, exercise key is C major, so `transpose_semitones=0` and `target_key="C major"`. Pre-existing tests do not assert on `transpose_semitones` or `target_key` (those fields do not yet exist), so their assertions are unaffected.
+
+Note: `piece_id="fur_elise"` would resolve to `model/data/scores/fur_elise.json` which does NOT exist, causing `FileNotFoundError` in every pre-existing test after Task 5's changes. Using `bach.prelude.bwv_846` is the fix.
 
 - [ ] **Step 4: Run test — verify it PASSES**
 
@@ -937,4 +968,184 @@ gh issue comment 41 --body "STATE: ADAPT layer impl complete; all exercise_corpu
 cd /Users/jdhiman/Documents/crescendai-wt-issue41/model && uv run pytest tests/exercise_corpus/test_keys.py tests/exercise_corpus/test_briefing.py tests/exercise_corpus/test_tags.py -q
 ```
 
-All green. `test_transforms.py` failure count does not exceed 8.
+All green — including all pre-existing `test_briefing.py` tests (which now use `piece_id="bach.prelude.bwv_846"` via the updated `_diagnosis()` helper). `test_transforms.py` 8 pre-existing failures (gitignored MIDI data) are excluded from this criteria and must not increase.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+#### Premise Challenge
+
+Right problem. `build_briefing` genuinely emits useless C-major drills for students working in other keys, and the 8-bar hardcoded excerpt is pedagogically absurd for a student who struggled over 2 bars. Without this change, the exercise prescription layer is a facade — it shows the right drill type but sizes and keys it wrong 100% of the time for non-C students.
+
+Direct path: yes. The three-helper decomposition in `keys.py` is the minimum to make key resolution testable in isolation. No proxy problem.
+
+No simpler alternative exists. The user explicitly settled Option A (separate `transpose_semitones` field) in brainstorm — not re-litigating this.
+
+Existing coverage: `briefing.py` already has `_transform_params`, `_EXCERPT_BARS`, `_INSTRUCTION`. The plan extends these correctly rather than inventing new patterns.
+
+#### Scope Check
+
+The 8 files in the plan's File Structure are the minimum. No new services or classes beyond the new `keys.py` module. Nothing can be cut without losing core behavior. Scope matches spec exactly.
+
+#### Twelve-Month Alignment
+
+```
+CURRENT STATE                     THIS PLAN                         12-MONTH IDEAL
+build_briefing emits C-major  →   passage-key transpose +        →  full ADAPT layer: key, excerpt,
+drills with hardcoded 4-bar        excerpt-from-bar_range;             difficulty levels, technique
+excerpt regardless of student      adds transpose_semitones/           discrimination (issues #42/#43),
+key or bar range                   target_key to ExerciseBriefing      API wiring (#29)
+```
+
+This plan moves directly toward the ideal. The `transpose_semitones` field design is explicitly forward-compatible with the downstream API wiring (#29) — it is already the right contract.
+
+#### Alternatives Check
+
+Spec documents Option A vs option of encoding transpose inside `transform_params`. Trade-offs are present (Option A was chosen for orthogonality). Documented. No action needed.
+
+---
+
+### Engineering Pass
+
+#### Architecture
+
+Data flow after Task 5:
+```
+build_briefing(diagnosis, tags, ..., scores_dir)
+    │
+    ├── severity/dimension guard
+    ├── cooldown check
+    ├── match_by_dimension() -> top match
+    ├── tags[top.primitive_id].key -> exercise_pc via parse_key_to_pc()
+    ├── load_passage_key(diagnosis.piece_id, scores_dir)
+    │       ├── None (key_signature: null in JSON) -> transpose=None, target_key=None
+    │       ├── str -> parse_key_to_pc() -> transpose_interval() -> semitones
+    │       └── FileNotFoundError (JSON absent) -> PROPAGATES UNCAUGHT
+    ├── _transform_params(transform, severity, bar_range)
+    └── ExerciseBriefing(...)
+```
+
+The `FileNotFoundError` propagation is the critical architectural issue — see BLOCKER below.
+
+Component boundaries are clean. `keys.py` is purely functional except for `load_passage_key`'s I/O, which is correctly isolated.
+
+No security issues (no user input flows to SQL or shell; all I/O is read-only from committed JSON files).
+
+No N+1 or fan-out issues.
+
+#### Module Depth Audit
+
+- **`keys.py` (NEW):** Interface = 3 functions. Hides enharmonic table, path anchoring, JSON parsing, nearest-octave arithmetic. **DEEP.**
+- **`tags.py` (MODIFY):** Adding one required field to `TagSet` dataclass. Interface remains 2 exports. **DEEP.**
+- **`briefing.py` (MODIFY):** Adding 2 fields to dataclass and one optional param to `build_briefing`. Interface stays narrow. **DEEP.**
+
+#### Code Quality
+
+Minor comment error: `keys.py` line `# so parents[2] is model/src/exercise_corpus/../../../ -> model/` is wrong — `parents[2]` from `model/src/exercise_corpus/keys.py` is `model/src/`, not `model/`. The code is correct (`parents[2] / "data" / "scores"` resolves to `model/src/data/scores`, NOT `model/data/scores`).
+
+Wait — let me recalculate: `Path("model/src/exercise_corpus/keys.py").resolve().parents[0]` = `model/src/exercise_corpus`, `parents[1]` = `model/src`, `parents[2]` = `model`. The code IS correct because Python's `Path.parents` is 0-indexed from the leaf. The comment just misstates the intermediate path, not the final result. This is a documentation nit, not a code bug.
+
+DRY: no violations introduced.
+
+Error handling: `parse_key_to_pc` raises `ValueError` on unknown input — explicit, not a catch-all. `load_passage_key` raises `FileNotFoundError` — explicit. Consistent with project standard of explicit exceptions over fallbacks.
+
+#### Test Philosophy Audit
+
+All new tests verify behavior through the public interface — no internal state assertions, no mocking of internal collaborators. External boundaries (filesystem via `tmp_path`) are appropriately used as seams.
+
+`test_range_is_bounded` in Task 1 is a property test over all 144 (from_pc, to_pc) pairs — this is strong behavioral coverage.
+
+`test_target_key_in_instruction` verifies text content of the briefing instruction — this is behavior (what the student sees), not shape.
+
+No forbidden patterns detected.
+
+#### Vertical Slice Audit
+
+Each task is one test → one implementation → one commit. Tasks 1–5 are properly sequenced. Task 6 is verification only (no commit needed for a green suite run — the plan correctly has no commit step for Task 6, just a GitHub issue comment).
+
+[OBS] — Task 2's Step 3 says "The implementation of `load_passage_key` itself is already in `keys.py` from Task 1. No production code changes needed in this task." This is correct — but the stated "failing" reason in Step 2 ("FAIL — `ImportError` or `NameError: load_passage_key`") is slightly wrong: if Task 1 is done, the function exists and is importable; the test fails because the import in the test file hasn't been updated yet AND the fixture path may not exist. This is a documentation inconsistency, not a blocker.
+
+#### Test Coverage Gaps
+
+```
+[+] model/src/exercise_corpus/keys.py
+    ├── parse_key_to_pc()
+    │   ├── [TESTED ★★★]  happy path: C, Am, Eb, C#, Db, Gb, F#, Bb, G, C#m — Task 1
+    │   ├── [TESTED ★★★]  enharmonic equivalence (C#==Db, Gb==F#) — Task 1
+    │   └── [TESTED ★★★]  ValueError on unknown/empty/garbage — Task 1
+    ├── transpose_interval()
+    │   ├── [TESTED ★★★]  same key (0), up (+3, +5, +6 tritone), down (-3, -5) — Task 1
+    │   └── [TESTED ★★★]  all 144 pairs in [-5,+6] — Task 1
+    └── load_passage_key()
+        ├── [TESTED ★★★]  happy path from committed fixture — Task 2
+        ├── [TESTED ★★]   FileNotFoundError for nonexistent piece — Task 2
+        └── [TESTED ★★]   null key_signature -> None — Task 2
+
+[+] model/src/exercise_corpus/briefing.py (new behavior)
+    ├── build_briefing() with scores_dir
+    │   ├── [TESTED ★★]   transpose_semitones=3, target_key="Eb" — Task 5
+    │   ├── [TESTED ★★]   transpose_semitones=None when key_signature=null — Task 5
+    │   ├── [TESTED ★★]   excerpt end_bar from bar_range (8 bars and 4 bars) — Task 5
+    │   ├── [TESTED ★★]   target_key in instruction text — Task 5
+    │   ├── [TESTED ★★]   NoPrimitiveForDimensionError before key resolution — Task 5
+    │   └── [GAP]         FileNotFoundError when piece_id has no score JSON — not directly
+    │                     tested through build_briefing (load_passage_key tests cover it
+    │                     directly in test_keys.py); acceptable gap — caller error path.
+    └── _transform_params() signature change (now takes bar_range)
+        └── [TESTED ★★]   indirectly via excerpt tests
+
+[+] model/src/exercise_corpus/tags.py (TagSet.key field)
+    ├── [TESTED ★★★]  load_tags with key field present — Task 3
+    └── [TESTED ★★★]  ValueError on missing key field — Task 3
+```
+
+#### Failure Modes
+
+Task 3 (TagSet.key field addition) has a failure mode where `technique_tags.toml` is updated but `tags.py` is not, or vice versa. The vertical-slice structure sequences these correctly in the same commit — not a runtime issue.
+
+All file writes are to committed test fixtures — no partial-state risk.
+
+---
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `bach.prelude.bwv_846.json` is tracked in git and has `key_signature: "C major"` | SAFE | Verified: `git ls-files` confirms it is tracked; `json.load()` confirms `key_signature == "C major"`. |
+| `model/data/scores/` contains only committed, non-gitignored files | SAFE | `git check-ignore` confirms the directory is not gitignored; the bach file is committed. |
+| All 22 `technique_tags.toml` entries are C major and need `key = "C"` | SAFE | Read the TOML — Hanon 1-20, Czerny op.299 no.1, Burgmuller op.100 no.1 are all C major fingering studies. |
+| `parents[2]` from `model/src/exercise_corpus/keys.py` is `model/` | SAFE | Verified: `parents[0]` = `model/src/exercise_corpus`, `parents[1]` = `model/src`, `parents[2]` = `model`. Code is correct; comment is imprecise but harmless. |
+| Existing `test_briefing.py` tests will still pass after Task 5 | SAFE (fixed in loop 1) | Task 3 step 3c updates `_diagnosis()` default to `piece_id="bach.prelude.bwv_846"`, which resolves to a git-committed score JSON with `key_signature: "C major"`. Pre-existing tests get `transpose_semitones=0` and do not assert on the new fields, so their assertions remain valid. |
+| `test_load_passage_key_returns_key_from_committed_fixture` will pass in CI | VALIDATE | The test uses `parents[3]` to reach `model/data/scores/`; that file is committed. Should pass anywhere the repo is cloned, but `parents[3]` is fragile if the test file is ever moved. |
+| `fixtures/scores/` directory does not already exist | SAFE | Confirmed: `model/tests/exercise_corpus/fixtures/` contains only `.xml` files, no `scores/` subdirectory. The Task 4 step that creates `fixtures/scores/test_piece_eb.json` will implicitly create the subdirectory. |
+
+---
+
+### Blockers and Risks
+
+**[BLOCKER — RESOLVED]** — The `build_briefing` implementation in Task 5 calls `load_passage_key(diagnosis.piece_id, scores_dir)` unconditionally, where `load_passage_key` raises `FileNotFoundError` when the score JSON is absent. All pre-existing `test_briefing.py` tests used `_diagnosis()` which hardcoded `piece_id="fur_elise"` — a file that does not exist — which would raise `FileNotFoundError` and break every pre-existing test after Task 5's changes.
+
+**Resolution (loop 1):** The plan preserves `FileNotFoundError` propagation (no catch-and-degrade; explicit exceptions per CLAUDE.md). The spec now states two distinct conditions: missing JSON file = `FileNotFoundError` (real error, propagates); `key_signature: null` inside an existing JSON = `None` return (legitimate musical absence, no error). The pre-existing test fix is: Task 3 step 3c updates `_diagnosis()`'s default `piece_id` from `"fur_elise"` to `"bach.prelude.bwv_846"` — `model/data/scores/bach.prelude.bwv_846.json` is git-committed with `key_signature: "C major"`. Pre-existing tests then resolve a real C-major piece, get `transpose_semitones=0`, and their existing assertions (which don't touch the new fields) remain valid. Tests that specifically exercise the null-key path use `tmp_path` with an explicit null-key fixture JSON and pass `scores_dir=tmp_path`.
+
+---
+
+**[RISK] (confidence: 7/10)** — Task 5's `test_untagged_dimension_raises_before_key_resolution` asserts that `NoPrimitiveForDimensionError` is raised before any key resolution. The current `build_briefing` implementation calls `match_by_dimension` before the key resolution block — so the error would already propagate before `load_passage_key` is called. The test verifies the right behavior, but the name "before_key_resolution" is only guaranteed if the `match_by_dimension` call remains above the key resolution block in the implementation. If a refactor reorders those steps, the test would still pass (the error is still raised), but the ordering guarantee would be silently lost. Low severity since the test behavior is correct; worth a comment in the implementation. No change needed.
+
+**[RISK] (confidence: 6/10)** — Task 2's `test_load_passage_key_returns_key_from_committed_fixture` uses `parents[3]` to reach the `model/data/scores/` path from `model/tests/exercise_corpus/test_keys.py`. This is correct today but fragile: if the test file moves to a different nesting depth, the path breaks silently with `FileNotFoundError`. Consider replacing with a `tmp_path`-based fixture that writes the same data, or anchoring via `exercise_corpus.__file__` (which is stable). Non-blocking since the file is committed and the nesting is unlikely to change.
+
+**[OBS]** — Task 6 Step 3 posts a GitHub issue comment with a stale message: "Next: /challenge then /build" — but this plan is already past /challenge when Task 6 runs. The comment body should read "Next: /ship" or "Next: /review" depending on workflow.
+
+**[OBS]** — The `_EXCERPT_BARS` constant removal mentioned at the end of Task 5 Step 3 is the right call (it becomes dead code after the change), consistent with the project's "remove orphans your changes create" coding standard. The plan correctly flags it.
+
+---
+
+### Summary
+
+[BLOCKER] count: 1 (resolved in loop 1 — see BLOCKER section above)
+[RISK]    count: 2 (non-blocking, no plan changes required)
+[QUESTION] count: 0
+
+VERDICT: PROCEED — Blocker resolved. `_diagnosis()` default updated to a real committed score JSON; spec error table clarified with explicit two-condition distinction (missing file vs null key); success criteria updated. Plan is ready for /build.
