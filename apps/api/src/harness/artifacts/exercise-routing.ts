@@ -17,7 +17,7 @@ export const OwnPassageLoopSchema = z.object({
   target_dimension: DimensionEnum,
   bar_range: barRangeSchema,
   tempo_factor: tempoFactorSchema,
-});
+}).strict();
 
 export const CorpusDrillSchema = z.object({
   kind: z.literal("corpus_drill"),

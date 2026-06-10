@@ -53,6 +53,17 @@ describe("ExerciseRoutingDecisionSchema — own_passage_loop", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  test("rejects own_passage_loop with extraneous primitive_id field", () => {
+    const result = ExerciseRoutingDecisionSchema.safeParse({
+      kind: "own_passage_loop",
+      target_dimension: "pedaling",
+      bar_range: [12, 16],
+      tempo_factor: 0.75,
+      primitive_id: "some-drill",
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("ExerciseRoutingDecisionSchema — corpus_drill", () => {
