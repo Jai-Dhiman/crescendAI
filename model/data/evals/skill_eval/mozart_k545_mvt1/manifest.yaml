@@ -505,6 +505,161 @@ recordings:
   label_rationale: human curation
   downloaded: false
   download_error: null
+- video_id: Mn2rZ4UFE0Y
+  title: Mozart - Piano Sonata No.16 in C Major, K.545 "Sonata Facile", Alice Nguyen
+  channel: Alice Nguyễn
+  duration_seconds: 227
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: 1QV7_nRQzeM
+  title: W.A.Mozart Sonata facile KV 545 (1)
+  channel: Toshe Temelkov
+  duration_seconds: 132
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: MrSiO_pzq4g
+  title: Mozart Sonata K 545   2018 Spring Recital 9yr
+  channel: This Guy
+  duration_seconds: 197
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: -fWFHiCI5KE
+  title: 'W. A. Mozart: Piano Sonata K. 545, mvt. 1'
+  channel: Nina Piano Lessons
+  duration_seconds: 204
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: Tq4dQVoSv9M
+  title: 'W. A. Mozart: Sonata K. 545, I. Allegro'
+  channel: Nina Piano Lessons
+  duration_seconds: 231
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: UACl9mgefuo
+  title: 8 yr old Sammy plays Mozart Sonata 3, k545
+  channel: Sammy C
+  duration_seconds: 674
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: JOetww3Thho
+  title: Mozart - Sonata in C major, K545
+  channel: Dehua Huang
+  duration_seconds: 145
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: xXfZ6MDaeE8
+  title: 'Mozart: Sonata #16 (Sonata Facile), Mvt. 1 [7-17-23]'
+  channel: Tyler A. Bartholome - Music
+  duration_seconds: 301
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: dvMV4BdAF54
+  title: '[PIANO AMATEUR CONTEST 2016] - Mozart - Sonata, No. 16, C-dur, K. 545 -
+    Lê Bảo Phước'
+  channel: Trung Tâm Bồi Dưỡng Năng Khiếu Âm Nhạc
+  duration_seconds: 311
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: CPfBS-IhOKM
+  title: Encore Chen Age 5 Plays Mozart Piano Sonata No 16 in C, K 545    1  Allegro
+  channel: Anke Chen
+  duration_seconds: 161
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: RmoQsXbEqpU
+  title: Mozart Piano Sonata No 16 C major K 545
+  channel: Nikolina Popovic Pianist
+  duration_seconds: 199
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: Z6wuG8Ogi8g
+  title: Mason Crisp - Piano Sonata No. 16 in C Major, K. 545 (1st Movement)
+  channel: Mason Crisp
+  duration_seconds: 354
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: YXOnuKk0VCg
+  title: Dash Charles, age 9  Mozart's Piano Sonata No.16 in C Major, K.545 (1st MVT)
+  channel: Karen Sawyer
+  duration_seconds: 62
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: ZwLprgpNoCY
+  title: Age 10 K545 Mozart Sonata no. 16 in C Major
+  channel: MVP Studios
+  duration_seconds: 85
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: iBuMYErUImE
+  title: Mozart - Sonata in C Major, K. 545
+  channel: Danielle Yi
+  duration_seconds: 142
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: 1RWJ-NHMqDc
+  title: 'Mozart: Piano Sonata No. 16 in C Major K545'
+  channel: TheCardTurner
+  duration_seconds: 139
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: Gu_uZRUvd6s
+  title: '2023 Student Recital: Andrew Tsang Performing Sonatina in C Major (No.16
+    K.545) by Mozart'
+  channel: Kornhill Music Studio
+  duration_seconds: 305
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: DaM7HvkZkik
+  title: Sonata No. 16 C major, K 545, Mt. 1 - Mozart, by Vicki Li
+  channel: Kundan Sen
+  duration_seconds: 233
+  skill_bucket: 1
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: UNRvFcpfW84
+  title: Mozart Piano Sonata No 16 C major K 545 1st mov _ Estelle Zhang (8 years
+    old)
+  channel: Zena's Piano Studio
+  duration_seconds: 155
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
 - video_id: zbH0Rohjmlc
   title: 'Maestro touches our soul even with a simple piece: Sokolov plays Mozart
     Sonata in C, K. 545 1st mvt'

@@ -9,8 +9,8 @@ recordings:
   channel: Daniel Piano Progress
   duration_seconds: 110
   view_count: 2252
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: jphyeKguXd8
@@ -18,8 +18,8 @@ recordings:
   channel: Daniel Piano Progress
   duration_seconds: 113
   view_count: 1034
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: ztdqZwVy5RQ
@@ -27,8 +27,8 @@ recordings:
   channel: Christian Gorke
   duration_seconds: 137
   view_count: 55
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: IJAuSttLDso
@@ -36,8 +36,8 @@ recordings:
   channel: Taylor Pierson
   duration_seconds: 294
   view_count: 198
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 3jRQR5UcexQ

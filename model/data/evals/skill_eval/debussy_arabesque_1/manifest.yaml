@@ -2,6 +2,38 @@ piece: debussy_arabesque_1
 title: Debussy Arabesque No. 1
 composer: Debussy
 recordings:
+- video_id: lU2AekptxG0
+  title: 500 Hours of Piano - Arabesque No 1 (Claude Debussy)
+  channel: Daniel Piano Progress
+  duration_seconds: 110
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: jphyeKguXd8
+  title: Adult piano progress - 7th month, Debussy Arabesque No. 1
+  channel: Daniel Piano Progress
+  duration_seconds: 113
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: ztdqZwVy5RQ
+  title: 'Progress: Claude Debussy - Arabesque No. 1 (1-25)'
+  channel: Christian Gorke
+  duration_seconds: 137
+  skill_bucket: 1
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: IJAuSttLDso
+  title: Debussy Arabesque no 1 in progress
+  channel: Taylor Pierson
+  duration_seconds: 294
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
 - video_id: qNoq240t54I
   title: 'Debussy: Arabesque No. 1 in E major (Alain Lefèvre)'
   channel: Warner Classics
