@@ -16,6 +16,7 @@ import {
 	type PerfNote,
 	type ScoreBar,
 	alignChunkChroma,
+	analyzeTier2,
 	selectTeachingMoment,
 } from "./wasm-bridge";
 
@@ -106,6 +107,27 @@ describe("wasm-bridge workerd (real WASM)", () => {
 		expect(result.bar_per_frame.every((b) => b === 1)).toBe(true);
 		expect(result.bar_min).toBe(1);
 		expect(result.bar_max).toBe(1);
+	});
+
+	// -------------------------------------------------------------------------
+	// Score-analysis: analyzeTier2 bar_range marshaling
+	// -------------------------------------------------------------------------
+	// Regression for the workerd serde_wasm_bindgen mismarshal: Tier 2 sets
+	// bar_range = None, which must reach JS as null. Before the JSON-string fix,
+	// to_value() aliased the field to the input perf_notes array, so consumers
+	// hit "barStr.split is not a function" in the pre-lock bar-analysis path.
+	it("analyzeTier2 returns bar_range as null (not the perf_notes array)", () => {
+		const notes: PerfNote[] = [
+			{ pitch: 60, onset: 0.0, offset: 0.4, velocity: 80 },
+			{ pitch: 62, onset: 0.5, offset: 0.9, velocity: 85 },
+			{ pitch: 64, onset: 1.0, offset: 1.4, velocity: 75 },
+		];
+		const result = analyzeTier2(notes, [], [0.7, 0.7, 0.7, 0.7, 0.7, 0.7]);
+
+		expect(result.tier).toBe(2);
+		expect(result.bar_range).toBeNull();
+		expect(Array.isArray(result.dimensions)).toBe(true);
+		expect(result.dimensions.length).toBe(6);
 	});
 });
 

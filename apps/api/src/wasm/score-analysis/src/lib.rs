@@ -80,7 +80,7 @@ pub fn analyze_tier1(
     perf_pedal_js: JsValue,
     scores: &[f64],
     score_context_js: JsValue,
-) -> Result<JsValue, JsValue> {
+) -> Result<String, JsValue> {
     if scores.len() != 6 {
         return Err(JsValue::from_str(&format!(
             "analyze_tier1: expected 6 scores, got {}",
@@ -99,7 +99,10 @@ pub fn analyze_tier1(
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
     let result = bar_analysis::analyze_tier1(&bar_map, &perf_notes, &perf_pedal, &scores_arr, &score_ctx);
-    serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+    // Return JSON string (parsed JS-side) instead of serde_wasm_bindgen::to_value: under
+    // real workerd the latter mismarshals the `Option<String>` bar_range field (a None
+    // aliases a reclaimed input externref), so JS reads bar_range as the perf_notes array.
+    serde_json::to_string(&result).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 /// Tier 2 absolute MIDI analysis: no score context required.
@@ -114,7 +117,7 @@ pub fn analyze_tier2(
     perf_notes_js: JsValue,
     perf_pedal_js: JsValue,
     scores: &[f64],
-) -> Result<JsValue, JsValue> {
+) -> Result<String, JsValue> {
     if scores.len() != 6 {
         return Err(JsValue::from_str(&format!(
             "analyze_tier2: expected 6 scores, got {}",
@@ -129,5 +132,7 @@ pub fn analyze_tier2(
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
     let result = bar_analysis::analyze_tier2(&perf_notes, &perf_pedal, &scores_arr);
-    serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+    // See analyze_tier1: return JSON string to avoid the workerd serde_wasm_bindgen
+    // bar_range mismarshal; JS-side JSON.parse yields a correct plain object.
+    serde_json::to_string(&result).map_err(|e| JsValue::from_str(&e.to_string()))
 }

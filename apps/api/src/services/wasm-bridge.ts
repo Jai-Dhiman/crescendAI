@@ -272,12 +272,16 @@ export function analyzeTier1(
 	scores: number[],
 	scoreContext: ScoreContext,
 ): ChunkAnalysis {
-	return scoreAnalysisModule.analyze_tier1(
-		barMap,
-		perfNotes,
-		perfPedal,
-		new Float64Array(scores),
-		scoreContext,
+	// analyze_tier1 returns a JSON string (not a JsValue): serde_wasm_bindgen
+	// mismarshals the Option<String> bar_range field under real workerd. Parse it here.
+	return JSON.parse(
+		scoreAnalysisModule.analyze_tier1(
+			barMap,
+			perfNotes,
+			perfPedal,
+			new Float64Array(scores),
+			scoreContext,
+		) as unknown as string,
 	) as ChunkAnalysis;
 }
 
@@ -293,10 +297,13 @@ export function analyzeTier2(
 	perfPedal: PerfPedalEvent[],
 	scores: number[],
 ): ChunkAnalysis {
-	return scoreAnalysisModule.analyze_tier2(
-		perfNotes,
-		perfPedal,
-		new Float64Array(scores),
+	// analyze_tier2 returns a JSON string (see analyzeTier1): parse it JS-side.
+	return JSON.parse(
+		scoreAnalysisModule.analyze_tier2(
+			perfNotes,
+			perfPedal,
+			new Float64Array(scores),
+		) as unknown as string,
 	) as ChunkAnalysis;
 }
 
