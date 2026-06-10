@@ -5,7 +5,7 @@
 //
 // PURPOSE: Catch the class of bug where the WASM module boots without error
 // but exports are not callable (e.g. "malloc is not a function",
-// "ngram_recall is not a function"). vi.mock() in the node-env tests cannot
+// "identify_piece is not a function"). vi.mock() in the node-env tests cannot
 // catch this because it replaces the WASM with a mock before instantiation.
 //
 // These tests import the real WASM via the bridge and assert that functions
@@ -16,33 +16,10 @@ import {
 	type PerfNote,
 	type ScoreBar,
 	alignChunkChroma,
-	ngramRecall,
 	selectTeachingMoment,
 } from "./wasm-bridge";
 
-// ---------------------------------------------------------------------------
-// Piece-identify: ngramRecall
-// ---------------------------------------------------------------------------
-// Verifies that the piece-identify WASM module is fully instantiated and that
-// ngram_recall is callable (not "is not a function").
-//
-// Input: 4 notes covering two pitch trigrams.
-// Expected: returns an array (may be empty if no index hits — that's fine;
-// the point is it does not throw).
-
 describe("wasm-bridge workerd (real WASM)", () => {
-	it("ngramRecall executes without 'is not a function' error", () => {
-		const notes: PerfNote[] = [
-			{ pitch: 60, onset: 0.0, offset: 0.5, velocity: 80 },
-			{ pitch: 64, onset: 0.5, offset: 1.0, velocity: 75 },
-			{ pitch: 67, onset: 1.0, offset: 1.5, velocity: 70 },
-			{ pitch: 60, onset: 1.5, offset: 2.0, velocity: 80 },
-		];
-		// Empty index — no candidates expected, but the call must not throw.
-		const result = ngramRecall(notes, {});
-		expect(Array.isArray(result)).toBe(true);
-	});
-
 	// -------------------------------------------------------------------------
 	// Score-analysis: selectTeachingMoment
 	// -------------------------------------------------------------------------

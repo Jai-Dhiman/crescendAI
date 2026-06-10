@@ -164,22 +164,6 @@ export interface ChunkAnalysis {
 
 // --- Piece identify types ---
 
-export interface NgramCandidate {
-	piece_id: string;
-	hit_count: number;
-}
-
-export interface RerankResult {
-	piece_id: string;
-	similarity: number;
-}
-
-export interface DtwConfirmResult {
-	confirmed: boolean;
-	cost: number;
-	confidence: number;
-}
-
 export interface TextMatchResult {
 	piece_id: string;
 	confidence: number;
@@ -190,12 +174,6 @@ export interface CatalogEntry {
 	composer: string;
 	title: string;
 }
-
-/** Inverted index: trigram key ("p1,p2,p3") -> Array<[piece_id, bar_number]> */
-export type NgramIndex = Record<string, Array<[string, number]>>;
-
-/** Per-piece 128-dim feature vectors */
-export type RerankFeatures = Record<string, number[]>;
 
 // ═══════════════════════════════════════════════════
 // WASM module imports
@@ -325,54 +303,6 @@ export function analyzeTier2(
 // ═══════════════════════════════════════════════════
 // Piece Identify wrappers
 // ═══════════════════════════════════════════════════
-
-/**
- * Stage 1: N-gram recall.
- * Extracts pitch trigrams from notes, looks them up in the inverted index,
- * and returns top-10 candidates sorted by hit count.
- */
-export function ngramRecall(
-	notes: PerfNote[],
-	index: NgramIndex,
-): NgramCandidate[] {
-	return pieceIdentifyModule.ngram_recall(notes, index) as NgramCandidate[];
-}
-
-/**
- * Stage 2b: Rerank candidates by cosine similarity.
- * Returns top-2 results in descending similarity order.
- */
-export function rerankCandidates(
-	notes: PerfNote[],
-	candidates: NgramCandidate[],
-	features: RerankFeatures,
-): RerankResult[] {
-	return pieceIdentifyModule.rerank_candidates(
-		notes,
-		candidates,
-		features,
-	) as RerankResult[];
-}
-
-/**
- * Stage 3: DTW confirmation.
- * Runs subsequence DTW alignment to confirm or reject the top rerank candidate.
- *
- * @param perfNotes the identification window
- * @param scoreNotes flattened score notes { onset, pitch } from the candidate's score JSON
- * @param threshold normalized DTW cost below which the candidate is confirmed (use 0.3)
- */
-export function dtwConfirm(
-	perfNotes: PerfNote[],
-	scoreNotes: Array<{ onset: number; pitch: number }>,
-	threshold = 0.3,
-): DtwConfirmResult {
-	return pieceIdentifyModule.dtw_confirm(
-		perfNotes,
-		scoreNotes,
-		threshold,
-	) as DtwConfirmResult;
-}
 
 /** Result of identify_piece. null when no confident identification is possible. */
 export interface IdentifyResult {
