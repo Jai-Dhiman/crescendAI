@@ -267,6 +267,60 @@ def deduplicate_notes(
     return filtered_notes, filtered_pedals
 
 
+def advance_valid_note_groups(
+    token_types: list, start: int
+) -> tuple[int, bool]:
+    """Consume complete, well-formed note groups from `start`.
+
+    Mirrors the note grammar enforced by AmtTokenizer._detokenize_midi_dict.
+    After the BOS prefix, a valid sequence is a concatenation of groups:
+        ("on", pitch),  ("onset", t), ("vel", v)   -- note onset  (3 tokens)
+        ("off", pitch), ("onset", t)                -- note offset (2 tokens)
+        ("pedal", x),   ("onset", t)                -- pedal event (2 tokens)
+
+    A greedy decode on dense audio can derail and emit a malformed group (e.g.
+    on -> onset -> pedal), which makes detokenize raise "Unexpected token order".
+    This lets the decoder stop at the first committed violation and truncate to
+    the longest valid prefix.
+
+    Args:
+        token_types: token TYPE per position ("on", "onset", "vel", "off",
+            "pedal", "prev", or None for non-grammar tokens) for tokens AFTER
+            the BOS prefix.
+        start: index to resume from (end of the last committed group).
+
+    Returns:
+        (boundary, derailed): `boundary` is the index after the last complete
+        valid group (>= start). `derailed` is True iff a committed grammar
+        violation was seen (invalid group start or malformed group). A valid but
+        incomplete trailing group returns derailed=False (still waiting on more
+        tokens).
+    """
+    i = start
+    n = len(token_types)
+    while i < n:
+        t = token_types[i]
+        if t == "on":
+            if i + 1 >= n:
+                return i, False  # awaiting onset
+            if token_types[i + 1] != "onset":
+                return i, True
+            if i + 2 >= n:
+                return i, False  # awaiting vel
+            if token_types[i + 2] != "vel":
+                return i, True
+            i += 3
+        elif t == "off" or t == "pedal":
+            if i + 1 >= n:
+                return i, False  # awaiting onset
+            if token_types[i + 1] != "onset":
+                return i, True
+            i += 2
+        else:
+            return i, True  # invalid group start (e.g. stray onset/vel/prev)
+    return i, False
+
+
 class EndpointHandler:
     """HuggingFace Inference Endpoints handler for Aria-AMT transcription."""
 
@@ -570,6 +624,20 @@ class EndpointHandler:
             xa_input_pos=torch.arange(0, xa_len, device=self._device),
         )
 
+        # Online structural-grammar tracking. Greedy decode on dense ~30s audio
+        # can derail at the window tail and emit a malformed note group (e.g.
+        # on -> onset -> pedal instead of on -> onset -> vel). That both crashes
+        # the tokenizer's detokenize ("Unexpected token order") and, because no
+        # EOS is emitted, runs generation to MAX_BLOCK_LEN (~60-120s). We mirror
+        # the detokenizer's note grammar here, stop at the first committed
+        # violation (a derailed greedy decode will not recover), and keep only
+        # the longest valid-group prefix. Group shapes after BOS:
+        #   on,onset,vel | off,onset | pedal,onset
+        id_to_tok = tokenizer.id_to_tok
+        bos_len = len(generated_ids)
+        gen_types: list = []  # token type per generated token after the BOS prefix
+        committed = 0  # boundary in gen_types: end of the last complete valid group
+
         for _step in range(MAX_BLOCK_LEN - len(generated_ids)):
             next_token_logits = logits[:, -1, :]
 
@@ -586,6 +654,14 @@ class EndpointHandler:
             if next_token_id == self._eos_token_id:
                 break
 
+            # Structural validation against the note grammar. Stop at the first
+            # committed violation (a derailed greedy decode will not recover).
+            tok = id_to_tok.get(next_token_id)
+            gen_types.append(tok[0] if isinstance(tok, tuple) else None)
+            committed, derailed = advance_valid_note_groups(gen_types, committed)
+            if derailed:
+                break
+
             # Decode next token (empty xa_input_pos since encoder is cached)
             next_input = torch.tensor(
                 [[next_token_id]], dtype=torch.long, device=self._device
@@ -599,6 +675,18 @@ class EndpointHandler:
                 xa_input_pos=torch.tensor(
                     [], device=self._device, dtype=torch.int
                 ),
+            )
+
+        # Keep only complete, well-formed note groups. Trailing incomplete or
+        # malformed tokens (EOS mid-group, or a derailed window tail) are dropped
+        # so detokenize never raises "Unexpected token order".
+        valid_len = bos_len + committed
+        if valid_len < len(generated_ids):
+            dropped = len(generated_ids) - valid_len
+            generated_ids = generated_ids[:valid_len]
+            print(
+                f"Truncated {dropped} trailing token(s) at last valid note "
+                f"boundary (incomplete/derailed tail)"
             )
 
         # Detokenize to MidiDict

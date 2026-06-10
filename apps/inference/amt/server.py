@@ -76,7 +76,7 @@ from amt.inference.model import AmtEncoderDecoder, ModelConfig, KVCache
 from amt.tokenizer import AmtTokenizer
 from amt.audio import AudioTransform
 
-from transcription import _load_weight
+from transcription import _load_weight, advance_valid_note_groups
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("amt-server")
@@ -340,6 +340,7 @@ def transcribe(combined_pcm: np.ndarray) -> tuple[list[dict], list[dict]]:
 
     eos_id = tokenizer.tok_to_id[tokenizer.eos_tok]
     pedal_off_id = tokenizer.tok_to_id.get(("pedal", 0))
+    id_to_tok = tokenizer.id_to_tok
 
     # Prefill with initial tokens
     logits = decoder(
@@ -348,6 +349,15 @@ def transcribe(combined_pcm: np.ndarray) -> tuple[list[dict], list[dict]]:
         x_input_pos=torch.arange(0, idx),
         xa_input_pos=torch.arange(0, xa_len),
     )
+
+    # Online structural-grammar tracking (see transcription.py). Greedy decode on
+    # dense ~30s audio can derail at the window tail and emit a malformed note
+    # group, which crashes detokenize ("Unexpected token order") and runs
+    # generation to MAX_BLOCK_LEN. Stop at the first committed violation and keep
+    # only the longest valid-group prefix.
+    bos_len = len(generated_ids)
+    gen_types: list = []
+    committed = 0
 
     for _ in range(MAX_BLOCK_LEN - len(generated_ids)):
         next_token_logits = logits[:, -1, :]
@@ -362,12 +372,28 @@ def transcribe(combined_pcm: np.ndarray) -> tuple[list[dict], list[dict]]:
         if next_token_id == eos_id:
             break
 
+        tok = id_to_tok.get(next_token_id)
+        gen_types.append(tok[0] if isinstance(tok, tuple) else None)
+        committed, derailed = advance_valid_note_groups(gen_types, committed)
+        if derailed:
+            break
+
         next_input = torch.tensor([[next_token_id]], dtype=torch.long)
         logits = decoder(
             x=next_input,
             xa=audio_features,
             x_input_pos=torch.tensor([idx - 1], dtype=torch.int),
             xa_input_pos=torch.tensor([], dtype=torch.int),
+        )
+
+    # Drop trailing incomplete/derailed tokens so detokenize never raises.
+    valid_len = bos_len + committed
+    if valid_len < len(generated_ids):
+        dropped = len(generated_ids) - valid_len
+        generated_ids = generated_ids[:valid_len]
+        print(
+            f"Truncated {dropped} trailing token(s) at last valid note "
+            f"boundary (incomplete/derailed tail)"
         )
 
     # Step 4: Detokenize to MIDI

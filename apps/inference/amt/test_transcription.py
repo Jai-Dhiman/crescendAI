@@ -79,6 +79,7 @@ def _import_amt_handler():
 _handler_mod = _import_amt_handler()
 deduplicate_notes = _handler_mod.deduplicate_notes
 midi_dict_to_notes_and_pedals = _handler_mod.midi_dict_to_notes_and_pedals
+advance_valid_note_groups = _handler_mod.advance_valid_note_groups
 
 
 # -- Fixtures ------------------------------------------------------------------
@@ -366,3 +367,52 @@ class TestMidiDictConversion:
         notes, pedals = midi_dict_to_notes_and_pedals(EmptyMidiDict())
         assert notes == []
         assert pedals == []
+
+
+class TestAdvanceValidNoteGroups:
+    """Grammar guard that prevents the 30s-chunk decoder from emitting token
+    sequences that crash AmtTokenizer.detokenize ("Unexpected token order").
+
+    Group shapes after BOS: on,onset,vel | off,onset | pedal,onset.
+    """
+
+    def test_empty(self):
+        assert advance_valid_note_groups([], 0) == (0, False)
+
+    def test_single_complete_on_group(self):
+        assert advance_valid_note_groups(["on", "onset", "vel"], 0) == (3, False)
+
+    def test_multiple_groups(self):
+        types = ["on", "onset", "vel", "off", "onset", "pedal", "onset"]
+        assert advance_valid_note_groups(types, 0) == (7, False)
+
+    def test_incomplete_trailing_group_is_not_derailed(self):
+        # One complete group, then "on","onset" still waiting on its "vel".
+        types = ["on", "onset", "vel", "on", "onset"]
+        assert advance_valid_note_groups(types, 0) == (3, False)
+
+    def test_production_failure_pattern_is_derailed(self):
+        # Mirrors the observed crash: a valid group, then on -> onset -> pedal
+        # (pedal where the grammar requires vel). detokenize would raise here.
+        types = ["off", "onset", "on", "onset", "pedal"]
+        boundary, derailed = advance_valid_note_groups(types, 0)
+        assert derailed is True
+        assert boundary == 2  # keep only the first valid [off, onset] group
+
+    def test_malformed_off_group_is_derailed(self):
+        boundary, derailed = advance_valid_note_groups(["off", "vel"], 0)
+        assert derailed is True
+        assert boundary == 0
+
+    def test_invalid_group_start_is_derailed(self):
+        # A stray onset where a group should start (e.g. None special token, or
+        # a dangling onset/vel) cannot begin a group.
+        assert advance_valid_note_groups(["onset"], 0) == (0, True)
+        assert advance_valid_note_groups([None], 0) == (0, True)
+
+    def test_resume_from_committed_boundary(self):
+        # Incremental use: once a group commits, resuming from its boundary only
+        # parses the remainder (cheap online check during decode).
+        types = ["on", "onset", "vel", "off", "onset"]
+        boundary, derailed = advance_valid_note_groups(types, 3)
+        assert (boundary, derailed) == (5, False)
