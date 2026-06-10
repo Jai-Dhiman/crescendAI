@@ -252,10 +252,27 @@ export async function callAmtEndpoint(
 		);
 	}
 
-	const raw = (await response.json()) as AmtResponseRaw;
+	const raw = (await response.json()) as AmtResponseRaw & {
+		error?: { code?: string; message?: string };
+	};
+
+	// The AMT endpoint can return an error-shaped body with HTTP 200 (the local
+	// dev server does this on internal exceptions, and a degenerate transcription
+	// can omit midi_notes). Validate the shape here and surface it as an
+	// InferenceError so the caller's graceful-degradation path (AMT failure ->
+	// Tier 3) handles it, instead of letting an undefined `notes` reach
+	// `perfNotes.length` in the DO and crash the isolate.
+	if (raw.error) {
+		throw new InferenceError(
+			`AMT returned an error payload: ${raw.error.message ?? raw.error.code ?? "unknown"}`,
+		);
+	}
+	if (!Array.isArray(raw.midi_notes)) {
+		throw new InferenceError("AMT response missing midi_notes array");
+	}
 
 	return {
 		notes: raw.midi_notes,
-		pedalEvents: raw.pedal_events,
+		pedalEvents: Array.isArray(raw.pedal_events) ? raw.pedal_events : [],
 	};
 }

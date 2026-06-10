@@ -92,6 +92,28 @@ seed-fingerprint:
     cd apps/api && wrangler r2 object put "crescendai-bucket/fingerprint/v2/piece_index.json" \
         --file="../../model/data/fingerprints/piece_index.json" --local
 
+# Seed per-piece score JSONs into LOCAL wrangler R2 at scores/v1/{pieceId}.json.
+# After a piece-ID lock the SessionBrain DO reads scores/v1/{pieceId}.json (env.SCORES)
+# to drive chroma-DTW score-following (alignChunkChroma). The key is the score JSON's
+# `piece_id` (== the filename stem), which matches the piece_index.json piece_id the gate
+# returns. Pass an optional filter to seed a single piece (e.g. `just seed-score-json beethoven.fur_elise`);
+# with no arg, seeds the whole catalog. Source: model/data/scores/*.json (regen via `just fingerprint`'s
+# upstream score-library recipes). Mirrors `seed-scores` (which seeds .mxl for rendering, a different key).
+seed-score-json filter="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    count=0
+    for f in model/data/scores/*.json; do
+        base="$(basename "$f")"
+        [ "$base" = "titles.json" ] && continue
+        pid="${base%.json}"
+        if [ -n "{{filter}}" ] && [ "$pid" != "{{filter}}" ]; then continue; fi
+        cd apps/api && wrangler r2 object put "crescendai-bucket/scores/v1/$base" --file="../../$f" --local >/dev/null && cd ../..
+        count=$((count+1))
+        echo "Seeded scores/v1/$base"
+    done
+    echo "Seeded $count score JSON(s) into local R2."
+
 # Verify all 16 labeled eval pieces have a non-trivial, monotonic catalog entry
 catalog-verify:
     cd model && uv run python -c "from score_library.catalog_coverage import check_coverage, CANONICAL_MAP; from src.paths import Scores; import sys; f=check_coverage(Scores.root, CANONICAL_MAP); print(chr(10).join(f) if f else 'PASS'); sys.exit(1 if f else 0)"

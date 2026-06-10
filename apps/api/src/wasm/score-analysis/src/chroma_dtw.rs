@@ -88,6 +88,15 @@ fn cosine_dist(
 /// Step pattern: (1,0), (0,1), (1,1) — standard monotonic.
 /// Returns (warping_path_vec, mean_cost).
 /// `warping_path_vec`: Vec of (score_frame, audio_frame) pairs, forward order.
+///
+/// Memory: the full cost recurrence only ever reads the previous audio row, so we keep
+/// two rolling rows of `f32` cost instead of the whole `n_a * n_s` cost matrix, and we
+/// store backtrack predecessors as a single `u8` step-code per cell instead of an
+/// `(i32, i32)` pair. This cuts the working set from ~12 bytes/cell to ~1 byte/cell —
+/// essential under the WASM isolate's 128MB linear-memory cap, where a full-length piece
+/// score (thousands of frames at 50Hz) against a 15s chunk previously OOM-aborted (a
+/// failed wasm alloc traps the isolate). Output is identical to the dense formulation:
+/// same recurrence, same `<=` tie-breaking (diag, then up, then left), same path.
 fn subseq_dtw(
     audio: &[f32], n_audio: usize,  // row-major 12 x n_audio
     score: &[f32], n_score: usize,  // row-major 12 x n_score
@@ -95,43 +104,46 @@ fn subseq_dtw(
     let n_a = n_audio;
     let n_s = n_score;
 
-    let mut d = vec![f32::INFINITY; n_a * n_s];
-    let mut p: Vec<(i32, i32)> = vec![(0, 0); n_a * n_s]; // predecessor (da, ds)
+    // Predecessor step-code per cell: 0 = sentinel (first row / unset, terminates
+    // backtrack), 1 = diag (-1,-1), 2 = up (-1,0), 3 = left (0,-1). One byte vs 8.
+    let mut p: Vec<u8> = vec![0u8; n_a * n_s];
 
-    // idx helper: audio row i, score col j -> flat index
-    let idx = |i: usize, j: usize| i * n_s + j;
-
-    // Initialize first audio row — subsequence: free start anywhere on score
+    // Rolling cost rows: `prev` = row i-1, `cur` = row i. Free subsequence start means
+    // row 0 is just the raw column cost (no predecessor); its p stays 0 (sentinel).
+    let mut prev = vec![f32::INFINITY; n_s];
+    let mut cur = vec![f32::INFINITY; n_s];
     for j in 0..n_s {
-        d[idx(0, j)] = cosine_dist(audio, n_a, 0, score, n_s, j);
+        prev[j] = cosine_dist(audio, n_a, 0, score, n_s, j);
     }
 
-    // Fill
     for i in 1..n_a {
         for j in 0..n_s {
             let c = cosine_dist(audio, n_a, i, score, n_s, j);
-            // Predecessors: (i-1, j), (i, j-1), (i-1, j-1)
-            let from_up = if i > 0 { d[idx(i - 1, j)] } else { f32::INFINITY };
-            let from_left = if j > 0 { d[idx(i, j - 1)] } else { f32::INFINITY };
-            let from_diag = if i > 0 && j > 0 { d[idx(i - 1, j - 1)] } else { f32::INFINITY };
+            // Predecessors: (i-1, j) up, (i, j-1) left, (i-1, j-1) diag.
+            let from_up = prev[j];
+            let from_left = if j > 0 { cur[j - 1] } else { f32::INFINITY };
+            let from_diag = if j > 0 { prev[j - 1] } else { f32::INFINITY };
 
-            let (best, pred) = if from_diag <= from_up && from_diag <= from_left {
-                (from_diag, (-1i32, -1i32))
+            let (best, code) = if from_diag <= from_up && from_diag <= from_left {
+                (from_diag, 1u8)
             } else if from_up <= from_left {
-                (from_up, (-1, 0))
+                (from_up, 2u8)
             } else {
-                (from_left, (0, -1))
+                (from_left, 3u8)
             };
 
-            d[idx(i, j)] = c + best;
-            p[idx(i, j)] = pred;
+            cur[j] = c + best;
+            p[i * n_s + j] = code;
         }
+        std::mem::swap(&mut prev, &mut cur);
     }
+    // After the loop `prev` holds the last audio row (n_a - 1); for n_a == 1 it holds row 0.
+    let last = &prev;
 
     // Find best end on last audio row (minimum over all score positions)
     let last_row = n_a - 1;
     let j_end = (0..n_s)
-        .min_by(|&ja, &jb| d[idx(last_row, ja)].partial_cmp(&d[idx(last_row, jb)]).unwrap())
+        .min_by(|&ja, &jb| last[ja].partial_cmp(&last[jb]).unwrap())
         .unwrap_or(0);
 
     // Backtrack
@@ -140,9 +152,13 @@ fn subseq_dtw(
     let mut j = j_end as i32;
     while i >= 0 {
         path.push((j as usize, i as usize)); // (score_frame, audio_frame)
-        let (di, dj) = p[idx(i as usize, j as usize)];
+        let (di, dj) = match p[(i as usize) * n_s + (j as usize)] {
+            1 => (-1i32, -1i32),
+            2 => (-1, 0),
+            3 => (0, -1),
+            _ => (0, 0), // sentinel: first row reached — terminate
+        };
         if di == 0 && dj == 0 {
-            // First row reached — (0,0) signals termination (first row was never overwritten)
             break;
         }
         i += di;
@@ -379,5 +395,61 @@ mod tests {
                 i, b
             );
         }
+    }
+
+    // Regression for the WASM-isolate OOM: a full-length piece score (thousands of
+    // score frames at 50Hz) aligned against a 15s chunk (751 audio frames) must
+    // complete and return a sane bar range. The old dense formulation allocated
+    // n_a * n_s * 12 bytes (~59MB here), which traps the 128MB wasm linear memory;
+    // the rolling-row + u8-backpointer form is ~1 byte/cell. This exercises the same
+    // shape that crashed the chunk_ready+lock path on real audio (Fur Elise, 130s).
+    #[test]
+    fn long_score_full_piece_completes() {
+        use crate::types::ScoreNote;
+
+        // ~130s of quarter notes at 120bpm -> one note every 0.5s, climbing a scale.
+        // At 50Hz that is ~6500 score frames, matching the real Fur Elise score size.
+        let n_notes = 260usize;
+        let mut notes = Vec::with_capacity(n_notes);
+        for k in 0..n_notes {
+            let onset = k as f64 * 0.5;
+            notes.push(ScoreNote {
+                pitch: 60 + (k % 24) as u8,
+                pitch_name: "X".to_string(),
+                velocity: 80,
+                onset_tick: 0,
+                onset_seconds: onset,
+                duration_ticks: 480,
+                duration_seconds: 0.5,
+                track: 0,
+            });
+        }
+        let bar = ScoreBar {
+            bar_number: 1,
+            start_tick: 0,
+            start_seconds: 0.0,
+            time_signature: "4/4".to_string(),
+            notes,
+            pedal_events: vec![],
+            note_count: n_notes as u32,
+            pitch_range: vec![60, 84],
+            mean_velocity: 80,
+        };
+
+        // 751-frame audio chunk (15s at 50Hz), each column normalised onto one pitch class.
+        let n_a = 751usize;
+        let mut audio = vec![0.0_f32; 12 * n_a];
+        for af in 0..n_a {
+            audio[(af % 12) * n_a + af] = 1.0;
+        }
+
+        let result = chroma_dtw_native(&audio, n_a as u32, &[bar], 50.0, 5.0);
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+        let bar_map = result.unwrap();
+        // Only one bar exists, so every mapped frame must report bar 1.
+        assert_eq!(bar_map.bar_min, 1);
+        assert_eq!(bar_map.bar_max, 1);
+        assert!(!bar_map.bar_per_frame.is_empty());
+        assert_eq!(bar_map.score_frame_per_audio_frame.len(), n_a);
     }
 }
