@@ -32,12 +32,12 @@ const PHASE_CTX: PhaseContext = {
 	turnCap: 8,
 };
 
-const VALID_ARTIFACT: SynthesisArtifact = {
+const VALID_ARTIFACT = {
 	session_id: "sess_1",
 	synthesis_scope: "session",
 	strengths: [],
 	focus_areas: [],
-	proposed_exercises: [],
+	prescribed_exercise: null,
 	dominant_dimension: "phrasing",
 	recurring_pattern: null,
 	next_session_focus: null,
@@ -46,7 +46,7 @@ const VALID_ARTIFACT: SynthesisArtifact = {
 		"You showed up and put in real work today. The session was short but focused, and we'll keep building from here. There is plenty to dig into next time, and I'll be ready when you are. Keep listening for the shape of each phrase as you play. " +
 		"Tomorrow we'll come at it fresh with one specific thing to chase down.",
 	assigned_loops: [],
-};
+} as unknown as SynthesisArtifact;
 
 describe("runPhase2 happy path", () => {
 	const fetchSpy = vi.fn();
@@ -162,10 +162,14 @@ describe("buildPhase2Prompt — reflection+prescribe instructions", () => {
 		expect(prompt).toContain("dominant_dimension");
 	});
 
-	it("instructs proposed_exercises[0] to target dominant_dimension", () => {
+	it("instructs prescribed_exercise to target dominant_dimension as own_passage_loop or corpus_drill", () => {
 		const prompt = buildPhase2Prompt(digest, diagnoses, "");
-		expect(prompt).toContain("proposed_exercises[0]");
-		expect(prompt).toContain("target the dominant_dimension");
+		expect(prompt).toContain("prescribed_exercise");
+		expect(prompt).toContain("own_passage_loop");
+		expect(prompt).toContain("corpus_drill");
+		expect(prompt).toContain("dominant_dimension");
+		expect(prompt).not.toContain("proposed_exercises[0]");
+		expect(prompt).not.toContain("proposed_exercises");
 	});
 
 	it("still passes all Task 1 invariants after the new instructions", () => {

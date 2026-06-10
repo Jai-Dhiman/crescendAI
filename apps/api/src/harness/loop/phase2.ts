@@ -50,8 +50,12 @@ export function buildPhase2Prompt(
 		"Do not list all dimensions; focus on the one area that matters most.\n\n";
 
 	const exerciseInstruction =
-		"Exercise instructions: if proposed_exercises is non-empty, proposed_exercises[0] must " +
-		"target the dominant_dimension so that the pre-staged exercise aligns with the question.\n\n";
+		"Exercise instructions: set prescribed_exercise to a single routing decision that targets " +
+		"the dominant_dimension. Use kind='own_passage_loop' when the student has been identified " +
+		"playing a specific piece and you want them to loop a bar range from it; use " +
+		"kind='corpus_drill' when no piece is identified or a general technique drill would be " +
+		"more appropriate. Set prescribed_exercise to null if no exercise is warranted. " +
+		"Do NOT put a pieceId in prescribed_exercise — that is bound at the serving layer.\n\n";
 
 	return (
 		`Session digest:\n${JSON.stringify(digest, null, 2)}\n\n` +
