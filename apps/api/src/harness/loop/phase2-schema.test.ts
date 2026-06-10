@@ -39,7 +39,7 @@ const VALID_ARTIFACT: SynthesisArtifact = {
 	synthesis_scope: "session",
 	strengths: [],
 	focus_areas: [{ dimension: "dynamics", one_liner: "Dynamics flattened in the middle section.", severity: "minor" }],
-	proposed_exercises: [],
+	prescribed_exercise: null,
 	dominant_dimension: "dynamics",
 	recurring_pattern: null,
 	next_session_focus: null,

@@ -88,7 +88,7 @@ const VALID_SYNTHESIS_ARTIFACT: SynthesisArtifact = {
 	synthesis_scope: 'session',
 	strengths: [],
 	focus_areas: [{ dimension: 'pedaling', one_liner: 'Pedal releases were slightly late at bars 3-4.', severity: 'minor' }],
-	proposed_exercises: [],
+	prescribed_exercise: null,
 	dominant_dimension: 'pedaling',
 	recurring_pattern: null,
 	next_session_focus: null,

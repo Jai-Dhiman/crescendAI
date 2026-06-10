@@ -14,7 +14,7 @@ const VALID_ARTIFACT: SynthesisArtifact = {
 	synthesis_scope: "session",
 	strengths: [],
 	focus_areas: [],
-	proposed_exercises: [],
+	prescribed_exercise: null,
 	dominant_dimension: "phrasing",
 	recurring_pattern: null,
 	next_session_focus: null,
