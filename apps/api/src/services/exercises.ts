@@ -5,18 +5,20 @@ import {
 	pendingExercises,
 	studentExercises,
 } from "../db/schema/exercises";
-import { NotFoundError } from "../lib/errors";
+import { ExerciseRoutingDecisionSchema } from "../harness/artifacts/exercise-routing";
+import { InferenceError, NotFoundError } from "../lib/errors";
 import type { ServiceContext } from "../lib/types";
 
 export type ExerciseSetPayload = {
 	sourcePassage: string;
 	targetSkill: string;
+	scoreClip?: { pieceId: string; bars: [number, number] };
 	exercises: Array<{
 		title: string;
 		instruction: string;
 		focusDimension: string;
 		hands?: "left" | "right" | "both";
-		exerciseId: string;
+		exerciseId?: string;
 	}>;
 };
 
@@ -164,7 +166,11 @@ export async function completeExercise(
 
 export async function assignPendingExercise(
 	ctx: ServiceContext,
-	args: { studentId: string; sessionId: string; exerciseId: string },
+	args: {
+		studentId: string;
+		sessionId: string;
+		exerciseId: string; // = pending_exercises.id (the pending row PK)
+	},
 ): Promise<ExerciseSetPayload> {
 	const [pendingRow] = await ctx.db
 		.select()
@@ -172,8 +178,7 @@ export async function assignPendingExercise(
 		.where(
 			and(
 				eq(pendingExercises.studentId, args.studentId),
-				eq(pendingExercises.sessionId, args.sessionId),
-				eq(pendingExercises.exerciseId, args.exerciseId),
+				eq(pendingExercises.id, args.exerciseId),
 				eq(pendingExercises.consumed, false),
 			),
 		);
@@ -182,30 +187,86 @@ export async function assignPendingExercise(
 		throw new NotFoundError("pending exercise", args.exerciseId);
 	}
 
-	await assignExercise(ctx, {
-		studentId: args.studentId,
-		exerciseId: args.exerciseId,
-		sessionId: args.sessionId,
-	});
+	if (!pendingRow.routingJson) {
+		throw new InferenceError(
+			`pending exercise ${args.exerciseId} has no routing_json`,
+		);
+	}
+
+	const routingResult = ExerciseRoutingDecisionSchema.safeParse(
+		pendingRow.routingJson,
+	);
+	if (!routingResult.success) {
+		throw new InferenceError(
+			`pending exercise ${args.exerciseId} routing_json invalid: ${routingResult.error.message}`,
+		);
+	}
+	const routing = routingResult.data;
+
+	// TODO(S3): wire studentExercises tracking for routed exercises when the catalog
+	// has a real exercise row to reference.
+	// Do NOT call assignExercise here — it would throw NotFoundError because
+	// the pending row id is not in the exercises catalog table.
 
 	await ctx.db
 		.update(pendingExercises)
 		.set({ consumed: true })
 		.where(eq(pendingExercises.id, pendingRow.id));
 
-	const exerciseRow = await ctx.db.query.exercises.findFirst({
-		where: (e, { eq: eqFn }) => eqFn(e.id, args.exerciseId),
-	});
+	const title = pendingRow.title ?? pendingRow.previewTitle;
+	const instruction =
+		pendingRow.instruction ??
+		`${pendingRow.focusDimension} exercise — bars ${routing.bar_range[0]}-${routing.bar_range[1]}`;
+
+	if (routing.kind === "own_passage_loop") {
+		const pieceId = pendingRow.pieceId ?? null;
+		const scoreClip =
+			pieceId !== null
+				? { pieceId, bars: routing.bar_range as [number, number] }
+				: undefined;
+
+		if (!scoreClip) {
+			console.log(
+				JSON.stringify({
+					level: "warn",
+					message:
+						"assignPendingExercise: own_passage_loop has no piece_id; rendering text-only",
+					exerciseId: args.exerciseId,
+				}),
+			);
+		}
+
+		return {
+			sourcePassage: `bars ${routing.bar_range[0]}-${routing.bar_range[1]}`,
+			targetSkill: pendingRow.focusDimension,
+			scoreClip,
+			exercises: [
+				{
+					title,
+					instruction,
+					focusDimension: pendingRow.focusDimension,
+					exerciseId: pendingRow.id,
+				},
+			],
+		};
+	}
+
+	// corpus_drill — text stub only
+	const stubInstruction =
+		`${pendingRow.focusDimension} drill coming soon` +
+		(routing.primitive_id ? ` (drill: ${routing.primitive_id})` : "") +
+		". In the meantime: " +
+		instruction;
 
 	return {
-		sourcePassage: exerciseRow?.description ?? "",
+		sourcePassage: `bars ${routing.bar_range[0]}-${routing.bar_range[1]}`,
 		targetSkill: pendingRow.focusDimension,
 		exercises: [
 			{
-				title: exerciseRow?.title ?? pendingRow.previewTitle,
-				instruction: exerciseRow?.instructions ?? "",
+				title,
+				instruction: stubInstruction,
 				focusDimension: pendingRow.focusDimension,
-				exerciseId: args.exerciseId,
+				exerciseId: pendingRow.id,
 			},
 		],
 	};
