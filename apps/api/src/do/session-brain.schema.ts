@@ -32,7 +32,16 @@ export const sessionStateSchema = z.object({
 		.default(null),
 	modeDetector: z.unknown().default(null),
 	passageLoopDetector: z.unknown().default(null),
-	identificationNoteCount: z.number().int().default(0),
+	identificationNoteBuffer: z
+		.array(
+			z.object({
+				pitch: z.number().int(),
+				onset: z.number(),
+				offset: z.number(),
+				velocity: z.number(),
+			}),
+		)
+		.default([]),
 	activeAssignment: z
 		.object({
 			id: z.string(),
@@ -150,7 +159,7 @@ export function createInitialState(
 		pieceIdentification: null,
 		modeDetector: null,
 		passageLoopDetector: null,
-		identificationNoteCount: 0,
+		identificationNoteBuffer: [],
 		activeAssignment: null,
 		isEvalSession: false,
 	};
