@@ -131,9 +131,8 @@ test-api:
     cd apps/api && bun run test -- --run && bunx vitest run --config vitest.node.config.ts
 
 # Run the piece-identify Rust unit + parity tests (native target).
-# Skips real_recording_test, which is env-gated on NOTES_JSON (legacy, retained until #28).
 test-piece-id:
-    cd apps/api/src/wasm/piece-identify && cargo test -- --skip real_recording
+    cd apps/api/src/wasm/piece-identify && cargo test
 
 # Run web type check
 check-web:
