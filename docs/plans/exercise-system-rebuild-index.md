@@ -1,6 +1,6 @@
 # Exercise System Rebuild — Brainstorm Index
 
-**Status:** Slice A SHIPPED — slice B ready for design (pending slice A manual acceptance gate)
+**Status (2026-06-08):** Slices A–D BUILT. Slices B/C/D shipped on branch `issue-36-exercise-matcher-transforms-briefing` (not merged). The runtime *selection* step was redesigned away from embedding-similarity retrieval to the **FILTER → RANK → ADAPT** recommendation model — see `docs/apps/04-exercises.md` (durable home for this design). Next frontier is the ADAPT layer (passage-driven transform params); difficulty/technique discrimination is gated on #17 corpus breadth.
 **Created:** 2026-05-27
 **Owner:** Jai
 
