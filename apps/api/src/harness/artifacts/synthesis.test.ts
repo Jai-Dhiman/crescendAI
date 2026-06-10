@@ -17,7 +17,7 @@ const baseValid: SynthesisArtifact = {
 			severity: "moderate",
 		},
 	],
-	proposed_exercises: ["ex:abc123"],
+	prescribed_exercise: null,
 	dominant_dimension: "pedaling",
 	recurring_pattern: null,
 	next_session_focus: "Work on pedal-release timing in the slow movement.",
@@ -131,11 +131,6 @@ describe("SynthesisArtifactSchema", () => {
 		expect(SynthesisArtifactSchema.safeParse(invalid).success).toBe(false);
 	});
 
-	test("rejects when proposed_exercises exceeds 3 items", () => {
-		const invalid = { ...baseValid, proposed_exercises: ["a", "b", "c", "d"] };
-		expect(SynthesisArtifactSchema.safeParse(invalid).success).toBe(false);
-	});
-
 	test("rejects when headline is shorter than 300 chars", () => {
 		const invalid = { ...baseValid, headline: "x".repeat(299) };
 		expect(SynthesisArtifactSchema.safeParse(invalid).success).toBe(false);
@@ -171,7 +166,6 @@ const BASE_VALID = {
 	synthesis_scope: "session" as const,
 	strengths: [],
 	focus_areas: [],
-	proposed_exercises: [],
 	dominant_dimension: "phrasing" as const,
 	recurring_pattern: null,
 	next_session_focus: null,
@@ -197,4 +191,73 @@ test("SynthesisArtifact without assigned_loops field defaults to empty array", (
 	const r = SynthesisArtifactSchema.safeParse(without);
 	expect(r.success).toBe(true);
 	if (r.success) expect(r.data.assigned_loops).toEqual([]);
+});
+
+// ---------------------------------------------------------------------------
+// prescribed_exercise field tests
+// ---------------------------------------------------------------------------
+
+const BASE_PRESCRIBED = {
+	session_id: "sess_1",
+	synthesis_scope: "session" as const,
+	strengths: [],
+	focus_areas: [],
+	dominant_dimension: "phrasing" as const,
+	recurring_pattern: null,
+	next_session_focus: null,
+	diagnosis_refs: [],
+	headline: "A".repeat(300),
+	assigned_loops: [],
+};
+
+test("SynthesisArtifact accepts prescribed_exercise null", () => {
+	const result = SynthesisArtifactSchema.safeParse({
+		...BASE_PRESCRIBED,
+		prescribed_exercise: null,
+	});
+	expect(result.success).toBe(true);
+});
+
+test("SynthesisArtifact accepts a valid own_passage_loop prescribed_exercise", () => {
+	const result = SynthesisArtifactSchema.safeParse({
+		...BASE_PRESCRIBED,
+		prescribed_exercise: {
+			kind: "own_passage_loop",
+			target_dimension: "pedaling",
+			bar_range: [12, 16],
+			tempo_factor: 0.75,
+		},
+	});
+	expect(result.success).toBe(true);
+});
+
+test("SynthesisArtifact accepts a valid corpus_drill prescribed_exercise", () => {
+	const result = SynthesisArtifactSchema.safeParse({
+		...BASE_PRESCRIBED,
+		prescribed_exercise: {
+			kind: "corpus_drill",
+			target_dimension: "timing",
+			bar_range: [1, 8],
+			tempo_factor: 0.8,
+			primitive_id: null,
+		},
+	});
+	expect(result.success).toBe(true);
+});
+
+test("SynthesisArtifact rejects invalid prescribed_exercise (bad kind)", () => {
+	const result = SynthesisArtifactSchema.safeParse({
+		...BASE_PRESCRIBED,
+		prescribed_exercise: {
+			kind: "free_form",
+			target_dimension: "phrasing",
+		},
+	});
+	expect(result.success).toBe(false);
+});
+
+test("SynthesisArtifact without prescribed_exercise field defaults to null", () => {
+	const result = SynthesisArtifactSchema.safeParse(BASE_PRESCRIBED);
+	expect(result.success).toBe(true);
+	if (result.success) expect(result.data.prescribed_exercise).toBeNull();
 });

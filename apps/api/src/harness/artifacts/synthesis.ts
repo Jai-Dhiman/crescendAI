@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DIMENSIONS, SEVERITIES } from "./diagnosis";
+import { ExerciseRoutingDecisionSchema } from "./exercise-routing";
 
 export const SYNTHESIS_SCOPES = [
 	"session",
@@ -28,7 +29,7 @@ export const SynthesisArtifactSchema = z
 		synthesis_scope: SynthesisScopeEnum,
 		strengths: z.array(StrengthEntry).max(2),
 		focus_areas: z.array(FocusAreaEntry).max(3),
-		proposed_exercises: z.array(z.string().min(1)).max(3),
+		prescribed_exercise: ExerciseRoutingDecisionSchema.nullable().default(null),
 		dominant_dimension: DimensionEnum,
 		recurring_pattern: z.string().min(1).nullable(),
 		next_session_focus: z.string().min(1).max(200).nullable(),
