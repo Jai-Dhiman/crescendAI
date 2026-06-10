@@ -150,6 +150,52 @@ describe("SessionBrain piece-ID v2 gate (eval_chunk path)", () => {
 		});
 	});
 
+	it("stays unknown on an ambiguous performance (no false lock)", async () => {
+		await env.SCORES.put("fingerprint/v2/piece_index.json", V2_AMBIGUOUS);
+		const stub = env.SESSION_BRAIN.get(
+			env.SESSION_BRAIN.idFromName("pid-ambiguous"),
+		);
+		await runInDurableObject(stub, async (inst: SessionBrain, state) => {
+			const seeded = createInitialState("sess", "stud", null);
+			seeded.baselinesLoaded = true;
+			seeded.baselines = null;
+			await state.storage.put("state", seeded);
+
+			const { ws, sent } = recordingWs();
+			for (let i = 0; i < 11; i++) {
+				await inst.webSocketMessage(ws, evalChunk(i, MATCH_NOTES));
+			}
+
+			const st = await readState(state.storage);
+			expect(st.pieceLocked).toBe(false);
+			expect(st.pieceIdentification).toBeNull();
+			expect(
+				sent.some((m) => (m as { type?: string }).type === "piece_identified"),
+			).toBe(false);
+		});
+	});
+
+	it("does not lock after a single sub-threshold chunk", async () => {
+		await env.SCORES.put("fingerprint/v2/piece_index.json", V2_ARTIFACT);
+		const stub = env.SESSION_BRAIN.get(
+			env.SESSION_BRAIN.idFromName("pid-subthreshold"),
+		);
+		await runInDurableObject(stub, async (inst: SessionBrain, state) => {
+			const seeded = createInitialState("sess", "stud", null);
+			seeded.baselinesLoaded = true;
+			seeded.baselines = null;
+			await state.storage.put("state", seeded);
+
+			const { ws } = recordingWs();
+			// One 4-note chunk: 4 < MIN_NOTES_FOR_IDENTIFICATION (30) -> no identification yet.
+			await inst.webSocketMessage(ws, evalChunk(0, MATCH_NOTES));
+
+			const st = await readState(state.storage);
+			expect(st.pieceLocked).toBe(false);
+			expect(st.identificationNoteBuffer).toHaveLength(4);
+		});
+	});
+
 	it("caps the identification buffer at the max, keeping the most recent notes", async () => {
 		// Use the ambiguous artifact so the buffer never locks and keeps growing,
 		// letting us observe the truncation behavior.
