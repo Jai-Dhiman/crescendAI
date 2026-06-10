@@ -1795,15 +1795,14 @@ export class SessionBrain extends DurableObject<Bindings> {
 					}),
 				);
 				let pendingComponent: InlineComponent | null = null;
-				const proposedExercise = artifact.proposed_exercises[0];
-				if (proposedExercise !== undefined) {
+				if (artifact.prescribed_exercise !== null) {
 					try {
 						const staged = await stageDominantExercise(db, {
 							studentId: state.studentId,
 							sessionId: state.sessionId,
 							dominantDimension: artifact.dominant_dimension,
-							proposedExercise,
-							pieceMetadata: pieceCtx,
+							routing: artifact.prescribed_exercise,
+							pieceCtx,
 						});
 						pendingComponent = buildPendingExerciseComponent(staged);
 					} catch (err) {

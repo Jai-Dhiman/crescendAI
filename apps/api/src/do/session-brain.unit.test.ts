@@ -27,7 +27,7 @@ const ARTIFACT: SynthesisArtifact = {
 	synthesis_scope: "session",
 	strengths: [],
 	focus_areas: [],
-	proposed_exercises: [],
+	prescribed_exercise: null,
 	dominant_dimension: "phrasing",
 	recurring_pattern: null,
 	next_session_focus: null,
@@ -61,11 +61,8 @@ describe("buildV6WsPayload", () => {
 	});
 
 	it("always returns empty components array in V6 when no loopComponents passed", () => {
-		const payload = buildV6WsPayload({
-			...ARTIFACT,
-			proposed_exercises: ["ex1", "ex2"],
-		});
-		expect(payload.components).toEqual([]); // Plan 4 fills in real exercise component construction
+		const payload = buildV6WsPayload(ARTIFACT, [], null);
+		expect(payload.components).toEqual([]);
 	});
 
 	it("buildV6WsPayload with loop components returns them in components array", () => {
@@ -123,6 +120,26 @@ describe("buildV6WsPayload", () => {
 
 	it("omits pendingComponent when undefined (backward-compatible)", () => {
 		const payload = buildV6WsPayload(ARTIFACT);
+		expect(payload.components).toEqual([]);
+	});
+
+	it("does not access proposed_exercises on the artifact (field removed)", () => {
+		// If this test compiles, proposed_exercises is not on SynthesisArtifact type.
+		// Runtime: buildV6WsPayload should work with no proposed_exercises.
+		const payload = buildV6WsPayload(
+			{
+				...ARTIFACT,
+				prescribed_exercise: {
+					kind: "own_passage_loop" as const,
+					target_dimension: "pedaling" as const,
+					bar_range: [12, 16] as [number, number],
+					tempo_factor: 0.75,
+				},
+			},
+			[], // loopComponents (second arg — REQUIRED)
+			null, // pendingComponent (third arg — REQUIRED)
+		);
+		expect(payload.type).toBe("synthesis");
 		expect(payload.components).toEqual([]);
 	});
 });
