@@ -92,4 +92,49 @@ describe("ExerciseSetCard", () => {
 		});
 		expect(mockGetClip).not.toHaveBeenCalled();
 	});
+
+	it("renders without crashing when scoreClip and exerciseId are absent (corpus_drill stub)", async () => {
+		const config: ExerciseSetConfig = {
+			sourcePassage: "bars 1-8",
+			targetSkill: "timing focus",
+			exercises: [
+				{
+					title: "Timing corpus drill",
+					instruction: "Timing drill coming soon. Practice bars 1-8 at 80% tempo.",
+					focusDimension: "timing",
+					// no exerciseId — corpus_drill path
+				},
+			],
+			// no scoreClip
+		};
+		const { ExerciseSetCard } = await import("./ExerciseSetCard");
+		expect(() => render(React.createElement(ExerciseSetCard, { config }))).not.toThrow();
+		await waitFor(() => {
+			expect(document.body.textContent).toContain("timing focus");
+			expect(document.body.textContent).toContain("Timing corpus drill");
+		});
+		expect(mockGetClip).not.toHaveBeenCalled();
+	});
+
+	it("renders with scoreClip present (own_passage_loop path) — existing behavior preserved", async () => {
+		mockGetClip.mockResolvedValue("<svg data-test='passage-loop-clip'></svg>");
+		const config: ExerciseSetConfig = {
+			sourcePassage: "bars 12-16",
+			targetSkill: "pedaling focus",
+			scoreClip: { pieceId: "chopin.ballade.1", bars: [12, 16] },
+			exercises: [
+				{
+					title: "Own passage loop: pedaling",
+					instruction: "Loop bars 12-16 at 75% tempo.",
+					focusDimension: "pedaling",
+					exerciseId: "ex-id-1",
+				},
+			],
+		};
+		const { ExerciseSetCard } = await import("./ExerciseSetCard");
+		expect(() => render(React.createElement(ExerciseSetCard, { config }))).not.toThrow();
+		await waitFor(() => {
+			expect(document.body.textContent).toContain("pedaling focus");
+		});
+	});
 });
