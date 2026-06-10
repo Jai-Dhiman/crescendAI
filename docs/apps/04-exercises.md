@@ -285,7 +285,7 @@ The two-stage subagent pipeline (02-pipeline.md) uses exercise history as contex
 
 ## Recommendation Model: FILTER → RANK → ADAPT (added 2026-06-08, #36)
 
-> Status: design model agreed. `FILTER` stage partially built (dimension gating shipped on `issue-36-exercise-matcher-transforms-briefing`); `ADAPT` and the rest of `FILTER`/`RANK` are scoped as follow-on issues below. Supersedes the "embedding-similarity retrieval" framing in the rebuild index for the *runtime selection* step.
+> Status (2026-06-09): `FILTER` stage shipped (#36 — dimension gating via technique_tags + match_by_dimension). `ADAPT` stage shipped (#41 — passage-driven transpose/excerpt/tempo params in `build_briefing`). `RANK` and full `FILTER`/difficulty discrimination are follow-on issues gated on #17 corpus breadth. Supersedes the "embedding-similarity retrieval" framing in the rebuild index for the *runtime selection* step.
 
 Recommending an exercise is not one decision keyed on one signal. It is a pipeline of three decisions, each failing differently, each tuned independently:
 
@@ -321,7 +321,8 @@ The signals named loosely in discussion map cleanly: "dimension" is FILTER, "tec
 
 The most transfer-positive "exercise" is often *"loop bars 5-8 of your own piece, slowly"* — the student's own excerpted passage + the existing `excerpt`/`scale_tempo` transforms, needing **no catalog at all**. If the student's piece is the primary substrate and the catalog is supplementary technique-builders, the system's dependence on #17 corpus breadth drops sharply. Decide this before investing further in catalog matching.
 
-### What is shipped vs follow-on (as of 2026-06-08)
+### What is shipped vs follow-on (as of 2026-06-09, #36 + #41 merged)
 
-- **Shipped** (branch `issue-36-...`, not merged): FILTER/dimension gating via `technique_tags.toml` + `match_by_dimension`; untagged dimensions raise instead of returning off-dimension drills; ADAPT params still hardcoded and passage-blind; `transpose()` implemented but unwired.
-- **Follow-on issues:** ADAPT/passage-driven transform params (Track 1, next), FILTER/difficulty+finding_type+scope (Track 1 correctness + Track 2 discrimination), RANK/dimension∧technique matching (Track 2).
+- **Shipped (#36):** FILTER/dimension gating via `technique_tags.toml` + `match_by_dimension`; untagged dimensions raise instead of returning off-dimension drills.
+- **Shipped (#41, ADAPT layer):** `build_briefing` now computes passage-driven transform params: `transpose_semitones` + `target_key` (from `diagnosis.bar_range` → score JSON → `key_signature`; uses `keys.py` `parse_key_to_pc` + `transpose_interval`, nearest-octave clamp [-5, 6]); `excerpt_bars` derived from `bar_range` length; tempo-by-severity (`severity` → `scale_tempo`) pre-existing. `TagSet` gained required `key` field; all 22 `technique_tags.toml` entries default to `key = 'C'`. Missing score JSON raises `FileNotFoundError` (strict, no silent fallback); null `key_signature` → `transpose_semitones = None`. New `ExerciseBriefing` fields: `transpose_semitones: int | None`, `target_key: str | None`. The API-side `ExerciseArtifact` has no transform fields — zero ripple to the web/iOS surface.
+- **Follow-on issues:** FILTER/difficulty+finding_type+scope (Track 1 correctness + Track 2 discrimination), RANK/dimension∧technique matching (Track 2, gated on #17 corpus breadth), performance-delta matching (Track 3, gated on AMT + users).
