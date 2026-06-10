@@ -519,6 +519,8 @@ cd /Users/jdhiman/Documents/crescendai && git add apps/api/src/harness/loop/phas
 
 - [ ] **Step 1: Write the failing test**
 
+**RISK 3 fix:** The test actually calls `stageDominantExercise` with a mocked `db` whose `insert` is spied. It asserts: `insert` is called exactly once and only against `pendingExercises` (never `exercises` or `exerciseDimensions`), and that `routing_json`, `title`, `instruction`, and `piece_id` are persisted in the inserted row.
+
 ```typescript
 // apps/api/src/services/pending-exercise.test.ts
 // (Replace existing test that assumed exercises table insert)
@@ -527,6 +529,7 @@ import {
   stageDominantExercise,
   buildPendingExerciseComponent,
 } from "./pending-exercise";
+import { pendingExercises } from "../db/schema/exercises";
 import type { ExerciseRoutingDecision } from "../harness/artifacts/exercise-routing";
 
 const ROUTING: ExerciseRoutingDecision = {
@@ -537,66 +540,86 @@ const ROUTING: ExerciseRoutingDecision = {
 };
 
 describe("stageDominantExercise", () => {
-  test("inserts into pending_exercises with routing_json, title, instruction; never inserts into exercises", async () => {
-    const insertedPendingRows: unknown[] = [];
-    const insertedExerciseRows: unknown[] = [];
+  test("inserts exactly once into pending_exercises with routing_json, title, instruction, piece_id; never inserts into exercises", async () => {
+    const insertSpy = vi.fn();
+    let capturedTable: unknown = null;
+    let capturedRow: unknown = null;
 
     const db = {
-      insert: (table: { tableName?: string }) => ({
+      insert: (table: unknown) => {
+        capturedTable = table;
+        insertSpy(table);
+        return {
+          values: (row: unknown) => {
+            capturedRow = row;
+            return {
+              returning: () => Promise.resolve([{ id: "pending-row-id-1" }]),
+            };
+          },
+        };
+      },
+    };
+
+    const result = await stageDominantExercise(db as never, {
+      studentId: "stu-1",
+      sessionId: "sess-1",
+      dominantDimension: "pedaling",
+      routing: ROUTING,
+      pieceCtx: { pieceId: "chopin.ballade.1" },
+    });
+
+    // insert called exactly once — never touches exercises or exerciseDimensions
+    expect(insertSpy).toHaveBeenCalledTimes(1);
+    expect(capturedTable).toBe(pendingExercises);
+
+    // persisted fields
+    const row = capturedRow as Record<string, unknown>;
+    expect(row.routingJson).toEqual(ROUTING);
+    expect(typeof row.title).toBe("string");
+    expect((row.title as string).length).toBeGreaterThan(0);
+    expect(typeof row.instruction).toBe("string");
+    expect(row.pieceId).toBe("chopin.ballade.1");
+
+    // return value uses the pending row id as exerciseId
+    expect(result.exerciseId).toBe("pending-row-id-1");
+    expect(result.focusDimension).toBe("pedaling");
+  });
+
+  test("pieceId is null when pieceCtx is null", async () => {
+    let capturedRow: unknown = null;
+    const db = {
+      insert: (_table: unknown) => ({
         values: (row: unknown) => {
-          if (
-            table === mockPendingExercisesTable
-          ) {
-            insertedPendingRows.push(row);
-          } else {
-            insertedExerciseRows.push(row);
-          }
-          return {
-            returning: () => Promise.resolve([{ id: "pending-row-id-1" }]),
-          };
+          capturedRow = row;
+          return { returning: () => Promise.resolve([{ id: "pending-row-id-2" }]) };
         },
       }),
     };
 
-    // We can't import the actual drizzle table here cleanly, so we test
-    // through the observable return value and count of inserts.
-    // In practice the test uses the real DB via vitest-pool-workers integration.
-    // The unit-level check: returning value shape is correct.
-    const mockPendingExercisesTable = { tableName: "pending_exercises" };
+    await stageDominantExercise(db as never, {
+      studentId: "stu-1",
+      sessionId: "sess-1",
+      dominantDimension: "pedaling",
+      routing: ROUTING,
+      pieceCtx: null,
+    });
 
-    // For a pure-unit test without a real DB, test the function signature:
-    // It should accept the new args shape.
-    // The integration-level test is handled by the existing
-    // services/pending-exercise.test.ts worker integration harness.
-    // Here we verify the return type shape.
+    expect((capturedRow as Record<string, unknown>).pieceId).toBeNull();
+  });
+});
+
+describe("buildPendingExerciseComponent", () => {
+  test("sets exerciseId to the pending row id returned by stageDominantExercise", () => {
     const staged = {
       exerciseId: "pending-row-id-1",
       focusDimension: "pedaling",
       previewTitle: "Own passage loop: pedaling (bars 12-16)",
     };
-
-    // Verify buildPendingExerciseComponent still works with the return value
     const component = buildPendingExerciseComponent(staged);
     expect(component.type).toBe("pending_exercise");
     expect(component.config.exerciseId).toBe("pending-row-id-1");
     expect(component.config.focusDimension).toBe("pedaling");
     expect(component.config.previewTitle).toBe("Own passage loop: pedaling (bars 12-16)");
-  });
-
-  test("stageDominantExercise args include routing not proposedExercise (TypeScript shape)", () => {
-    // This is a compile-time test: if the function signature still expects
-    // proposedExercise: string, TypeScript will error and bun test will fail.
-    // The actual runtime test is in the worker integration layer.
-    type Args = Parameters<typeof stageDominantExercise>[1];
-    const args: Args = {
-      studentId: "stu-1",
-      sessionId: "sess-1",
-      dominantDimension: "pedaling",
-      routing: ROUTING,
-      pieceMetadata: null,
-    };
-    expect(args.routing.kind).toBe("own_passage_loop");
-    expect("proposedExercise" in args).toBe(false);
   });
 });
 ```
@@ -606,11 +629,17 @@ describe("stageDominantExercise", () => {
 ```bash
 cd /Users/jdhiman/Documents/crescendai/apps/api && bun test --run src/services/pending-exercise.test.ts
 ```
-Expected: FAIL — `"proposedExercise" in args` would be true with current code, type error on `routing` field.
+Expected: FAIL — current `stageDominantExercise` calls `db.insert` three times (exercises, exerciseDimensions, pending_exercises), so `insertSpy` count > 1 and `capturedTable !== pendingExercises`.
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
 
-First, add columns to `apps/api/src/db/schema/exercises.ts` — update `pendingExercises` table:
+**BLOCKER 1 fix:** The old `exerciseId uuid` column is DROPPED entirely. It existed only as a FK reference to `exercises.id`. Since `stageDominantExercise` no longer writes to `exercises`, there is no valid UUID to put there. `PendingExerciseConfig.exerciseId` is now the pending row's own PK (`id`), which is already a uuid.
+
+**BLOCKER 2 fix:** A new nullable `pieceId text` column is added. `stageDominantExercise` receives `pieceCtx` (already available in the DO call site) and stores `pieceCtx?.pieceId ?? null` at staging time. `assignPendingExercise` reads it back in Task 6 to build `scoreClip` — no route or web changes needed.
+
+Update `apps/api/src/db/schema/exercises.ts` — replace the `pendingExercises` table definition.
+
+**Final column set for `pending_exercises`:** `id` (uuid PK), `studentId`, `sessionId`, `focusDimension`, `previewTitle`, `title` (text, nullable), `instruction` (text, nullable), `routingJson` (jsonb, nullable), `pieceId` (text, nullable), `consumed`, `createdAt`. The old `exerciseId` column is DROPPED.
 
 ```typescript
 export const pendingExercises = pgTable(
@@ -619,12 +648,12 @@ export const pendingExercises = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     studentId: text("student_id").notNull(),
     sessionId: uuid("session_id").notNull(),
-    exerciseId: uuid("exercise_id").notNull(),
     focusDimension: text("focus_dimension").notNull(),
     previewTitle: text("preview_title").notNull(),
     title: text("title"),
     instruction: text("instruction"),
     routingJson: jsonb("routing_json"),
+    pieceId: text("piece_id"),
     consumed: boolean("consumed").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -634,17 +663,29 @@ export const pendingExercises = pgTable(
     uniqueIndex("idx_pending_exercises_unique").on(
       t.studentId,
       t.sessionId,
-      t.exerciseId,
+      t.id,
     ),
     index("idx_pending_exercises_lookup").on(t.studentId, t.consumed),
   ],
 );
 ```
 
+Note on uniqueIndex: the old unique index included `exerciseId`. Since that column is dropped, the index is updated to `(studentId, sessionId, id)`. Because `id` is a PK this is always unique; the index exists for lookup performance.
+
 Generate migration:
 ```bash
 cd /Users/jdhiman/Documents/crescendai/apps/api && bun drizzle-kit generate
 ```
+
+Review the generated SQL — it must contain:
+- `ALTER TABLE pending_exercises DROP COLUMN exercise_id;`
+- `ALTER TABLE pending_exercises ADD COLUMN title text;`
+- `ALTER TABLE pending_exercises ADD COLUMN instruction text;`
+- `ALTER TABLE pending_exercises ADD COLUMN routing_json jsonb;`
+- `ALTER TABLE pending_exercises ADD COLUMN piece_id text;`
+- DROP of the old unique index referencing `exercise_id`; CREATE of the new unique index on `(student_id, session_id, id)`
+
+If `bun drizzle-kit generate` does not detect the DROP automatically, manually add the `DROP COLUMN exercise_id` statement to the generated SQL file before applying.
 
 Apply locally:
 ```bash
@@ -661,7 +702,7 @@ import type { ExerciseRoutingDecision } from "../harness/artifacts/exercise-rout
 import type { InlineComponent } from "./tool-processor";
 
 export type PendingExercise = {
-  exerciseId: string;
+  exerciseId: string; // = pending_exercises.id (the row PK)
   focusDimension: string;
   previewTitle: string;
 };
@@ -673,7 +714,7 @@ export async function stageDominantExercise(
     sessionId: string;
     dominantDimension: string;
     routing: ExerciseRoutingDecision;
-    pieceMetadata: { title?: string; composer?: string } | null;
+    pieceCtx: { pieceId?: string } | null;
   },
 ): Promise<PendingExercise> {
   const barLabel = `bars ${args.routing.bar_range[0]}-${args.routing.bar_range[1]}`;
@@ -688,17 +729,19 @@ export async function stageDominantExercise(
       ? `Loop ${barLabel} from your recording at ${Math.round(args.routing.tempo_factor * 100)}% tempo, focusing on ${args.dominantDimension}.`
       : `${args.dominantDimension} drill — ${barLabel} at ${Math.round(args.routing.tempo_factor * 100)}% tempo.`;
 
+  const pieceId = args.pieceCtx?.pieceId ?? null;
+
   const [inserted] = await db
     .insert(pendingExercises)
     .values({
       studentId: args.studentId,
       sessionId: args.sessionId,
-      exerciseId: args.studentId + "-" + args.sessionId + "-pending",
       focusDimension: args.dominantDimension,
       previewTitle,
       title,
       instruction,
       routingJson: args.routing as unknown as Record<string, unknown>,
+      pieceId,
       consumed: false,
     })
     .returning({ id: pendingExercises.id });
@@ -708,7 +751,7 @@ export async function stageDominantExercise(
   }
 
   return {
-    exerciseId: inserted.id,
+    exerciseId: inserted.id, // pending row PK — this is what the web client sends back
     focusDimension: args.dominantDimension,
     previewTitle,
   };
@@ -728,14 +771,7 @@ export function buildPendingExerciseComponent(
 }
 ```
 
-Note on `exerciseId` field: `pendingExercises.exerciseId` was previously a foreign key to `exercises.id`. After this change we generate a stable UUID directly from the pending row's `id`. The FK constraint needs to be dropped in the migration, or the column repurposed. The migration should make `exerciseId` nullable or replace it — check the generated SQL and adjust. The simplest approach is to make it nullable in the schema and leave null for new rows:
-
-```typescript
-exerciseId: uuid("exercise_id"),
-```
-(no `.notNull()`)
-
-Update the migration to DROP the NOT NULL constraint and make it nullable. The field is only used to look up exercises in `assignPendingExercise` (rewritten in Task 6), so nullability is safe.
+No write to `exercises` or `exerciseDimensions` anywhere in this file. `PendingExerciseConfig.exerciseId` is now the pending row PK. `pieceId` is stored at staging time from `pieceCtx` so the assign step can build `scoreClip` without needing the route to supply it.
 
 - [ ] **Step 4: Run test — verify it PASSES**
 
@@ -747,7 +783,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/jdhiman/Documents/crescendai && git add apps/api/src/db/schema/exercises.ts apps/api/src/services/pending-exercise.ts apps/api/src/services/pending-exercise.test.ts && git add apps/api/drizzle/ && git commit -m "feat(#29): migrate pending_exercises schema; rewrite stageDominantExercise to write routing_json"
+cd /Users/jdhiman/Documents/crescendai && git add apps/api/src/db/schema/exercises.ts apps/api/src/services/pending-exercise.ts apps/api/src/services/pending-exercise.test.ts && git add apps/api/drizzle/ && git commit -m "feat(#29): drop exerciseId FK col; add title/instruction/routing_json/piece_id to pending_exercises; rewrite stageDominantExercise"
 ```
 
 ---
@@ -841,7 +877,7 @@ if (artifact.prescribed_exercise !== null) {
       sessionId: state.sessionId,
       dominantDimension: artifact.dominant_dimension,
       routing: artifact.prescribed_exercise,
-      pieceMetadata: pieceCtx,
+      pieceCtx,
     });
     pendingComponent = buildPendingExerciseComponent(staged);
   } catch (err) {
@@ -909,8 +945,8 @@ describe("assignPendingExercise — routing_json path", () => {
     primitive_id: null,
   });
 
-  test("own_passage_loop with pieceId produces scoreClip in ExerciseSetPayload", async () => {
-    // Mock DB that returns a pending row with routing_json and pieceId
+  test("own_passage_loop with pieceId in row produces scoreClip in ExerciseSetPayload", async () => {
+    // Mock DB returns a pending row with routing_json and pieceId stored at staging time
     const mockCtx = buildMockCtxWithPendingRow({
       routingJson: OWN_PASSAGE_ROUTING,
       focusDimension: "pedaling",
@@ -919,11 +955,11 @@ describe("assignPendingExercise — routing_json path", () => {
       instruction: "Loop bars 12-16",
       pieceId: "chopin.ballade.1",
     });
+    // pieceId is NOT passed as an arg — it is read from the pending row
     const payload = await assignPendingExercise(mockCtx, {
       studentId: "stu-1",
       sessionId: "sess-1",
       exerciseId: "pending-row-id",
-      pieceId: "chopin.ballade.1",
     });
     expect(payload.scoreClip).toEqual({
       pieceId: "chopin.ballade.1",
@@ -932,7 +968,7 @@ describe("assignPendingExercise — routing_json path", () => {
     expect(payload.exercises[0].focusDimension).toBe("pedaling");
   });
 
-  test("own_passage_loop without pieceId produces no scoreClip", async () => {
+  test("own_passage_loop with null pieceId in row produces no scoreClip (text-only)", async () => {
     const mockCtx = buildMockCtxWithPendingRow({
       routingJson: OWN_PASSAGE_ROUTING,
       focusDimension: "pedaling",
@@ -945,7 +981,6 @@ describe("assignPendingExercise — routing_json path", () => {
       studentId: "stu-1",
       sessionId: "sess-1",
       exerciseId: "pending-row-id",
-      pieceId: null,
     });
     expect(payload.scoreClip).toBeUndefined();
     expect(payload.exercises[0].instruction).toContain("Loop bars 12-16");
@@ -964,14 +999,15 @@ describe("assignPendingExercise — routing_json path", () => {
       studentId: "stu-1",
       sessionId: "sess-1",
       exerciseId: "pending-row-id",
-      pieceId: "chopin.ballade.1",
     });
     expect(payload.scoreClip).toBeUndefined();
     expect(payload.exercises[0].instruction).toContain("coming soon");
   });
 });
 
-// Helper to build a mock ServiceContext with the given pending row
+// Helper to build a mock ServiceContext with the given pending row.
+// pieceId is on the row itself (stored at staging time) — not passed via args.
+// exerciseId column has been dropped; it is not present on the row.
 function buildMockCtxWithPendingRow(row: {
   routingJson: unknown;
   focusDimension: string;
@@ -984,12 +1020,12 @@ function buildMockCtxWithPendingRow(row: {
     id: "pending-row-id",
     studentId: "stu-1",
     sessionId: "sess-1",
-    exerciseId: null,
     focusDimension: row.focusDimension,
     previewTitle: row.previewTitle,
     title: row.title,
     instruction: row.instruction,
     routingJson: row.routingJson,
+    pieceId: row.pieceId,
     consumed: false,
     createdAt: new Date(),
   };
@@ -1028,23 +1064,26 @@ function buildMockCtxWithPendingRow(row: {
 ```bash
 cd /Users/jdhiman/Documents/crescendai/apps/api && bun test --run src/services/exercises.test.ts
 ```
-Expected: FAIL — `assignPendingExercise` does not accept `pieceId` argument and does not read `routing_json`.
+Expected: FAIL — `assignPendingExercise` does not read `routing_json` or `piece_id` from the pending row; current implementation joins to the `exercises` catalog table instead.
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
+
+**BLOCKER 2 fix:** `assignPendingExercise` reads `piece_id` from the pending row (stored at staging time) rather than from the route/args. No route or web changes needed for pieceId. If `piece_id` is null, `own_passage_loop` renders text-only with a warn log.
+
+**RISK 4 fix:** The `assignExercise` call is explicitly REMOVED. `assignExercise` calls `ctx.db.query.exercises.findFirst()` and throws `NotFoundError` if the id is not in the `exercises` table. The pending row id is not a catalog exercise id, so this call would throw on every confirm. `studentExercises` tracking for S1 routed exercises is out of scope — noted with TODO(S3).
+
+**RISK 5 fix:** `ExerciseSetPayload.exercises[].exerciseId` is made optional (`exerciseId?: string`). The chat-path `processPrescribeExercise` (Task 8) returns exercise objects without `exerciseId`; making it optional fixes the TypeScript error. Also update `ExerciseSetConfig` in `apps/web/src/lib/types.ts` and confirm `ExerciseSetCard` already gates on `exercise.exerciseId` before rendering the assign button (verified: line 120).
 
 Update `assignPendingExercise` in `apps/api/src/services/exercises.ts`:
 
 ```typescript
-import { and, eq, sql } from "drizzle-orm";
-import {
-  pendingExercises,
-  studentExercises,
-} from "../db/schema/exercises";
+import { and, eq } from "drizzle-orm";
+import { pendingExercises } from "../db/schema/exercises";
 import { NotFoundError, InferenceError } from "../lib/errors";
 import type { ServiceContext } from "../lib/types";
 import { ExerciseRoutingDecisionSchema } from "../harness/artifacts/exercise-routing";
 
-// ExerciseSetPayload stays the same shape
+// RISK 5: exerciseId is optional — corpus_drill and chat-path exercises may not have one
 export type ExerciseSetPayload = {
   sourcePassage: string;
   targetSkill: string;
@@ -1054,7 +1093,7 @@ export type ExerciseSetPayload = {
     instruction: string;
     focusDimension: string;
     hands?: "left" | "right" | "both";
-    exerciseId: string;
+    exerciseId?: string; // optional: absent for corpus_drill stub and chat-path exercises
   }>;
 };
 
@@ -1063,8 +1102,7 @@ export async function assignPendingExercise(
   args: {
     studentId: string;
     sessionId: string;
-    exerciseId: string;
-    pieceId: string | null;
+    exerciseId: string; // = pending_exercises.id (the pending row PK)
   },
 ): Promise<ExerciseSetPayload> {
   const [pendingRow] = await ctx.db
@@ -1099,34 +1137,34 @@ export async function assignPendingExercise(
   }
   const routing = routingResult.data;
 
-  await assignExercise(ctx, {
-    studentId: args.studentId,
-    exerciseId: args.exerciseId,
-    sessionId: args.sessionId,
-  });
+  // RISK 4: do NOT call assignExercise here. assignExercise does exercises.findFirst()
+  // and throws NotFoundError because the pending row id is not in the exercises catalog.
+  // TODO(S3): wire studentExercises tracking for routed exercises when the catalog
+  // has a real exercise row to reference.
 
   await ctx.db
     .update(pendingExercises)
     .set({ consumed: true })
     .where(eq(pendingExercises.id, pendingRow.id));
 
-  const title =
-    pendingRow.title ?? pendingRow.previewTitle;
+  const title = pendingRow.title ?? pendingRow.previewTitle;
   const instruction =
     pendingRow.instruction ??
     `${pendingRow.focusDimension} exercise — bars ${routing.bar_range[0]}-${routing.bar_range[1]}`;
 
   if (routing.kind === "own_passage_loop") {
+    // BLOCKER 2: pieceId comes from the pending row (stored at staging time), not the route
+    const pieceId = pendingRow.pieceId ?? null;
     const scoreClip =
-      args.pieceId !== null
-        ? { pieceId: args.pieceId, bars: routing.bar_range as [number, number] }
+      pieceId !== null
+        ? { pieceId, bars: routing.bar_range as [number, number] }
         : undefined;
 
     if (!scoreClip) {
       console.log(
         JSON.stringify({
           level: "warn",
-          message: "assignPendingExercise: own_passage_loop has no pieceId; rendering text-only",
+          message: "assignPendingExercise: own_passage_loop has no piece_id; rendering text-only",
           exerciseId: args.exerciseId,
         }),
       );
@@ -1168,15 +1206,20 @@ export async function assignPendingExercise(
 }
 ```
 
-Also update `assignExercise` to accept a string `exerciseId` that may be the pending row's own `id` (not a FK into `exercises`). The `studentExercises` insert must not FK-require an `exercises` row. Check the DB schema — if `studentExercises.exerciseId` is a FK, the migration must also drop that constraint for the new path. For S1 scope simplicity, the `assignExercise` call in `assignPendingExercise` can be skipped when `exerciseId` is the pending row id (not a catalog UUID). Guard this at runtime:
+Also update `ExerciseSetConfig` in `apps/web/src/lib/types.ts` — make `exerciseId` optional:
 
 ```typescript
-// Only call assignExercise for catalog-backed exercises (legacy path via API /assign route)
-// For pending-row-id exercises, skip the studentExercises insert in S1.
-// TODO(S3): wire student exercise tracking for routed exercises.
+// In ExerciseSetConfig (wherever it is defined in apps/web/src/lib/types.ts):
+exercises: Array<{
+  title: string;
+  instruction: string;
+  focusDimension: string;
+  hands?: "left" | "right" | "both";
+  exerciseId?: string; // optional — corpus_drill stub and chat-path exercises omit it
+}>;
 ```
 
-Update the mock in the test accordingly.
+Update the Task 6 test helpers: remove `pieceId` from `assignPendingExercise` args (it now reads from the row) and update `buildMockCtxWithPendingRow` to use the `pieceId` field on the pending row directly. Update the mock's `select` chain to return a `pendingRow` that includes `pieceId`. The `exerciseId: null` field in the mock row is no longer needed (column dropped), remove it.
 
 - [ ] **Step 4: Run test — verify it PASSES**
 
@@ -1188,7 +1231,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/jdhiman/Documents/crescendai && git add apps/api/src/services/exercises.ts apps/api/src/services/exercises.test.ts && git commit -m "feat(#29): rewrite assignPendingExercise to read routing_json; no exercises catalog join"
+cd /Users/jdhiman/Documents/crescendai && git add apps/api/src/services/exercises.ts apps/api/src/services/exercises.test.ts apps/web/src/lib/types.ts && git commit -m "feat(#29): rewrite assignPendingExercise to read routing_json; no exercises catalog join; exerciseId optional"
 ```
 
 ---
@@ -1905,3 +1948,200 @@ All must pass before the branch is ready for `/review`.
 - All `bun test --run` green in `apps/api` + `apps/web`
 - Eval gate green
 - `#37` closeable (clean exercise catalog)
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+#### 1. Premise Challenge
+
+Right problem. The current `stageDominantExercise` writes three rows per synthesis (into `exercises`, `exerciseDimensions`, `pending_exercises`) and the old `create_exercise` chat tool also pollutes `exercises`. Both are confirmed in the source. The spec correctly identifies all four debt items. No simpler framing exists — the schema migration and the route rewrite must happen together.
+
+Direct path: yes. The plan targets the exact files that own the corrupt behavior and nothing else. Verified against source.
+
+#### 2. Scope Check
+
+Scope is tight for a system with this many interdependencies — 11 task groups, ~25 files. However, 8 of those files are fixture sweeps (Task 11), not behavioral changes. The behavioral surface is: new Zod schema (Task 1), synthesis schema swap (Task 2), prompt text change (Task 3), DB migration + service rewrite (Task 4), DO wiring (Task 5), assignPendingExercise rewrite (Task 6), dead code deletion (Task 7), new chat tool (Task 8), web component test (Task 9), eval no-op check (Task 10). That is the minimum needed to close both pollution paths simultaneously.
+
+One item can be deferred without losing the core goal: Task 9 (ExerciseSetCard test). The component already handles missing `scoreClip` and missing `exerciseId` (verified in source at lines 120, 151). The test would pass without any code changes. It adds coverage value but is not a blocker for catalog cleanliness.
+
+#### 3. Twelve-Month Alignment
+
+```
+CURRENT STATE                            THIS PLAN                              12-MONTH IDEAL
+proposed_exercises: string[]      →      prescribed_exercise: {kind,...}   →    Full corpus_drill
+Pollutes exercises catalog                No catalog pollution                   asset pipeline live
+create_exercise DB writes                 prescribe_exercise in-memory only      Own-passage audio
+No structured routing                     Structured routing contract            playback (S2)
+```
+
+This plan moves squarely toward the ideal. It introduces no tech debt — the structured `ExerciseRoutingDecision` is the foundation S2/S3/S4 build on.
+
+#### 4. Alternatives Check
+
+The spec documents a deliberate "no DB writes in chat path" decision for S1 with deferred persistence to S3+. The tradeoff (no chat-path exercise persistence) is stated in the spec's Open Questions. This is an owner-approved decision and is not re-litigated here.
+
+---
+
+### Engineering Pass
+
+#### 5. Architecture
+
+Data flow for synthesis path (verified against source):
+
+```
+SynthesisArtifact.prescribed_exercise (non-null)
+    → session-brain.ts ~line 1798
+    → stageDominantExercise(db, { routing: prescribed_exercise, ... })
+    → INSERT INTO pending_exercises (title, instruction, routing_json, ...)
+    → buildPendingExerciseComponent({ exerciseId: inserted.id, ... })
+    → buildV6WsPayload → WebSocket → web ReflectionMessage
+
+Student clicks Confirm →
+    api.exercises.assignPending({ sessionId, exerciseId: pendingConfig.exerciseId })
+    → POST /api/exercises/assign-pending
+    → assignPendingExercise(ctx, { exerciseId: req.exerciseId })
+    → SELECT FROM pending_exercises WHERE exerciseId = args.exerciseId  ← BROKEN (see BLOCKER-1)
+```
+
+**[BLOCKER-1] found:** The existing route at `apps/api/src/routes/exercises.ts` line 65-73 calls `assignPendingExercise` with `exerciseId` from the request body. The current `assignPendingExercise` queries `WHERE pending_exercises.exerciseId = args.exerciseId`. The plan rewrites `assignPendingExercise` to query `WHERE pending_exercises.id = args.exerciseId` (line 1077 of the plan's Task 6 implementation), but the schema column the plan makes nullable is `pending_exercises.exerciseId` (the old FK to `exercises.id`), not the `id` primary key.
+
+The web client (`ReflectionMessage.tsx` line 31) passes `pendingConfig.exerciseId` to the API, and `pendingConfig.exerciseId` is populated from `buildPendingExerciseComponent(staged)` where `staged.exerciseId = inserted.id` (the pending row's primary key).
+
+So after Task 4's rewrite, `stageDominantExercise` returns the pending row's `id` as `exerciseId`, the web client sends it as `exerciseId`, and the route passes it as `exerciseId`. The new `assignPendingExercise` queries `WHERE pending_exercises.id = args.exerciseId`. This actually closes correctly — the round-trip works.
+
+However, the `assignPendingSchema` in the route (`apps/api/src/routes/exercises.ts` line 26-29) only accepts `sessionId` and `exerciseId` — it does NOT accept `pieceId`. The Task 6 implementation of `assignPendingExercise` takes a `pieceId: string | null` arg, but the route never sends it. This means `assignPendingExercise` will always receive `pieceId: null` from the HTTP path, so `own_passage_loop` exercises from the synthesis confirm-gate will always render without a `scoreClip`.
+
+The plan's Task 6 test exercises this via mock context, not through the actual route — so the test passes but the behavior through the real path will be wrong.
+
+**Security:** `routingJson` is written to the DB as LLM output and read back by `ExerciseRoutingDecisionSchema.safeParse(pendingRow.routingJson)`. Zod validates it before use. No injection vector. Safe.
+
+**N+1:** No new unbounded queries introduced.
+
+#### 6. Module Depth Audit
+
+- `exercise-routing.ts` — Interface: 3 exports (schema + 2 types). Implementation: discriminated union with 3 refinements, bar_range constraint, tempo_factor bounds. **DEEP.**
+- `synthesis.ts` (modified) — Interface: schema + type. Implementation: complex Zod object with 2 cross-field refinements. **DEEP.**
+- `pending-exercise.ts` (rewritten) — Interface: 2 functions + 1 type. Implementation: DB insert with title/instruction generation logic. **DEEP.**
+- `exercises.ts` (`assignPendingExercise` rewrite) — Interface: 1 function. Implementation: DB select, Zod parse, branch on kind, conditional scoreClip. **DEEP.**
+- `tool-processor.ts` (`prescribe_exercise` addition) — Interface: unchanged registry + process function. Implementation: two branches (own_passage_loop / corpus_drill) building InlineComponent. **DEEP.**
+
+#### 7. Code Quality
+
+**Task 4 schema inconsistency (RISK):** The plan's `pendingExercises` schema block (Task 4, Step 3) includes `exerciseId: uuid("exercise_id").notNull()` in one place, then a note to make it nullable. The final proposed schema has `exerciseId: uuid("exercise_id")` with no `.notNull()`. However the plan also keeps `exerciseId` in the insert in `stageDominantExercise` using `args.studentId + "-" + args.sessionId + "-pending"` — a non-UUID string — as its value. If the column type is `uuid` (Postgres), inserting a non-UUID string will throw a `22P02 invalid input syntax` error at runtime.
+
+**Task 6 `assignExercise` call:** The plan's `assignPendingExercise` implementation calls `assignExercise(ctx, { ... exerciseId: args.exerciseId })` at line 1102-1106, then notes in the prose to skip it with a TODO. The final implementation omits this call but the prose is contradictory — the build agent may implement it and hit the FK violation (since there is no `exercises` row for the pending row ID).
+
+**`DIMS_6` cast:** `DIMS_6 as unknown as [string, ...string[]]` is the existing pattern; the plan replicates it correctly.
+
+**`exerciseId` in `ExerciseSetPayload`:** The existing type has `exerciseId: string` (non-optional). The plan's Task 6 implementation returns `exerciseId: pendingRow.id` for both paths — correct. But the type definition at line 1049 still declares `exerciseId: string` (required), whereas corpus_drill exercises from chat (`processPrescribeExercise`) do not include `exerciseId` in their config. This creates a type inconsistency: the chat path produces components that fail the `ExerciseSetPayload` type. The web `ExerciseSetCard` already handles missing `exerciseId` gracefully (gated at line 120), but the TypeScript type needs `exerciseId?: string` to be optional.
+
+#### 8. Test Philosophy Audit
+
+**Task 4 test — shape test warning (RISK, confidence 7/10):** The test for `stageDominantExercise` (Task 4, Step 1) does not actually call `stageDominantExercise`. It constructs a mock return value manually and calls `buildPendingExerciseComponent` on it. The `"inserts into pending_exercises with routing_json..."` test name claims to verify DB behavior but verifies nothing about the DB insert path. The second test (`"stageDominantExercise args include routing not proposedExercise (TypeScript shape)"`) constructs `Args` directly without calling the function. Both tests would pass even if `stageDominantExercise` still wrote to `exercises`. This is a shape test, not a behavior test.
+
+The plan acknowledges this: "The actual runtime test is in the worker integration layer." But the worker integration test is not written here — it is deferred. There is no existing integration test for `stageDominantExercise`. This means the core invariant ("no writes to exercises") is untested.
+
+**Task 8 test — processToolUse ctx is empty (RISK, confidence 6/10):** The `prescribe_exercise` test creates `ctx = { db: {} } as unknown as ServiceContext`. Since `processPrescribeExercise` does not use `ctx` at all (no DB writes in S1), this is fine and the test will correctly verify behavior.
+
+**All other tests:** Behavioral, through public interfaces, correct vertical slices.
+
+#### 9. Vertical Slice Audit
+
+All 11 tasks follow the one-test → one-impl → one-commit structure. No horizontal slicing found.
+
+The one exception is Task 3 Step 1, which instructs updating `VALID_ARTIFACT` in `phase2.test.ts` (removing `proposed_exercises`, adding `prescribed_exercise: null`) alongside writing the new prompt test. This is minor: the fixture update is a prerequisite for the new test to compile, not a separate behavior. Acceptable.
+
+Task 7 (dead code deletion) writes tests before deleting code, then deletes. This is the correct order — the test fails with current 9-length, passes after deletion. Correct vertical slice.
+
+#### 10. Test Coverage Gaps
+
+```
+[+] exercise-routing.ts
+    ├── ExerciseRoutingDecisionSchema.parse()
+    │   ├── [TESTED] own_passage_loop valid — Task 1
+    │   ├── [TESTED] own_passage_loop bar_range start > end — Task 1
+    │   ├── [TESTED] own_passage_loop tempo_factor bounds — Task 1
+    │   ├── [TESTED] corpus_drill valid — Task 1
+    │   └── [TESTED] unknown kind — Task 1 ★★★
+
+[+] pending-exercise.ts (stageDominantExercise rewrite)
+    ├── happy path (routing_json written, no exercises insert)
+    │   └── [GAP] no behavior test — Task 4 test only checks TypeScript shape
+    ├── InferenceError on failed insert
+    │   └── [GAP] untested
+    └── title truncation at 60 chars
+        └── [GAP] untested
+
+[+] exercises.ts (assignPendingExercise rewrite)
+    ├── own_passage_loop + pieceId → scoreClip present — Task 6 [TESTED ★★]
+    ├── own_passage_loop + no pieceId → no scoreClip — Task 6 [TESTED ★★]
+    ├── corpus_drill → no scoreClip, "coming soon" text — Task 6 [TESTED ★★]
+    ├── pending row not found → NotFoundError
+    │   └── [GAP] untested
+    ├── routing_json null → InferenceError
+    │   └── [GAP] untested
+    └── routing_json invalid JSON Schema → InferenceError
+        └── [GAP] untested (★ shape only if added)
+
+[+] route /api/exercises/assign-pending
+    ├── pieceId NOT wired from route to service
+    │   └── [GAP] own_passage_loop from the real HTTP path always has pieceId=null
+    │          (scoreClip never renders for synthesis-path exercises)
+```
+
+The `stageDominantExercise` gap is significant because it is the primary invariant this plan was created to enforce. Without a behavior test, a future change could re-introduce catalog writes silently.
+
+#### 11. Failure Modes
+
+**Task 4 migration:** The migration adds nullable columns to `pending_exercises`. If the migration runs but the deploy fails, the new columns exist in the DB but the code still writes the old shape. This is safe — old code writes `exerciseId` (FK), new columns are nullable with no NOT NULL constraint.
+
+**`stageDominantExercise` with non-UUID `exerciseId` value:** The plan constructs `exerciseId` as `args.studentId + "-" + args.sessionId + "-pending"`. The column type is `uuid`. Postgres will reject this with a type error unless the column type is changed to `text`. The plan's final schema shows `exerciseId: uuid("exercise_id")` (nullable) which still requires a valid UUID if non-null. **This is a runtime crash path** — see BLOCKER-2.
+
+**`own_passage_loop` with no `scoreClip` from HTTP path:** Not a crash. The `ExerciseSetCard` renders text-only gracefully. But it is a behavioral regression from what users would expect (the whole point of `own_passage_loop` is a score clip).
+
+**`assignExercise` call skipped:** The plan says to skip the `studentExercises` insert in S1 with a TODO. If the build agent follows the plan verbatim (not the prose note), `assignExercise` is called with a pending row `id` (not a catalog `exercises.id`), hitting a FK violation on `student_exercises.exercise_id` references `exercises.id`. The migration must also drop this FK or the call must be omitted. The plan is ambiguous here.
+
+---
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `DIMS_6` is importable from `../../lib/dims` in the new `exercise-routing.ts` | SAFE | File confirmed at `apps/api/src/lib/dims.ts` with named export `DIMS_6` |
+| `ExerciseSetCard` already handles missing `scoreClip` | SAFE | Verified: line 151 `if (!config.scoreClip) return` and line 166 `{config.scoreClip && ...}` |
+| `ExerciseSetCard` already handles missing `exerciseId` | SAFE | Verified: line 120 `{exercise.exerciseId && ...}` |
+| `molecule-exercise-proposal.test.ts` uses `validateSkill` against a harness catalog doc | SAFE | Confirmed — deleting the test file is sufficient; no validator re-count assertion exists for molecules in `integration.test.ts` |
+| Task 10 eval gate (`test_run_eval_atomic_gate.py`) has no `proposed_exercises` access | SAFE | Verified by grep — zero matches in gate test and in `run_eval.py` |
+| `teacher-synthesize-v6.test.ts` has `proposed_exercises` fixture | SAFE | Confirmed at line 17, needs Task 11 sweep |
+| `pendingExercises.exerciseId` is a FK to `exercises.id` | SAFE | Verified: no explicit FK in the Drizzle schema definition (no `.references()`), but the column exists and is used in queries |
+| `studentExercises.exerciseId` is NOT an explicit FK in Drizzle schema | SAFE | Verified: `apps/api/src/db/schema/exercises.ts` line 55 — `exerciseId: uuid("exercise_id").notNull()` with no `.references()` call. No cascade constraint. Skipping the `assignExercise` call in S1 is safe. |
+| `processToolUse` in chat path has no DB calls for `prescribe_exercise` | SAFE | The new handler uses no `ctx.db` — correct for S1 |
+| Route `/assign-pending` passes `pieceId` to `assignPendingExercise` | RISKY | Route does NOT pass `pieceId` — the service signature accepts it but the route never sends it. `own_passage_loop` scoreClip will be absent on the confirmed exercise path. |
+| `exerciseId` field in `stageDominantExercise` can hold `studentId+sessionId` string as a UUID column | RISKY | Postgres `uuid` type rejects non-UUID strings. Runtime crash on first synthesis with a valid prescription. |
+
+---
+
+### Summary
+
+| Finding | Count |
+|---|---|
+| [BLOCKER] | 2 |
+| [RISK] | 4 |
+| [QUESTION] | 1 |
+
+**[BLOCKER] (confidence 9/10) — Task 4, `stageDominantExercise` implementation: `exerciseId` column is typed `uuid` in Postgres but the plan constructs its value as `args.studentId + "-" + args.sessionId + "-pending"` (a non-UUID string). Inserting this into a `uuid` column will throw `22P02 invalid input syntax for type uuid` at runtime on the first synthesis with a valid `prescribed_exercise`. Fix: either drop the `exerciseId` column from the `pendingExercises` table entirely in this migration (it is no longer a FK and its only prior purpose was to join back to `exercises`) or make it `text` type. The simplest fix is to remove the `exerciseId` column from the Drizzle schema in Task 4 and from the migration (drop it), since `stageDominantExercise` no longer needs it and `assignPendingExercise` now queries by `pending_exercises.id`.**
+
+**[BLOCKER] (confidence 8/10) — Task 6, route/service contract gap: The `/api/exercises/assign-pending` route (`apps/api/src/routes/exercises.ts` lines 26-73) passes `{ studentId, sessionId, exerciseId }` to `assignPendingExercise`. The Task 6 implementation adds `pieceId: string | null` to the service args, but the route never supplies it — it is always effectively `null`. This means `own_passage_loop` exercises confirmed through the ReflectionMessage flow will always produce `scoreClip: undefined`, defeating the primary UX purpose of `own_passage_loop`. The plan must update `assignPendingSchema` and the route handler to accept and forward an optional `pieceId` from the client, OR derive `pieceId` inside the service from the `pending_exercises` row (requires storing `pieceId` at staging time in `stageDominantExercise`). The client (`ReflectionMessage.tsx`) would also need to send `pieceId` if it is to be sourced from the web side. This is a missing step that no task in the plan addresses.**
+
+**[RISK] (confidence 8/10) — Task 4 test is a shape test, not a behavior test: `stageDominantExercise` is never actually called in the Task 4 test. The core invariant ("no writes to `exercises`") is unverified. No worker integration test is scheduled. The existing `services/pending-exercise.test.ts` (if it has a worker integration harness) should be checked; if it does not, add at minimum a unit test that mocks `db.insert` and asserts it is only called once (for `pending_exercises`), not three times.**
+
+**[RISK] (confidence 7/10) — Task 6 `assignExercise` call ambiguity: the plan's Step 3 prose at line 1171-1177 says to guard the `assignExercise` call with a comment/skip for S1, but the preceding code block at line 1102 still includes the call. The build agent will follow the code block, calling `assignExercise(ctx, { exerciseId: args.exerciseId })` where `args.exerciseId` is a pending row `id` (UUID, but not in `exercises` table). While `studentExercises` has no Drizzle-level FK to `exercises`, `assignExercise` first does `ctx.db.query.exercises.findFirst(...)` at line 96-98 and throws `NotFoundError` if not found. This will throw on every confirm attempt. The plan must explicitly remove the `assignExercise` call from the new `assignPendingExercise` body.**
+
+**[RISK] (confidence 6/10) — `ExerciseSetPayload.exercises[].exerciseId` type: the existing type at `apps/api/src/services/exercises.ts` line 19 declares `exerciseId: string` (required). The chat-path `processPrescribeExercise` in Task 8 returns exercise objects without `exerciseId`. TypeScript will error unless `exerciseId` is made optional (`exerciseId?: string`). The plan does not update this type definition. The build agent will hit a TS compilation error in Task 8.**
+
+**[QUESTION] — Where should `pieceId` be stored for the synthesis confirm path? Options: (A) store `pieceId` in `pending_exercises` at staging time (`stageDominantExercise` receives `pieceCtx` which has `pieceId` — already available); (B) derive it from the session state at `assignPendingExercise` time via a DB join; (C) have the web client supply it at confirm time (requires web changes). Option A is the simplest: add a nullable `pieceId text` column to `pending_exercises` in the Task 4 migration, populate it in `stageDominantExercise`, read it back in `assignPendingExercise`. This also resolves BLOCKER-2 without requiring route or web changes. The plan must decide and document this.**
+
+VERDICT: NEEDS_REWORK — Two blockers must be resolved before execution: (1) the `exerciseId uuid` column crash from a non-UUID string insert in `stageDominantExercise`, and (2) the missing `pieceId` propagation through the `/assign-pending` route that would make `own_passage_loop` always render without a score clip. Both are fixable with small targeted changes: drop or retype `exerciseId` in the schema, and store `pieceId` in `pending_exercises` at staging time (the `pieceCtx` object is already available in the DO call site). Two additional risks (the `assignExercise` NotFoundError and the `exerciseId?: string` type omission) will also cause build failures and should be fixed in the same rework pass.
