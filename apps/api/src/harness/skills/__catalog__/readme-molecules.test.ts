@@ -9,11 +9,10 @@ const FINAL_MOLECULES = [
 	"tempo-stability-triage",
 	"dynamic-range-audit",
 	"articulation-clarity-check",
-	"exercise-proposal",
 	"cross-modal-contradiction-check",
 ];
 
-test("molecules/README.md lists all 9 final molecules", async () => {
+test("molecules/README.md lists all 8 final molecules", async () => {
 	const content = await readFile(
 		"docs/harness/skills/molecules/README.md",
 		"utf8",
