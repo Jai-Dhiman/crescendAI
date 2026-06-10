@@ -1,5 +1,6 @@
+import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, it, vi } from 'vitest'
-import { persistAccumulatedMoments, persistDiagnosisArtifacts } from './synthesis'
+import { loadBaselinesFromDb, persistAccumulatedMoments, persistDiagnosisArtifacts } from './synthesis'
 import type { AccumulatedMoment } from './accumulator'
 import type { BarAnalysisFacts } from './bar-analysis-facts'
 
@@ -72,6 +73,39 @@ describe('persistDiagnosisArtifacts', () => {
     await expect(
       persistDiagnosisArtifacts(mockDb as never, [{ tool: 'x', output: VALID_RESULT }], 's', 's', null)
     ).resolves.not.toThrow()
+  })
+})
+
+describe('loadBaselinesFromDb date filter encoding', () => {
+  // Regression: the 30-day cutoff was interpolated as a raw Date into a sql
+  // template, bypassing the timestamp column encoder. postgres-js then received
+  // a Date and threw "Received an instance of Date" on every chunk. The typed
+  // gt() operator routes it through PgTimestamp.mapToDriverValue (-> ISO string).
+  it('never passes a raw Date to the driver params', async () => {
+    let capturedWhere: unknown = null
+    const fakeDb = {
+      select: () => fakeDb,
+      from: () => fakeDb,
+      where: (w: unknown) => {
+        capturedWhere = w
+        return fakeDb
+      },
+      groupBy: () => Promise.resolve([]),
+    }
+
+    const result = await loadBaselinesFromDb(fakeDb as never, 'stu-1')
+    expect(result).toBeNull() // groupBy resolved to []
+    expect(capturedWhere).not.toBeNull()
+
+    const { params } = new PgDialect().sqlToQuery(capturedWhere as never)
+    // No param may be a raw Date (that is exactly what broke serialization).
+    for (const p of params) {
+      expect(p instanceof Date).toBe(false)
+    }
+    // The cutoff must survive as an encoded ISO-8601 string.
+    expect(
+      params.some((p) => typeof p === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(p)),
+    ).toBe(true)
   })
 })
 

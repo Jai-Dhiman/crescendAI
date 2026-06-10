@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { messages } from "../db/schema/conversations";
 import { diagnosisArtifacts } from "../db/schema/diagnosis-artifacts";
 import { observations } from "../db/schema/observations";
@@ -93,8 +93,15 @@ export async function loadBaselinesFromDb(
 			avgScore: sql<number>`AVG(${observations.dimensionScore})`,
 		})
 		.from(observations)
+		// Use typed operators (not a raw sql template): gt routes thirtyDaysAgo through
+		// the timestamp column's encoder (Date -> ISO string), so no raw Date reaches
+		// postgres-js. A raw `${thirtyDaysAgo}` interpolation bypasses the encoder and
+		// throws "Received an instance of Date" at the driver.
 		.where(
-			sql`${observations.studentId} = ${studentId} AND ${observations.createdAt} > ${thirtyDaysAgo}`,
+			and(
+				eq(observations.studentId, studentId),
+				gt(observations.createdAt, thirtyDaysAgo),
+			),
 		)
 		.groupBy(observations.dimension);
 
