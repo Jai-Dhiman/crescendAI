@@ -179,7 +179,7 @@ describe("POST /api/chat", () => {
 			yield { type: "delta", text: "Try this: " };
 			yield {
 				type: "tool_result",
-				name: "create_exercise",
+				name: "prescribe_exercise",
 				componentsJson: [{ type: "exercise", data: { id: "ex-1" } }],
 			};
 			yield {

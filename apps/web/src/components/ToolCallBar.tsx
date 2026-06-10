@@ -8,7 +8,7 @@ import type { ToolCallStatus } from "../lib/types";
 
 const TOOL_LOADING_LABELS: Record<string, string> = {
 	search_catalog: "Searching catalog...",
-	create_exercise: "Creating exercises...",
+	prescribe_exercise: "Prescribing exercise...",
 	show_session_data: "Loading session data...",
 	score_highlight: "Looking up score...",
 	keyboard_guide: "Building keyboard guide...",
@@ -17,7 +17,7 @@ const TOOL_LOADING_LABELS: Record<string, string> = {
 
 const TOOL_DISPLAY_NAMES: Record<string, string> = {
 	search_catalog: "Catalog search",
-	create_exercise: "Exercise creation",
+	prescribe_exercise: "Prescribe exercise",
 	show_session_data: "Session lookup",
 	score_highlight: "Score highlight",
 	keyboard_guide: "Keyboard guide",
