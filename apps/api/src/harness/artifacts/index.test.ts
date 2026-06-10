@@ -5,7 +5,7 @@ describe("artifacts barrel", () => {
 	test("ARTIFACT_NAMES contains exactly the three known names", () => {
 		expect([...ARTIFACT_NAMES].sort()).toEqual([
 			"DiagnosisArtifact",
-			"ExerciseArtifact",
+			"SegmentLoopArtifact",
 			"SynthesisArtifact",
 		]);
 	});

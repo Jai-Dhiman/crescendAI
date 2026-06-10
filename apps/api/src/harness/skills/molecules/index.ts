@@ -7,8 +7,6 @@ import { tempoStabilityTriage } from './tempo-stability-triage'
 import { dynamicRangeAudit } from './dynamic-range-audit'
 import { articulationClarityCheck } from './articulation-clarity-check'
 import { crossModalContradictionCheck } from './cross-modal-contradiction-check'
-import { exerciseProposal } from './exercise-proposal'
-
 export const ALL_MOLECULES: ToolDefinition[] = [
   voicingDiagnosis,
   pedalTriage,
@@ -18,5 +16,4 @@ export const ALL_MOLECULES: ToolDefinition[] = [
   dynamicRangeAudit,
   articulationClarityCheck,
   crossModalContradictionCheck,
-  exerciseProposal,
 ]
