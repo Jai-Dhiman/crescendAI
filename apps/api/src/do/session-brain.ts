@@ -2141,10 +2141,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 	// ─── Helpers ──────────────────────────────────────────────────────────────
 
 	/**
-	 * Attempt multi-signal piece identification via WASM (N-gram -> rerank -> DTW).
-	 * Returns null if WASM not available or identification not confident enough.
-	 */
-	/**
 	 * Run the certified v2 gate over the accumulated identification buffer.
 	 * Loads the v2 artifact text from SCORES R2 and calls the WASM margin gate.
 	 * Returns the lock payload only when the gate clears the certified margin
