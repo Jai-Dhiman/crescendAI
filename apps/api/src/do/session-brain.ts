@@ -47,11 +47,9 @@ import type { InlineComponent } from "../services/tool-processor";
 import type {
 	BarMapChroma,
 	ChunkAnalysis,
-	NgramIndex,
 	NoteAlignment,
 	PerfNote,
 	PerfPedalEvent,
-	RerankFeatures,
 	ScoreContext,
 	ScoredChunk,
 	StudentBaselines,
@@ -97,6 +95,11 @@ const previousChunkAudio = new WeakMap<SessionBrain, ArrayBuffer | null>();
 
 // Minimum notes before attempting piece identification
 const MIN_NOTES_FOR_IDENTIFICATION = 30;
+
+// Certified v2 elastic-DTW margin gate threshold (Stage-0c..0f). Lock only above this.
+const PIECE_ID_MARGIN_THRESHOLD = 0.0935;
+// Bounded retention for the accumulated identification buffer (most-recent notes kept).
+const MAX_IDENTIFICATION_BUFFER = 1200;
 
 const DEFAULT_LOOP_REQUIRED_CORRECT = 5;
 
@@ -934,48 +937,8 @@ export class SessionBrain extends DurableObject<Bindings> {
 			);
 		}
 
-		// 7. Try piece identification (if not locked and notes available)
-		if (!currentState.pieceLocked && perfNotes.length > 0) {
-			currentState.identificationNoteCount += perfNotes.length;
-
-			if (
-				currentState.identificationNoteCount >= MIN_NOTES_FOR_IDENTIFICATION
-			) {
-				try {
-					const identified = await this.tryIdentifyPiece(
-						perfNotes,
-						currentState.identificationNoteCount,
-					);
-
-					if (identified !== null) {
-						currentState.pieceLocked = true;
-						currentState.pieceIdentification = {
-							pieceId: identified.pieceId,
-							confidence: identified.confidence,
-							method: identified.method,
-						};
-
-						this.sendWs(ws, {
-							type: "piece_identified",
-							pieceId: identified.pieceId,
-							composer: identified.composer,
-							title: identified.title,
-							confidence: identified.confidence,
-							method: identified.method,
-						});
-					}
-				} catch (err) {
-					const error = err as Error;
-					console.log(
-						JSON.stringify({
-							level: "warn",
-							message: "piece identification skipped",
-							error: error.message,
-						}),
-					);
-				}
-			}
-		}
+		// 7. Accumulate notes + try certified v2 piece identification
+		await this.accumulateAndIdentify(currentState, perfNotes, ws);
 
 		// 8. Load baselines (one-time DB query)
 		if (!currentState.baselinesLoaded) {
@@ -1479,6 +1442,9 @@ export class SessionBrain extends DurableObject<Bindings> {
 				// WASM unavailable
 			}
 		}
+
+		// Accumulate notes + try certified v2 piece identification (eval-replay path)
+		await this.accumulateAndIdentify(state, perfNotes, ws);
 
 		// Persist updated state
 		state.accumulator = acc.toJSON();
@@ -2178,99 +2144,117 @@ export class SessionBrain extends DurableObject<Bindings> {
 	 * Attempt multi-signal piece identification via WASM (N-gram -> rerank -> DTW).
 	 * Returns null if WASM not available or identification not confident enough.
 	 */
-	private async tryIdentifyPiece(
-		perfNotes: PerfNote[],
-		_totalNotes: number,
-	): Promise<{
+	/**
+	 * Run the certified v2 gate over the accumulated identification buffer.
+	 * Loads the v2 artifact text from SCORES R2 and calls the WASM margin gate.
+	 * Returns the lock payload only when the gate clears the certified margin
+	 * threshold; returns null on R2 miss, parse failure, or a non-locking result.
+	 */
+	private async tryIdentifyPiece(buffer: PerfNote[]): Promise<{
 		pieceId: string;
 		composer: string;
 		title: string;
 		confidence: number;
 		method: string;
 	} | null> {
-		// Load N-gram index and rerank features from SCORES R2
-		let ngramIndex: NgramIndex;
-		let rerankFeatures: RerankFeatures;
-		let catalog: Array<{ piece_id: string; composer: string; title: string }>;
-
+		let artifactJson: string;
 		try {
-			const [idxObj, featObj, catObj] = await Promise.all([
-				this.env.SCORES.get("fingerprint/v1/ngram_index.json"),
-				this.env.SCORES.get("fingerprint/v1/rerank_features.json"),
-				this.env.SCORES.get("fingerprint/v1/catalog.json"),
-			]);
-
-			if (!idxObj || !featObj || !catObj) {
+			const obj = await this.env.SCORES.get(
+				"fingerprint/v2/piece_index.json",
+			);
+			if (!obj) {
 				console.log(
 					JSON.stringify({
 						level: "warn",
-						message: "fingerprint data not found in SCORES R2",
+						message: "v2 fingerprint artifact not found in SCORES R2",
 					}),
 				);
 				return null;
 			}
-
-			ngramIndex = (await idxObj.json()) as NgramIndex;
-			rerankFeatures = (await featObj.json()) as RerankFeatures;
-			catalog = (await catObj.json()) as typeof catalog;
+			artifactJson = await obj.text();
 		} catch (err) {
 			const error = err as Error;
 			console.log(
 				JSON.stringify({
 					level: "warn",
-					message: "fingerprint data load failed",
+					message: "v2 fingerprint load failed",
 					error: error.message,
 				}),
 			);
 			return null;
 		}
 
-		// Stage 1: N-gram recall
-		const candidates = wasm.ngramRecall(perfNotes, ngramIndex);
-		if (candidates.length === 0) return null;
-
-		// Stage 2: Rerank
-		const reranked = wasm.rerankCandidates(
-			perfNotes,
-			candidates,
-			rerankFeatures,
+		const result = wasm.identifyPiece(
+			buffer,
+			artifactJson,
+			PIECE_ID_MARGIN_THRESHOLD,
 		);
-		if (reranked.length === 0) return null;
-
-		const topCandidate = reranked[0];
-		if (!topCandidate || topCandidate.similarity < 0.5) return null;
-
-		// Stage 3: DTW confirmation
-		const pieceId = topCandidate.piece_id;
-		let scoreNotes: Array<{ onset: number; pitch: number }> = [];
-
-		try {
-			const scoreCtx = await this.loadScoreContext(pieceId);
-			if (scoreCtx !== null) {
-				scoreNotes = scoreCtx.score.bars.flatMap((bar) =>
-					bar.notes.map((n) => ({ onset: n.onset_seconds, pitch: n.pitch })),
-				);
-			}
-		} catch {
-			// DTW without score data — skip DTW, use rerank confidence
-		}
-
-		if (scoreNotes.length > 0) {
-			const dtwResult = wasm.dtwConfirm(perfNotes, scoreNotes, 0.3);
-			if (!dtwResult.confirmed) return null;
-		}
-
-		// Look up metadata in catalog
-		const entry = catalog.find((c) => c.piece_id === pieceId);
-		if (!entry) return null;
+		if (result === null || !result.locked) return null;
 
 		return {
-			pieceId,
-			composer: entry.composer,
-			title: entry.title,
-			confidence: topCandidate.similarity,
-			method: "fingerprint",
+			pieceId: result.piece_id,
+			composer: result.composer,
+			title: result.title,
+			confidence: result.margin,
+			method: "identify_v2",
 		};
+	}
+
+	/**
+	 * Append this chunk's perf notes to the bounded identification buffer and,
+	 * once it crosses MIN_NOTES_FOR_IDENTIFICATION, run the certified v2 gate on
+	 * the accumulated buffer. On a confident lock, mutate the passed-in state and
+	 * emit a piece_identified frame. Mutates `state` in place; the caller persists
+	 * it under its own concurrency discipline. No-op once the piece is locked.
+	 */
+	private async accumulateAndIdentify(
+		state: SessionState,
+		perfNotes: PerfNote[],
+		ws: WebSocket,
+	): Promise<void> {
+		if (state.pieceLocked || perfNotes.length === 0) return;
+
+		state.identificationNoteBuffer.push(...perfNotes);
+		if (state.identificationNoteBuffer.length > MAX_IDENTIFICATION_BUFFER) {
+			state.identificationNoteBuffer = state.identificationNoteBuffer.slice(
+				-MAX_IDENTIFICATION_BUFFER,
+			);
+		}
+
+		if (state.identificationNoteBuffer.length < MIN_NOTES_FOR_IDENTIFICATION) {
+			return;
+		}
+
+		try {
+			const identified = await this.tryIdentifyPiece(
+				state.identificationNoteBuffer,
+			);
+			if (identified !== null) {
+				state.pieceLocked = true;
+				state.pieceIdentification = {
+					pieceId: identified.pieceId,
+					confidence: identified.confidence,
+					method: identified.method,
+				};
+				this.sendWs(ws, {
+					type: "piece_identified",
+					pieceId: identified.pieceId,
+					composer: identified.composer,
+					title: identified.title,
+					confidence: identified.confidence,
+					method: identified.method,
+				});
+			}
+		} catch (err) {
+			const error = err as Error;
+			console.log(
+				JSON.stringify({
+					level: "warn",
+					message: "piece identification skipped",
+					error: error.message,
+				}),
+			);
+		}
 	}
 
 	/**
