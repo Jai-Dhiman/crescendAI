@@ -1,14 +1,11 @@
-import {
-	exerciseDimensions,
-	exercises,
-	pendingExercises,
-} from "../db/schema/exercises";
+import { pendingExercises } from "../db/schema/exercises";
 import { InferenceError } from "../lib/errors";
 import type { Db } from "../lib/types";
+import type { ExerciseRoutingDecision } from "../harness/artifacts/exercise-routing";
 import type { InlineComponent } from "./tool-processor";
 
 export type PendingExercise = {
-	exerciseId: string;
+	exerciseId: string; // = pending_exercises.id (the row PK)
 	focusDimension: string;
 	previewTitle: string;
 };
@@ -19,48 +16,45 @@ export async function stageDominantExercise(
 		studentId: string;
 		sessionId: string;
 		dominantDimension: string;
-		proposedExercise: string;
-		pieceMetadata: { title?: string; composer?: string } | null;
+		routing: ExerciseRoutingDecision;
+		pieceCtx: { pieceId?: string } | null;
 	},
 ): Promise<PendingExercise> {
-	const trimmed = args.proposedExercise.trim();
-	const previewTitle =
-		trimmed.length > 0
-			? trimmed.slice(0, 60)
-			: `${args.dominantDimension} focus drill`;
+	const barLabel = `bars ${args.routing.bar_range[0]}-${args.routing.bar_range[1]}`;
+	const title =
+		args.routing.kind === "own_passage_loop"
+			? `Own passage loop: ${args.dominantDimension} (${barLabel})`
+			: `${args.dominantDimension} drill (${barLabel})`;
+	const previewTitle = title.slice(0, 60);
+
+	const instruction =
+		args.routing.kind === "own_passage_loop"
+			? `Loop ${barLabel} from your recording at ${Math.round(args.routing.tempo_factor * 100)}% tempo, focusing on ${args.dominantDimension}.`
+			: `${args.dominantDimension} drill — ${barLabel} at ${Math.round(args.routing.tempo_factor * 100)}% tempo.`;
+
+	const pieceId = args.pieceCtx?.pieceId ?? null;
 
 	const [inserted] = await db
-		.insert(exercises)
+		.insert(pendingExercises)
 		.values({
-			title: previewTitle,
-			description: "Staged from session synthesis",
-			instructions: args.proposedExercise,
-			difficulty: "intermediate",
-			category: "generated",
-			source: "teacher_llm",
+			studentId: args.studentId,
+			sessionId: args.sessionId,
+			focusDimension: args.dominantDimension,
+			previewTitle,
+			title,
+			instruction,
+			routingJson: args.routing as unknown as Record<string, unknown>,
+			pieceId,
+			consumed: false,
 		})
-		.returning({ id: exercises.id });
+		.returning({ id: pendingExercises.id });
 
 	if (!inserted) {
-		throw new InferenceError("Failed to insert staged exercise");
+		throw new InferenceError("Failed to insert pending exercise");
 	}
 
-	await db.insert(exerciseDimensions).values({
-		exerciseId: inserted.id,
-		dimension: args.dominantDimension,
-	});
-
-	await db.insert(pendingExercises).values({
-		studentId: args.studentId,
-		sessionId: args.sessionId,
-		exerciseId: inserted.id,
-		focusDimension: args.dominantDimension,
-		previewTitle,
-		consumed: false,
-	});
-
 	return {
-		exerciseId: inserted.id,
+		exerciseId: inserted.id, // pending row PK
 		focusDimension: args.dominantDimension,
 		previewTitle,
 	};

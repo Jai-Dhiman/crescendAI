@@ -80,9 +80,12 @@ export const pendingExercises = pgTable(
 		id: uuid("id").defaultRandom().primaryKey(),
 		studentId: text("student_id").notNull(),
 		sessionId: uuid("session_id").notNull(),
-		exerciseId: uuid("exercise_id").notNull(),
 		focusDimension: text("focus_dimension").notNull(),
 		previewTitle: text("preview_title").notNull(),
+		title: text("title"),
+		instruction: text("instruction"),
+		routingJson: jsonb("routing_json"),
+		pieceId: text("piece_id"),
 		consumed: boolean("consumed").notNull().default(false),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
@@ -92,7 +95,7 @@ export const pendingExercises = pgTable(
 		uniqueIndex("idx_pending_exercises_unique").on(
 			t.studentId,
 			t.sessionId,
-			t.exerciseId,
+			t.id,
 		),
 		index("idx_pending_exercises_lookup").on(t.studentId, t.consumed),
 	],
