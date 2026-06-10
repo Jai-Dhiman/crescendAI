@@ -13,7 +13,7 @@ import {
 
 describe("TOOL_REGISTRY structure", () => {
 	const toolNames = [
-		"create_exercise",
+		"prescribe_exercise",
 		"score_highlight",
 		"keyboard_guide",
 		"show_session_data",
@@ -40,8 +40,8 @@ describe("TOOL_REGISTRY structure", () => {
 		}
 	});
 
-	it("create_exercise is not concurrencySafe", () => {
-		expect(TOOL_REGISTRY.create_exercise.concurrencySafe).toBe(false);
+	it("prescribe_exercise is concurrencySafe", () => {
+		expect(TOOL_REGISTRY.prescribe_exercise.concurrencySafe).toBe(true);
 	});
 
 	it("score_highlight, keyboard_guide, show_session_data, play_passage are concurrencySafe", () => {
@@ -60,8 +60,8 @@ describe("TOOL_REGISTRY structure", () => {
 		expect(TOOL_REGISTRY.search_catalog.maxResultChars).toBe(3000);
 	});
 
-	it("create_exercise has no maxResultChars", () => {
-		expect(TOOL_REGISTRY.create_exercise.maxResultChars).toBeUndefined();
+	it("prescribe_exercise has no maxResultChars", () => {
+		expect(TOOL_REGISTRY.prescribe_exercise.maxResultChars).toBeUndefined();
 	});
 });
 
@@ -70,9 +70,11 @@ describe("TOOL_REGISTRY structure", () => {
 // ---------------------------------------------------------------------------
 
 describe("getAnthropicToolSchemas", () => {
-	it("returns an array of 6 schemas", () => {
+	it("returns an array of 6 schemas with prescribe_exercise", () => {
 		const schemas = getAnthropicToolSchemas();
 		expect(schemas).toHaveLength(6);
+		expect(schemas.map((s) => s.name)).toContain("prescribe_exercise");
+		expect(schemas.map((s) => s.name)).not.toContain("create_exercise");
 	});
 
 	it("each schema has name, description, input_schema", () => {
@@ -89,74 +91,72 @@ describe("getAnthropicToolSchemas", () => {
 // create_exercise Zod validation
 // ---------------------------------------------------------------------------
 
-describe("create_exercise schema validation", () => {
-	const schema = TOOL_REGISTRY.create_exercise.schema;
+describe("prescribe_exercise schema validation", () => {
+	const schema = TOOL_REGISTRY.prescribe_exercise.schema;
 
-	it("passes valid input", () => {
+	it("passes valid own_passage_loop", () => {
 		const result = schema.safeParse({
-			source_passage: "bars 1-4",
-			target_skill: "legato phrasing",
-			exercises: [
-				{
-					title: "Slow practice",
-					instruction: "Play slowly with full bow",
-					focus_dimension: "phrasing",
-				},
-			],
+			kind: "own_passage_loop",
+			target_dimension: "phrasing",
+			bar_range: [1, 4],
+			tempo_factor: 0.8,
+			piece_id: "chopin.ballades.1",
 		});
 		expect(result.success).toBe(true);
 	});
 
-	it("passes with optional hands field", () => {
+	it("passes own_passage_loop with null piece_id", () => {
 		const result = schema.safeParse({
-			source_passage: "opening",
-			target_skill: "voicing",
-			exercises: [
-				{
-					title: "Thumb drill",
-					instruction: "Isolate thumb",
-					focus_dimension: "dynamics",
-					hands: "right",
-				},
-			],
+			kind: "own_passage_loop",
+			target_dimension: "dynamics",
+			bar_range: [1, 8],
+			tempo_factor: 1.0,
+			piece_id: null,
 		});
 		expect(result.success).toBe(true);
 	});
 
-	it("rejects missing source_passage", () => {
+	it("passes valid corpus_drill", () => {
 		const result = schema.safeParse({
-			target_skill: "timing",
-			exercises: [{ title: "X", instruction: "Y", focus_dimension: "timing" }],
+			kind: "corpus_drill",
+			target_dimension: "timing",
+			bar_range: [1, 8],
+			tempo_factor: 0.7,
+			primitive_id: null,
+			piece_id: null,
+		});
+		expect(result.success).toBe(true);
+	});
+
+	it("rejects missing kind", () => {
+		const result = schema.safeParse({
+			target_dimension: "timing",
+			bar_range: [1, 8],
+			tempo_factor: 0.8,
+			piece_id: null,
 		});
 		expect(result.success).toBe(false);
 	});
 
-	it("rejects empty exercises array", () => {
+	it("rejects invalid target_dimension", () => {
 		const result = schema.safeParse({
-			source_passage: "bars 1-4",
-			target_skill: "timing",
-			exercises: [],
+			kind: "own_passage_loop",
+			target_dimension: "invalid_dim",
+			bar_range: [1, 4],
+			tempo_factor: 0.8,
+			piece_id: null,
 		});
 		expect(result.success).toBe(false);
 	});
 
-	it("rejects invalid focus_dimension", () => {
-		const result = schema.safeParse({
-			source_passage: "bars 1-4",
-			target_skill: "timing",
-			exercises: [
-				{ title: "X", instruction: "Y", focus_dimension: "invalid_dim" },
-			],
-		});
-		expect(result.success).toBe(false);
-	});
-
-	it("accepts all DIMS_6 values for focus_dimension", () => {
+	it("accepts all DIMS_6 values for target_dimension", () => {
 		for (const dim of DIMS_6) {
 			const result = schema.safeParse({
-				source_passage: "bar 1",
-				target_skill: "test",
-				exercises: [{ title: "T", instruction: "I", focus_dimension: dim }],
+				kind: "own_passage_loop",
+				target_dimension: dim,
+				bar_range: [1, 4],
+				tempo_factor: 0.8,
+				piece_id: null,
 			});
 			expect(result.success).toBe(true);
 		}
@@ -682,6 +682,66 @@ describe("reference_browser removal", () => {
 		});
 		expect(result.isError).toBe(true);
 		expect(result.errorMessage).toContain("Unknown tool");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// TOOL_REGISTRY — prescribe_exercise replaces create_exercise
+// ---------------------------------------------------------------------------
+
+describe("TOOL_REGISTRY — prescribe_exercise replaces create_exercise", () => {
+	it("prescribe_exercise is registered", () => {
+		expect(TOOL_REGISTRY["prescribe_exercise"]).toBeDefined();
+	});
+
+	it("create_exercise is NOT registered", () => {
+		expect(TOOL_REGISTRY["create_exercise"]).toBeUndefined();
+	});
+
+	it("getAnthropicToolSchemas includes prescribe_exercise and not create_exercise", () => {
+		const names = getAnthropicToolSchemas().map((s) => s.name);
+		expect(names).toContain("prescribe_exercise");
+		expect(names).not.toContain("create_exercise");
+	});
+});
+
+describe("processToolUse — prescribe_exercise own_passage_loop", () => {
+	it("returns exercise_set InlineComponent with scoreClip for own_passage_loop", async () => {
+		const ctx = { db: {} } as unknown as import("../lib/types").ServiceContext;
+		const result = await processToolUse(ctx, "stu-1", "prescribe_exercise", {
+			kind: "own_passage_loop",
+			target_dimension: "pedaling",
+			bar_range: [12, 16],
+			tempo_factor: 0.75,
+			piece_id: "chopin.ballade.1",
+		});
+		expect(result.isError).toBe(false);
+		expect(result.componentsJson).toHaveLength(1);
+		const comp = result.componentsJson[0];
+		expect(comp?.type).toBe("exercise_set");
+		const config = comp?.config as { scoreClip?: { pieceId: string; bars: [number, number] } };
+		expect(config.scoreClip).toEqual({
+			pieceId: "chopin.ballade.1",
+			bars: [12, 16],
+		});
+	});
+
+	it("returns exercise_set without scoreClip for corpus_drill", async () => {
+		const ctx = { db: {} } as unknown as import("../lib/types").ServiceContext;
+		const result = await processToolUse(ctx, "stu-1", "prescribe_exercise", {
+			kind: "corpus_drill",
+			target_dimension: "timing",
+			bar_range: [1, 8],
+			tempo_factor: 0.8,
+			primitive_id: null,
+			piece_id: "chopin.ballade.1",
+		});
+		expect(result.isError).toBe(false);
+		const comp = result.componentsJson[0];
+		expect(comp?.type).toBe("exercise_set");
+		const config = comp?.config as { scoreClip?: unknown; exercises: { instruction: string }[] };
+		expect(config.scoreClip).toBeUndefined();
+		expect(config.exercises[0].instruction).toContain("coming soon");
 	});
 });
 

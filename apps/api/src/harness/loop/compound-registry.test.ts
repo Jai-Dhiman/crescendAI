@@ -17,7 +17,7 @@ describe("compound-registry", () => {
 		expect(names).toContain("assign_segment_loop");
 	});
 
-	it("returns a streaming binding for OnChatMessage with 6 tools", () => {
+	it("returns a streaming binding for OnChatMessage with prescribe_exercise tool", () => {
 		const binding = getCompoundBinding("OnChatMessage");
 		expect(binding).toBeDefined();
 		expect(binding?.compoundName).toBe("chat-response");
@@ -26,7 +26,8 @@ describe("compound-registry", () => {
 		expect(binding!.tools.length).toBeGreaterThanOrEqual(Object.values(TOOL_REGISTRY).length + 1);
 		const names = binding!.tools.map((t) => t.name);
 		expect(new Set(names).size).toBe(names.length);
-		expect(names).toContain("create_exercise");
+		expect(names).toContain("prescribe_exercise");
+		expect(names).not.toContain("create_exercise");
 		expect(names).toContain("search_catalog");
 		expect(names).toContain("assign_segment_loop");
 	});

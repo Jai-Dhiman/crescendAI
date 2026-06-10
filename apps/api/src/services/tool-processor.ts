@@ -1,11 +1,9 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { pieces } from "../db/schema/catalog";
-import { exerciseDimensions, exercises } from "../db/schema/exercises";
 import { observations } from "../db/schema/observations";
 import { sessions } from "../db/schema/sessions";
 import { DIMS_6 } from "../lib/dims";
-import { InferenceError } from "../lib/errors";
 import type { ServiceContext } from "../lib/types";
 
 // ---------------------------------------------------------------------------
@@ -58,95 +56,82 @@ interface ToolDefinition {
 const dimensionEnum = z.enum(DIMS_6 as unknown as [string, ...string[]]);
 
 // ---------------------------------------------------------------------------
-// Tool: create_exercise
+// Tool: prescribe_exercise
 // ---------------------------------------------------------------------------
 
-const createExerciseSchema = z.object({
-	source_passage: z.string().min(1).max(500),
-	target_skill: z.string().min(1).max(500),
-	exercises: z
-		.array(
-			z.object({
-				title: z.string().min(1).max(200),
-				instruction: z.string().min(1).max(4000),
-				focus_dimension: dimensionEnum,
-				hands: z.enum(["left", "right", "both"]).optional(),
-			}),
-		)
-		.min(1)
-		.max(3),
-});
+const barRangeField = z
+	.tuple([z.number().int().positive(), z.number().int().positive()])
+	.refine(([start, end]) => start <= end, { message: "bar_range start must be <= end" });
 
-async function persistGeneratedExercise(
-	ctx: ServiceContext,
-	title: string,
-	instruction: string,
-	focusDimension: string,
-	sourcePassage: string,
-	targetSkill: string,
-): Promise<string> {
-	const [inserted] = await ctx.db
-		.insert(exercises)
-		.values({
-			title,
-			description: `${targetSkill} -- ${sourcePassage}`,
-			instructions: instruction,
-			difficulty: "intermediate",
-			category: "generated",
-			source: "teacher_llm",
-		})
-		.returning({ id: exercises.id });
+const prescribeExerciseSchema = z.discriminatedUnion("kind", [
+	z.object({
+		kind: z.literal("own_passage_loop"),
+		target_dimension: dimensionEnum,
+		bar_range: barRangeField,
+		tempo_factor: z.number().min(0.25).max(1.0),
+		piece_id: z.string().min(1).nullable(),
+	}),
+	z.object({
+		kind: z.literal("corpus_drill"),
+		target_dimension: dimensionEnum,
+		bar_range: barRangeField,
+		tempo_factor: z.number().min(0.25).max(1.0),
+		primitive_id: z.string().nullable(),
+		piece_id: z.string().min(1).nullable(),
+	}),
+]);
 
-	if (!inserted) {
-		throw new InferenceError("Failed to insert generated exercise");
-	}
-
-	await ctx.db.insert(exerciseDimensions).values({
-		exerciseId: inserted.id,
-		dimension: focusDimension,
-	});
-
-	return inserted.id;
-}
-
-async function processCreateExercise(
-	ctx: ServiceContext,
+async function processPrescribeExercise(
+	_ctx: ServiceContext,
 	_studentId: string,
 	rawInput: unknown,
 ): Promise<InlineComponent[]> {
-	const input = createExerciseSchema.parse(rawInput);
+	const input = prescribeExerciseSchema.parse(rawInput);
 
-	const processed: unknown[] = [];
+	if (input.kind === "own_passage_loop") {
+		const scoreClip =
+			input.piece_id !== null
+				? { pieceId: input.piece_id, bars: input.bar_range as [number, number] }
+				: undefined;
 
-	for (const ex of input.exercises) {
-		const exerciseId = await persistGeneratedExercise(
-			ctx,
-			ex.title,
-			ex.instruction,
-			ex.focus_dimension,
-			input.source_passage,
-			input.target_skill,
-		);
-
-		const exJson: Record<string, unknown> = {
-			title: ex.title,
-			instruction: ex.instruction,
-			focusDimension: ex.focus_dimension,
-			exerciseId,
-		};
-		if (ex.hands) {
-			exJson.hands = ex.hands;
-		}
-		processed.push(exJson);
+		return [
+			{
+				type: "exercise_set",
+				config: {
+					sourcePassage: `bars ${input.bar_range[0]}-${input.bar_range[1]}`,
+					targetSkill: `${input.target_dimension} focus`,
+					scoreClip,
+					exercises: [
+						{
+							title: `Own passage loop: ${input.target_dimension}`,
+							instruction: `Loop bars ${input.bar_range[0]}-${input.bar_range[1]} at ${Math.round(input.tempo_factor * 100)}% tempo. Focus on ${input.target_dimension}.`,
+							focusDimension: input.target_dimension,
+						},
+					],
+				},
+			},
+		];
 	}
+
+	// corpus_drill — text stub
+	const stubInstruction =
+		`${input.target_dimension} drill coming soon` +
+		(input.primitive_id ? ` (drill: ${input.primitive_id})` : "") +
+		`. Practice bars ${input.bar_range[0]}-${input.bar_range[1]} at ${Math.round(input.tempo_factor * 100)}% tempo focusing on ${input.target_dimension}.`;
 
 	return [
 		{
 			type: "exercise_set",
 			config: {
-				sourcePassage: input.source_passage,
-				targetSkill: input.target_skill,
-				exercises: processed,
+				sourcePassage: `bars ${input.bar_range[0]}-${input.bar_range[1]}`,
+				targetSkill: `${input.target_dimension} focus`,
+				exercises: [
+					{
+						title: `${input.target_dimension} corpus drill`,
+						instruction: stubInstruction,
+						focusDimension: input.target_dimension,
+					},
+				],
 			},
 		},
 	];
@@ -579,54 +564,49 @@ async function processSearchCatalog(
 // Anthropic JSON schemas (for API calls)
 // ---------------------------------------------------------------------------
 
-const createExerciseAnthropicSchema: AnthropicToolSchema = {
-	name: "create_exercise",
+const prescribeExerciseAnthropicSchema: AnthropicToolSchema = {
+	name: "prescribe_exercise",
 	description:
-		"Create one or more targeted practice exercises for a specific passage and skill. Persists exercises to the database.",
+		"Prescribe a single targeted practice exercise for the student. Use own_passage_loop when the student has been playing a specific piece and you want them to loop a bar range from it. Use corpus_drill for general technique drills. Use sparingly.",
 	input_schema: {
 		type: "object",
 		properties: {
-			source_passage: {
+			kind: {
 				type: "string",
+				enum: ["own_passage_loop", "corpus_drill"],
 				description:
-					"The musical passage or section the exercises target (e.g. 'bars 5-8', 'opening theme').",
+					"own_passage_loop: loop from the student's piece. corpus_drill: general technique drill.",
 			},
-			target_skill: {
+			target_dimension: {
 				type: "string",
-				description: "The specific skill or technique the exercises develop.",
+				enum: [...DIMS_6],
+				description: "The musical dimension this exercise targets.",
 			},
-			exercises: {
+			bar_range: {
 				type: "array",
-				description: "One or more exercises to assign.",
-				minItems: 1,
-				items: {
-					type: "object",
-					properties: {
-						title: {
-							type: "string",
-							description: "Short title for the exercise.",
-						},
-						instruction: {
-							type: "string",
-							description: "Step-by-step instruction the student follows.",
-						},
-						focus_dimension: {
-							type: "string",
-							enum: DIMS_6,
-							description:
-								"Which of the 6 musical dimensions this exercise targets.",
-						},
-						hands: {
-							type: "string",
-							description:
-								"Optional: which hands to use ('left', 'right', or 'both').",
-						},
-					},
-					required: ["title", "instruction", "focus_dimension"],
-				},
+				items: { type: "integer", minimum: 1 },
+				minItems: 2,
+				maxItems: 2,
+				description: "Bar range [start, end]. Start must be <= end.",
+			},
+			tempo_factor: {
+				type: "number",
+				minimum: 0.25,
+				maximum: 1.0,
+				description: "Practice tempo as a fraction of performance tempo.",
+			},
+			primitive_id: {
+				type: ["string", "null"],
+				description:
+					"For corpus_drill only: drill primitive identifier. Pass null in S1.",
+			},
+			piece_id: {
+				type: ["string", "null"],
+				description:
+					"Catalog piece ID for own_passage_loop. Use search_catalog to find it. Pass null for corpus_drill.",
 			},
 		},
-		required: ["source_passage", "target_skill", "exercises"],
+		required: ["kind", "target_dimension", "bar_range", "tempo_factor", "piece_id"],
 	},
 };
 
@@ -785,13 +765,13 @@ const searchCatalogAnthropicSchema: AnthropicToolSchema = {
 // ---------------------------------------------------------------------------
 
 export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
-	create_exercise: {
-		name: "create_exercise",
-		description: createExerciseAnthropicSchema.description,
-		schema: createExerciseSchema,
-		anthropicSchema: createExerciseAnthropicSchema,
-		concurrencySafe: false,
-		process: processCreateExercise,
+	prescribe_exercise: {
+		name: "prescribe_exercise",
+		description: prescribeExerciseAnthropicSchema.description,
+		schema: prescribeExerciseSchema,
+		anthropicSchema: prescribeExerciseAnthropicSchema,
+		concurrencySafe: true,
+		process: processPrescribeExercise,
 	},
 	score_highlight: {
 		name: "score_highlight",
