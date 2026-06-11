@@ -204,7 +204,7 @@ export function ExerciseSetCard({
 		});
 		cursor.start();
 		return () => cursor.stop();
-	}, [clipIR, hasTempoFactor, config.scoreClip, loopPlayer.qstampSource]);
+	}, [clipIR, hasTempoFactor, config.scoreClip?.pieceId, loopPlayer.qstampSource]);
 
 	return (
 		<div className="bg-surface-card border border-border rounded-xl overflow-hidden mt-3">

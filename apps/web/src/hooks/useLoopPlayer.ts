@@ -82,6 +82,16 @@ export function useLoopPlayer(config: UseLoopPlayerConfig): UseLoopPlayerReturn 
 			setIsPlaying(true);
 			setIsCounting(player.state === "counting-in");
 			setAudioUnavailable(player.audioUnavailable);
+			// Poll until count-in ends (player transitions counting-in → playing).
+			// Interval clears itself once state moves past "counting-in".
+			if (player.state === "counting-in") {
+				const countInWatcher = setInterval(() => {
+					if (playerRef.current?.state !== "counting-in") {
+						setIsCounting(false);
+						clearInterval(countInWatcher);
+					}
+				}, 50);
+			}
 		}).catch((err: unknown) => {
 			console.error("[useLoopPlayer] play() failed:", err);
 			setAudioUnavailable(true);
