@@ -80,6 +80,72 @@ describe("processGetPageRequest", () => {
   });
 });
 
+describe("processGetClipPlaybackRequest", () => {
+  it("returns svg, clip-scoped ir, and notes array from timemap + MIDI values", async () => {
+    const mockSelect = vi.fn();
+    const mockRedoLayout = vi.fn();
+    const mockGetVersion = vi.fn().mockReturnValue("4.0.0");
+    const mockGetPageCount = vi.fn().mockReturnValue(1);
+    // Timemap: two notes at qstamps 0 and 2, plus a measureOn.
+    // measureOn id "measure-id-1" must match the measure class attribute in the SVG below
+    // so that parseScoreIR can build bars from the SVG.
+    const mockTimemap = [
+      { qstamp: 0, measureOn: "measure-id-1", on: ["note-a"] },
+      { qstamp: 2, on: ["note-b"] },
+      { qstamp: 4, measureOn: "measure-id-2", on: [] },
+    ];
+    // Synthetic SVG containing one measure element with id="measure-id-1" and one
+    // note element with id="note-a". parseScoreIR scans for class="... measure ..."
+    // and class="... note ..." attributes with matching ids. The <use> tag supplies
+    // the x/y position for the note bbox (plain x= y= attributes, supported by the
+    // extractTranslateXY fallback).
+    const clipSvg = `<svg viewBox="0 0 1600 800">
+      <g class="measure" id="measure-id-1">
+        <g class="note" id="note-a"><use x="100" y="200"/></g>
+      </g>
+    </svg>`;
+    // Each note has a MIDI value
+    const mockGetMIDIValuesForElement = vi.fn((id: string) =>
+      id === "note-a" ? [{ pitch: 60 }] : [{ pitch: 64 }]
+    );
+    const tk = {
+      ...fakeTk,
+      select: mockSelect,
+      redoLayout: mockRedoLayout,
+      getVersion: mockGetVersion,
+      getPageCount: mockGetPageCount,
+      renderToSVG: vi.fn().mockReturnValue(clipSvg),
+      renderToTimemap: vi.fn().mockReturnValue(mockTimemap),
+      getMIDIValuesForElement: mockGetMIDIValuesForElement,
+    };
+
+    const { processGetClipPlaybackRequest } = await import("./score-worker");
+    // biome-ignore lint/suspicious/noExplicitAny: test mock
+    const result = await processGetClipPlaybackRequest(tk as any, fakeMeasures, 1, 2);
+
+    // result must be the resolved value, not a Promise
+    expect(result).not.toBe("failed");
+    if (result === "failed") return;
+
+    // Concrete field assertions
+    expect(typeof result.svg).toBe("string");
+    expect(result.svg.length).toBeGreaterThan(0);
+    expect(Array.isArray(result.ir.bars)).toBe(true);
+    expect(result.ir.bars.length).toBeGreaterThan(0);
+    expect(Array.isArray(result.notes)).toBe(true);
+    // The timemap supplies note-a at qstamp 0 with MIDI pitch 60.
+    expect(result.notes.length).toBeGreaterThan(0);
+    const n = result.notes[0];
+    expect(typeof n.midi).toBe("number");
+    expect(typeof n.startQ).toBe("number");
+    expect(typeof n.endQ).toBe("number");
+    expect(n.startQ).toBeGreaterThanOrEqual(0);
+    expect(n.endQ).toBeGreaterThanOrEqual(n.startQ);
+    expect(n.midi).toBeGreaterThanOrEqual(0);
+    expect(n.midi).toBeLessThanOrEqual(127);
+  });
+});
+
 describe("loadPiece — silent fallback regression", () => {
 	it("returns 'failed' when buildMeasureIndex throws (no silent degradation to page 1)", async () => {
 		const throwingTk = {

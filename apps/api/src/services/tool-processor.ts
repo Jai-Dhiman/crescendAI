@@ -91,7 +91,7 @@ async function processPrescribeExercise(
 	if (input.kind === "own_passage_loop") {
 		const scoreClip =
 			input.piece_id !== null
-				? { pieceId: input.piece_id, bars: input.bar_range as [number, number] }
+				? { pieceId: input.piece_id, bars: input.bar_range as [number, number], tempoFactor: input.tempo_factor }
 				: undefined;
 
 		return [

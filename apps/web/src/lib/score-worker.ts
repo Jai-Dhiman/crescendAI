@@ -96,6 +96,98 @@ export function processRenderClipRequest(
 	return renderClipSvgSelect(tk, measures, startBar, endBar);
 }
 
+export interface ClipNote {
+	midi: number;
+	startQ: number;
+	endQ: number;
+}
+
+export interface ClipPlaybackResult {
+	svg: string;
+	ir: import("./score-ir").ScoreIR;
+	notes: ClipNote[];
+}
+
+export async function processGetClipPlaybackRequest(
+	tk: VerovioTk,
+	measures: MeasureEntry[],
+	startBar: number,
+	endBar: number,
+): Promise<ClipPlaybackResult | "failed"> {
+	const startEntry = measures[startBar - 1];
+	if (!startEntry) return "failed";
+
+	tk.setOptions(CLIP_RENDER_OPTS);
+	tk.select({ measureRange: `${startBar}-${endBar}` });
+	tk.redoLayout({});
+
+	let svg = "";
+	let ir: import("./score-ir").ScoreIR | undefined;
+	const notes: ClipNote[] = [];
+
+	try {
+		svg = tk.renderToSVG(1) as string;
+
+		const timemap: Array<{ qstamp: number; on?: string[]; off?: string[]; measureOn?: string }> =
+			tk.renderToTimemap({ includeMeasures: true });
+
+		const noteQstampMap = new Map<string, number>();
+		const noteOffMap = new Map<string, number>();
+		for (const entry of timemap) {
+			if (Array.isArray(entry.on)) {
+				for (const id of entry.on) {
+					noteQstampMap.set(id, entry.qstamp);
+				}
+			}
+			if (Array.isArray(entry.off)) {
+				for (const id of entry.off) {
+					noteOffMap.set(id, entry.qstamp);
+				}
+			}
+		}
+
+		const clipMeasures: MeasureEntry[] = [];
+		const seenQstamps = new Set<number>();
+		for (const entry of timemap) {
+			if (entry.measureOn !== undefined && !seenQstamps.has(entry.qstamp)) {
+				seenQstamps.add(entry.qstamp);
+				clipMeasures.push({ qstamp: entry.qstamp, measureOn: entry.measureOn });
+			}
+		}
+		clipMeasures.sort((a, b) => a.qstamp - b.qstamp);
+
+		const { parseScoreIR } = await import("./score-ir");
+
+		ir = parseScoreIR(
+			"",
+			[svg],
+			clipMeasures,
+			noteQstampMap,
+			tk.getVersion() as string,
+			CLIP_RENDER_OPTS.pageWidth,
+		);
+
+		// Build notes BEFORE restoring full-piece scope, so getMIDIValuesForElement
+		// reads from the clip's MIDI context (not the full-piece context).
+		for (const [id, startQ] of noteQstampMap) {
+			const midiValues = tk.getMIDIValuesForElement(id) as Array<{ pitch: number }> | null;
+			if (!midiValues || midiValues.length === 0) continue;
+			const midi = midiValues[0].pitch;
+			const endQ = noteOffMap.get(id) ?? startQ + 1;
+			notes.push({ midi, startQ, endQ });
+		}
+		notes.sort((a, b) => a.startQ - b.startQ);
+	} finally {
+		// Restore full-piece layout regardless of whether parseScoreIR threw.
+		tk.select({});
+		tk.setOptions(VEROVIO_OPTS);
+		tk.redoLayout({});
+	}
+
+	if (ir === undefined) return "failed";
+	return { svg, ir, notes };
+}
+
 export interface VerovioBindings {
 	module: unknown;
 	// biome-ignore lint/suspicious/noExplicitAny: dynamic Verovio ESM class
@@ -278,10 +370,11 @@ async function extractXmlFromMxl(bytes: ArrayBuffer): Promise<string | null> {
 }
 
 type WorkerInMsg =
-	| { type: "load";     requestId: string; pieceId: string; bytes: ArrayBuffer }
-	| { type: "get_page"; requestId: string; pieceId: string; pageN: number; pageWidth?: number }
-	| { type: "get_clip"; requestId: string; pieceId: string; startBar: number; endBar: number }
-	| { type: "get_ir";   requestId: string; pieceId: string };
+	| { type: "load";             requestId: string; pieceId: string; bytes: ArrayBuffer }
+	| { type: "get_page";         requestId: string; pieceId: string; pageN: number; pageWidth?: number }
+	| { type: "get_clip";         requestId: string; pieceId: string; startBar: number; endBar: number }
+	| { type: "get_clip_playback"; requestId: string; pieceId: string; startBar: number; endBar: number }
+	| { type: "get_ir";           requestId: string; pieceId: string };
 
 // Worker message handler — only registers when loaded as a Web Worker (window is undefined)
 if (typeof window === "undefined") {
@@ -400,6 +493,16 @@ if (typeof window === "undefined") {
 				}
 			} else if (msg.type === "get_ir") {
 				(self as unknown as Worker).postMessage({ requestId: msg.requestId, payload: ir });
+			} else if (msg.type === "get_clip_playback") {
+				const playback = await processGetClipPlaybackRequest(tk, measures, msg.startBar, msg.endBar);
+				if (playback === "failed") {
+					(self as unknown as Worker).postMessage({
+						requestId: msg.requestId,
+						error: `get_clip_playback failed for ${msg.pieceId} bars ${msg.startBar}-${msg.endBar}`,
+					});
+				} else {
+					(self as unknown as Worker).postMessage({ requestId: msg.requestId, payload: playback });
+				}
 			} else if (msg.type === "load") {
 				// load was already handled above (bytes were used to call loadPiece).
 				// Return the ir and pageSvgs to the renderer.

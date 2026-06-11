@@ -1,10 +1,15 @@
 import { ArrowsOut, CaretDown } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ClipSvg } from "../ClipSvg";
+import { LoopTransport } from "../LoopTransport";
 import { scoreRenderer } from "../../lib/score-renderer";
+import { ScoreCursor } from "../../lib/score-cursor";
 import { api } from "../../lib/api";
 import { handsLabel } from "../../lib/exercise-utils";
+import { useLoopPlayer } from "../../hooks/useLoopPlayer";
 import type { ExerciseSetConfig } from "../../lib/types";
+import type { ScoreIR } from "../../lib/score-ir";
+import type { ClipNote } from "../../lib/score-worker";
 import { useArtifactStore } from "../../stores/artifact";
 
 interface ExerciseSetCardProps {
@@ -144,29 +149,87 @@ export function ExerciseSetCard({
 	artifactId,
 }: ExerciseSetCardProps) {
 	const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
-	const [scoreClip, setScoreClip] = useState<string | null>(null);
+	const [scoreClipSvg, setScoreClipSvg] = useState<string | null>(null);
 	const [clipLoadError, setClipLoadError] = useState(false);
+	const [clipIR, setClipIR] = useState<ScoreIR | null>(null);
+	const [clipNotes, setClipNotes] = useState<ClipNote[]>([]);
+	const scoreContainerRef = useRef<HTMLDivElement>(null);
+
+	const hasTempoFactor = !!config.scoreClip?.tempoFactor;
 
 	useEffect(() => {
 		if (!config.scoreClip) return;
 		let cancelled = false;
-		scoreRenderer
-			.getClip(config.scoreClip.pieceId, config.scoreClip.bars[0], config.scoreClip.bars[1])
-			.then((r) => { if (!cancelled) setScoreClip(r); })
-			.catch((err) => {
-				console.error("ExerciseSetCard: failed to load score clip", err);
-				if (!cancelled) setClipLoadError(true);
-			});
+		if (hasTempoFactor) {
+			scoreRenderer
+				.getClipPlayback(config.scoreClip.pieceId, config.scoreClip.bars[0], config.scoreClip.bars[1])
+				.then((r) => {
+					if (!cancelled) {
+						setScoreClipSvg(r.svg);
+						setClipIR(r.ir);
+						setClipNotes(r.notes);
+					}
+				})
+				.catch((err) => {
+					console.error("ExerciseSetCard: failed to load score clip playback", err);
+					if (!cancelled) setClipLoadError(true);
+				});
+		} else {
+			scoreRenderer
+				.getClip(config.scoreClip.pieceId, config.scoreClip.bars[0], config.scoreClip.bars[1])
+				.then((r) => { if (!cancelled) setScoreClipSvg(r); })
+				.catch((err) => {
+					console.error("ExerciseSetCard: failed to load score clip", err);
+					if (!cancelled) setClipLoadError(true);
+				});
+		}
 		return () => { cancelled = true; };
-	}, [config.scoreClip]);
+	}, [config.scoreClip, hasTempoFactor]);
+
+	const loopPlayer = useLoopPlayer({
+		clipIR: hasTempoFactor ? clipIR : null,
+		clipNotes,
+		beatsPerBar: 4,
+		bpmAtUnity: 120,
+		tempoFactor: config.scoreClip?.tempoFactor ?? 1.0,
+	});
+
+	useEffect(() => {
+		if (!hasTempoFactor || clipIR === null || scoreContainerRef.current === null) return;
+		const cursor = new ScoreCursor({
+			pieceId: config.scoreClip!.pieceId,
+			container: scoreContainerRef.current,
+			ir: clipIR,
+			qstampSource: loopPlayer.qstampSource,
+		});
+		cursor.start();
+		return () => cursor.stop();
+	}, [clipIR, hasTempoFactor, config.scoreClip?.pieceId, loopPlayer.qstampSource]);
 
 	return (
 		<div className="bg-surface-card border border-border rounded-xl overflow-hidden mt-3">
-			{/* Score clip */}
-			{config.scoreClip && scoreClip && !clipLoadError && (
-				<div className="border-b border-border/60 bg-white">
-					<ClipSvg svg={scoreClip} />
+			{/* HERO: Score clip */}
+			{config.scoreClip && scoreClipSvg && !clipLoadError && (
+				<div
+					ref={hasTempoFactor ? scoreContainerRef : undefined}
+					className="border-b border-border/60 bg-white"
+				>
+					<ClipSvg svg={scoreClipSvg} />
 				</div>
+			)}
+
+			{/* Transport (own_passage_loop with tempoFactor only) */}
+			{hasTempoFactor && scoreClipSvg && !clipLoadError && (
+				<LoopTransport
+					isPlaying={loopPlayer.isPlaying}
+					isCounting={loopPlayer.isCounting}
+					audioUnavailable={loopPlayer.audioUnavailable}
+					tempoFactor={loopPlayer.tempoFactor}
+					onPlay={loopPlayer.play}
+					onPause={loopPlayer.pause}
+					onStop={loopPlayer.stop}
+					onTempoChange={loopPlayer.setTempoFactor}
+				/>
 			)}
 
 			{/* Header */}

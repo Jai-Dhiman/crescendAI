@@ -734,11 +734,29 @@ describe("processToolUse — prescribe_exercise own_passage_loop", () => {
 		expect(result.componentsJson).toHaveLength(1);
 		const comp = result.componentsJson[0];
 		expect(comp?.type).toBe("exercise_set");
-		const config = comp?.config as { scoreClip?: { pieceId: string; bars: [number, number] } };
+		const config = comp?.config as { scoreClip?: { pieceId: string; bars: [number, number]; tempoFactor?: number } };
 		expect(config.scoreClip).toEqual({
 			pieceId: "chopin.ballade.1",
 			bars: [12, 16],
+			tempoFactor: 0.75,
 		});
+	});
+
+	it("own_passage_loop scoreClip carries tempoFactor from input", async () => {
+		const ctx = { db: {} } as unknown as import("../lib/types").ServiceContext;
+		const result = await processToolUse(ctx, "stu-1", "prescribe_exercise", {
+			kind: "own_passage_loop",
+			target_dimension: "dynamics",
+			bar_range: [5, 8],
+			tempo_factor: 0.75,
+			piece_id: "chopin.ballades.1",
+		});
+		expect(result.isError).toBe(false);
+		expect(result.componentsJson).toHaveLength(1);
+		const config = result.componentsJson[0]?.config as {
+			scoreClip?: { pieceId: string; bars: [number, number]; tempoFactor?: number };
+		};
+		expect(config.scoreClip?.tempoFactor).toBe(0.75);
 	});
 
 	it("returns exercise_set without scoreClip for corpus_drill", async () => {
