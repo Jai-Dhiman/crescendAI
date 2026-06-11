@@ -59,6 +59,10 @@ export function useLoopPlayer(config: UseLoopPlayerConfig): UseLoopPlayerReturn 
 	// tempoFactor intentionally excluded — live changes go through setTempoFactor().
 	useEffect(() => {
 		if (!config.clipIR) return;
+		if (countInWatcherRef.current !== null) {
+			clearInterval(countInWatcherRef.current);
+			countInWatcherRef.current = null;
+		}
 		if (playerRef.current) {
 			playerRef.current.destroy();
 		}

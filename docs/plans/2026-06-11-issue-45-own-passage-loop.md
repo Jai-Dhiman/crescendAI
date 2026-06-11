@@ -2367,3 +2367,52 @@ Verified: plan's `stop()` body (lines 1229-1235) contains only `stopScheduler()`
 **[BLOCKER] (confidence: 9/10) — `ExerciseSetPayload` type in `apps/api/src/services/exercises.ts` line 15 must be updated to add `tempoFactor?: number` to `scoreClip`. Task 1 Step 3 modifies the construction site but not the type. TypeScript will reject the compiled output, preventing any API test from running.**
 
 VERDICT: NEEDS_REWORK — 2 new blockers: (1) exercises.ts test snippet has 5 concrete bugs making it unusable as-is — either remove the snippet and rely on the "read exercises.ts first" Note, or fix all 5 bugs (correct args object `{studentId, sessionId, exerciseId}`, correct field `routingJson`, remove `.limit()`, add `ctx.db.update()` mock, access `result.scoreClip` not `result?.config.scoreClip`); (2) `ExerciseSetPayload` type in exercises.ts line 15 must add `tempoFactor?: number` to `scoreClip` or TypeScript rejects the construction-site change and the entire API test suite cannot compile.
+
+---
+
+## Challenge Review (Loop 3 — Re-review after Round 2 blocker fixes)
+
+> Verified all Round 2 fixes against the actual plan text and source files. Fresh adversarial pass below.
+
+### Prior Blocker Verification (Round 2)
+
+**Blocker 1 (exercises.ts test: 5 bugs):** FIXED. Verified against actual `exercises.ts` source:
+- Call signature now uses `args: { studentId: "stu-1", sessionId: "session-1", exerciseId: "row-1" }` — matches actual function (lines 168-172).
+- Mock row field is `routingJson` (not `routing`) with parsed object value — matches `pendingRow.routingJson` (line 192).
+- Mock chain is `select().from().where()` with no `.limit()` — matches actual query (lines 176-184).
+- `ctx.db.update()` mock is present with chainable `.set().where()` — matches update call (line 210).
+- Return access is `result.scoreClip?.tempoFactor` (not `result?.config.scoreClip`) — matches `ExerciseSetPayload` return type (line 239).
+
+**Blocker 2 (ExerciseSetPayload type missing tempoFactor):** FIXED. Task 1 Step 3 now explicitly updates `ExerciseSetPayload.scoreClip` to `{ pieceId: string; bars: [number, number]; tempoFactor?: number }` before changing the construction site.
+
+### New Findings (Loop 3)
+
+No new blockers found. The following observations are informational:
+
+**[OBS] — Task 6 ExerciseSetCard implementation code (the useEffect) does NOT call `scoreRenderer.load(pieceId)` before `getClipPlayback`. The load() chain is documented in Task 2's "Dependency note" but the actual Task 6 implementation snippet omits it. The test mock also omits `load`, so test and implementation are internally consistent. This is also consistent with the pre-existing `getClip` usage in the current `ExerciseSetCard.tsx` (which also skips `load()`), relying on a parent component having already called it. Not a blocker; the pattern is established.**
+
+**[OBS] — `vi.useFakeTimers()` in `beforeEach` without a matching `afterEach(() => vi.useRealTimers())` in `loop-player.test.ts` could bleed fake timers into downstream test files in theory, but vitest isolates modules per test file by default. Low risk in practice.**
+
+**[OBS] — smplr `Soundfont` load API: the plan uses `await this.piano.load` (property access) in `LoopPlayer.loadInstrument`. This was flagged as an observation in Loop 2 — it cannot be verified without smplr installed. Task 4 Step 3 says "verify the smplr load API before writing Task 5." The subagent must check this before writing the implementation.**
+
+### Presumption Inventory (Loop 3)
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `ExerciseSetPayload.scoreClip` type update is in Task 1 Step 3 | SAFE | Explicitly present; verified in plan lines 83-94 |
+| `assignPendingExercise` args object shape `{studentId, sessionId, exerciseId}` | SAFE | Verified against exercises.ts lines 168-172 |
+| exercises.ts DB mock chain: no `.limit()`, has `update()` | SAFE | Verified against exercises.ts lines 176-184, 210 |
+| `wrapsThisTick` guard fires once per loop boundary | SAFE | Fixed: uses `passOfHorizon > this.currentPassIndex` (floor division), not raw `horizonQ >= clipEndQ` |
+| `stop()` metronome reset is in the class body | SAFE | Lines 1285-1286: `nextMetronomeBeatTime = null; metronomeBeatIndex = 0` inside `stop()` |
+| `scoreRenderer.getClipPlayback` works without a prior `scoreRenderer.load()` in tests | SAFE | Test mocks bypass the worker; consistent with pre-existing `getClip` pattern |
+| `smplr` `await this.piano.load` is the correct load API | VALIDATE | smplr not installed; must be verified in Task 4 before Task 5 implementation |
+
+### Summary (Loop 3)
+
+[BLOCKER] count: 0
+[RISK]    count: 0
+[QUESTION] count: 0
+
+All Round 2 blockers are resolved. No new blockers found on adversarial pass. The plan is internally consistent, test fixtures match actual source signatures, the wrap-boundary guard is correct, and the `stop()` metronome reset is in the authoritative class body.
+
+VERDICT: PROCEED
