@@ -146,6 +146,23 @@ export class ScoreRenderer {
       worker.postMessage({ type: "get_clip", requestId, pieceId, startBar, endBar });
     });
   }
+
+  async getClipPlayback(
+    pieceId: string,
+    startBar: number,
+    endBar: number,
+  ): Promise<{ svg: string; ir: ScoreIR; notes: import("./score-worker").ClipNote[] }> {
+    const worker = this.ensureWorker();
+    return new Promise((resolve, reject) => {
+      const requestId = `req-${++this.requestCounter}`;
+      this.pendingRequests.set(requestId, {
+        resolve: resolve as (v: unknown) => void,
+        reject,
+        pieceId,
+      });
+      worker.postMessage({ type: "get_clip_playback", requestId, pieceId, startBar, endBar });
+    });
+  }
 }
 
 export const scoreRenderer = new ScoreRenderer();
