@@ -1,6 +1,60 @@
 # Exercises and Focused Practice
 
 > **Status (2026-03-19):** Exercise DB schema DEFINED. Endpoints IMPLEMENTED (`GET /api/exercises`, exercise tracking). CEO review (2026-03-19): Exercises ship as artifacts in the unified container system (see `05-ui-system.md`). Exercise artifact is the only artifact type in the web beta. Focus mode DEFERRED to Phase 3.
+>
+> **Status update (2026-06-10, S1 shipped — #29):** The legacy `proposed_exercises` (synthesis) and `create_exercise` (chat tool) paths have been removed and replaced by the `ExerciseRoutingDecision` contract. All exercise prescriptions — whether emitted during post-session synthesis or via the `prescribe_exercise` chat tool — now produce a typed routing decision that persists to `pending_exercises`. See [S1 Contract](#s1-exercise-routing-contract-shipped-29) below.
+
+---
+
+## S1 Exercise Routing Contract (shipped #29)
+
+### ExerciseRoutingDecision union
+
+Every exercise prescription the teacher emits is now a discriminated union keyed on `kind`:
+
+```typescript
+type ExerciseRoutingDecision =
+  | {
+      kind: "own_passage_loop";
+      target_dimension: "dynamics" | "timing" | "pedaling" | "articulation" | "phrasing" | "interpretation";
+      bar_range: [number, number];   // [start_bar, end_bar] from the student's score
+      tempo_factor: number;          // 0 < tempo_factor <= 1.0 (e.g. 0.75 = 75% tempo)
+    }
+  | {
+      kind: "corpus_drill";
+      target_dimension: "dynamics" | "timing" | "pedaling" | "articulation" | "phrasing" | "interpretation";
+      bar_range: [number, number];
+      tempo_factor: number;
+      primitive_id?: string | null;  // corpus exercise primitive; null until S3/S4
+    };
+```
+
+`own_passage_loop` directs the student to loop a specific passage from their own piece at a reduced tempo — the primary vehicle when no catalog drill is needed. `corpus_drill` reserves a slot for a matched catalog primitive (S3/S4 fill this in; until then it stub-renders as text).
+
+### What replaced what
+
+| Removed | Replaced by |
+|---------|-------------|
+| `proposed_exercises` field on `SynthesisArtifact` | `prescribed_exercise: ExerciseRoutingDecision \| null` |
+| `create_exercise` chat tool (free-text, unstructured) | `prescribe_exercise` chat tool (emits `ExerciseRoutingDecision`) |
+
+### Rendering
+
+- **`own_passage_loop`** — rendered by `ExerciseSetCard` via `scoreClip` through the reflect-then-prescribe gate (shipped #27). The card shows the passage excerpt at reduced tempo.
+- **`corpus_drill`** — stub-renders as descriptive text until S3/S4 wire in the corpus retrieval + briefing layer.
+
+### Persistence
+
+Prescriptions go to `pending_exercises` (migration `0004_pending_exercises_routing.sql`, applied locally to `crescendai_dev`). The `exercises` catalog table is NOT written to by the prescription path — `pending_exercises` is the staging layer between the teacher decision and any future catalog promotion.
+
+Schema change: `pending_exercises` dropped `exercise_id` (FK to catalog) and gained `title`, `instruction`, `routing_json` (the serialized `ExerciseRoutingDecision`), and `piece_id`.
+
+### Deferred follow-ons
+
+- **Eval ASCF baseline re-lock:** `run_eval.py` now renders `prescribed_exercise` into prose so the eval pipeline runs green, but the locked baseline number is NOT re-locked (credit-gated — deferred to a dedicated eval session).
+- **`exercise-proposal.md` catalog cleanup:** the harness skill catalog entry and `depends_on` narrative are out of date (the `exercise-proposal` molecule is deleted). Cleanup deferred; the validators that catch it are excluded from the default runner (matches prior precedent from other removed skills).
+
+---
 
 ## Why Exercises Matter
 
