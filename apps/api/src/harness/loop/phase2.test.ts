@@ -8,7 +8,8 @@ import { buildPhase2Prompt, runPhase2 } from "./phase2";
 import type { CompoundBinding, HookEvent, PhaseContext } from "./types";
 
 const MOCK_BINDINGS = {
-	AI_GATEWAY_TEACHER: "https://gw.example",
+	AI_GATEWAY_ENDPOINT: "https://gw.example",
+	AI_GATEWAY_TOKEN: "test-token",
 	ANTHROPIC_API_KEY: "test-key",
 } as unknown as Bindings;
 

@@ -67,7 +67,7 @@ Multi-platform (iOS + web) practice companion that evaluates *how* a piano perfo
 | iOS app | SwiftUI, AVAudioEngine, SwiftData (local-first) |
 | Web app | TanStack Start (`crescend.ai`) -- chat, recording, real-time observations via WebSocket |
 | API backend | TypeScript/Hono on Cloudflare Workers (`api.crescend.ai`) -- inference proxy, SessionBrain DO, two-stage LLM pipeline, score following |
-| LLM pipeline | Two AI Gateways: `crescendai-teacher` (Anthropic) + `crescendai-background` (Workers AI). Post-session synthesis via SessionAccumulator. |
+| LLM pipeline | One authenticated AI Gateway (`crescendai`) fronting both Anthropic (teacher) and Workers AI (background tasks); provider keys held in the gateway BYOK vault. Post-session synthesis via SessionAccumulator. |
 | Score following | Onset+pitch DTW aligning AMT output to score MIDI -- feedback references bar numbers, not timestamps |
 | Storage | PlanetScale Postgres + Drizzle ORM (via Hyperdrive), R2 (audio chunks), Durable Objects (practice sessions + WebSocket) |
 | Auth | better-auth -- Sign in with Apple + Google |

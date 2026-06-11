@@ -17,10 +17,15 @@ export interface Bindings {
 	APPLE_CLIENT_SECRET: string;
 	GOOGLE_CLIENT_SECRET: string;
 	SENTRY_DSN: string;
-	HF_INFERENCE_ENDPOINT: string;
+	// Unified authenticated AI Gateway: base URL (…/<account>/<gateway>) with the
+	// provider path appended per call (/anthropic/v1/messages, /workers-ai/...).
+	AI_GATEWAY_ENDPOINT: string;
+	// Gateway-auth token for the authenticated gateway (cf-aig-authorization).
+	// Provider keys are injected by the gateway's BYOK vault, not sent here.
+	AI_GATEWAY_TOKEN: string;
+	// Retained for rollback during the BYOK migration; not sent once the
+	// Anthropic key is vaulted. Safe to delete after the gateway is confirmed.
 	ANTHROPIC_API_KEY: string;
-	AI_GATEWAY_TEACHER: string;
-	AI_GATEWAY_BACKGROUND: string;
 	CLOUDFLARE_API_TOKEN: string;
 	MUQ_ENDPOINT: string;
 	AMT_ENDPOINT: string;

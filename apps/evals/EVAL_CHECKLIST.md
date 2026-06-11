@@ -5,7 +5,7 @@
 Two eval entrypoints, two different prereq sets. Get these right before running, or you'll burn 30 minutes diagnosing auth errors that look like pipeline bugs.
 
 ### Synthesis-quality eval (`run_eval.py`) — no wrangler dependency
-- `ANTHROPIC_API_KEY` set (teacher) and either `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` (Workers AI judge) or `OPENROUTER_API_KEY` (OpenRouter judge).
+- `AI_GATEWAY_ENDPOINT` + `AI_GATEWAY_TOKEN` set (all providers route through the authenticated AI Gateway via BYOK — no `ANTHROPIC_API_KEY`/`OPENROUTER_API_KEY` needed locally; they are vaulted in the gateway). Workers AI judge additionally needs `CLOUDFLARE_API_TOKEN`. Both gateway vars fall back to `apps/api/.dev.vars`. Note: the OpenRouter judge is currently blocked at the gateway (403 spend-limit/model-resolution) until OpenRouter BYOK config is finished — use the Anthropic or Workers AI judge meanwhile.
 - Inference cache present at `model/data/eval/inference_cache/auto-t5_http/`.
 - Does **not** require `wrangler dev` running. Runs entirely Python-side.
 

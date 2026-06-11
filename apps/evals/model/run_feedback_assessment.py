@@ -4,14 +4,13 @@ Usage:
     cd apps/evals/
     uv run python -m model.run_feedback_assessment
 
-Requires ANTHROPIC_API_KEY environment variable.
+Anthropic access is routed through the authenticated AI Gateway (BYOK); no local key needed.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -19,6 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
 from paths import MODEL_DATA, MODEL_SRC
+from shared.gateway import anthropic_client
 
 sys.path.insert(0, str(MODEL_SRC))
 
@@ -47,16 +47,6 @@ DATA_DIR = MODEL_DATA
 CHECKPOINT_DIR = DATA_DIR / "checkpoints/model_improvement"
 PERCEPIANO_DIR = DATA_DIR / "percepiano_cache"
 RESULTS_DIR = DATA_DIR / "experiment4_results"
-
-
-def _load_anthropic_client():
-    """Load Anthropic client. Raises if API key not set."""
-    import anthropic
-
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY environment variable not set")
-    return anthropic.Anthropic(api_key=api_key)
 
 
 def _call_llm(client, prompt: str, model: str = "claude-sonnet-4-6") -> str:
@@ -167,7 +157,7 @@ def main():
         logger.warning("No MIDI directory at %s -- Condition B will be limited", midi_dir)
 
     # Generate observations and judge
-    client = _load_anthropic_client()
+    client = anthropic_client()
     results = []
     student_context = {"level": "intermediate", "session_count": 12}
 

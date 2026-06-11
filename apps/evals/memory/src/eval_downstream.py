@@ -10,17 +10,16 @@ Calls Workers AI subagent for both, then evaluates with LLM-as-Judge (Claude Son
 from __future__ import annotations
 
 import json
-import os
 import random
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from shared.gateway import anthropic_client
 from .eval_synthesis import _call_workers_ai
 from .memory_db import MemoryDB
 from .scenarios import MemoryEvalScenario, load_scenarios
 
 DATA_DIR = Path(__file__).parents[1] / "data"
-_DEV_VARS_PATH = Path(__file__).parents[3] / "api" / ".dev.vars"
 
 # Simplified subagent prompt for downstream comparison
 SUBAGENT_SYSTEM = """You are a piano pedagogy analyst. You receive structured data about a student's practice session.
@@ -95,20 +94,8 @@ def _call_subagent(system: str, user: str) -> str:
     return _call_workers_ai(system, user, max_tokens=400)
 
 
-def _load_anthropic_key() -> str:
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if key:
-        return key
-    if _DEV_VARS_PATH.exists():
-        for line in _DEV_VARS_PATH.read_text().splitlines():
-            if line.startswith("ANTHROPIC_API_KEY="):
-                return line.split("=", 1)[1].strip()
-    raise RuntimeError("ANTHROPIC_API_KEY not found in env or apps/api/.dev.vars")
-
-
 def _call_judge(scenario_context: str, response_a: str, response_b: str) -> dict | None:
-    import anthropic
-    client = anthropic.Anthropic(api_key=_load_anthropic_key())
+    client = anthropic_client()
 
     user_prompt = f"""## Scenario Context
 

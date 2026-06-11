@@ -20,6 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[2]))
 from paths import MODEL_DATA
+from shared.gateway import anthropic_client
 
 import anthropic
 
@@ -92,7 +93,7 @@ def extract_qualities(
     limit: int | None = None,
 ) -> list[dict]:
     """Extract quality descriptors for each moment via LLM."""
-    client = anthropic.Anthropic()
+    client = anthropic_client()
     existing = load_existing_results()
     results = list(existing.values())
     processed_ids = set(existing.keys())

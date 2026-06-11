@@ -18,23 +18,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import sys
 import uuid
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-# Load API key from .dev.vars if not in environment.
-if not os.environ.get("ANTHROPIC_API_KEY"):
-    _dev_vars = Path(__file__).parents[3] / "api" / ".dev.vars"
-    if _dev_vars.exists():
-        for _line in _dev_vars.read_text().splitlines():
-            if _line.startswith("ANTHROPIC_API_KEY="):
-                os.environ["ANTHROPIC_API_KEY"] = _line.split("=", 1)[1].strip()
-                break
-
-import anthropic
+from shared.gateway import async_anthropic_client
 
 from teacher_model.calibration.analyze_calibration import calibrate
 from teacher_model.calibration.analyze_drift import analyze_drift
@@ -199,7 +189,7 @@ def _extract_ratings(tool_input: dict) -> list[tuple[int, str, str]]:
 
 
 async def _rate_synthesis(
-    client: anthropic.AsyncAnthropic,
+    client: Any,
     row: dict,
     item: dict,
     system_prompt: str,
@@ -265,7 +255,7 @@ async def _run_ratings(
     rating_tool: dict,
     ratings_path: Path,
 ) -> None:
-    client = anthropic.AsyncAnthropic()
+    client = async_anthropic_client()
     semaphore = asyncio.Semaphore(_CONCURRENCY)
     pending = [
         item for item in sequence
@@ -345,10 +335,6 @@ def main() -> None:
         if not path.exists():
             print(f"ERROR: {name} not found at {path}.", file=sys.stderr)
             sys.exit(1)
-
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("ERROR: ANTHROPIC_API_KEY not set and not found in api/.dev.vars.", file=sys.stderr)
-        sys.exit(1)
 
     manifest = json.loads(_MANIFEST_PATH.read_text())
     rubric = json.loads(_RUBRIC_PATH.read_text())

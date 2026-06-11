@@ -5,7 +5,8 @@ import { synthesizeV6 } from './teacher'
 import type { SynthesisArtifact } from '../harness/artifacts/synthesis'
 
 const MOCK_BINDINGS = {
-  AI_GATEWAY_TEACHER: 'https://gw.example',
+  AI_GATEWAY_ENDPOINT: 'https://gw.example',
+  AI_GATEWAY_TOKEN: 'test-token',
   ANTHROPIC_API_KEY: 'test-key',
 } as unknown as Bindings
 

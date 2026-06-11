@@ -14,7 +14,8 @@ test('full catalog: validateCatalog returns no errors', async () => {
 // E2E: real extract-bar-range-signals atom invoked through full harness pipeline
 
 const MOCK_BINDINGS = {
-	AI_GATEWAY_TEACHER: 'https://gw.example',
+	AI_GATEWAY_ENDPOINT: 'https://gw.example',
+	AI_GATEWAY_TOKEN: 'test-token',
 	ANTHROPIC_API_KEY: 'test-key',
 } as unknown as Bindings
 

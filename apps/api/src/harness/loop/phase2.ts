@@ -19,13 +19,12 @@ async function callAnthropicMessage(
 	env: PhaseContext["env"],
 	body: unknown,
 ): Promise<AnthropicMessageResponse> {
-	const client = routeModel("phase2_voice");
-	const url = `${env[client.gatewayUrlVar]}/anthropic/v1/messages`;
+	const url = `${env.AI_GATEWAY_ENDPOINT}/anthropic/v1/messages`;
 	const res = await fetch(url, {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
-			"x-api-key": env.ANTHROPIC_API_KEY,
+			"cf-aig-authorization": `Bearer ${env.AI_GATEWAY_TOKEN}`,
 			"anthropic-version": "2023-06-01",
 		},
 		body: JSON.stringify(body),

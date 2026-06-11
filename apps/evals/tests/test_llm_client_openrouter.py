@@ -45,13 +45,11 @@ def test_openrouter_client_accepts_explicit_model(monkeypatch: pytest.MonkeyPatc
     assert client.model == "anthropic/claude-sonnet-4-6"
 
 
-def test_openrouter_client_raises_without_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_openrouter_client_needs_no_provider_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    # BYOK: the OpenRouter key is vaulted in the gateway, so constructing the
+    # client requires no OPENROUTER_API_KEY on disk. Auth is the gateway token,
+    # supplied per-request (see gateway_auth_header), not at construction.
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    # Ensure .dev.vars fallback also fails by pointing lookup away
-    def no_dev_vars(_: str) -> str | None:
-        return None
-    monkeypatch.setattr(
-        "teaching_knowledge.llm_client._load_dev_vars_key", no_dev_vars
-    )
-    with pytest.raises(RuntimeError, match="OPENROUTER_API_KEY"):
-        LLMClient(provider="openrouter", tier="judge")
+    client = LLMClient(provider="openrouter", tier="judge")
+    assert client.provider == "openrouter"
+    assert client.model == "openai/gpt-5.4-mini"

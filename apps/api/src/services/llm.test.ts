@@ -18,7 +18,8 @@ describe("callWorkersAI", () => {
 		);
 
 		const mockEnv = {
-			AI_GATEWAY_BACKGROUND: "https://gateway.example.com",
+			AI_GATEWAY_ENDPOINT: "https://gateway.example.com",
+			AI_GATEWAY_TOKEN: "test-gateway-token",
 			CLOUDFLARE_API_TOKEN: "test-cf-token-abc123",
 		} as unknown as Bindings;
 
@@ -36,6 +37,7 @@ describe("callWorkersAI", () => {
 		);
 
 		const headers = init.headers as Record<string, string>;
+		expect(headers["cf-aig-authorization"]).toBe("Bearer test-gateway-token");
 		expect(headers["Authorization"]).toBe("Bearer test-cf-token-abc123");
 		expect(result).toBe("Test title");
 	});
@@ -46,7 +48,8 @@ describe("callWorkersAI", () => {
 		);
 
 		const mockEnv = {
-			AI_GATEWAY_BACKGROUND: "https://gateway.example.com",
+			AI_GATEWAY_ENDPOINT: "https://gateway.example.com",
+			AI_GATEWAY_TOKEN: "test-gateway-token",
 			CLOUDFLARE_API_TOKEN: "bad-token",
 		} as unknown as Bindings;
 

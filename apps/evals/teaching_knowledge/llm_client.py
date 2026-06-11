@@ -4,11 +4,15 @@ Workers AI models are accessed through the Cloudflare AI Gateway using
 OpenAI-compatible chat completions format. This avoids adding the openai
 SDK as a dependency -- we use requests (already available).
 
+All providers route through the unified authenticated AI Gateway (BYOK): the
+Anthropic and OpenRouter keys are vaulted in the gateway, not held locally. Only
+the gateway-auth token is needed on disk.
+
 Environment variables:
-  CLOUDFLARE_API_TOKEN -- Cloudflare API token (read from env or apps/api/.dev.vars)
+  AI_GATEWAY_ENDPOINT  -- gateway base URL (read from env or apps/api/.dev.vars)
+  AI_GATEWAY_TOKEN     -- gateway-auth token (cf-aig-authorization)
+  CLOUDFLARE_API_TOKEN -- Cloudflare API token for Workers AI provider auth
   CF_ACCOUNT_ID        -- Cloudflare account ID (defaults to wrangler.toml value)
-  ANTHROPIC_API_KEY    -- Anthropic API key (only needed for --provider anthropic)
-  OPENROUTER_API_KEY   -- OpenRouter API key (only needed for --provider openrouter)
 
 Usage:
   client = LLMClient(provider="workers-ai")
@@ -23,10 +27,12 @@ from pathlib import Path
 
 import requests
 
+from shared.gateway import gateway_auth_header, gateway_endpoint
+
 # Cloudflare account ID from wrangler.toml
 # (See apps/api/wrangler.toml for the canonical source)
 DEFAULT_CF_ACCOUNT_ID = "5df63f40beeab277db407f1ecbd6e1ec"
-DEFAULT_GATEWAY_ID = "crescendai-background"
+DEFAULT_GATEWAY_ID = "crescendai"
 
 # Model defaults per task type
 MODELS = {
@@ -74,27 +80,10 @@ def _load_cf_token() -> str:
     )
 
 
-def _load_anthropic_key() -> None:
-    """Load ANTHROPIC_API_KEY from env or apps/api/.dev.vars."""
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return
-    if not _load_dev_vars_key("ANTHROPIC_API_KEY"):
-        raise RuntimeError(
-            "ANTHROPIC_API_KEY not found. Set it in env or apps/api/.dev.vars"
-        )
-
-
-def _load_openrouter_key() -> str:
-    """Load OPENROUTER_API_KEY from env or apps/api/.dev.vars."""
-    key = os.environ.get("OPENROUTER_API_KEY") or _load_dev_vars_key("OPENROUTER_API_KEY")
-    if key:
-        return key
-    raise RuntimeError(
-        "OPENROUTER_API_KEY not found. Set it in env or apps/api/.dev.vars"
-    )
-
-
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
+# OpenRouter is reached through the gateway's /openrouter path; the key is
+# vaulted (BYOK), so no OpenRouter key is loaded here.
+def _openrouter_url() -> str:
+    return f"{gateway_endpoint()}/openrouter/v1/chat/completions"
 
 # Reasoning models interleave thinking tokens with content tokens, all counted
 # against the same max_tokens budget. Enforce a floor large enough for thinking
@@ -163,12 +152,12 @@ class LLMClient:
                 f"{self._account_id}/{self._gateway_id}/workers-ai/v1/chat/completions"
             )
         elif provider == "anthropic":
-            import anthropic
+            from shared.gateway import anthropic_client
 
-            _load_anthropic_key()
-            self._anthropic = anthropic.Anthropic()
+            self._anthropic = anthropic_client()
         elif provider == "openrouter":
-            self._openrouter_key = _load_openrouter_key()
+            # Auth is the gateway token (BYOK); no OpenRouter key needed.
+            pass
 
     def complete(
         self,
@@ -202,6 +191,7 @@ class LLMClient:
         response = requests.post(
             self._base_url,
             headers={
+                **gateway_auth_header(),
                 "Authorization": f"Bearer {self._cf_token}",
                 "Content-Type": "application/json",
             },
@@ -243,9 +233,9 @@ class LLMClient:
     def _openrouter_complete(self, system: str, user: str, max_tokens: int) -> str:
         payload = _build_openrouter_payload(self.model, system, user, max_tokens)
         response = requests.post(
-            OPENROUTER_BASE_URL,
+            _openrouter_url(),
             headers={
-                "Authorization": f"Bearer {self._openrouter_key}",
+                **gateway_auth_header(),
                 "Content-Type": "application/json",
                 "HTTP-Referer": "https://crescend.ai",
                 "X-Title": "CrescendAI Evals",

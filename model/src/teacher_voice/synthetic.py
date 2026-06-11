@@ -10,10 +10,8 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
-import anthropic
-
+from .gateway import anthropic_client
 from .records import TeachingRecord, save_records
-from .benchmark import _load_api_key
 
 # Scenario templates: each defines a teaching situation to generate
 SCENARIO_TEMPLATES = [
@@ -238,13 +236,7 @@ def generate_synthetic_records(
     if templates is None:
         templates = SCENARIO_TEMPLATES
 
-    api_key = _load_api_key()
-    if not api_key:
-        raise RuntimeError(
-            "ANTHROPIC_API_KEY not found. Set it in the environment "
-            "or in apps/api/.dev.vars"
-        )
-    client = anthropic.Anthropic(api_key=api_key)
+    client = anthropic_client()
     records: list[TeachingRecord] = []
 
     for i, tmpl in enumerate(templates):

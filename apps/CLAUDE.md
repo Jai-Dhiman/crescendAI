@@ -39,7 +39,7 @@ Always follow that guide when editing files under `api/src/`.
 - Auth: better-auth (Apple + Google social providers, cookie sessions)
 - WASM: Rust modules for compute-heavy algorithms (DTW, N-gram, STOP classifier)
 - Real-time: Durable Object `SessionBrain` with WebSocket Hibernation API
-- LLM: Workers AI / Qwen3-30b-a3b-fp8 (subagent, cheap tasks) + Anthropic (teacher) via CF AI Gateway
+- LLM: Workers AI / Gemma-4-26b (subagent, cheap tasks) + Anthropic (teacher), both via one authenticated CF AI Gateway (`crescendai`, BYOK vault)
 - Config: `wrangler.toml` defines all bindings
 - Observability: `@sentry/cloudflare` SDK, structured JSON logging
 

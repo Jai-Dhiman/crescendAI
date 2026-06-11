@@ -1,23 +1,17 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-# Auto-load ANTHROPIC_API_KEY from .dev.vars if not in environment
-if not os.environ.get("ANTHROPIC_API_KEY"):
-    _dev_vars = Path(__file__).parents[2] / "api" / ".dev.vars"
-    if _dev_vars.exists():
-        for line in _dev_vars.read_text().splitlines():
-            if line.startswith("ANTHROPIC_API_KEY="):
-                os.environ["ANTHROPIC_API_KEY"] = line.split("=", 1)[1].strip()
-                break
-
 import anthropic
+
+# Anthropic access is routed through the unified authenticated AI Gateway (BYOK):
+# the provider key is vaulted in the gateway, not held locally.
+from shared.gateway import anthropic_client
 
 # Import LLMClient for Workers AI support (v2 judge functions)
 from teaching_knowledge.llm_client import LLMClient, strip_json_fences
@@ -144,7 +138,7 @@ def judge_observation(
 
     user_message = template.format(**format_kwargs)
 
-    client = anthropic.Anthropic()
+    client = anthropic_client()
     start = time.monotonic()
     response_text = _call_with_retry(client, model, user_message)
     latency_ms = (time.monotonic() - start) * 1000
@@ -177,7 +171,7 @@ def judge_subagent(
         reasoning_trace=subagent_output.get("reasoning_trace", ""),
     )
 
-    client = anthropic.Anthropic()
+    client = anthropic_client()
     start = time.monotonic()
     response_text = _call_with_retry(client, model, user_message)
     latency_ms = (time.monotonic() - start) * 1000
@@ -216,7 +210,7 @@ def judge_synthesis(
 
     user_message = template.format(**format_kwargs)
 
-    client = anthropic.Anthropic()
+    client = anthropic_client()
     start = time.monotonic()
     response_text = _call_with_retry(client, model, user_message)
     latency_ms = (time.monotonic() - start) * 1000
@@ -254,7 +248,7 @@ def judge_teaching_moment(
 
     user_message = template.format(**format_kwargs)
 
-    client = anthropic.Anthropic()
+    client = anthropic_client()
     start = time.monotonic()
     response_text = _call_with_retry(client, model, user_message)
     latency_ms = (time.monotonic() - start) * 1000
@@ -299,7 +293,7 @@ def judge_differentiation(
 
     user_message = template.format(**format_kwargs)
 
-    client = anthropic.Anthropic()
+    client = anthropic_client()
     start = time.monotonic()
     response_text = _call_with_retry(client, model, user_message)
     latency_ms = (time.monotonic() - start) * 1000

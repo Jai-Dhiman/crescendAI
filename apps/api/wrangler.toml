@@ -26,6 +26,9 @@ SENTRY_DSN = "https://13e64989bc4d83f5299ee06e5c4c7bf2@o4511017227321344.ingest.
 MUQ_ENDPOINT = "https://mxcyiqltad84v9w1.us-east4.gcp.endpoints.huggingface.cloud"
 AMT_ENDPOINT = ""
 HARNESS_V6_ENABLED = "true"
+# Unified authenticated AI Gateway base URL (provider path appended per call).
+# AI_GATEWAY_TOKEN is a secret — set via `wrangler secret put AI_GATEWAY_TOKEN`.
+AI_GATEWAY_ENDPOINT = "https://gateway.ai.cloudflare.com/v1/5df63f40beeab277db407f1ecbd6e1ec/crescendai"
 
 [[hyperdrive]]
 binding = "HYPERDRIVE"

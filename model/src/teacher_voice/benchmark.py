@@ -11,25 +11,8 @@ import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-import anthropic
-
+from .gateway import anthropic_client
 from .records import TeachingRecord, load_records
-
-# Default location for API key (apps/api/.dev.vars)
-_DEV_VARS_PATH = Path(__file__).parents[3] / "apps" / "api" / ".dev.vars"
-
-
-def _load_api_key() -> str | None:
-    """Load ANTHROPIC_API_KEY from environment or .dev.vars."""
-    import os
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if key:
-        return key
-    if _DEV_VARS_PATH.exists():
-        for line in _DEV_VARS_PATH.read_text().splitlines():
-            if line.startswith("ANTHROPIC_API_KEY="):
-                return line.split("=", 1)[1].strip()
-    return None
 
 # The teacher persona from Slice 06
 TEACHER_SYSTEM_PROMPT = """You are a piano teacher who has been listening to your student practice. You have years of experience and deep knowledge of piano pedagogy, repertoire, and technique.
@@ -184,13 +167,7 @@ def run_benchmark(
     if variants is None:
         variants = ["bare", "rich", "retrieved"]
 
-    api_key = _load_api_key()
-    if not api_key:
-        raise RuntimeError(
-            "ANTHROPIC_API_KEY not found. Set it in the environment "
-            "or in apps/api/.dev.vars"
-        )
-    client = anthropic.Anthropic(api_key=api_key)
+    client = anthropic_client()
     results: list[BenchmarkResult] = []
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

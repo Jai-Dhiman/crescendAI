@@ -52,12 +52,12 @@ export async function callAnthropic(
 	env: Bindings,
 	request: AnthropicRequest,
 ): Promise<AnthropicResponse> {
-	const url = `${env.AI_GATEWAY_TEACHER}/anthropic/v1/messages`;
+	const url = `${env.AI_GATEWAY_ENDPOINT}/anthropic/v1/messages`;
 	const res = await fetch(url, {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
-			"x-api-key": env.ANTHROPIC_API_KEY,
+			"cf-aig-authorization": `Bearer ${env.AI_GATEWAY_TOKEN}`,
 			"anthropic-version": "2023-06-01",
 			"anthropic-beta": "prompt-caching-2024-07-31",
 		},
@@ -76,12 +76,12 @@ export async function callAnthropicStream(
 	env: Bindings,
 	request: AnthropicRequest,
 ): Promise<ReadableStream> {
-	const url = `${env.AI_GATEWAY_TEACHER}/anthropic/v1/messages`;
+	const url = `${env.AI_GATEWAY_ENDPOINT}/anthropic/v1/messages`;
 	const res = await fetch(url, {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
-			"x-api-key": env.ANTHROPIC_API_KEY,
+			"cf-aig-authorization": `Bearer ${env.AI_GATEWAY_TOKEN}`,
 			"anthropic-version": "2023-06-01",
 			"anthropic-beta": "prompt-caching-2024-07-31",
 		},
@@ -109,7 +109,7 @@ export async function callWorkersAI(
 	maxTokens: number = 100,
 	chatTemplateKwargs?: { enable_thinking?: boolean; clear_thinking?: boolean },
 ): Promise<string> {
-	const url = `${env.AI_GATEWAY_BACKGROUND}/workers-ai/v1/chat/completions`;
+	const url = `${env.AI_GATEWAY_ENDPOINT}/workers-ai/v1/chat/completions`;
 	const body: Record<string, unknown> = {
 		model,
 		messages,
@@ -122,6 +122,9 @@ export async function callWorkersAI(
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
+			"cf-aig-authorization": `Bearer ${env.AI_GATEWAY_TOKEN}`,
+			// Workers AI is first-party; its provider auth is the account API
+			// token, kept inline rather than vaulted (not a third-party secret).
 			Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
 		},
 		body: JSON.stringify(body),
