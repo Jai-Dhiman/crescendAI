@@ -314,7 +314,7 @@ These actions feed back into the conversation as student messages, and the teach
 
 The API returns a component configuration (JSON) alongside the observation text. The client is responsible for rendering:
 
-- **Web:** React components keyed by `type` in `apps/web/src/components/cards/`. Implemented: `ScoreHighlightCard`, `ExerciseSetCard`, `PlayPassageCard`, `SegmentLoopArtifact`. (`keyboard_guide` has a type but no card yet -- falls through to `PlaceholderCard`; `ReferenceBrowserCard` was never built -- `play_passage` replaced the reference-browser stub.)
+- **Web:** React components keyed by `type` in `apps/web/src/components/cards/`. Implemented: `ScoreHighlightCard`, `ExerciseSetCard` (score-first layout with `LoopTransport` interactive playback for `own_passage_loop` prescriptions, shipped #45), `PlayPassageCard`, `SegmentLoopArtifact`. (`keyboard_guide` has a type but no card yet -- falls through to `PlaceholderCard`; `ReferenceBrowserCard` was never built -- `play_passage` replaced the reference-browser stub.)
 - **iOS:** SwiftUI views keyed by `type` planned (same component library, native rendering); not yet implemented.
 
 ### Chat Layout

@@ -3,6 +3,8 @@
 > **Status (2026-03-19):** Exercise DB schema DEFINED. Endpoints IMPLEMENTED (`GET /api/exercises`, exercise tracking). CEO review (2026-03-19): Exercises ship as artifacts in the unified container system (see `05-ui-system.md`). Exercise artifact is the only artifact type in the web beta. Focus mode DEFERRED to Phase 3.
 >
 > **Status update (2026-06-10, S1 shipped — #29):** The legacy `proposed_exercises` (synthesis) and `create_exercise` (chat tool) paths have been removed and replaced by the `ExerciseRoutingDecision` contract. All exercise prescriptions — whether emitted during post-session synthesis or via the `prescribe_exercise` chat tool — now produce a typed routing decision that persists to `pending_exercises`. See [S1 Contract](#s1-exercise-routing-contract-shipped-29) below.
+>
+> **Status update (2026-06-11, own-passage loop playback shipped — #45):** `ExerciseSetCard` redesigned with score-first layout and `LoopTransport` interactive playback. `LoopPlayer` (smplr piano + metronome + `LoopClock`) drives audio. `useLoopPlayer` hook manages countdown/playback state. `score-worker` gained `get_clip_playback` message for IR + playback notes. `tempoFactor` flows from the prescription routing decision into the transport slider.
 
 ---
 
@@ -40,7 +42,7 @@ type ExerciseRoutingDecision =
 
 ### Rendering
 
-- **`own_passage_loop`** — rendered by `ExerciseSetCard` via `scoreClip` through the reflect-then-prescribe gate (shipped #27). The card shows the passage excerpt at reduced tempo.
+- **`own_passage_loop`** — rendered by `ExerciseSetCard` with interactive loop playback (shipped #45). Score-first card layout: score clip at the top, `LoopTransport` bar below (play/stop, tempo slider, bar-range label), animated `ScoreCursor` tracking playback. `LoopPlayer` audio orchestrator drives smplr piano + metronome aligned to `LoopClock`. `tempoFactor` from the prescription drives the initial tempo slider value.
 - **`corpus_drill`** — stub-renders as descriptive text until S3/S4 wire in the corpus retrieval + briefing layer.
 
 ### Persistence
