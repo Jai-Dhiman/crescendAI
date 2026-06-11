@@ -7,16 +7,23 @@ according to that source's actual structure:
 
 - "hanon":      one part containing N exercises, each wrapped in a Repeat
                 barline. Split on Repeat spans -> one primitive per exercise.
-- "czerny":     one part = one etude -> one primitive (whole part).
-- "burgmuller": one part = one study -> one primitive (whole part).
+- per-file MIDI sources ("bach", "czerny", "burgmuller", "chopin", "satie"):
+                a DIRECTORY of per-piece .mid files (one piece = one file,
+                acquired from the Mutopia Project). Each file is one primitive;
+                no boundary detection is needed.
 
-Each primitive is exported as its own MusicXML + MIDI file. The MIDI is what
-feeds Aria embedding; the MusicXML is retained for later rendering/transform.
+For the repeat-boundary source each primitive is exported as its own MusicXML +
+MIDI. For per-file MIDI sources there is no MusicXML (Mutopia ships LilyPond +
+MIDI, and there is no robust .ly -> MusicXML converter); the raw .mid is copied
+verbatim into the MIDI output dir and `musicxml_path` is set to that MIDI path.
+The MIDI is what feeds Aria embedding; nothing downstream of slice A reads
+`musicxml_path` yet.
 
-Supported source names: "hanon", "czerny", "burgmuller"
+Supported source names: "hanon", "bach", "czerny", "burgmuller", "chopin", "satie"
 """
 
 import logging
+import shutil
 from pathlib import Path
 
 import partitura
@@ -33,23 +40,39 @@ class SegmentationError(Exception):
 
 
 # Per-source segmentation strategy.
-# boundary="repeat": split the single part on Repeat-barline spans.
-# boundary="whole":  the whole part is one primitive.
+# boundary="repeat":   split the single MusicXML part on Repeat-barline spans.
+# boundary="per_file": the source path is a DIRECTORY of per-piece .mid files;
+#                      each file is one primitive (Mutopia per-piece MIDI).
 _SOURCE_CONFIGS: dict[str, dict] = {
     "hanon": {
         "title_prefix": "Hanon Exercise",
         "id_prefix": "hanon",
         "boundary": "repeat",
     },
+    "bach": {
+        "title_prefix": "Bach Invention",
+        "id_prefix": "bach",
+        "boundary": "per_file",
+    },
     "czerny": {
-        "title_prefix": "Czerny Etude",
+        "title_prefix": "Czerny Study (Op.840)",
         "id_prefix": "czerny",
-        "boundary": "whole",
+        "boundary": "per_file",
     },
     "burgmuller": {
-        "title_prefix": "Burgmuller Piece",
+        "title_prefix": "Burgmuller Study (Op.100)",
         "id_prefix": "burgmuller",
-        "boundary": "whole",
+        "boundary": "per_file",
+    },
+    "chopin": {
+        "title_prefix": "Chopin Prelude (Op.28)",
+        "id_prefix": "chopin",
+        "boundary": "per_file",
+    },
+    "satie": {
+        "title_prefix": "Satie",
+        "id_prefix": "satie",
+        "boundary": "per_file",
     },
 }
 
@@ -125,39 +148,83 @@ def _export_primitive(
     )
 
 
+def _export_midi_primitive(
+    midi_in: Path,
+    source_name: str,
+    idx: int,
+    config: dict,
+    output_midi_dir: Path,
+) -> Primitive:
+    """Copy a per-piece MIDI file verbatim into the MIDI output dir as one
+    primitive and return its Primitive record.
+
+    No MusicXML exists for these sources (Mutopia ships LilyPond + MIDI), so
+    `musicxml_path` is set to the copied MIDI path. partitura is used only to
+    count notes (the 0-note guard); the MIDI is copied, not re-emitted, so the
+    embedding input stays byte-faithful to the source engraving.
+    """
+    score = partitura.load_score_midi(str(midi_in))
+    n_notes = len(partitura.utils.music.ensure_notearray(score))
+    if n_notes == 0:
+        raise SegmentationError(
+            f"{source_name}: file {midi_in.name} contains 0 notes"
+        )
+
+    primitive_id = f"{config['id_prefix']}_{idx:03d}"
+    title = f"{config['title_prefix']} {idx}"
+    mid_out = output_midi_dir / f"{primitive_id}.mid"
+    shutil.copyfile(midi_in, mid_out)
+
+    logger.info("Segmented %s (n_notes=%d) <- %s", primitive_id, n_notes, midi_in.name)
+    return Primitive(
+        primitive_id=primitive_id,
+        source=source_name,
+        source_exercise_number=idx,
+        title=title,
+        musicxml_path=mid_out,
+        midi_path=mid_out,
+        n_notes=n_notes,
+    )
+
+
 def segment_source(
     musicxml_path: Path,
     source_name: str,
     output_score_dir: Path,
     output_midi_dir: Path,
 ) -> list[Primitive]:
-    """Segment a source MusicXML file into individual Primitive instances.
+    """Segment a source into individual Primitive instances.
 
     Segmentation strategy is per-source (see module docstring):
-    - hanon: split the single part on Repeat-barline spans (one primitive per
-      exercise).
-    - czerny / burgmuller: the whole part is one primitive.
+    - hanon: split the single MusicXML part on Repeat-barline spans (one
+      primitive per exercise).
+    - per-file MIDI sources (bach, czerny, burgmuller, chopin, satie): the path
+      is a DIRECTORY of per-piece .mid files; each file is one primitive,
+      numbered by sorted filename.
 
-    Exports per-primitive MusicXML and MIDI to the given output directories.
+    Exports per-primitive MIDI (and MusicXML for the repeat source) to the given
+    output directories.
 
     Args:
-        musicxml_path: path to the source MusicXML (.xml or compressed .mxl).
-        source_name: one of "hanon", "czerny", "burgmuller".
-        output_score_dir: directory to write per-primitive MusicXML files.
+        musicxml_path: for "hanon", path to the source MusicXML (.xml/.mxl); for
+            per-file MIDI sources, path to a directory of .mid files.
+        source_name: one of the keys of _SOURCE_CONFIGS.
+        output_score_dir: directory to write per-primitive MusicXML files
+            (used by the repeat source only).
         output_midi_dir: directory to write per-primitive MIDI files.
 
     Returns:
         List of Primitive dataclasses ordered by source_exercise_number ascending.
 
     Raises:
-        SegmentationError: if source_name is unrecognized; if the score has zero
-            parts; if a "repeat" source has no Repeat markers; or if a resulting
-            segment has zero notes.
+        SegmentationError: if source_name is unrecognized; if a per_file source
+            directory contains no .mid files; if the score has zero parts; if a
+            "repeat" source has no Repeat markers; or if a segment has zero notes.
         FileNotFoundError: if musicxml_path does not exist.
     """
     musicxml_path = Path(musicxml_path)
     if not musicxml_path.exists():
-        raise FileNotFoundError(f"MusicXML not found: {musicxml_path}")
+        raise FileNotFoundError(f"source path not found: {musicxml_path}")
 
     if source_name not in _SOURCE_CONFIGS:
         raise SegmentationError(
@@ -169,6 +236,20 @@ def segment_source(
     output_midi_dir = Path(output_midi_dir)
     output_score_dir.mkdir(parents=True, exist_ok=True)
     output_midi_dir.mkdir(parents=True, exist_ok=True)
+
+    if config["boundary"] == "per_file":
+        midi_files = sorted(musicxml_path.glob("*.mid"))
+        if not midi_files:
+            raise SegmentationError(
+                f"{source_name}: boundary='per_file' but no .mid files found "
+                f"in directory {musicxml_path}"
+            )
+        return [
+            _export_midi_primitive(
+                midi_in, source_name, idx, config, output_midi_dir
+            )
+            for idx, midi_in in enumerate(midi_files, start=1)
+        ]
 
     score = partitura.load_score(str(musicxml_path))
     parts = list(score.parts)
@@ -204,12 +285,9 @@ def segment_source(
                     sub, source_name, idx, config, output_score_dir, output_midi_dir
                 )
             )
-    else:  # "whole": each part is one primitive (real files have a single part)
-        for idx, part in enumerate(parts, start=1):
-            primitives.append(
-                _export_primitive(
-                    part, source_name, idx, config, output_score_dir, output_midi_dir
-                )
-            )
+    else:
+        raise SegmentationError(
+            f"{source_name}: unsupported boundary {config['boundary']!r}"
+        )
 
     return primitives

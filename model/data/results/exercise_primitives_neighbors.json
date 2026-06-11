@@ -1,31 +1,171 @@
 [
   {
+    "query_id": "bach_001",
+    "neighbor_id": "bach_014",
+    "source_a": "bach",
+    "source_b": "bach",
+    "cosine_distance": 0.04617893695831299
+  },
+  {
+    "query_id": "bach_002",
+    "neighbor_id": "bach_007",
+    "source_a": "bach",
+    "source_b": "bach",
+    "cosine_distance": 0.041662633419036865
+  },
+  {
+    "query_id": "bach_003",
+    "neighbor_id": "bach_004",
+    "source_a": "bach",
+    "source_b": "bach",
+    "cosine_distance": 0.04093688726425171
+  },
+  {
+    "query_id": "bach_004",
+    "neighbor_id": "bach_012",
+    "source_a": "bach",
+    "source_b": "bach",
+    "cosine_distance": 0.02406454086303711
+  },
+  {
+    "query_id": "bach_005",
+    "neighbor_id": "bach_015",
+    "source_a": "bach",
+    "source_b": "bach",
+    "cosine_distance": 0.025390446186065674
+  },
+  {
+    "query_id": "burgmuller_001",
+    "neighbor_id": "burgmuller_010",
+    "source_a": "burgmuller",
+    "source_b": "burgmuller",
+    "cosine_distance": 0.06904029846191406
+  },
+  {
+    "query_id": "burgmuller_002",
+    "neighbor_id": "burgmuller_011",
+    "source_a": "burgmuller",
+    "source_b": "burgmuller",
+    "cosine_distance": 0.1746256947517395
+  },
+  {
+    "query_id": "burgmuller_003",
+    "neighbor_id": "burgmuller_017",
+    "source_a": "burgmuller",
+    "source_b": "burgmuller",
+    "cosine_distance": 0.07493209838867188
+  },
+  {
+    "query_id": "burgmuller_004",
+    "neighbor_id": "burgmuller_010",
+    "source_a": "burgmuller",
+    "source_b": "burgmuller",
+    "cosine_distance": 0.16207748651504517
+  },
+  {
+    "query_id": "burgmuller_005",
+    "neighbor_id": "burgmuller_017",
+    "source_a": "burgmuller",
+    "source_b": "burgmuller",
+    "cosine_distance": 0.15631842613220215
+  },
+  {
+    "query_id": "chopin_001",
+    "neighbor_id": "chopin_005",
+    "source_a": "chopin",
+    "source_b": "chopin",
+    "cosine_distance": 0.13114744424819946
+  },
+  {
+    "query_id": "chopin_002",
+    "neighbor_id": "chopin_013",
+    "source_a": "chopin",
+    "source_b": "chopin",
+    "cosine_distance": 0.19904381036758423
+  },
+  {
+    "query_id": "chopin_003",
+    "neighbor_id": "chopin_008",
+    "source_a": "chopin",
+    "source_b": "chopin",
+    "cosine_distance": 0.15799087285995483
+  },
+  {
+    "query_id": "chopin_004",
+    "neighbor_id": "chopin_013",
+    "source_a": "chopin",
+    "source_b": "chopin",
+    "cosine_distance": 0.16631156206130981
+  },
+  {
+    "query_id": "chopin_005",
+    "neighbor_id": "chopin_019",
+    "source_a": "chopin",
+    "source_b": "chopin",
+    "cosine_distance": 0.11277925968170166
+  },
+  {
+    "query_id": "czerny_001",
+    "neighbor_id": "czerny_009",
+    "source_a": "czerny",
+    "source_b": "czerny",
+    "cosine_distance": 0.11299216747283936
+  },
+  {
+    "query_id": "czerny_002",
+    "neighbor_id": "czerny_006",
+    "source_a": "czerny",
+    "source_b": "czerny",
+    "cosine_distance": 0.0460200309753418
+  },
+  {
+    "query_id": "czerny_003",
+    "neighbor_id": "czerny_004",
+    "source_a": "czerny",
+    "source_b": "czerny",
+    "cosine_distance": 0.13972008228302002
+  },
+  {
+    "query_id": "czerny_004",
+    "neighbor_id": "czerny_002",
+    "source_a": "czerny",
+    "source_b": "czerny",
+    "cosine_distance": 0.05320942401885986
+  },
+  {
+    "query_id": "czerny_005",
+    "neighbor_id": "czerny_010",
+    "source_a": "czerny",
+    "source_b": "czerny",
+    "cosine_distance": 0.05280524492263794
+  },
+  {
     "query_id": "hanon_001",
     "neighbor_id": "hanon_007",
     "source_a": "hanon",
     "source_b": "hanon",
-    "cosine_distance": 0.016948580741882324
+    "cosine_distance": 0.0169486403465271
   },
   {
     "query_id": "hanon_002",
     "neighbor_id": "hanon_004",
     "source_a": "hanon",
     "source_b": "hanon",
-    "cosine_distance": 0.0065805912017822266
+    "cosine_distance": 0.006580173969268799
   },
   {
     "query_id": "hanon_003",
     "neighbor_id": "hanon_011",
     "source_a": "hanon",
     "source_b": "hanon",
-    "cosine_distance": 0.011130094528198242
+    "cosine_distance": 0.011130452156066895
   },
   {
     "query_id": "hanon_004",
     "neighbor_id": "hanon_002",
     "source_a": "hanon",
     "source_b": "hanon",
-    "cosine_distance": 0.0065805912017822266
+    "cosine_distance": 0.006580173969268799
   },
   {
     "query_id": "hanon_005",
@@ -33,5 +173,40 @@
     "source_a": "hanon",
     "source_b": "hanon",
     "cosine_distance": 0.012023687362670898
+  },
+  {
+    "query_id": "satie_001",
+    "neighbor_id": "satie_003",
+    "source_a": "satie",
+    "source_b": "satie",
+    "cosine_distance": 0.08878201246261597
+  },
+  {
+    "query_id": "satie_002",
+    "neighbor_id": "satie_003",
+    "source_a": "satie",
+    "source_b": "satie",
+    "cosine_distance": 0.07725977897644043
+  },
+  {
+    "query_id": "satie_003",
+    "neighbor_id": "satie_002",
+    "source_a": "satie",
+    "source_b": "satie",
+    "cosine_distance": 0.07725977897644043
+  },
+  {
+    "query_id": "satie_004",
+    "neighbor_id": "satie_006",
+    "source_a": "satie",
+    "source_b": "satie",
+    "cosine_distance": 0.06464052200317383
+  },
+  {
+    "query_id": "satie_005",
+    "neighbor_id": "satie_006",
+    "source_a": "satie",
+    "source_b": "satie",
+    "cosine_distance": 0.05770468711853027
   }
 ]

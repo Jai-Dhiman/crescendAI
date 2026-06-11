@@ -1,17 +1,21 @@
-# Editorial technique tags per exercise primitive (issue #36).
+# Editorial technique tags per exercise primitive (issues #17, #36).
 #
-# Retrieval (match.match_by_dimension) filters candidate exercises by `dimensions`.
-# An empty bucket for a requested dimension raises NoPrimitiveForDimensionError --
-# there is NO off-dimension fallback. Conservative authoring: only high-confidence
-# dimension claims are made.
+# Retrieval (match.match_by_dimension) filters candidates by `dimensions`;
+# an empty bucket raises NoPrimitiveForDimensionError (no off-dimension
+# fallback). Dimensions are restricted to the canonical 6 (tags.DIMENSIONS).
 #
-# This corpus (Hanon premiere partie 1-20 + Czerny op.299 no.1 + Burgmuller op.100
-# no.1) contains no pedaling or dynamics study, so `pedaling` and `dynamics` are
-# intentionally untagged and will raise -- that error is the issue #17 corpus-
-# breadth gap made legible, not a bug.
+# Source -> dimension rationale:
+#   hanon (ex.1-20): finger mechanics            -> articulation, timing
+#   bach (inventions): two-voice counterpoint    -> articulation, phrasing
+#   czerny (Op.840): melodic velocity studies    -> timing, articulation
+#   burgmuller (Op.100): Romantic character      -> phrasing, dynamics, interpretation
+#   chopin (Op.28): pedaled Romantic preludes    -> pedaling, dynamics, phrasing
+#   satie (Gymnopedies/Gnossiennes): static pedal-> pedaling, dynamics
 #
-# `techniques` is free vocabulary used only as human-readable annotation today.
-# `key` is the notated key of this exercise primitive (used for ADAPT transpose).
+# `key` is the notated key (used by slice C ADAPT transpose). For the Mutopia
+# MIDI sources it is extracted from the file key signature; 3 zero-fifths
+# pieces (Bach Inv.1/13, Chopin Prel.1) are set from canonical knowledge.
+# `techniques` is free human-readable vocabulary.
 
 [hanon_001]
 dimensions = ["articulation", "timing"]
@@ -113,12 +117,367 @@ dimensions = ["articulation", "timing"]
 techniques = ["finger_independence", "evenness"]
 key = "C"
 
-[czerny_001]
-dimensions = ["timing", "articulation"]
-techniques = ["velocity", "finger_facility"]
+[bach_001]
+dimensions = ["articulation", "phrasing"]
+techniques = ["counterpoint", "voice_independence"]
 key = "C"
 
-[burgmuller_001]
-dimensions = ["phrasing", "interpretation"]
-techniques = ["cantabile", "legato"]
+[bach_002]
+dimensions = ["articulation", "phrasing"]
+techniques = ["counterpoint", "voice_independence"]
+key = "c"
+
+[bach_003]
+dimensions = ["articulation", "phrasing"]
+techniques = ["counterpoint", "voice_independence"]
+key = "D"
+
+[bach_004]
+dimensions = ["articulation", "phrasing"]
+techniques = ["counterpoint", "voice_independence"]
+key = "d"
+
+[bach_005]
+dimensions = ["articulation", "phrasing"]
+techniques = ["counterpoint", "voice_independence"]
+key = "Eb"
+
+[bach_006]
+dimensions = ["articulation", "phrasing"]
+techniques = ["counterpoint", "voice_independence"]
+key = "E"
+
+[bach_007]
+dimensions = ["articulation", "phrasing"]
+techniques = ["counterpoint", "voice_independence"]
+key = "e"
+
+[bach_008]
+dimensions = ["articulation", "phrasing"]
+techniques = ["counterpoint", "voice_independence"]
+key = "F"
+
+[bach_009]
+dimensions = ["articulation", "phrasing"]
+techniques = ["counterpoint", "voice_independence"]
+key = "f"
+
+[bach_010]
+dimensions = ["articulation", "phrasing"]
+techniques = ["counterpoint", "voice_independence"]
+key = "G"
+
+[bach_011]
+dimensions = ["articulation", "phrasing"]
+techniques = ["counterpoint", "voice_independence"]
+key = "g"
+
+[bach_012]
+dimensions = ["articulation", "phrasing"]
+techniques = ["counterpoint", "voice_independence"]
+key = "A"
+
+[bach_013]
+dimensions = ["articulation", "phrasing"]
+techniques = ["counterpoint", "voice_independence"]
+key = "a"
+
+[bach_014]
+dimensions = ["articulation", "phrasing"]
+techniques = ["counterpoint", "voice_independence"]
+key = "Bb"
+
+[bach_015]
+dimensions = ["articulation", "phrasing"]
+techniques = ["counterpoint", "voice_independence"]
+key = "b"
+
+[czerny_001]
+dimensions = ["timing", "articulation"]
+techniques = ["velocity", "finger_facility", "evenness"]
+key = "c"
+
+[czerny_002]
+dimensions = ["timing", "articulation"]
+techniques = ["velocity", "finger_facility", "evenness"]
+key = "F"
+
+[czerny_003]
+dimensions = ["timing", "articulation"]
+techniques = ["velocity", "finger_facility", "evenness"]
+key = "c"
+
+[czerny_004]
+dimensions = ["timing", "articulation"]
+techniques = ["velocity", "finger_facility", "evenness"]
+key = "Bb"
+
+[czerny_005]
+dimensions = ["timing", "articulation"]
+techniques = ["velocity", "finger_facility", "evenness"]
 key = "C"
+
+[czerny_006]
+dimensions = ["timing", "articulation"]
+techniques = ["velocity", "finger_facility", "evenness"]
+key = "C"
+
+[czerny_007]
+dimensions = ["timing", "articulation"]
+techniques = ["velocity", "finger_facility", "evenness"]
+key = "G"
+
+[czerny_008]
+dimensions = ["timing", "articulation"]
+techniques = ["velocity", "finger_facility", "evenness"]
+key = "C"
+
+[czerny_009]
+dimensions = ["timing", "articulation"]
+techniques = ["velocity", "finger_facility", "evenness"]
+key = "Bb"
+
+[czerny_010]
+dimensions = ["timing", "articulation"]
+techniques = ["velocity", "finger_facility", "evenness"]
+key = "G"
+
+[burgmuller_001]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "C"
+
+[burgmuller_002]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "a"
+
+[burgmuller_003]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "G"
+
+[burgmuller_004]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "C"
+
+[burgmuller_005]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "F"
+
+[burgmuller_006]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "C"
+
+[burgmuller_007]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "G"
+
+[burgmuller_008]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "F"
+
+[burgmuller_009]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "C"
+
+[burgmuller_010]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "D"
+
+[burgmuller_011]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "C"
+
+[burgmuller_012]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "C"
+
+[burgmuller_013]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "C"
+
+[burgmuller_014]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "G"
+
+[burgmuller_015]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "c"
+
+[burgmuller_016]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "g"
+
+[burgmuller_017]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "F"
+
+[burgmuller_018]
+dimensions = ["phrasing", "dynamics", "interpretation"]
+techniques = ["cantabile", "legato", "character"]
+key = "e"
+
+[chopin_001]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "C"
+
+[chopin_002]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "a"
+
+[chopin_003]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "G"
+
+[chopin_004]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "e"
+
+[chopin_005]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "D"
+
+[chopin_006]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "b"
+
+[chopin_007]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "A"
+
+[chopin_008]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "f#"
+
+[chopin_009]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "E"
+
+[chopin_010]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "c#"
+
+[chopin_011]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "B"
+
+[chopin_012]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "g#"
+
+[chopin_013]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "F#"
+
+[chopin_014]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "eb"
+
+[chopin_015]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "Db"
+
+[chopin_016]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "bb"
+
+[chopin_017]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "Ab"
+
+[chopin_018]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "f"
+
+[chopin_019]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "Eb"
+
+[chopin_020]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "c"
+
+[chopin_021]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "Bb"
+
+[chopin_022]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "g"
+
+[chopin_023]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "F"
+
+[chopin_024]
+dimensions = ["pedaling", "dynamics", "phrasing"]
+techniques = ["pedaling", "rubato", "voicing"]
+key = "d"
+
+[satie_001]
+dimensions = ["pedaling", "dynamics"]
+techniques = ["sustained_pedal", "voicing"]
+key = "f"
+
+[satie_002]
+dimensions = ["pedaling", "dynamics"]
+techniques = ["sustained_pedal", "voicing"]
+key = "a"
+
+[satie_003]
+dimensions = ["pedaling", "dynamics"]
+techniques = ["sustained_pedal", "voicing"]
+key = "a"
+
+[satie_004]
+dimensions = ["pedaling", "dynamics"]
+techniques = ["sustained_pedal", "voicing"]
+key = "b"
+
+[satie_005]
+dimensions = ["pedaling", "dynamics"]
+techniques = ["sustained_pedal", "voicing"]
+key = "a"
+
+[satie_006]
+dimensions = ["pedaling", "dynamics"]
+techniques = ["sustained_pedal", "voicing"]
+key = "a"

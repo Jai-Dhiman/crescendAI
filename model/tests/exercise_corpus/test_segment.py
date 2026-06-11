@@ -3,11 +3,23 @@ import mido
 import partitura
 import pytest
 from pathlib import Path
+from partitura.score import Note, Part, TimeSignature
 
 from exercise_corpus import Primitive
 from exercise_corpus.segment import segment_source, SegmentationError
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def _write_midi(path: Path, n_notes: int = 3) -> None:
+    """Write a minimal valid MIDI of n_notes quarter notes (for per_file tests)."""
+    part = Part("P0", "test", quarter_duration=1)
+    part.add(TimeSignature(4, 4), 0)
+    for i in range(n_notes):
+        part.add(Note(step="C", octave=4, voice=1), start=i, end=i + 1)
+    partitura.score.add_measures(part)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    partitura.save_score_midi(part, str(path))
 
 
 def _midi_pitch_set(midi_path: Path) -> set[int]:
@@ -37,14 +49,35 @@ def test_hanon_repeat_split_yields_three_primitives(tmp_path: Path):
     assert [p.source_exercise_number for p in primitives] == [1, 2, 3]
 
 
-def test_czerny_whole_part_yields_one_primitive(tmp_path: Path):
-    # Single-piece sources segment to exactly one primitive (whole part).
-    primitives = segment_source(
-        FIXTURES / "czerny_1ex.xml", "czerny", tmp_path / "scores", tmp_path / "midi"
-    )
-    assert len(primitives) == 1
-    assert primitives[0].source == "czerny"
-    assert primitives[0].source_exercise_number == 1
+def test_per_file_one_primitive_per_midi(tmp_path: Path):
+    # per_file sources: a directory of .mid files -> one primitive each,
+    # numbered by SORTED filename starting at 1.
+    src = tmp_path / "raw" / "czerny_op840"
+    for name in ["c_02.mid", "c_01.mid", "c_03.mid"]:
+        _write_midi(src / name)
+    primitives = segment_source(src, "czerny", tmp_path / "scores", tmp_path / "midi")
+    assert [p.primitive_id for p in primitives] == ["czerny_001", "czerny_002", "czerny_003"]
+    assert all(p.source == "czerny" for p in primitives)
+    assert all(p.n_notes == 3 for p in primitives)
+
+
+def test_per_file_copies_midi_and_aliases_musicxml_path(tmp_path: Path):
+    src = tmp_path / "raw" / "chopin_op28"
+    _write_midi(src / "p_01.mid")
+    midi_out = tmp_path / "midi"
+    primitives = segment_source(src, "chopin", tmp_path / "scores", midi_out)
+    p = primitives[0]
+    assert p.midi_path == midi_out / "chopin_001.mid"
+    assert p.midi_path.exists()
+    # No MusicXML exists for per_file sources: musicxml_path aliases the MIDI.
+    assert p.musicxml_path == p.midi_path
+
+
+def test_per_file_empty_directory_raises(tmp_path: Path):
+    empty = tmp_path / "raw" / "satie"
+    empty.mkdir(parents=True)
+    with pytest.raises(SegmentationError, match="no .mid files"):
+        segment_source(empty, "satie", tmp_path / "scores", tmp_path / "midi")
 
 
 def test_primitive_fields_are_populated(tmp_path: Path):
