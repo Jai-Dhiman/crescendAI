@@ -80,7 +80,22 @@ scoreClip?: { pieceId: string; bars: [number, number] };
 scoreClip?: { pieceId: string; bars: [number, number]; tempoFactor?: number };
 ```
 
-In `apps/api/src/services/exercises.ts`, at the `own_passage_loop` scoreClip construction (~line 222–227), change:
+In `apps/api/src/services/exercises.ts`, first update the `ExerciseSetPayload` type at line 15 to add `tempoFactor`:
+```typescript
+// Before:
+export type ExerciseSetPayload = {
+  sourcePassage: string;
+  targetSkill: string;
+  scoreClip?: { pieceId: string; bars: [number, number] };
+  // ...
+};
+// After: change the scoreClip field to:
+  scoreClip?: { pieceId: string; bars: [number, number]; tempoFactor?: number };
+```
+
+**Important:** This type lives in `apps/api/src/services/exercises.ts` line 15, NOT in `apps/api/src/lib/types.ts` (do not touch lib/types.ts). The web-side type `ExerciseSetConfig.scoreClip` in `apps/web/src/lib/types.ts` is a separate type (updated above in the same step) — both must carry `tempoFactor?: number`.
+
+Then, at the `own_passage_loop` scoreClip construction (~line 222–227), change:
 ```typescript
 // Before:
 const scoreClip =
@@ -110,49 +125,66 @@ const scoreClip =
 
 - [ ] **Step 4: Also add a test covering the `exercises.ts` construction site**
 
-The `assignPendingExercise` path in `exercises.ts` also builds `scoreClip` and must forward `tempoFactor`. There is no existing test for this path, so add one. Read `apps/api/src/services/exercises.test.ts` (or the closest test file for `exercises.ts`) to find its test pattern; if no test file exists, create `apps/api/src/services/exercises.test.ts` with:
+The `assignPendingExercise` path in `exercises.ts` also builds `scoreClip` and must forward `tempoFactor`. There is no existing test for this path, so create `apps/api/src/services/exercises.test.ts`.
+
+Before writing the test, read `apps/api/src/services/exercises.ts` to understand the exact shape. Key facts (verified against the actual source):
+
+- Signature: `assignPendingExercise(ctx, args: { studentId: string; sessionId: string; exerciseId: string })` — NOT positional strings.
+- DB query chain: `ctx.db.select().from(pendingExercises).where(and(...))` — NO `.limit()` call. The mock must resolve at `.where()`.
+- The mock row field for the routing JSON is `routingJson` (Drizzle camelCase for column `routing_json`), NOT `routing`. The value must be the parsed object (not a stringified string) because `assignPendingExercise` passes it directly to `ExerciseRoutingDecisionSchema.safeParse(pendingRow.routingJson)`.
+- After fetching the row, the function calls `ctx.db.update(pendingExercises).set(...).where(...)` — the mock must include a chainable `update`.
+- Return type is `ExerciseSetPayload` directly — `scoreClip` is at `result.scoreClip`, NOT at `result.config.scoreClip`.
 
 ```typescript
 // apps/api/src/services/exercises.test.ts
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 describe("assignPendingExercise — own_passage_loop tempoFactor", () => {
   it("scoreClip includes tempoFactor from routing own_passage_loop", async () => {
-    // Minimal mock ctx — assignPendingExercise calls db.select to fetch pending row.
     const mockRow = {
       id: "row-1",
       studentId: "stu-1",
-      routing: JSON.stringify({
+      consumed: false,
+      // routingJson: parsed object (not a JSON string) — safeParse receives it directly.
+      routingJson: {
         kind: "own_passage_loop",
         target_dimension: "dynamics",
         bar_range: [5, 8],
         tempo_factor: 0.75,
-      }),
+      },
       pieceId: "chopin.ballades.1",
       focusDimension: "dynamics",
+      title: "Loop passage",
+      previewTitle: "Loop passage",
+      instruction: "Practice at 75%.",
     };
     const ctx = {
       db: {
+        // select().from().where() resolves to [mockRow] with no .limit().
         select: () => ({
           from: () => ({
-            where: () => ({
-              limit: () => Promise.resolve([mockRow]),
-            }),
+            where: () => Promise.resolve([mockRow]),
+          }),
+        }),
+        // update().set().where() must exist for the consumed=true mutation.
+        update: () => ({
+          set: () => ({
+            where: () => Promise.resolve(),
           }),
         }),
       },
     } as never;
     const { assignPendingExercise } = await import("./exercises");
-    const result = await assignPendingExercise(ctx, "stu-1", "row-1");
-    const config = result?.config as {
-      scoreClip?: { pieceId: string; bars: [number, number]; tempoFactor?: number };
-    };
-    expect(config.scoreClip?.tempoFactor).toBe(0.75);
+    const result = await assignPendingExercise(ctx, {
+      studentId: "stu-1",
+      sessionId: "session-1",
+      exerciseId: "row-1",
+    });
+    // ExerciseSetPayload returns scoreClip at the top level, not under .config.
+    expect(result.scoreClip?.tempoFactor).toBe(0.75);
   });
 });
 ```
-
-**Note:** Read `exercises.ts` to understand the exact `assignPendingExercise` signature and return type before writing this test. Adjust the mock shape to match whatever DB query the function makes. If the function's return type doesn't expose `config` directly, trace the actual return to find where `scoreClip` lives.
 
 - [ ] **Step 5: Run tests — verify both PASS**
 
@@ -467,6 +499,8 @@ In the `onmessage` handler, after the `get_ir` branch, add:
 
 In `apps/web/src/lib/score-renderer.ts`, add `getClipPlayback` method after `getClip`:
 
+**Dependency note:** `getClipPlayback` (like the existing `getClip`) requires that `load(pieceId)` has already been called for this piece. The worker returns `"bytes required on first request"` if bytes were never loaded. This is the same contract as `getClip` — neither method calls `ensureBytes` internally. The caller (`ExerciseSetCard`) must ensure `scoreRenderer.load(pieceId)` was called before invoking `getClipPlayback`. In practice this means the `ExerciseSetCard` effect must await `load()` first, OR the component is only rendered after a parent (e.g. the score viewer) has already called `load()`. Document this in the `ExerciseSetCard` implementation: call `scoreRenderer.load(pieceId)` at the start of the `useEffect` before `getClipPlayback`, catching load failures via `clipLoadError`. The `load()` call is idempotent if the piece is already loaded (the worker returns from cache).
+
 ```typescript
 async getClipPlayback(
   pieceId: string,
@@ -487,6 +521,29 @@ async getClipPlayback(
 ```
 
 Also add `import type { ScoreIR } from "./score-ir";` at the top of `score-renderer.ts` if not already present (it is already imported via the existing `irCache` field type — confirm by reading the top).
+
+**In `ExerciseSetCard.tsx`**, the `getClipPlayback` `useEffect` must call `load()` first:
+```typescript
+if (hasTempoFactor) {
+  scoreRenderer
+    .load(config.scoreClip.pieceId)  // idempotent if already loaded
+    .then(() =>
+      scoreRenderer.getClipPlayback(config.scoreClip!.pieceId, config.scoreClip!.bars[0], config.scoreClip!.bars[1])
+    )
+    .then((r) => {
+      if (!cancelled) {
+        setScoreClipSvg(r.svg);
+        setClipIR(r.ir);
+        setClipNotes(r.notes);
+      }
+    })
+    .catch((err) => {
+      console.error("ExerciseSetCard: failed to load clip playback", err);
+      if (!cancelled) setClipLoadError(true);
+    });
+}
+```
+This replaces the direct `scoreRenderer.getClipPlayback(...)` call shown later in the card's useEffect. The non-tempoFactor `getClip` path has the same dependency — add a `load()` call there too if the score has not already been loaded by a parent component.
 
 - [ ] **Step 4: Run test — verify it PASSES**
 
@@ -1054,20 +1111,14 @@ describe("LoopPlayer", () => {
     player.destroy();
   });
 
-  it("first note of pass N+1 is scheduled in the wrap-boundary tick (no dropout)", async () => {
-    // This test verifies that when the lookahead window crosses clipEndQ, notes at
-    // the start of the next loop pass (near clipStartQ) are scheduled in that same tick.
-    // Without the wrap-aware scheduling fix, these notes are skipped (dropout).
+  it("first note of pass N+1 is scheduled in the wrap-boundary tick (no dropout, no doubling)", async () => {
+    // This test verifies two things:
+    // 1. When the lookahead window crosses clipEndQ, the note at clipStartQ is scheduled
+    //    for the next pass (no dropout).
+    // 2. The same note is NOT scheduled more than once per pass even if multiple ticks
+    //    occur while horizonQ >= clipEndQ (no note doubling — the one-per-boundary fix).
     const { LoopPlayer } = await import("./loop-player");
-    // Use a fake AudioContext whose scheduled array we can inspect.
-    const scheduled: Array<{ note: number; time: number; duration: number }> = [];
-    const piano = makeFakePiano(scheduled);
     const { ctx } = makeFakeAudioContext();
-    // Expose the piano stub via the vi.mock at the top of this file.
-    // The Soundfont mock's start() fn delegates to piano.start(), so we override it here.
-    // Since vi.mock("smplr") returns a stub with start: vi.fn(), capture calls differently:
-    // We directly test LoopPlayer._scheduleNote logic by checking that after one full clip
-    // duration passes, notes[0] (at clipStartQ=16) is scheduled again.
 
     // Construct player with a single note at clipStartQ (startQ=16).
     const SINGLE_NOTE: import("./score-worker").ClipNote[] = [
@@ -1084,20 +1135,19 @@ describe("LoopPlayer", () => {
     });
     await player.play();
 
-    // Advance fake timers by count-in (2s) + full clip (8s) + one scheduler tick (25ms).
-    // At this point the wrap has occurred and the first note of the new pass should
-    // have been scheduled.
-    vi.advanceTimersByTime(10025);
+    // Advance fake timers by count-in (2s) + full clip (8s) + several scheduler ticks.
+    // Multiple ticks while horizonQ >= clipEndQ must NOT re-schedule the same note.
+    vi.advanceTimersByTime(10200); // 10s + 200ms = ~8 ticks past the wrap boundary
 
-    // The Soundfont mock's start() captures calls in the vi.mock at the top.
-    // Check that the mocked smplr Soundfont.start was called at least twice —
-    // once for pass 1 (note at clipStartQ on first play) and once for pass 2 (wrap).
     const { Soundfont } = await import("smplr");
     const sfInstance = (Soundfont as ReturnType<typeof vi.fn>).mock.results[0]?.value;
     if (sfInstance) {
-      const startCallCount = (sfInstance.start as ReturnType<typeof vi.fn>).mock.calls.length;
-      // At least 2 calls: one for pass 1, one for the note in the wrap-boundary tick.
-      expect(startCallCount).toBeGreaterThanOrEqual(2);
+      const startCalls = (sfInstance.start as ReturnType<typeof vi.fn>).mock.calls as Array<[{ note: number }]>;
+      // Filter calls for MIDI note 60 (our single note).
+      const note60Calls = startCalls.filter((args) => args[0]?.note === 60);
+      // Should be scheduled exactly twice: once for pass 1, once for pass 2 (the wrap).
+      // If the doubling bug is present, this will be 3 or more. If dropout, it will be 1.
+      expect(note60Calls.length).toBe(2);
     }
     player.destroy();
   });
@@ -1231,6 +1281,9 @@ export class LoopPlayer {
     this.clock?.stop();
     this.clock = null;
     this.scheduledNoteKeys.clear();
+    // Reset metronome state so stop-then-replay starts fresh from beat 0.
+    this.nextMetronomeBeatTime = null;
+    this.metronomeBeatIndex = 0;
     this.state = "idle";
   }
 
@@ -1290,16 +1343,22 @@ export class LoopPlayer {
     //   - horizonQ = nowQ + lookaheadQ may exceed clipEndQ
     // Two cases need scheduling:
     //   Case A: note.startQ in [nowQ, clipEndQ)     — current pass tail
-    //   Case B: horizonQ > clipEndQ AND note.startQ in [clipStartQ, horizonQ - clipRangeQ)
+    //   Case B: horizonQ > clipEndQ AND note.startQ in [clipStartQ, horizonQ - clipRange)
     //                                               — next pass head (wrap-around notes)
-    const clipRange = this.clipEndQ - this.clipStartQ;
 
-    // Check if lookahead crosses the loop boundary.
-    const wrapsThisTick = horizonQ >= this.clipEndQ;
+    // Detect wrap: compute which pass the lookahead horizon has entered.
+    // horizonQ may exceed clipEndQ; compute the pass number from the unwrapped horizon.
+    // Using floor division: passOfHorizon = floor((horizonQ - clipStartQ) / clipRange).
+    // If passOfHorizon > currentPassIndex, we have crossed into a new pass this tick.
+    // This fires EXACTLY ONCE per boundary crossing regardless of how many ticks
+    // remain while horizonQ >= clipEndQ.
+    const clipRange = this.clipEndQ - this.clipStartQ;
+    const passOfHorizon = Math.floor((horizonQ - this.clipStartQ) / clipRange);
+    const wrapsThisTick = passOfHorizon > this.currentPassIndex;
     if (wrapsThisTick) {
-      // Advance pass index and clear the per-pass scheduled set so notes in the
-      // new pass are scheduled fresh. Do this ONCE per wrap, not on every tick.
-      this.currentPassIndex += 1;
+      // Advance to the new pass and clear scheduled keys so next-pass notes can be
+      // enqueued. This runs at most once per loop boundary.
+      this.currentPassIndex = passOfHorizon;
       this.scheduledNoteKeys.clear();
     }
 
@@ -1392,11 +1451,7 @@ export class LoopPlayer {
 }
 ```
 
-**Note:** `nextMetronomeBeatTime` is initialized directly inside `play()` in the class listing above (after `this.clock.start(nowMs)`). The `stop()` method already resets it to null via the field declaration (`private nextMetronomeBeatTime: number | null = null`). In `stop()`, add:
-```typescript
-this.nextMetronomeBeatTime = null;
-this.metronomeBeatIndex = 0;
-```
+**Note:** `nextMetronomeBeatTime` is initialized inside `play()` in the class listing above (after `this.clock.start(nowMs)`). The `stop()` body in the class listing above already includes `this.nextMetronomeBeatTime = null` and `this.metronomeBeatIndex = 0` — do NOT add them again separately.
 
 - [ ] **Step 4: Run test — verify it PASSES**
 
@@ -2226,3 +2281,89 @@ The gap in `exercises.ts` is notable: the plan modifies the `assignPendingExerci
 ---
 
 VERDICT: NEEDS_REWORK — 4 blockers must be resolved: (1) wrong `processToolCall` function name in Task 1 test (should be `processToolUse`), (2) missing `await` on async `processGetClipPlaybackRequest` in Task 2 test making it permanently green, (3) second `vi.mock("../../lib/score-renderer")` must replace the first (not be added alongside it), (4) `useLoopPlayer` effect dep array includes unstable `config.clipNotes` array reference causing immediate player teardown on play.
+
+---
+
+## Challenge Review (Loop 2 — Re-review after blocker fixes)
+
+> Verified all 4 prior blockers are addressed in the updated plan. Fresh adversarial pass below.
+
+### Prior Blocker Verification
+
+**Blocker 1 (processToolCall → processToolUse):** FIXED. Plan now uses `processToolUse` at line 48 with explicit "Important:" note at line 64.
+
+**Blocker 2 (no await on processGetClipPlaybackRequest):** FIXED. Line 218 now has `const result = await processGetClipPlaybackRequest(...)` and asserts concrete `{svg, ir, notes}` fields with type checks.
+
+**Blocker 3 (duplicate vi.mock for score-renderer):** FIXED. Line 1443 now says **REPLACE** that entire block (both the `const mockGetClip` declaration AND the `vi.mock`) with a merged version exposing both `getClip` and `getClipPlayback`. Explicit instruction, not ambiguous.
+
+**Blocker 4 (unstable clipNotes dep in useEffect):** FIXED. Lines 1585-1631 now use `clipNotesRef` pattern. `clipNotes` is explicitly excluded from the `useEffect` dep array at line 1629: `[config.clipIR, config.beatsPerBar, config.bpmAtUnity]`.
+
+### New Findings (Loop 2)
+
+**[BLOCKER] (confidence: 10/10) — Task 1 exercises.ts test has wrong function signature, wrong field name, wrong DB mock chain, wrong return access path, and missing update mock. Multiple concrete bugs that produce a broken test.**
+
+Verified against the actual source:
+
+1. **Wrong call signature:** Plan calls `assignPendingExercise(ctx, "stu-1", "row-1")` (positional strings). Actual signature (verified line 167-174 exercises.ts): `assignPendingExercise(ctx, args: { studentId, sessionId, exerciseId })`. The function receives `args.studentId`, `args.exerciseId` — not positional args. Call with positional strings passes TypeScript as `never` cast but the function reads `args.studentId` which is a string — effectively `"stu-1".studentId` = `undefined`, making the WHERE clause produce wrong results or throw.
+
+2. **Wrong field name in mock row:** Plan mock has `routing: JSON.stringify(...)` but `assignPendingExercise` reads `pendingRow.routingJson` (Drizzle column `routing_json`, camelCase `routingJson` — confirmed in `apps/api/src/db/schema/exercises.ts` line 87). The mock row's `routingJson` field will be `undefined`, causing the `throw new InferenceError("has no routing_json")` path — the test fails for the wrong reason.
+
+3. **Wrong DB mock chain:** Plan mock adds `.limit()` at end of the chain. Actual query (verified lines 175-184): `ctx.db.select().from().where()` — no `.limit()`. `where()` returns a Promise in the mock (not a chainable object with `.limit`), so `pendingRow` will never be populated.
+
+4. **Missing ctx.db.update() mock:** The function calls `ctx.db.update(pendingExercises).set(...).where(...)` at line 211. The mock `ctx.db` has no `update` method. This throws "ctx.db.update is not a function" before reaching the `scoreClip` construction.
+
+5. **Wrong return access path:** Plan asserts `result?.config.scoreClip?.tempoFactor`. `assignPendingExercise` returns `ExerciseSetPayload` directly (sourcePassage, targetSkill, scoreClip, exercises). There is no `.config` wrapper — `result?.config` is `undefined`.
+
+**What must change:** Either (a) fix ALL five issues in the snippet and add a `sessionId` field to the args; or (b) remove the exercises.ts test snippet entirely and rely solely on the "read exercises.ts first" Note, trusting the subagent to write a correct fixture. Option (b) is safer — the Note already says "adjust the mock shape to match whatever DB query the function makes."
+
+**[BLOCKER] (confidence: 9/10) — `ExerciseSetPayload` type in exercises.ts line 15 does not include `tempoFactor` on `scoreClip`. Adding `tempoFactor` to the construction (Task 1 Step 3) without updating the type will cause a TypeScript compile error that prevents the entire API test suite from running.**
+
+Verified: `ExerciseSetPayload.scoreClip` (exercises.ts line 15) is typed as `{ pieceId: string; bars: [number, number] }`. Task 1 Step 3 changes the construction to add `tempoFactor` but does NOT update this type definition. TypeScript will reject:
+```
+Type '{ pieceId: string; bars: [number, number]; tempoFactor: number }' is not assignable to
+type '{ pieceId: string; bars: [number, number] } | undefined'
+```
+This is NOT in `apps/api/src/lib/types.ts` (the file the plan correctly avoids) — it is in `apps/api/src/services/exercises.ts` line 15. The plan must add `ExerciseSetPayload.scoreClip` update to Task 1 Step 3. Note: `apps/web/src/lib/types.ts` is already updated by the plan; only the API-side `ExerciseSetPayload` type is missing.
+
+**[RISK] (confidence: 8/10) — `LoopPlayer.scheduleTick` wrap-boundary detection fires on every tick where `horizonQ >= clipEndQ`, not just once per wrap. `scheduledNoteKeys.clear()` and `currentPassIndex++` execute on every such tick, causing notes at the start of a new pass to be re-scheduled multiple times (note doubling).**
+
+Verified in plan lines 1298-1304:
+```typescript
+const wrapsThisTick = horizonQ >= this.clipEndQ;
+if (wrapsThisTick) {
+  this.currentPassIndex += 1;
+  this.scheduledNoteKeys.clear();
+}
+```
+At 0.25x tempo with LOOKAHEAD_SEC=0.1, the lookahead window (0.1s × 0.5 Q/s = 0.05Q) is much smaller than clipRangeQ, so `horizonQ` typically drops below `clipEndQ` after one or two ticks. However, at exactly the boundary, multiple consecutive scheduler ticks (each 25ms) could fire with `horizonQ >= clipEndQ` if `nowQ` is very close to `clipEndQ`. Each tick clears the set and re-schedules. This is a double-scheduling bug for notes at the very start of a new pass. The guard should check `wrapsThisTick` using a tracked `lastPassIndex` and advance only when `Math.floor(...) > this.currentPassIndex`, not on every tick where the horizon crosses the boundary.
+
+**[RISK] (confidence: 8/10) — `LoopPlayer.stop()` in the plan's class listing body does NOT reset `nextMetronomeBeatTime = null` or `metronomeBeatIndex = 0`. These resets appear only in a "Note:" block after the class closing brace. A subagent following the class listing literally will produce a `stop()` method that does not reset metronome state, causing the metronome to continue scheduling from its previous beat time if the player is stop-then-replayed.**
+
+Verified: plan's `stop()` body (lines 1229-1235) contains only `stopScheduler()`, `clock?.stop()`, `clock = null`, `scheduledNoteKeys.clear()`, `state = "idle"`. The metronome reset (`nextMetronomeBeatTime = null; metronomeBeatIndex = 0`) is in the "Note:" block at line 1395-1399, outside the class body. While `play()` initialization was correctly inlined (prior RISK fixed), the `stop()` reset was not. Must consolidate both resets into the `stop()` body in the single authoritative class listing.
+
+**[RISK] (confidence: 7/10) — `scoreRenderer.getClipPlayback` requires a prior `scoreRenderer.load(pieceId)` call (worker returns "bytes required on first request" otherwise). The plan does not document where `load()` is called before `ExerciseSetCard.getClipPlayback`. Verified from score-worker.ts lines 333-345: if `result === undefined` and `msg.type !== "load"`, the worker posts an error immediately. This is a pre-existing gap inherited from `getClip`, but the plan introduces a new call site without acknowledging the dependency.**
+
+**[RISK] (confidence: 7/10) — The exercises.ts test (once corrected) will still need a `sessionId` in the args object. The pending row mock must also provide `consumed: false` for the WHERE clause to match. The plan's Note says "adjust the mock shape" — but a subagent building the test will face multiple non-obvious constraints that are not documented.**
+
+**[OBS] — smplr `await this.piano.load` (property access, not method call) is a known RISK from the prior review. Since smplr is not yet installed, this cannot be verified here. Task 4 Step 3 must verify the smplr load API before writing Task 5.**
+
+### Presumption Inventory (Loop 2)
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `ExerciseSetPayload` in exercises.ts already carries `tempoFactor` on `scoreClip` | RISKY | It does not — confirmed at line 15; the plan must update this type |
+| `assignPendingExercise` accepts positional string args | RISKY | Accepts an args object `{ studentId, sessionId, exerciseId }` — confirmed line 167 |
+| exercises.ts DB query uses `.limit()` | RISKY | No `.limit()` in the real query — confirmed lines 175-184 |
+| `wrapsThisTick` guard fires exactly once per loop boundary crossing | RISKY | Fires on every 25ms tick where `horizonQ >= clipEndQ` — not bounded to once |
+| `stop()` metronome reset is in the class body | RISKY | It is in a follow-up Note block outside the class body |
+
+### Summary (Loop 2)
+
+[BLOCKER] count: 2
+[RISK]    count: 5
+
+**[BLOCKER] (confidence: 10/10) — Task 1 exercises.ts test snippet has 5 concrete bugs: wrong function signature (positional strings vs args object), wrong mock row field name (`routing` vs `routingJson`), wrong mock chain (`.limit()` not in real query), missing `ctx.db.update()` mock, and wrong return access path (`result?.config.scoreClip` vs `result.scoreClip`). All 5 must be fixed or the snippet must be removed and the subagent must derive the test from reading `exercises.ts` directly.**
+
+**[BLOCKER] (confidence: 9/10) — `ExerciseSetPayload` type in `apps/api/src/services/exercises.ts` line 15 must be updated to add `tempoFactor?: number` to `scoreClip`. Task 1 Step 3 modifies the construction site but not the type. TypeScript will reject the compiled output, preventing any API test from running.**
+
+VERDICT: NEEDS_REWORK — 2 new blockers: (1) exercises.ts test snippet has 5 concrete bugs making it unusable as-is — either remove the snippet and rely on the "read exercises.ts first" Note, or fix all 5 bugs (correct args object `{studentId, sessionId, exerciseId}`, correct field `routingJson`, remove `.limit()`, add `ctx.db.update()` mock, access `result.scoreClip` not `result?.config.scoreClip`); (2) `ExerciseSetPayload` type in exercises.ts line 15 must add `tempoFactor?: number` to `scoreClip` or TypeScript rejects the construction-site change and the entire API test suite cannot compile.
