@@ -30,6 +30,7 @@ export function useLoopPlayer(config: UseLoopPlayerConfig): UseLoopPlayerReturn 
 	const [audioUnavailable, setAudioUnavailable] = useState(false);
 	const [tempoFactor, setTempoFactorState] = useState(config.tempoFactor);
 	const ctxRef = useRef<AudioContext | null>(null);
+	const countInWatcherRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	// Keep clipNotes in a ref so LoopPlayer always reads the current value
 	// WITHOUT triggering the player-creation effect on every render.
@@ -41,6 +42,10 @@ export function useLoopPlayer(config: UseLoopPlayerConfig): UseLoopPlayerReturn 
 	// Destroy player and AudioContext on unmount only.
 	useEffect(() => {
 		return () => {
+			if (countInWatcherRef.current !== null) {
+				clearInterval(countInWatcherRef.current);
+				countInWatcherRef.current = null;
+			}
 			playerRef.current?.destroy();
 			playerRef.current = null;
 			ctxRef.current?.close().catch(() => {});
@@ -85,10 +90,11 @@ export function useLoopPlayer(config: UseLoopPlayerConfig): UseLoopPlayerReturn 
 			// Poll until count-in ends (player transitions counting-in → playing).
 			// Interval clears itself once state moves past "counting-in".
 			if (player.state === "counting-in") {
-				const countInWatcher = setInterval(() => {
+				countInWatcherRef.current = setInterval(() => {
 					if (playerRef.current?.state !== "counting-in") {
 						setIsCounting(false);
-						clearInterval(countInWatcher);
+						clearInterval(countInWatcherRef.current!);
+						countInWatcherRef.current = null;
 					}
 				}, 50);
 			}

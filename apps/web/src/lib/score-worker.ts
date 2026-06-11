@@ -184,7 +184,8 @@ export async function processGetClipPlaybackRequest(
 		tk.redoLayout({});
 	}
 
-	return { svg, ir: ir!, notes };
+	if (ir === undefined) return "failed";
+	return { svg, ir, notes };
 }
 
 export interface VerovioBindings {

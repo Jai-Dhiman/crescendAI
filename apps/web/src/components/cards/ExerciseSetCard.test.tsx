@@ -189,6 +189,49 @@ describe("ExerciseSetCard", () => {
 		expect(document.body.querySelector('[data-testid="loop-transport"]')).not.toBeNull();
 	});
 
+	it("passes correct wiring props (pieceId, bars, tempoFactor) to useLoopPlayer when scoreClip has tempoFactor", async () => {
+		const { useLoopPlayer } = await import("../../hooks/useLoopPlayer");
+		const mockUseLoopPlayer = useLoopPlayer as ReturnType<typeof vi.fn>;
+
+		mockGetClipPlayback.mockResolvedValue({
+			svg: "<svg data-test='wiring-clip'></svg>",
+			ir: {
+				pieceId: "bach.wtc.1",
+				verovioVersion: "4.0.0",
+				pageWidth: 1600,
+				pages: [{ pageN: 1, viewBox: "0 0 1600 600", width: 1600, height: 600, systemBboxes: [] }],
+				bars: [
+					{ barNumber: 1, measureOn: "m1", pageN: 1, bbox: { x: 0, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 0, qstampEnd: 4 },
+				],
+				notes: {},
+			},
+			notes: [{ midi: 62, startQ: 0, endQ: 2 }],
+		});
+
+		const config: ExerciseSetConfig = {
+			sourcePassage: "bars 1-4",
+			targetSkill: "wiring contract",
+			scoreClip: { pieceId: "bach.wtc.1", bars: [1, 4], tempoFactor: 0.8 },
+			exercises: [
+				{ title: "Wiring test", instruction: "Test.", focusDimension: "timing" },
+			],
+		};
+		const { ExerciseSetCard } = await import("./ExerciseSetCard");
+		render(React.createElement(ExerciseSetCard, { config }));
+
+		await waitFor(() => {
+			expect(mockGetClipPlayback).toHaveBeenCalledWith("bach.wtc.1", 1, 4);
+		});
+
+		// useLoopPlayer must have been called with the correct tempoFactor from scoreClip.
+		// This verifies the card-to-hook wiring contract even though the hook itself is mocked.
+		expect(mockUseLoopPlayer).toHaveBeenCalled();
+		const lastCall = mockUseLoopPlayer.mock.calls[mockUseLoopPlayer.mock.calls.length - 1][0];
+		expect(lastCall.tempoFactor).toBe(0.8);
+		expect(lastCall.beatsPerBar).toBe(4);
+		expect(lastCall.bpmAtUnity).toBe(120);
+	});
+
 	it("corpus_drill (no scoreClip, no tempoFactor) renders no transport", async () => {
 		const config: ExerciseSetConfig = {
 			sourcePassage: "bars 1-8",

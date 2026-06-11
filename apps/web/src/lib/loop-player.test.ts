@@ -148,12 +148,11 @@ describe("LoopPlayer", () => {
 
     const { Soundfont } = await import("smplr");
     const sfInstance = (Soundfont as ReturnType<typeof vi.fn>).mock.results[0]?.value;
-    if (sfInstance) {
-      const startCalls = (sfInstance.start as ReturnType<typeof vi.fn>).mock.calls as Array<[{ note: number }]>;
-      const note60Calls = startCalls.filter((args) => args[0]?.note === 60);
-      // Should be exactly 2: pass 1 and pass 2 (wrap). Doubling bug = 3+, dropout = 1.
-      expect(note60Calls.length).toBe(2);
-    }
+    expect(sfInstance).toBeDefined();
+    const startCalls = (sfInstance.start as ReturnType<typeof vi.fn>).mock.calls as Array<[{ note: number }]>;
+    const note60Calls = startCalls.filter((args) => args[0]?.note === 60);
+    // Should be exactly 2: pass 1 and pass 2 (wrap). Doubling bug = 3+, dropout = 1.
+    expect(note60Calls.length).toBe(2);
     player.destroy();
   });
 });
