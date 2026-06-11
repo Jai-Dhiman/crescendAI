@@ -128,6 +128,21 @@ describe("prescribe_exercise schema validation", () => {
 		expect(result.success).toBe(true);
 	});
 
+	it("passes corpus_drill with primitive_id omitted, defaulting to null", () => {
+		const result = schema.safeParse({
+			kind: "corpus_drill",
+			target_dimension: "timing",
+			bar_range: [1, 8],
+			tempo_factor: 0.7,
+			// primitive_id intentionally omitted
+			piece_id: null,
+		});
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.primitive_id).toBeNull();
+		}
+	});
+
 	it("rejects missing kind", () => {
 		const result = schema.safeParse({
 			target_dimension: "timing",

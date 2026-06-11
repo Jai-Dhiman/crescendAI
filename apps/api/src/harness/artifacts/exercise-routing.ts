@@ -24,7 +24,7 @@ export const CorpusDrillSchema = z.object({
   target_dimension: DimensionEnum,
   bar_range: barRangeSchema,
   tempo_factor: tempoFactorSchema,
-  primitive_id: z.string().nullable(),
+  primitive_id: z.string().nullable().optional().default(null),
 }).strict();
 
 export const ExerciseRoutingDecisionSchema = z.discriminatedUnion("kind", [

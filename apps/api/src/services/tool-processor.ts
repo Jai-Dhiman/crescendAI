@@ -76,7 +76,7 @@ const prescribeExerciseSchema = z.discriminatedUnion("kind", [
 		target_dimension: dimensionEnum,
 		bar_range: barRangeField,
 		tempo_factor: z.number().min(0.25).max(1.0),
-		primitive_id: z.string().nullable(),
+		primitive_id: z.string().nullable().optional().default(null),
 		piece_id: z.string().min(1).nullable(),
 	}),
 ]);

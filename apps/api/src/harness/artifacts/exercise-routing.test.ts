@@ -85,6 +85,15 @@ describe("ExerciseRoutingDecisionSchema — corpus_drill", () => {
     ).not.toThrow();
   });
 
+  test("accepts corpus_drill with primitive_id omitted, defaulting to null", () => {
+    const { primitive_id: _omitted, ...drillWithoutPrimitiveId } = validDrill;
+    const result = ExerciseRoutingDecisionSchema.safeParse(drillWithoutPrimitiveId);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.primitive_id).toBeNull();
+    }
+  });
+
   test("rejects corpus_drill with bar_range start > end", () => {
     const result = ExerciseRoutingDecisionSchema.safeParse({
       ...validDrill,
