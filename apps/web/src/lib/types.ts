@@ -38,7 +38,7 @@ export type InlineComponent =
 export interface ExerciseSetConfig {
 	sourcePassage: string;
 	targetSkill: string;
-	scoreClip?: { pieceId: string; bars: [number, number] };
+	scoreClip?: { pieceId: string; bars: [number, number]; tempoFactor?: number };
 	exercises: Array<{
 		title: string;
 		instruction: string;

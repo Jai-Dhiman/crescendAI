@@ -177,6 +177,7 @@ describe("assignPendingExercise — routing_json path", () => {
 		expect(payload.scoreClip).toEqual({
 			pieceId: "chopin.ballade.1",
 			bars: [12, 16],
+			tempoFactor: 0.75,
 		});
 		expect(payload.exercises[0].focusDimension).toBe("pedaling");
 	});
@@ -234,6 +235,23 @@ describe("assignPendingExercise — routing_json path", () => {
 		});
 		expect(payload.scoreClip).toBeUndefined();
 		expect(payload.exercises[0].instruction).toContain("coming soon");
+	});
+
+	test("own_passage_loop scoreClip carries tempoFactor from routing", async () => {
+		const mockCtx = buildMockCtxWithPendingRow({
+			routingJson: OWN_PASSAGE_ROUTING,
+			focusDimension: "dynamics",
+			previewTitle: "Dynamics drill",
+			title: "Own passage loop",
+			instruction: "Loop bars 12-16",
+			pieceId: "chopin.ballade.1",
+		});
+		const payload = await assignPendingExercise(mockCtx, {
+			studentId: "stu-1",
+			sessionId: "sess-1",
+			exerciseId: "pending-row-id",
+		});
+		expect(payload.scoreClip?.tempoFactor).toBe(0.75);
 	});
 });
 
