@@ -21,7 +21,7 @@ import { useArtifactStore } from "../stores/artifact";
 // --- Fixtures ---
 
 // Sandbox UUIDs: valid format so Zod passes, but not in DB — tests the error state path.
-// In production, exerciseIds are server-assigned UUIDs from the create_exercise tool call.
+// In production, exerciseIds are server-assigned UUIDs from the prescribe_exercise tool call (maps to pending_exercises.id PK).
 const exerciseSetWithId: ExerciseSetConfig = {
 	sourcePassage: "Chopin Op. 10 No. 3, bars 1-8",
 	targetSkill: "Cantabile tone production",

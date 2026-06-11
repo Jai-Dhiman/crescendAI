@@ -20,6 +20,11 @@ vi.mock("../services/teacher", () => ({
 		yield { type: "delta", text: "there!" };
 		yield { type: "done", fullText: "Hi there!", allComponents: [] };
 	}),
+	chatV6: vi.fn().mockImplementation(async function* () {
+		yield { type: "delta", text: "Hi " };
+		yield { type: "delta", text: "there!" };
+		yield { type: "done", fullText: "Hi there!", allComponents: [] };
+	}),
 }));
 
 // Now import the route (after mocks are set up)
@@ -204,7 +209,7 @@ describe("POST /api/chat", () => {
 
 		const parsed = JSON.parse(toolEvents[0].data!);
 		expect(parsed.type).toBe("tool_result");
-		expect(parsed.name).toBe("create_exercise");
+		expect(parsed.name).toBe("prescribe_exercise");
 		expect(parsed.componentsJson).toBeDefined();
 	});
 });

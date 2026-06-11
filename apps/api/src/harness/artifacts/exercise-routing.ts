@@ -25,7 +25,7 @@ export const CorpusDrillSchema = z.object({
   bar_range: barRangeSchema,
   tempo_factor: tempoFactorSchema,
   primitive_id: z.string().nullable(),
-});
+}).strict();
 
 export const ExerciseRoutingDecisionSchema = z.discriminatedUnion("kind", [
   OwnPassageLoopSchema,

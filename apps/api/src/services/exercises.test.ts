@@ -199,6 +199,25 @@ describe("assignPendingExercise — routing_json path", () => {
 		expect(payload.exercises[0].instruction).toContain("Loop bars 12-16");
 	});
 
+	test("own_passage_loop with null instruction AND null pieceId produces no scoreClip and falls back to bar-range string", async () => {
+		const mockCtx = buildMockCtxWithPendingRow({
+			routingJson: OWN_PASSAGE_ROUTING,
+			focusDimension: "pedaling",
+			previewTitle: "Pedaling drill",
+			title: "Own passage loop",
+			instruction: null,
+			pieceId: null,
+		});
+		const payload = await assignPendingExercise(mockCtx, {
+			studentId: "stu-1",
+			sessionId: "sess-1",
+			exerciseId: "pending-row-id",
+		});
+		expect(payload.scoreClip).toBeUndefined();
+		expect(payload.exercises[0].instruction).toContain("12");
+		expect(payload.exercises[0].instruction).toContain("16");
+	});
+
 	test("corpus_drill produces text stub, no scoreClip", async () => {
 		const mockCtx = buildMockCtxWithPendingRow({
 			routingJson: CORPUS_DRILL_ROUTING,
