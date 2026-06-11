@@ -120,63 +120,71 @@ export async function processGetClipPlaybackRequest(
 	tk.setOptions(CLIP_RENDER_OPTS);
 	tk.select({ measureRange: `${startBar}-${endBar}` });
 	tk.redoLayout({});
-	const svg = tk.renderToSVG(1) as string;
 
-	const timemap: Array<{ qstamp: number; on?: string[]; off?: string[]; measureOn?: string }> =
-		tk.renderToTimemap({ includeMeasures: true });
-
-	const noteQstampMap = new Map<string, number>();
-	const noteOffMap = new Map<string, number>();
-	for (const entry of timemap) {
-		if (Array.isArray(entry.on)) {
-			for (const id of entry.on) {
-				noteQstampMap.set(id, entry.qstamp);
-			}
-		}
-		if (Array.isArray(entry.off)) {
-			for (const id of entry.off) {
-				noteOffMap.set(id, entry.qstamp);
-			}
-		}
-	}
-
-	const clipMeasures: MeasureEntry[] = [];
-	const seenQstamps = new Set<number>();
-	for (const entry of timemap) {
-		if (entry.measureOn !== undefined && !seenQstamps.has(entry.qstamp)) {
-			seenQstamps.add(entry.qstamp);
-			clipMeasures.push({ qstamp: entry.qstamp, measureOn: entry.measureOn });
-		}
-	}
-	clipMeasures.sort((a, b) => a.qstamp - b.qstamp);
-
-	const { parseScoreIR } = await import("./score-ir");
-
-	const ir = parseScoreIR(
-		"",
-		[svg],
-		clipMeasures,
-		noteQstampMap,
-		tk.getVersion() as string,
-		CLIP_RENDER_OPTS.pageWidth,
-	);
-
-	// Restore full-piece layout.
-	tk.select({});
-	tk.setOptions(VEROVIO_OPTS);
-	tk.redoLayout({});
-
+	let svg = "";
+	let ir: import("./score-ir").ScoreIR | undefined;
 	const notes: ClipNote[] = [];
-	for (const [id, startQ] of noteQstampMap) {
-		const midiValues = tk.getMIDIValuesForElement(id) as Array<{ pitch: number }> | null;
-		if (!midiValues || midiValues.length === 0) continue;
-		const midi = midiValues[0].pitch;
-		const endQ = noteOffMap.get(id) ?? startQ + 1;
-		notes.push({ midi, startQ, endQ });
-	}
-	notes.sort((a, b) => a.startQ - b.startQ);
 
-	return { svg, ir, notes };
+	try {
+		svg = tk.renderToSVG(1) as string;
+
+		const timemap: Array<{ qstamp: number; on?: string[]; off?: string[]; measureOn?: string }> =
+			tk.renderToTimemap({ includeMeasures: true });
+
+		const noteQstampMap = new Map<string, number>();
+		const noteOffMap = new Map<string, number>();
+		for (const entry of timemap) {
+			if (Array.isArray(entry.on)) {
+				for (const id of entry.on) {
+					noteQstampMap.set(id, entry.qstamp);
+				}
+			}
+			if (Array.isArray(entry.off)) {
+				for (const id of entry.off) {
+					noteOffMap.set(id, entry.qstamp);
+				}
+			}
+		}
+
+		const clipMeasures: MeasureEntry[] = [];
+		const seenQstamps = new Set<number>();
+		for (const entry of timemap) {
+			if (entry.measureOn !== undefined && !seenQstamps.has(entry.qstamp)) {
+				seenQstamps.add(entry.qstamp);
+				clipMeasures.push({ qstamp: entry.qstamp, measureOn: entry.measureOn });
+			}
+		}
+		clipMeasures.sort((a, b) => a.qstamp - b.qstamp);
+
+		const { parseScoreIR } = await import("./score-ir");
+
+		ir = parseScoreIR(
+			"",
+			[svg],
+			clipMeasures,
+			noteQstampMap,
+			tk.getVersion() as string,
+			CLIP_RENDER_OPTS.pageWidth,
+		);
+
+		// Build notes BEFORE restoring full-piece scope, so getMIDIValuesForElement
+		// reads from the clip's MIDI context (not the full-piece context).
+		for (const [id, startQ] of noteQstampMap) {
+			const midiValues = tk.getMIDIValuesForElement(id) as Array<{ pitch: number }> | null;
+			if (!midiValues || midiValues.length === 0) continue;
+			const midi = midiValues[0].pitch;
+			const endQ = noteOffMap.get(id) ?? startQ + 1;
+			notes.push({ midi, startQ, endQ });
+		}
+		notes.sort((a, b) => a.startQ - b.startQ);
+	} finally {
+		// Restore full-piece layout regardless of whether parseScoreIR threw.
+		tk.select({});
+		tk.setOptions(VEROVIO_OPTS);
+		tk.redoLayout({});
+	}
+
+	return { svg, ir: ir!, notes };
 }
 
 export interface VerovioBindings {

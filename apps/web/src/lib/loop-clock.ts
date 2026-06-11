@@ -33,6 +33,9 @@ export class LoopClock {
     this.clipStartQ = opts.clipStartQ;
     this.clipEndQ = opts.clipEndQ;
     this.clipRangeQ = opts.clipEndQ - opts.clipStartQ;
+    if (opts.clipEndQ <= opts.clipStartQ) {
+      throw new Error(`LoopClock: clipEndQ (${opts.clipEndQ}) must be greater than clipStartQ (${opts.clipStartQ})`);
+    }
     this.beatsPerBar = opts.beatsPerBar;
     this.bpmAtUnity = opts.bpmAtUnity;
     this.tempoFactor = opts.tempoFactor;
