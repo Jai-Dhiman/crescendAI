@@ -75,6 +75,15 @@ enum StudentModelService {
         }
     }
 
+    /// Per-dimension trend series (oldest -> newest) of session averages, for the
+    /// profile sparklines. Only sessions with completed (real-scored) chunks contribute
+    /// a point, so the series reflects genuine history rather than placeholder data.
+    static func dimensionSeries(for dimension: String, sessions: [PracticeSessionRecord]) -> [Double] {
+        sessions
+            .sorted { $0.startedAt < $1.startedAt }
+            .compactMap { sessionAverage(for: dimension, session: $0) }
+    }
+
     /// Get the session average for a named dimension.
     static func sessionAverage(for dimension: String, session: PracticeSessionRecord) -> Double? {
         let completed = session.chunks.filter { $0.inferenceStatus == .completed }

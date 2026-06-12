@@ -52,7 +52,6 @@
 		A400000021 /* SessionReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000021 /* SessionReviewView.swift */; };
 		A400000022 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000022 /* ProfileView.swift */; };
 		A400000023 /* SparklineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000023 /* SparklineView.swift */; };
-		A400000024 /* FocusModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000024 /* FocusModeView.swift */; };
 		A400000025 /* ScoreHighlightCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000025 /* ScoreHighlightCard.swift */; };
 		A400000026 /* KeyboardGuideCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000026 /* KeyboardGuideCard.swift */; };
 		A400000027 /* ExerciseSetCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000027 /* ExerciseSetCard.swift */; };
@@ -136,7 +135,6 @@
 		B400000021 /* SessionReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionReviewView.swift; sourceTree = "<group>"; };
 		B400000022 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		B400000023 /* SparklineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparklineView.swift; sourceTree = "<group>"; };
-		B400000024 /* FocusModeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusModeView.swift; sourceTree = "<group>"; };
 		B400000025 /* ScoreHighlightCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreHighlightCard.swift; sourceTree = "<group>"; };
 		B400000026 /* KeyboardGuideCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardGuideCard.swift; sourceTree = "<group>"; };
 		B400000027 /* ExerciseSetCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseSetCard.swift; sourceTree = "<group>"; };
@@ -420,7 +418,6 @@
 		E400000006 /* FocusMode */ = {
 			isa = PBXGroup;
 			children = (
-				B400000024 /* FocusModeView.swift */,
 			);
 			path = FocusMode;
 			sourceTree = "<group>";
@@ -593,7 +590,6 @@
 				A400000021 /* SessionReviewView.swift in Sources */,
 				A400000022 /* ProfileView.swift in Sources */,
 				A400000023 /* SparklineView.swift in Sources */,
-				A400000024 /* FocusModeView.swift in Sources */,
 				A400000025 /* ScoreHighlightCard.swift in Sources */,
 				A400000026 /* KeyboardGuideCard.swift in Sources */,
 				A400000027 /* ExerciseSetCard.swift in Sources */,

@@ -231,4 +231,26 @@ final class PracticeSessionServiceTests: XCTestCase {
         XCTAssertEqual(student.baselineDynamics ?? -1, 0.7, accuracy: 1e-9, "First session seeds EMA to the avg of completed chunks")
         XCTAssertEqual(student.baselineSessionCount, 1)
     }
+
+    func test_dimensionSeries_ordersByDateAndSkipsSessionsWithoutScores() throws {
+        let context = try makeInMemoryContext()
+
+        let older = PracticeSessionRecord(startedAt: Date(timeIntervalSince1970: 1000))
+        context.insert(older)
+        _ = ChunkResultRecord(index: 0, startOffset: 0, duration: 15, dynamics: 0.4, inferenceStatus: .completed, session: older)
+
+        // A session with no completed chunks contributes no point.
+        let pendingOnly = PracticeSessionRecord(startedAt: Date(timeIntervalSince1970: 2000))
+        context.insert(pendingOnly)
+        _ = ChunkResultRecord(index: 0, startOffset: 0, duration: 15, dynamics: 0.9, inferenceStatus: .pending, session: pendingOnly)
+
+        let newer = PracticeSessionRecord(startedAt: Date(timeIntervalSince1970: 3000))
+        context.insert(newer)
+        _ = ChunkResultRecord(index: 0, startOffset: 0, duration: 15, dynamics: 0.6, inferenceStatus: .completed, session: newer)
+        try context.save()
+
+        // Pass unordered; expect oldest -> newest, pending-only session skipped.
+        let series = StudentModelService.dimensionSeries(for: "dynamics", sessions: [newer, pendingOnly, older])
+        XCTAssertEqual(series, [0.4, 0.6])
+    }
 }

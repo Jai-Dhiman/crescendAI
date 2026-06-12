@@ -3,6 +3,8 @@ import SwiftUI
 struct SessionReviewView: View {
     @Environment(\.dismiss) private var dismiss
     let messages: [ChatMessage]
+    /// The real session synthesis text (teacher summary). Nil until synthesis arrives.
+    var summary: String? = nil
     @State private var checkInText = ""
     @State private var expandedId: UUID?
 
@@ -37,14 +39,17 @@ struct SessionReviewView: View {
                         }
                     }
 
-                    // Summary placeholder
-                    VStack(alignment: .leading, spacing: CrescendSpacing.space2) {
-                        Text("A productive session with good dynamic contrast and clean pedaling.")
-                            .font(CrescendFont.bodyLG())
-                            .italic()
-                            .foregroundStyle(CrescendColor.secondaryText)
+                    // Session synthesis (real teacher summary)
+                    if let summary, !summary.isEmpty {
+                        VStack(alignment: .leading, spacing: CrescendSpacing.space2) {
+                            Text(summary)
+                                .font(CrescendFont.bodyLG())
+                                .italic()
+                                .foregroundStyle(CrescendColor.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.horizontal, CrescendSpacing.space4)
                     }
-                    .padding(.horizontal, CrescendSpacing.space4)
 
                     // Check-in
                     VStack(alignment: .leading, spacing: CrescendSpacing.space3) {

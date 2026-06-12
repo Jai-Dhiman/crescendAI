@@ -48,6 +48,13 @@ final class ChatViewModel {
     var inputText = ""
     var practiceState: PracticeState = .idle
 
+    /// Drives the post-session review sheet, presented when synthesis arrives.
+    var showSessionReview = false
+    var sessionReviewSummary: String?
+
+    /// The observation messages from the current transcript, for the review timeline.
+    var observationMessages: [ChatMessage] { messages.filter { $0.role == .observation } }
+
     private var practiceService: (any PracticeSessionServiceProtocol)?
     private var chatService: (any ChatServiceProtocol)?
     private var modelContext: ModelContext?
@@ -229,6 +236,9 @@ final class ChatViewModel {
             messages.append(ChatMessage(role: .observation, text: text, dimension: dimension, artifacts: artifacts))
         case .synthesis(let text, let artifacts):
             messages.append(ChatMessage(role: .teacher, text: text, artifacts: artifacts))
+            // Surface the post-session review with the real synthesis + observations.
+            sessionReviewSummary = text
+            showSessionReview = true
         case .reconnecting(let attempt):
             addSystemMessage("Reconnecting... (attempt \(attempt))")
         case .error(let msg):

@@ -113,6 +113,23 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertEqual(teacherMessages[0].text, "Session summary text")
     }
 
+    func test_synthesisEvent_triggersSessionReviewWithRealSummary() async throws {
+        let schema = Schema([Student.self, PracticeSessionRecord.self, ChunkResultRecord.self, ObservationRecord.self, CheckInRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+
+        let practiceService = MockPracticeService()
+        let vm = ChatViewModel()
+        vm.configureForTesting(modelContext: context, practiceService: practiceService, chatService: MockChatService())
+
+        XCTAssertFalse(vm.showSessionReview)
+        practiceService._continuation.yield(.synthesis(text: "Great pedaling control today.", artifacts: []))
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertTrue(vm.showSessionReview)
+        XCTAssertEqual(vm.sessionReviewSummary, "Great pedaling control today.")
+    }
+
     // MARK: - Conversation history
 
     func test_loadConversation_mapsServerMessagesToChatMessages() async throws {

@@ -1,17 +1,35 @@
+import SwiftData
 import SwiftUI
 
 struct ProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AuthService.self) private var authService
 
-    private let dimensions = [
-        ("Dynamics", CrescendColor.dimDynamics, [0.4, 0.5, 0.45, 0.6, 0.55, 0.7]),
-        ("Timing", CrescendColor.dimTiming, [0.5, 0.52, 0.48, 0.55, 0.6]),
-        ("Pedaling", CrescendColor.dimPedaling, [0.3, 0.35, 0.4, 0.38, 0.45]),
-        ("Articulation", CrescendColor.dimArticulation, [0.6, 0.58, 0.62, 0.65]),
-        ("Phrasing", CrescendColor.dimPhrasing, [0.45, 0.5, 0.48, 0.55, 0.52]),
-        ("Interpretation", CrescendColor.dimInterpretation, [0.35, 0.4, 0.42, 0.45]),
+    @Query(sort: \PracticeSessionRecord.startedAt) private var sessions: [PracticeSessionRecord]
+    @Query private var students: [Student]
+
+    private let dimensionMeta: [(name: String, color: Color, key: String)] = [
+        ("Dynamics", CrescendColor.dimDynamics, "dynamics"),
+        ("Timing", CrescendColor.dimTiming, "timing"),
+        ("Pedaling", CrescendColor.dimPedaling, "pedaling"),
+        ("Articulation", CrescendColor.dimArticulation, "articulation"),
+        ("Phrasing", CrescendColor.dimPhrasing, "phrasing"),
+        ("Interpretation", CrescendColor.dimInterpretation, "interpretation"),
     ]
+
+    private var student: Student? { students.first }
+
+    /// True once at least one dimension has enough history (>= 2 scored sessions) to plot.
+    private var hasTrendData: Bool {
+        dimensionMeta.contains { StudentModelService.dimensionSeries(for: $0.key, sessions: sessions).count >= 2 }
+    }
+
+    private var progressSubtitle: String {
+        guard let student, student.baselineSessionCount > 0 else { return "New pianist" }
+        let level = student.inferredLevel?.capitalized ?? "Pianist"
+        let count = student.baselineSessionCount
+        return "\(level) · \(count) practice session\(count == 1 ? "" : "s")"
+    }
 
     var body: some View {
         NavigationStack {
@@ -24,7 +42,7 @@ struct ProfileView: View {
                             .foregroundStyle(CrescendColor.foreground)
 
                         if authService.isAuthenticated {
-                            Text("Signed in with Apple")
+                            Text(progressSubtitle)
                                 .font(CrescendFont.bodySM())
                                 .foregroundStyle(CrescendColor.secondaryText)
                         }
@@ -38,16 +56,26 @@ struct ProfileView: View {
                             .foregroundStyle(CrescendColor.foreground)
                             .padding(.horizontal, CrescendSpacing.space4)
 
-                        ForEach(dimensions, id: \.0) { name, color, values in
-                            HStack(spacing: CrescendSpacing.space3) {
-                                Text(name)
-                                    .font(CrescendFont.labelMD())
-                                    .foregroundStyle(CrescendColor.secondaryText)
-                                    .frame(width: 90, alignment: .trailing)
+                        if hasTrendData {
+                            ForEach(dimensionMeta, id: \.key) { meta in
+                                HStack(spacing: CrescendSpacing.space3) {
+                                    Text(meta.name)
+                                        .font(CrescendFont.labelMD())
+                                        .foregroundStyle(CrescendColor.secondaryText)
+                                        .frame(width: 90, alignment: .trailing)
 
-                                SparklineView(values: values, color: color)
+                                    SparklineView(
+                                        values: StudentModelService.dimensionSeries(for: meta.key, sessions: sessions),
+                                        color: meta.color
+                                    )
+                                }
+                                .padding(.horizontal, CrescendSpacing.space4)
                             }
-                            .padding(.horizontal, CrescendSpacing.space4)
+                        } else {
+                            Text("Practice a few sessions to see your dimension trends.")
+                                .font(CrescendFont.bodySM())
+                                .foregroundStyle(CrescendColor.tertiaryText)
+                                .padding(.horizontal, CrescendSpacing.space4)
                         }
                     }
 
@@ -106,4 +134,8 @@ struct ProfileView: View {
     ProfileView()
         .crescendTheme()
         .environment(AuthService())
+        .modelContainer(
+            for: [Student.self, PracticeSessionRecord.self, ChunkResultRecord.self, ObservationRecord.self, ConversationRecord.self],
+            inMemory: true
+        )
 }

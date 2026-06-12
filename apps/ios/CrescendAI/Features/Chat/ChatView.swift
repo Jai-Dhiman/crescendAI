@@ -22,6 +22,12 @@ struct ChatView: View {
         }
         .background(CrescendColor.background)
         .onAppear { viewModel.configure(modelContext: modelContext) }
+        .sheet(isPresented: $viewModel.showSessionReview) {
+            SessionReviewView(
+                messages: viewModel.observationMessages,
+                summary: viewModel.sessionReviewSummary
+            )
+        }
     }
     
     // MARK: - Empty State
