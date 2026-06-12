@@ -4,18 +4,14 @@ import SwiftData
 
 final class AuthServiceTests: XCTestCase {
 
-    private static let appleUserIdKey = "crescendai.appleUserId"
-
     override func setUp() async throws {
         try await super.setUp()
         try? KeychainService.deleteAll()
-        UserDefaults.standard.removeObject(forKey: Self.appleUserIdKey)
         await MainActor.run { AuthServiceTests.clearSessionCookie() }
     }
 
     override func tearDown() async throws {
         try? KeychainService.deleteAll()
-        UserDefaults.standard.removeObject(forKey: Self.appleUserIdKey)
         await MainActor.run { AuthServiceTests.clearSessionCookie() }
         try await super.tearDown()
     }
@@ -44,7 +40,7 @@ final class AuthServiceTests: XCTestCase {
     @MainActor
     func testInitWithActiveSessionSetsAuthenticated() {
         Self.setSessionCookie()
-        UserDefaults.standard.set("apple.user.123", forKey: Self.appleUserIdKey)
+        try? KeychainService.save("apple.user.123", for: .appleUserId)
 
         let service = AuthService()
 
@@ -65,7 +61,7 @@ final class AuthServiceTests: XCTestCase {
     @MainActor
     func testSignOutClearsStateAndCookie() {
         Self.setSessionCookie()
-        UserDefaults.standard.set("apple.user.123", forKey: Self.appleUserIdKey)
+        try? KeychainService.save("apple.user.123", for: .appleUserId)
 
         let service = AuthService()
         XCTAssertTrue(service.isAuthenticated)
@@ -98,5 +94,36 @@ final class AuthServiceTests: XCTestCase {
                 return
             }
         }
+    }
+
+    // MARK: - Keychain persistence
+
+    @MainActor
+    func testSignInPersistsAppleUserIdToKeychain() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: config)
+        MockURLProtocol.requestHandler = { request in
+            (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data())
+        }
+        defer { MockURLProtocol.requestHandler = nil }
+
+        let service = AuthService(session: session)
+        try await service.signIn(identityToken: "token", userId: "apple.user.456", email: nil)
+
+        XCTAssertEqual(try KeychainService.read(.appleUserId), "apple.user.456")
+    }
+
+    @MainActor
+    func testSignOutClearsKeychain() throws {
+        Self.setSessionCookie()
+        try KeychainService.save("apple.user.123", for: .appleUserId)
+
+        let service = AuthService()
+        XCTAssertEqual(service.appleUserId, "apple.user.123")
+
+        service.signOut()
+
+        XCTAssertNil(try KeychainService.read(.appleUserId))
     }
 }

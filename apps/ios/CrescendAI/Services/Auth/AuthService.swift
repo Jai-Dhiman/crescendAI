@@ -26,7 +26,6 @@ final class AuthService {
     private(set) var appleUserId: String?
 
     private let session: URLSession
-    private let appleUserIdKey = "crescendai.appleUserId"
 
     init(session: URLSession = .shared) {
         self.session = session
@@ -67,7 +66,11 @@ final class AuthService {
 
         self.appleUserId = userId
         self.isAuthenticated = true
-        UserDefaults.standard.set(userId, forKey: appleUserIdKey)
+        do {
+            try KeychainService.save(userId, for: .appleUserId)
+        } catch {
+            SentrySDK.capture(error: error)
+        }
 
         let sentryUser = Sentry.User()
         sentryUser.userId = userId
@@ -102,7 +105,11 @@ final class AuthService {
         }
         self.appleUserId = nil
         self.isAuthenticated = false
-        UserDefaults.standard.removeObject(forKey: appleUserIdKey)
+        do {
+            try KeychainService.deleteAll()
+        } catch {
+            SentrySDK.capture(error: error)
+        }
         SentrySDK.setUser(nil)
     }
 
@@ -133,9 +140,12 @@ final class AuthService {
             $0.name == "better-auth.session_token" && ($0.expiresDate ?? .distantFuture) > .now
         } ?? false
 
-        if hasCookie {
-            self.isAuthenticated = true
-            self.appleUserId = UserDefaults.standard.string(forKey: appleUserIdKey)
+        guard hasCookie else { return }
+        self.isAuthenticated = true
+        do {
+            self.appleUserId = try KeychainService.read(.appleUserId)
+        } catch {
+            SentrySDK.capture(error: error)
         }
     }
 }
