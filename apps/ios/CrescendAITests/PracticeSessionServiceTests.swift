@@ -170,4 +170,65 @@ final class PracticeSessionServiceTests: XCTestCase {
         XCTAssertFalse(result)
         XCTAssertEqual(counter.count, 3, "Network errors are retryable; should attempt exactly maxAttempts times")
     }
+
+    // MARK: - applyChunkScores (server chunk_processed -> real scores)
+
+    private func makeInMemoryContext() throws -> ModelContext {
+        let schema = Schema([Student.self, PracticeSessionRecord.self, ChunkResultRecord.self, ObservationRecord.self, CheckInRecord.self, ConversationRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+        return ModelContext(container)
+    }
+
+    func test_applyChunkScores_updatesExistingPendingRecord() throws {
+        let context = try makeInMemoryContext()
+        let session = PracticeSessionRecord()
+        context.insert(session)
+        let pending = ChunkResultRecord(index: 0, startOffset: 0, duration: 15, inferenceStatus: .pending, session: session)
+        context.insert(pending)
+        try context.save()
+
+        let scores = ChunkScores(dynamics: 0.8, timing: 0.7, pedaling: 0.6, articulation: 0.5, phrasing: 0.4, interpretation: 0.3)
+        PracticeSessionService.applyChunkScores(index: 0, scores: scores, to: session, in: context)
+
+        XCTAssertEqual(session.chunks.count, 1, "Must update in place, not duplicate")
+        let rec = try XCTUnwrap(session.chunks.first)
+        XCTAssertEqual(rec.inferenceStatus, .completed)
+        XCTAssertEqual(rec.dynamics, 0.8, accuracy: 1e-9)
+        XCTAssertEqual(rec.interpretation, 0.3, accuracy: 1e-9)
+    }
+
+    func test_applyChunkScores_insertsRecordWhenIndexMissing() throws {
+        let context = try makeInMemoryContext()
+        let session = PracticeSessionRecord()
+        context.insert(session)
+        try context.save()
+
+        let scores = ChunkScores(dynamics: 0.9, timing: 0.9, pedaling: 0.9, articulation: 0.9, phrasing: 0.9, interpretation: 0.9)
+        PracticeSessionService.applyChunkScores(index: 2, scores: scores, to: session, in: context)
+
+        XCTAssertEqual(session.chunks.count, 1)
+        let rec = try XCTUnwrap(session.chunks.first)
+        XCTAssertEqual(rec.index, 2)
+        XCTAssertEqual(rec.inferenceStatus, .completed)
+        XCTAssertEqual(rec.dynamics, 0.9, accuracy: 1e-9)
+    }
+
+    /// Locks the payoff of the wiring: baselines derive from the real completed-chunk
+    /// scores (first session seeds the EMA to the within-session average).
+    func test_updateBaselines_seedsFromCompletedChunkScores() throws {
+        let context = try makeInMemoryContext()
+        let student = Student(appleUserId: "u1")
+        context.insert(student)
+        let session = PracticeSessionRecord()
+        session.student = student
+        context.insert(session)
+        _ = ChunkResultRecord(index: 0, startOffset: 0, duration: 15, dynamics: 0.6, timing: 0.6, pedaling: 0.6, articulation: 0.6, phrasing: 0.6, interpretation: 0.6, inferenceStatus: .completed, session: session)
+        _ = ChunkResultRecord(index: 1, startOffset: 15, duration: 15, dynamics: 0.8, timing: 0.8, pedaling: 0.8, articulation: 0.8, phrasing: 0.8, interpretation: 0.8, inferenceStatus: .completed, session: session)
+        try context.save()
+
+        StudentModelService.updateBaselines(student: student, session: session)
+
+        XCTAssertEqual(student.baselineDynamics ?? -1, 0.7, accuracy: 1e-9, "First session seeds EMA to the avg of completed chunks")
+        XCTAssertEqual(student.baselineSessionCount, 1)
+    }
 }

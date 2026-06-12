@@ -30,8 +30,6 @@
 		A200000002 /* AuthServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000002 /* AuthServiceTests.swift */; };
 		A300000001 /* PracticeSessionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000001 /* PracticeSessionRecord.swift */; };
 		A300000002 /* ChunkResultRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000002 /* ChunkResultRecord.swift */; };
-		A300000003 /* CoreMLInferenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000003 /* CoreMLInferenceProvider.swift */; };
-		A300000004 /* InferenceProviderFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000004 /* InferenceProviderFactory.swift */; };
 		A300000005 /* PracticeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000005 /* PracticeView.swift */; };
 		A400000001 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000001 /* MainView.swift */; };
 		A400000002 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000002 /* SidebarView.swift */; };
@@ -116,8 +114,6 @@
 		B200000008 /* MockURLProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockURLProtocol.swift; sourceTree = "<group>"; };
 		B300000001 /* PracticeSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionRecord.swift; sourceTree = "<group>"; };
 		B300000002 /* ChunkResultRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChunkResultRecord.swift; sourceTree = "<group>"; };
-		B300000003 /* CoreMLInferenceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreMLInferenceProvider.swift; sourceTree = "<group>"; };
-		B300000004 /* InferenceProviderFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceProviderFactory.swift; sourceTree = "<group>"; };
 		B300000005 /* PracticeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeView.swift; sourceTree = "<group>"; };
 		B400000001 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		B400000002 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
@@ -328,8 +324,6 @@
 			isa = PBXGroup;
 			children = (
 				B100000038 /* InferenceProvider.swift */,
-				B300000003 /* CoreMLInferenceProvider.swift */,
-				B300000004 /* InferenceProviderFactory.swift */,
 			);
 			path = Inference;
 			sourceTree = "<group>";
@@ -579,8 +573,6 @@
 				A100000040 /* AudioChunk.swift in Sources */,
 				A300000001 /* PracticeSessionRecord.swift in Sources */,
 				A300000002 /* ChunkResultRecord.swift in Sources */,
-				A300000003 /* CoreMLInferenceProvider.swift in Sources */,
-				A300000004 /* InferenceProviderFactory.swift in Sources */,
 				A300000005 /* PracticeView.swift in Sources */,
 				A400000003 /* SignInView.swift in Sources */,
 				A400000004 /* AuthService.swift in Sources */,
