@@ -1,10 +1,25 @@
 import Foundation
 
 enum APIEndpoints {
+    /// Production API host. Release builds always target this.
+    private static let productionBaseURL = URL(string: "https://api.crescend.ai")!
+
+    /// Local `wrangler dev` host (see justfile: API runs on 8787).
+    private static let localBaseURL = URL(string: "http://localhost:8787")!
+
     #if DEBUG
-    static let baseURL = URL(string: "https://api.crescend.ai")!
+    /// Debug builds target local `wrangler dev` by default so the app runs against
+    /// the local stack. Override with the `CRESCEND_API_BASE_URL` env var (set it in
+    /// the Xcode scheme) to point a debug build at production or any other host.
+    static let baseURL: URL = {
+        if let override = ProcessInfo.processInfo.environment["CRESCEND_API_BASE_URL"],
+           let url = URL(string: override) {
+            return url
+        }
+        return localBaseURL
+    }()
     #else
-    static let baseURL = URL(string: "https://api.crescend.ai")!
+    static let baseURL = productionBaseURL
     #endif
 
     static func signInSocial() -> URL {

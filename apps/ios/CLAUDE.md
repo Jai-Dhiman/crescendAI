@@ -96,5 +96,5 @@ Xcode compiles only files listed in `CrescendAI.xcodeproj/project.pbxproj` — f
 - Core ML model is downloaded on first launch (too large for App Store binary)
 - Background audio mode requires `UIBackgroundModes: audio` in Info.plist
 - Feature flag `useOnDeviceInference` switches between Core ML and cloud fallback
-- Audio never leaves the device for scoring (only structured dimension scores sent to cloud)
+- Raw audio IS uploaded: 15s AAC chunks POST to `/api/practice/chunk` (R2), and the backend scores them server-side (MuQ/AMT) — the authoritative 6-dim scores stream back over the practice WebSocket as `chunk_processed`. The on-device Core ML path is currently inert (no `CrescendMuQ.mlmodelc` in the tree, no download flow) and is not the source of truth.
 - Score alignment (chunk timestamps to bar/measure numbers) will be student-reported initially, automated later. See `docs/apps/02-pipeline.md`
