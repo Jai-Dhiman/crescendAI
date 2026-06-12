@@ -5,6 +5,7 @@ import SwiftData
 enum PracticeEvent {
     case sessionStarted(conversationId: String)
     case chunkUploaded(index: Int)
+    case chunkUploadFailed(index: Int)
     case observation(text: String, dimension: String?, artifacts: [ArtifactConfig])
     case synthesis(text: String, artifacts: [ArtifactConfig])
     case reconnecting(attempt: Int)
@@ -259,18 +260,87 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
                 guard let fileURL = chunk.localFileURL,
                       let audioData = try? Data(contentsOf: fileURL) else { continue }
 
-                var req = URLRequest(url: APIEndpoints.practiceChunk(sessionId: sessionId, chunkIndex: localIndex))
-                req.httpMethod = "POST"
-                req.setValue("audio/aac", forHTTPHeaderField: "Content-Type")
-                req.httpBody = audioData
-
-                if let (_, response) = try? await session.data(for: req),
-                   let httpResponse = response as? HTTPURLResponse,
-                   (200..<300).contains(httpResponse.statusCode) {
+                let uploaded = await uploadChunk(audioData, sessionId: sessionId, chunkIndex: localIndex)
+                if uploaded {
                     _continuation.yield(.chunkUploaded(index: localIndex))
+                } else {
+                    _continuation.yield(.chunkUploadFailed(index: localIndex))
                 }
+                // Always advance the index: a failed chunk leaves a gap in the
+                // server-side sequence, never a misalignment of later chunks.
                 localIndex += 1
             }
+        }
+    }
+
+    /// Upload a single audio chunk with bounded retry + exponential backoff.
+    /// Returns true on a 2xx response. Retries network/transport errors, 5xx, and 429;
+    /// fails fast on other 4xx (retrying a client error won't help). Every failed
+    /// attempt is reported to Sentry. Returns false once attempts are exhausted.
+    func uploadChunk(
+        _ audioData: Data,
+        sessionId: String,
+        chunkIndex: Int,
+        maxAttempts: Int = 3,
+        baseDelayMs: Int = 400
+    ) async -> Bool {
+        var attempt = 0
+        while attempt < maxAttempts {
+            attempt += 1
+
+            var req = URLRequest(url: APIEndpoints.practiceChunk(sessionId: sessionId, chunkIndex: chunkIndex))
+            req.httpMethod = "POST"
+            req.setValue("audio/aac", forHTTPHeaderField: "Content-Type")
+            req.httpBody = audioData
+
+            do {
+                let (_, response) = try await session.data(for: req)
+                guard let http = response as? HTTPURLResponse else {
+                    // No HTTP response — treat as a retryable transport anomaly.
+                    captureUploadFailure(chunkIndex: chunkIndex, statusCode: nil, error: nil, attempt: attempt)
+                    if attempt < maxAttempts { await backoff(attempt: attempt, baseDelayMs: baseDelayMs) }
+                    continue
+                }
+                if (200..<300).contains(http.statusCode) {
+                    return true
+                }
+                captureUploadFailure(chunkIndex: chunkIndex, statusCode: http.statusCode, error: nil, attempt: attempt)
+                let retryable = http.statusCode >= 500 || http.statusCode == 429
+                if !retryable {
+                    return false
+                }
+            } catch {
+                // Network/transport failure — retryable.
+                captureUploadFailure(chunkIndex: chunkIndex, statusCode: nil, error: error, attempt: attempt)
+            }
+
+            if attempt < maxAttempts {
+                await backoff(attempt: attempt, baseDelayMs: baseDelayMs)
+            }
+        }
+        return false
+    }
+
+    private func backoff(attempt: Int, baseDelayMs: Int) async {
+        // Exponential: base * 2^(attempt-1).
+        let delayMs = baseDelayMs << (attempt - 1)
+        try? await Task.sleep(for: .milliseconds(delayMs))
+    }
+
+    private func captureUploadFailure(chunkIndex: Int, statusCode: Int?, error: Error?, attempt: Int) {
+        let crumb = Breadcrumb(level: .error, category: "practice.upload")
+        crumb.message = "Chunk \(chunkIndex) upload failed (attempt \(attempt), status: \(statusCode.map(String.init) ?? "n/a"))"
+        SentrySDK.addBreadcrumb(crumb)
+
+        if let error {
+            SentrySDK.capture(error: error)
+        } else {
+            let err = NSError(
+                domain: "PracticeChunkUpload",
+                code: statusCode ?? -1,
+                userInfo: [NSLocalizedDescriptionKey: "Chunk \(chunkIndex) upload failed with status \(statusCode ?? -1)"]
+            )
+            SentrySDK.capture(error: err)
         }
     }
 }

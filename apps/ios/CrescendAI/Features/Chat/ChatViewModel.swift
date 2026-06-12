@@ -188,6 +188,8 @@ final class ChatViewModel {
             addSystemMessage("Error: \(msg)")
         case .chunkUploaded:
             break
+        case .chunkUploadFailed(let index):
+            addSystemMessage("A recording segment (chunk \(index)) couldn't be uploaded and was skipped.")
         case .sessionEnded:
             break
         }
