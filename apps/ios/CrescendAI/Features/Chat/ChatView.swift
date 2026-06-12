@@ -3,7 +3,7 @@ import SwiftUI
 
 struct ChatView: View {
     @Environment(\.modelContext) private var modelContext
-    @State private var viewModel = ChatViewModel()
+    @Bindable var viewModel: ChatViewModel
     @FocusState private var isInputFocused: Bool
     
     var onOpenSidebar: () -> Void = {}
@@ -291,7 +291,7 @@ struct ChatView: View {
 
 #Preview {
     NavigationStack {
-        ChatView()
+        ChatView(viewModel: ChatViewModel())
     }
     .crescendTheme()
     .modelContainer(

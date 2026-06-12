@@ -51,6 +51,7 @@ final class ChatViewModel {
     private var practiceService: (any PracticeSessionServiceProtocol)?
     private var chatService: (any ChatServiceProtocol)?
     private var modelContext: ModelContext?
+    private var urlSession: URLSession = .shared
     nonisolated(unsafe) private var practiceEventTask: Task<Void, Never>?
 
     deinit {
@@ -79,12 +80,58 @@ final class ChatViewModel {
     func configureForTesting(
         modelContext: ModelContext,
         practiceService: any PracticeSessionServiceProtocol,
-        chatService: any ChatServiceProtocol
+        chatService: any ChatServiceProtocol,
+        urlSession: URLSession = .shared
     ) {
         self.modelContext = modelContext
         self.practiceService = practiceService
         self.chatService = chatService
+        self.urlSession = urlSession
         subscribeToEvents()
+    }
+
+    // MARK: - Conversation history
+
+    /// Clear the transcript for a fresh session. Does not stop an active recording.
+    func startNewConversation() {
+        messages = []
+        inputText = ""
+    }
+
+    /// Load a past conversation's transcript from the server and render it.
+    func loadConversation(id: String) async {
+        do {
+            var request = URLRequest(url: APIEndpoints.conversation(id: id))
+            request.httpMethod = "GET"
+            let client = APIClient(session: urlSession)
+            let response: ConversationDetailResponse = try await client.perform(request)
+            messages = response.messages.map { Self.chatMessage(from: $0) }
+        } catch {
+            addSystemMessage("Couldn't load that session: \(error.localizedDescription)")
+        }
+    }
+
+    /// Map a persisted server message onto a ChatMessage. Assistant messages that
+    /// carry a dimension (or an explicit observation type) render as observation
+    /// cards; the rest render as teacher messages.
+    static func chatMessage(from dto: ConversationMessageDTO) -> ChatMessage {
+        let role: ChatMessageRole
+        switch dto.role {
+        case "user":
+            role = .user
+        case "system":
+            role = .system
+        case "assistant":
+            role = (dto.dimension != nil || dto.messageType == "observation") ? .observation : .teacher
+        default:
+            role = .system
+        }
+        return ChatMessage(
+            role: role,
+            text: dto.content,
+            dimension: dto.dimension,
+            artifacts: dto.componentsJson ?? []
+        )
     }
 
     func startPractice() async {
@@ -194,4 +241,21 @@ final class ChatViewModel {
             break
         }
     }
+}
+
+// MARK: - Conversation detail API models
+
+/// Response shape of `GET /api/conversations/:id` (Drizzle rows -> camelCase JSON).
+struct ConversationDetailResponse: Decodable {
+    let id: String
+    let title: String?
+    let messages: [ConversationMessageDTO]
+}
+
+struct ConversationMessageDTO: Decodable {
+    let role: String
+    let content: String
+    let dimension: String?
+    let messageType: String?
+    let componentsJson: [ArtifactConfig]?
 }
