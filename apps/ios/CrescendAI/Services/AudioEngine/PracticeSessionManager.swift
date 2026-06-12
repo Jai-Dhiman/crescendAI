@@ -54,15 +54,12 @@ final class PracticeSessionManager {
         try modelContext.save()
         currentSessionRecord = record
 
-        // Use factory default if no explicit provider
-        let provider: any InferenceProvider
-        if let inferenceProvider {
-            provider = inferenceProvider
-        } else {
-            provider = await InferenceProviderFactory.create()
-        }
-
-        let producer = ChunkProducer(ringBuffer: ringBuffer, inferenceProvider: provider)
+        // On-device inference is intentionally not run in the live path: the
+        // authoritative 6-dim scores are computed server-side (MuQ/AMT) and arrive
+        // over the practice WebSocket as `chunk_processed`. Any explicit provider
+        // (e.g. a future real Core ML model passed by a caller) is still honored;
+        // nil means no local inference. There is no random-mock fallback.
+        let producer = ChunkProducer(ringBuffer: ringBuffer, inferenceProvider: inferenceProvider)
         producer.start(sessionId: session.id, startDate: session.startedAt)
         chunkProducer = producer
 

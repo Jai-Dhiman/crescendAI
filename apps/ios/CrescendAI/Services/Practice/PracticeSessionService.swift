@@ -21,6 +21,18 @@ enum PracticeSessionError: LocalizedError {
     }
 }
 
+/// The 6-dimension scores carried by the server's `chunk_processed` WebSocket message.
+/// These are the authoritative MuQ scores; the iOS client persists them rather than
+/// computing anything on-device.
+struct ChunkScores: Decodable, Equatable {
+    let dynamics: Double
+    let timing: Double
+    let pedaling: Double
+    let articulation: Double
+    let phrasing: Double
+    let interpretation: Double
+}
+
 @MainActor
 protocol PracticeSessionServiceProtocol: AnyObject {
     var eventStream: AsyncStream<PracticeEvent> { get }
@@ -134,6 +146,9 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
         uploadTask = nil
 
         let hadAudioCapture = sessionManager != nil
+        // Capture the session record before releasing the manager; baselines are
+        // updated below once the WebSocket has delivered the remaining scores.
+        let sessionRecord = sessionManager?.currentSessionRecord
         await sessionManager?.endSession()
         sessionManager = nil
 
@@ -154,6 +169,11 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
         wsTask = nil
         webSocketTask?.cancel(with: .normalClosure, reason: nil)
         webSocketTask = nil
+
+        // Fold this session's real per-chunk scores into the student's baselines.
+        if let mc = modelContext, let sessionRecord {
+            updateBaselinesOnSessionEnd(sessionRecord: sessionRecord, context: mc)
+        }
 
         state = .idle
         _continuation.yield(.sessionEnded)
@@ -209,11 +229,20 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
             let text: String?
             let dimension: String?
             let components: [ArtifactConfig]?
+            let index: Int?
+            let scores: ChunkScores?
         }
 
         guard let event = try? JSONDecoder().decode(WSEvent.self, from: data) else { return }
 
         switch event.type {
+        case "chunk_processed":
+            // Authoritative 6-dim scores computed server-side (MuQ). Persist them
+            // onto this chunk's record so baselines/profile reflect real scores.
+            if let index = event.index, let scores = event.scores,
+               let mc = modelContext, let sessionRecord = sessionManager?.currentSessionRecord {
+                Self.applyChunkScores(index: index, scores: scores, to: sessionRecord, in: mc)
+            }
         case "observation":
             _continuation.yield(.observation(
                 text: event.text ?? "",
@@ -341,6 +370,65 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
                 userInfo: [NSLocalizedDescriptionKey: "Chunk \(chunkIndex) upload failed with status \(statusCode ?? -1)"]
             )
             SentrySDK.capture(error: err)
+        }
+    }
+
+    // MARK: - Real-score persistence
+
+    /// Apply the server's authoritative scores onto the chunk record for `index`.
+    /// Updates the existing (pending) record if present; otherwise inserts a completed
+    /// one (covers the rare case where the score message arrives before the local
+    /// chunk row was persisted). Static + parameterized so it is unit-testable without
+    /// a live session.
+    static func applyChunkScores(
+        index: Int,
+        scores: ChunkScores,
+        to session: PracticeSessionRecord,
+        in context: ModelContext
+    ) {
+        if let existing = session.chunks.first(where: { $0.index == index }) {
+            existing.dynamics = scores.dynamics
+            existing.timing = scores.timing
+            existing.pedaling = scores.pedaling
+            existing.articulation = scores.articulation
+            existing.phrasing = scores.phrasing
+            existing.interpretation = scores.interpretation
+            existing.inferenceStatus = .completed
+        } else {
+            let record = ChunkResultRecord(
+                index: index,
+                startOffset: 0,
+                duration: 0,
+                dynamics: scores.dynamics,
+                timing: scores.timing,
+                pedaling: scores.pedaling,
+                articulation: scores.articulation,
+                phrasing: scores.phrasing,
+                interpretation: scores.interpretation,
+                inferenceStatus: .completed,
+                session: session
+            )
+            context.insert(record)
+        }
+        do {
+            try context.save()
+        } catch {
+            SentrySDK.capture(error: error)
+        }
+    }
+
+    /// After a session ends, fold its real per-chunk scores into the student's EMA
+    /// baselines. No-op if there is no local student or no completed chunks.
+    private func updateBaselinesOnSessionEnd(sessionRecord: PracticeSessionRecord, context: ModelContext) {
+        guard let student = (try? context.fetch(FetchDescriptor<Student>()))?.first else { return }
+        if sessionRecord.student == nil {
+            sessionRecord.student = student
+        }
+        StudentModelService.updateBaselines(student: student, session: sessionRecord)
+        do {
+            try context.save()
+        } catch {
+            SentrySDK.capture(error: error)
         }
     }
 }
