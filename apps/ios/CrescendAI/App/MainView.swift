@@ -5,24 +5,26 @@ struct MainView: View {
     @Environment(AuthService.self) private var authService
     @Environment(\.modelContext) private var modelContext
     @State private var sidebarOpen = false
+    @State private var chatViewModel = ChatViewModel()
+    @State private var path: [String] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ZStack {
                 // Main content
-                ChatView()
-                
+                ChatView(viewModel: chatViewModel)
+
                 // Sidebar (slides under the floating button)
                 SidebarView(
                     isOpen: $sidebarOpen,
                     onNewSession: {
-                        // TODO: reset chat to new session
+                        chatViewModel.startNewConversation()
                     },
-                    onSelectSession: { _ in
-                        // TODO: load selected session
+                    onSelectSession: { conversationId in
+                        Task { await chatViewModel.loadConversation(id: conversationId) }
                     },
                     onShowProfile: {
-                        // NavigationStack push handled via NavigationLink or path
+                        path.append("profile")
                     }
                 )
                 

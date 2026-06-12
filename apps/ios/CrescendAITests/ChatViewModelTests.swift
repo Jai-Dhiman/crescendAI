@@ -112,4 +112,60 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertEqual(teacherMessages.count, 1)
         XCTAssertEqual(teacherMessages[0].text, "Session summary text")
     }
+
+    // MARK: - Conversation history
+
+    func test_loadConversation_mapsServerMessagesToChatMessages() async throws {
+        let schema = Schema([Student.self, PracticeSessionRecord.self, ChunkResultRecord.self, ObservationRecord.self, CheckInRecord.self, ConversationRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: config)
+        MockURLProtocol.requestHandler = { request in
+            let json = """
+            {"id":"conv-1","title":"Past session","messages":[
+              {"role":"user","content":"How was that?","dimension":null,"messageType":"chat","componentsJson":null},
+              {"role":"assistant","content":"Lovely tone.","dimension":null,"messageType":"chat","componentsJson":null},
+              {"role":"assistant","content":"Watch your timing.","dimension":"timing","messageType":"observation","componentsJson":null},
+              {"role":"system","content":"Session ended.","dimension":null,"messageType":"chat","componentsJson":null}
+            ]}
+            """
+            let data = json.data(using: .utf8)!
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, data)
+        }
+        defer { MockURLProtocol.requestHandler = nil }
+
+        let vm = ChatViewModel()
+        vm.configureForTesting(modelContext: context, practiceService: MockPracticeService(), chatService: MockChatService(), urlSession: session)
+
+        await vm.loadConversation(id: "conv-1")
+
+        XCTAssertEqual(vm.messages.count, 4)
+        XCTAssertEqual(vm.messages[0].role, .user)
+        XCTAssertEqual(vm.messages[0].text, "How was that?")
+        XCTAssertEqual(vm.messages[1].role, .teacher, "assistant without a dimension renders as teacher")
+        XCTAssertEqual(vm.messages[2].role, .observation, "assistant with a dimension renders as an observation")
+        XCTAssertEqual(vm.messages[2].dimension, "timing")
+        XCTAssertEqual(vm.messages[3].role, .system)
+    }
+
+    func test_startNewConversation_clearsTranscript() throws {
+        let schema = Schema([Student.self, PracticeSessionRecord.self, ChunkResultRecord.self, ObservationRecord.self, CheckInRecord.self, ConversationRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+
+        let vm = ChatViewModel()
+        vm.configureForTesting(modelContext: context, practiceService: MockPracticeService(), chatService: MockChatService())
+        vm.addSystemMessage("old message")
+        vm.inputText = "draft"
+        XCTAssertFalse(vm.messages.isEmpty)
+
+        vm.startNewConversation()
+
+        XCTAssertTrue(vm.messages.isEmpty)
+        XCTAssertEqual(vm.inputText, "")
+    }
 }
