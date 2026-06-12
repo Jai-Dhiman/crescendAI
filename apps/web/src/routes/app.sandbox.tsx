@@ -413,6 +413,47 @@ const exerciseLongText: ExerciseSetConfig = {
 };
 
 // ---------------------------------------------------------------------------
+// own_passage_loop fixtures — exercise the reduced-tempo loop playback path
+// (issue #45). Setting scoreClip.tempoFactor flips ExerciseSetCard from the
+// static clip into the score-first LoopTransport: cursor + one-bar metronome
+// count-in + self-hosted smplr piano. AudioContext needs a user gesture, so
+// click Play to start (the transport shows "Tap play" / count-in state).
+// ---------------------------------------------------------------------------
+
+// Canonical #45 success criterion: bars 5-8 looped at 0.5x.
+const exerciseOwnPassageLoop: ExerciseSetConfig = {
+	sourcePassage: "Chopin Ballade No. 1, bars 5-8",
+	targetSkill: "Loop the weak passage at reduced tempo",
+	scoreClip: { pieceId: "chopin.ballades.1", bars: [5, 8], tempoFactor: 0.5 },
+	exercises: [
+		{
+			title: "Loop bars 5-8 at 50% tempo",
+			instruction:
+				"Play along with the looping passage. The cursor tracks each beat; the metronome clicks a one-bar count-in before the loop starts. Drag the tempo slider to ramp up as the passage becomes comfortable.",
+			focusDimension: "timing",
+			hands: "both",
+		},
+	],
+};
+
+// Denser notation, later bar range, different tempo (0.75x) — exercises the
+// clip-scoped IR + note scheduler over a busier passage.
+const exerciseOwnPassageLoopDense: ExerciseSetConfig = {
+	sourcePassage: "Chopin Ballade No. 1, bars 36-43",
+	targetSkill: "Even voicing in the first theme",
+	scoreClip: { pieceId: "chopin.ballades.1", bars: [36, 43], tempoFactor: 0.75 },
+	exercises: [
+		{
+			title: "Loop bars 36-43 at 75% tempo",
+			instruction:
+				"Keep the inner voices even while the melody sings on top. Loop slowly, then raise the tempo with the slider.",
+			focusDimension: "dynamics",
+			hands: "both",
+		},
+	],
+};
+
+// ---------------------------------------------------------------------------
 // SegmentLoop fixtures — one per status value
 // Button clicks call real endpoints with a fake UUID → network/404 → shows error text
 // ---------------------------------------------------------------------------
@@ -441,6 +482,8 @@ const SANDBOX_IDS = {
 	exerciseThreeWithIds: "sandbox-exercise-three-with-ids",
 	exerciseMixed: "sandbox-exercise-mixed",
 	exerciseLongText: "sandbox-exercise-long-text",
+	exerciseOwnPassageLoop: "sandbox-exercise-own-passage-loop",
+	exerciseOwnPassageLoopDense: "sandbox-exercise-own-passage-loop-dense",
 	scoreHighlightOpening: "sandbox-score-highlight-opening",
 	scoreHighlightWide: "sandbox-score-highlight-wide",
 	scoreHighlightMid: "sandbox-score-highlight-mid",
@@ -1224,6 +1267,27 @@ function ArtifactSandbox() {
 						<Artifact
 							artifactId={SANDBOX_IDS.exerciseLongText}
 							component={{ type: "exercise_set", config: exerciseLongText }}
+						/>
+					</SandboxSection>
+
+					{/* own_passage_loop — reduced-tempo loop playback (#45) */}
+					<SandboxSection
+						title="ExerciseSet — own_passage_loop (bars 5-8 @ 0.5x — cursor + metronome + piano)"
+						artifactId={SANDBOX_IDS.exerciseOwnPassageLoop}
+					>
+						<Artifact
+							artifactId={SANDBOX_IDS.exerciseOwnPassageLoop}
+							component={{ type: "exercise_set", config: exerciseOwnPassageLoop }}
+						/>
+					</SandboxSection>
+
+					<SandboxSection
+						title="ExerciseSet — own_passage_loop (bars 36-43 @ 0.75x — denser passage)"
+						artifactId={SANDBOX_IDS.exerciseOwnPassageLoopDense}
+					>
+						<Artifact
+							artifactId={SANDBOX_IDS.exerciseOwnPassageLoopDense}
+							component={{ type: "exercise_set", config: exerciseOwnPassageLoopDense }}
 						/>
 					</SandboxSection>
 
