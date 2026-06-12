@@ -167,12 +167,29 @@ export async function processGetClipPlaybackRequest(
 			CLIP_RENDER_OPTS.pageWidth,
 		);
 
+		// Restrict to the clip's own notes. renderToTimemap returns the WHOLE piece
+		// even after select() (select restricts engraving, not the timemap), so
+		// noteQstampMap covers every note in the piece (~thousands). parseScoreIR
+		// found exactly the note ids present in the clip SVG, so use those — this
+		// keeps the note events in the clip IR's qstamp coordinate system (what the
+		// cursor and LoopClock use). Without this the array would carry the entire
+		// piece with out-of-clip qstamps.
+		const clipNoteIds = new Set<string>();
+		for (const bar of ir.bars) {
+			for (const nid of bar.noteIds) clipNoteIds.add(nid);
+		}
 		// Build notes BEFORE restoring full-piece scope, so getMIDIValuesForElement
 		// reads from the clip's MIDI context (not the full-piece context).
 		for (const [id, startQ] of noteQstampMap) {
-			const midiValues = tk.getMIDIValuesForElement(id) as Array<{ pitch: number }> | null;
-			if (!midiValues || midiValues.length === 0) continue;
-			const midi = midiValues[0].pitch;
+			if (!clipNoteIds.has(id)) continue;
+			// Verovio's getMIDIValuesForElement returns a single object { pitch, ... }
+			// for a note, NOT an array. Some elements (e.g. grace/tied notes or ids
+			// absent from the MIDI map) return undefined/null. Handle both shapes and
+			// skip anything without a numeric pitch rather than crashing on `.pitch`.
+			const raw = tk.getMIDIValuesForElement(id) as unknown;
+			const v = (Array.isArray(raw) ? raw[0] : raw) as { pitch?: unknown } | undefined;
+			if (!v || typeof v.pitch !== "number") continue;
+			const midi = v.pitch;
 			const endQ = noteOffMap.get(id) ?? startQ + 1;
 			notes.push({ midi, startQ, endQ });
 		}

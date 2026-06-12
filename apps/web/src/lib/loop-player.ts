@@ -58,7 +58,11 @@ export class LoopPlayer {
 
   private async loadInstrument(instrumentUrl: string): Promise<void> {
     try {
-      this.piano = Soundfont(this.ctx, { instrument: instrumentUrl });
+      // Pass the self-hosted file via `instrumentUrl` (a direct URL), NOT
+      // `instrument` (an instrument NAME, which makes smplr build a MusyngKite
+      // CDN URL and ignore our self-hosted samples). smplr's SoundfontConfig is
+      // { kit, instrument?, instrumentUrl } — instrumentUrl wins for self-hosting.
+      this.piano = Soundfont(this.ctx, { instrumentUrl });
       // .load is a Promise property on the Smplr interface (not a method call)
       await this.piano.load;
     } catch (err) {

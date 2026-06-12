@@ -160,29 +160,38 @@ export function ExerciseSetCard({
 	useEffect(() => {
 		if (!config.scoreClip) return;
 		let cancelled = false;
-		if (hasTempoFactor) {
-			scoreRenderer
-				.getClipPlayback(config.scoreClip.pieceId, config.scoreClip.bars[0], config.scoreClip.bars[1])
-				.then((r) => {
+		const { pieceId, bars } = config.scoreClip;
+		// getClip/getClipPlayback require the piece bytes to have been sent to the
+		// worker via load() first (the worker errors "bytes required on first
+		// request" otherwise). Production preloads via ScorePanel, but an exercise
+		// card can render with no panel open, so load() here makes the card
+		// self-sufficient. load() is idempotent (cached), so it's a no-op when the
+		// piece was already loaded upstream.
+		(async () => {
+			const loaded = await scoreRenderer.load(pieceId);
+			if (cancelled) return;
+			if (loaded === "failed") {
+				console.error("ExerciseSetCard: failed to load score for clip", pieceId);
+				setClipLoadError(true);
+				return;
+			}
+			try {
+				if (hasTempoFactor) {
+					const r = await scoreRenderer.getClipPlayback(pieceId, bars[0], bars[1]);
 					if (!cancelled) {
 						setScoreClipSvg(r.svg);
 						setClipIR(r.ir);
 						setClipNotes(r.notes);
 					}
-				})
-				.catch((err) => {
-					console.error("ExerciseSetCard: failed to load score clip playback", err);
-					if (!cancelled) setClipLoadError(true);
-				});
-		} else {
-			scoreRenderer
-				.getClip(config.scoreClip.pieceId, config.scoreClip.bars[0], config.scoreClip.bars[1])
-				.then((r) => { if (!cancelled) setScoreClipSvg(r); })
-				.catch((err) => {
-					console.error("ExerciseSetCard: failed to load score clip", err);
-					if (!cancelled) setClipLoadError(true);
-				});
-		}
+				} else {
+					const svg = await scoreRenderer.getClip(pieceId, bars[0], bars[1]);
+					if (!cancelled) setScoreClipSvg(svg);
+				}
+			} catch (err) {
+				console.error("ExerciseSetCard: failed to load score clip", err);
+				if (!cancelled) setClipLoadError(true);
+			}
+		})();
 		return () => { cancelled = true; };
 	}, [config.scoreClip, hasTempoFactor]);
 

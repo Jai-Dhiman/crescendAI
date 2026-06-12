@@ -104,9 +104,11 @@ describe("processGetClipPlaybackRequest", () => {
         <g class="note" id="note-a"><use x="100" y="200"/></g>
       </g>
     </svg>`;
-    // Each note has a MIDI value
+    // Verovio's getMIDIValuesForElement returns a single OBJECT { pitch, ... }
+    // for a note (NOT an array). Encode the real shape so this test guards the
+    // object-vs-array regression that crashed on `midiValues[0].pitch`.
     const mockGetMIDIValuesForElement = vi.fn((id: string) =>
-      id === "note-a" ? [{ pitch: 60 }] : [{ pitch: 64 }]
+      id === "note-a" ? { pitch: 60 } : { pitch: 64 }
     );
     const tk = {
       ...fakeTk,
@@ -133,16 +135,19 @@ describe("processGetClipPlaybackRequest", () => {
     expect(Array.isArray(result.ir.bars)).toBe(true);
     expect(result.ir.bars.length).toBeGreaterThan(0);
     expect(Array.isArray(result.notes)).toBe(true);
-    // The timemap supplies note-a at qstamp 0 with MIDI pitch 60.
-    expect(result.notes.length).toBeGreaterThan(0);
+    // Clip restriction: note-a is in the clip SVG (so in ir.bars[].noteIds), but
+    // note-b is only in the timemap `on` list and NOT in the clip SVG. Verovio's
+    // renderToTimemap returns the WHOLE piece even after select(), so without the
+    // clip-note-id restriction note-b would leak in. Assert it is excluded.
+    expect(result.notes.length).toBe(1);
     const n = result.notes[0];
-    expect(typeof n.midi).toBe("number");
+    // pitch read from the OBJECT shape (60 = note-a); 64 (note-b) must be absent.
+    expect(n.midi).toBe(60);
+    expect(result.notes.some((m) => m.midi === 64)).toBe(false);
     expect(typeof n.startQ).toBe("number");
     expect(typeof n.endQ).toBe("number");
     expect(n.startQ).toBeGreaterThanOrEqual(0);
     expect(n.endQ).toBeGreaterThanOrEqual(n.startQ);
-    expect(n.midi).toBeGreaterThanOrEqual(0);
-    expect(n.midi).toBeLessThanOrEqual(127);
   });
 });
 
