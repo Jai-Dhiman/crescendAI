@@ -5,6 +5,7 @@ enum ScoreHostEventError: Error {
     case unknownType(String)
     case missingPayloadKey(String)
     case malformedBody
+    case webViewDeallocated
 }
 
 enum ScoreHostEvent {
@@ -79,16 +80,12 @@ class ScoreHostBridge: NSObject, WKScriptMessageHandler {
     }
 
     func load(pieceId: String) async throws {
-        let escaped = pieceId.replacingOccurrences(of: "\"", with: "\\\"")
-        try await callVoid(js: "ScoreHost.load(\"\(escaped)\")")
+        try await callVoid(js: "ScoreHost.load(pieceId)", args: ["pieceId": pieceId])
     }
 
     func showArtifact(_ config: ArtifactConfig) async throws {
         let json = try ScoreHostBridge.artifactJSON(for: config)
-        let escaped = json
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
-        try await callVoid(js: "ScoreHost.showArtifact('\(escaped)')")
+        try await callVoid(js: "ScoreHost.showArtifact(json)", args: ["json": json])
     }
 
     func play() async throws {
@@ -112,14 +109,14 @@ class ScoreHostBridge: NSObject, WKScriptMessageHandler {
         return json
     }
 
-    private func callVoid(js: String) async throws {
+    private func callVoid(js: String, args: [String: Any] = [:]) async throws {
         guard let webView else {
-            throw ScoreHostEventError.malformedBody
+            throw ScoreHostEventError.webViewDeallocated
         }
         let wrapped = "Promise.resolve(\(js)).then(() => undefined)"
         let result = try await webView.callAsyncJavaScript(
             wrapped,
-            arguments: [:],
+            arguments: args,
             in: nil,
             contentWorld: .page
         )
