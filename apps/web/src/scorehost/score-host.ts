@@ -23,6 +23,7 @@ const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Err
 // Per-pieceId cache of the load result so showArtifact can call renderScoreHighlight
 // without re-loading every time.
 const loadCache = new Map<string, LoadPayload>();
+const loadPromises = new Map<string, Promise<void>>();
 
 function getWorker(): Worker {
   if (worker) return worker;
@@ -98,29 +99,52 @@ async function fetchScoreBytes(pieceId: string): Promise<ArrayBuffer> {
   return res.arrayBuffer();
 }
 
+async function ensureLoaded(pieceId: string): Promise<void> {
+  if (loadCache.has(pieceId)) return;
+  const inflight = loadPromises.get(pieceId);
+  if (inflight) {
+    await inflight;
+    return;
+  }
+  const promise = (async () => {
+    const bytes = await fetchScoreBytes(pieceId);
+    const payload = await sendRequest<LoadPayload>({ type: "load", pieceId }, bytes);
+    loadCache.set(pieceId, payload);
+  })();
+  loadPromises.set(pieceId, promise);
+  try {
+    await promise;
+  } finally {
+    loadPromises.delete(pieceId);
+  }
+}
+
 async function renderScoreHighlight(config: ScoreHighlightConfig): Promise<void> {
   const { pieceId } = config;
 
-  let cached = loadCache.get(pieceId);
-  if (!cached) {
-    const bytes = await fetchScoreBytes(pieceId);
-    cached = await sendRequest<LoadPayload>({ type: "load", pieceId }, bytes);
-    loadCache.set(pieceId, cached);
-  }
+  await ensureLoaded(pieceId);
 
-  const { pageSvgs } = cached;
   const container = getContainer();
   container.innerHTML = "";
 
-  let noteCount = 0;
-  for (const svg of pageSvgs) {
-    const wrapper = document.createElement("div");
-    wrapper.style.cssText = "position:relative;width:100%;";
-    wrapper.innerHTML = svg;
-    noteCount += wrapper.querySelectorAll("use").length;
-    container.appendChild(wrapper);
+  let svgHtml: string;
+  if (config.highlights.length > 0) {
+    const [startBar, endBar] = config.highlights[0].bars;
+    svgHtml = await sendRequest<string>({ type: "get_clip", pieceId, startBar, endBar });
+  } else {
+    const cached = loadCache.get(pieceId);
+    if (!cached) {
+      throw new Error(`renderScoreHighlight: no cached load for pieceId: ${pieceId}`);
+    }
+    svgHtml = cached.pageSvgs[0] ?? "";
   }
 
+  const wrapper = document.createElement("div");
+  wrapper.style.cssText = "position:relative;width:100%;";
+  wrapper.innerHTML = svgHtml;
+  container.appendChild(wrapper);
+
+  const noteCount = wrapper.querySelectorAll("use").length;
   emit("rendered", { noteCount });
 }
 
@@ -131,11 +155,7 @@ const ScoreHostImpl = {
 
   async load(pieceId: string): Promise<{ ok: true }> {
     try {
-      if (!loadCache.has(pieceId)) {
-        const bytes = await fetchScoreBytes(pieceId);
-        const payload = await sendRequest<LoadPayload>({ type: "load", pieceId }, bytes);
-        loadCache.set(pieceId, payload);
-      }
+      await ensureLoaded(pieceId);
       return { ok: true };
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);

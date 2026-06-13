@@ -30,4 +30,8 @@ test("ScoreHost.load + showArtifact(score_highlight) engraves note glyphs", asyn
   await page.waitForSelector("svg use", { timeout: 15000 });
   const useCount = await page.evaluate(() => document.querySelectorAll("svg use").length);
   expect(useCount).toBeGreaterThan(0);
+
+  // Clip renders exactly ONE svg element (not the full multi-page score)
+  const svgCount = await page.evaluate(() => document.querySelectorAll("#scorehost-container > div > svg").length);
+  expect(svgCount).toBe(1);
 });
