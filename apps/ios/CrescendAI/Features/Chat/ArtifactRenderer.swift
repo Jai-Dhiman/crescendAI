@@ -11,6 +11,8 @@ struct ArtifactRenderer: View {
             ArtifactScoreHighlightPlaceholder()
         case .keyboardGuide(let c):
             ArtifactKeyboardGuideCard(config: c)
+        case .playPassage:
+            EmptyView()
         case .unknown:
             EmptyView()
         }

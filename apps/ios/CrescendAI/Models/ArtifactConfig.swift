@@ -32,10 +32,19 @@ struct KeyboardGuideConfig: Codable {
     let fingering: String?
 }
 
+struct PlayPassageConfig: Codable {
+    let sessionId: String
+    let bars: [Int]
+    let focusBars: [Int]?
+    let dimension: String
+    let annotation: String
+}
+
 enum ArtifactConfig: Codable {
     case exerciseSet(ExerciseSetConfig)
     case scoreHighlight(ScoreHighlightConfig)
     case keyboardGuide(KeyboardGuideConfig)
+    case playPassage(PlayPassageConfig)
     case unknown(type: String)
 
     private enum CodingKeys: String, CodingKey {
@@ -56,6 +65,9 @@ enum ArtifactConfig: Codable {
         case "keyboard_guide":
             let config = try container.decode(KeyboardGuideConfig.self, forKey: .config)
             self = .keyboardGuide(config)
+        case "play_passage":
+            let config = try container.decode(PlayPassageConfig.self, forKey: .config)
+            self = .playPassage(config)
         default:
             self = .unknown(type: type_)
         }
@@ -72,6 +84,9 @@ enum ArtifactConfig: Codable {
             try container.encode(config, forKey: .config)
         case .keyboardGuide(let config):
             try container.encode("keyboard_guide", forKey: .type)
+            try container.encode(config, forKey: .config)
+        case .playPassage(let config):
+            try container.encode("play_passage", forKey: .type)
             try container.encode(config, forKey: .config)
         case .unknown(let type_):
             try container.encode(type_, forKey: .type)
