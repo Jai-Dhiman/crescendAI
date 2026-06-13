@@ -9,6 +9,7 @@ const scorehostRoot = path.resolve(__dirname, "src/scorehost");
 
 export default defineConfig({
   root: scorehostRoot,
+  base: "./",
   publicDir: path.resolve(__dirname, "public"),
   build: {
     outDir: path.resolve(__dirname, "dist-scorehost"),
