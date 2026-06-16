@@ -373,7 +373,7 @@ Components in the chat history are snapshots -- they do not update retroactively
 
 | Capability | Web | iOS |
 |---|---|---|
-| Score rendering | Verovio WASM in a Web Worker (`score-worker.ts`) | TBD (Verovio in WKWebView or native Swift) |
+| Score rendering | Verovio WASM in a Web Worker (`score-worker.ts`) | Verovio WASM + smplr in WKWebView scorehost bundle (WKURLSchemeHandler scorehost://app/); `just build-scorehost` (#57) |
 | Keyboard guide | Canvas/SVG rendering | Native SwiftUI view (88-key scrollable) |
 | Exercise set | React card stack | SwiftUI card stack |
 | Reference browser (YouTube) | Embedded iframe player | WKWebView inline player |
@@ -399,7 +399,7 @@ Start simple, iterate:
 
 1. **Component frequency:** How often should the teacher generate a component vs. text-only? Too many cards could feel noisy. Too few and the feature is invisible. The ~30% target from the design philosophy section is confirmed as the right starting point (CEO review 2026-03-19). Increase or decrease based on engagement data.
 
-2. ~~**Score rendering library:**~~ RESOLVED -- Verovio WASM in a Web Worker (shipped, Phase 2: `score-ir.ts`, `score-cursor.ts`, `score-renderer.ts`, `score-worker.ts`). iOS renderer still TBD.
+2. ~~**Score rendering library:**~~ RESOLVED -- Verovio WASM in a Web Worker (shipped, Phase 2: `score-ir.ts`, `score-cursor.ts`, `score-renderer.ts`, `score-worker.ts`). iOS renderer SHIPPED (#57): scorehost WKWebView bundle.
 
 3. **Reference browser content quality:** YouTube search results vary in quality. Should the teacher validate results (check video title, duration, relevance) before showing them? Or trust the search and let the student skip irrelevant results? (Note: the reference-browser artifact was never built; `play_passage` replaced the stub.)
 
