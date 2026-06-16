@@ -7,6 +7,7 @@ type PendingRequest = {
   resolve: (value: unknown) => void;
   reject: (err: Error) => void;
   pieceId: string;
+  sentKey?: string;
 };
 
 export class ScoreRenderer {
@@ -35,7 +36,7 @@ export class ScoreRenderer {
         if (!pending) return;
         this.pendingRequests.delete(requestId);
         if (error !== undefined) {
-          this.sentPieceIds.delete(pending.pieceId);
+          if (pending.sentKey !== undefined) this.sentPieceIds.delete(pending.sentKey);
           pending.reject(new Error(error));
         } else {
           pending.resolve(payload);
@@ -43,8 +44,8 @@ export class ScoreRenderer {
       };
       this.worker.onerror = (e: ErrorEvent) => {
         const err = new Error(`Score worker crashed: ${e.message}`);
-        for (const { reject, pieceId } of this.pendingRequests.values()) {
-          this.sentPieceIds.delete(pieceId);
+        for (const { reject, sentKey } of this.pendingRequests.values()) {
+          if (sentKey !== undefined) this.sentPieceIds.delete(sentKey);
           reject(err);
         }
         this.pendingRequests.clear();
@@ -55,7 +56,9 @@ export class ScoreRenderer {
   }
 
   private async ensureBytes(pieceId: string): Promise<void> {
-    if (this.sentPieceIds.has(pieceId) || this.bytesCache.has(pieceId)) return;
+    // sentPieceIds holds composite keys ("pieceId:transpose"), not bare pieceIds,
+    // so only bytesCache indicates whether the fetch has already completed.
+    if (this.bytesCache.has(pieceId)) return;
     const inflight = this.pendingFetches.get(pieceId);
     if (inflight) return inflight;
     const fetchPromise = (async () => {
@@ -74,6 +77,7 @@ export class ScoreRenderer {
     pieceId: string,
     msg: Record<string, unknown>,
     bytes?: ArrayBuffer,
+    sentKey?: string,
   ): Promise<T> {
     const worker = this.ensureWorker();
     return new Promise((resolve, reject) => {
@@ -82,6 +86,7 @@ export class ScoreRenderer {
         resolve: resolve as (v: unknown) => void,
         reject,
         pieceId,
+        sentKey,
       });
       worker.postMessage({ ...msg, requestId, pieceId, bytes });
     });
@@ -106,6 +111,7 @@ export class ScoreRenderer {
         pieceId,
         { type: "load", transpose },
         bytes,
+        key,
       );
       this.irCache.set(key, payload.ir);
       return payload;

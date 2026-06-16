@@ -132,4 +132,76 @@ describe("ScoreRenderer.load forwards transpose into the worker message", () => 
       api.scores.getData = orig;
     }
   });
+
+  it("clears composite sentPieceIds key on worker error so retry re-sends bytes (transpose case)", async () => {
+    // biome-ignore lint/suspicious/noExplicitAny: test capture array
+    const posted: any[] = [];
+    let callCount = 0;
+    let workerRef: { onmessage: ((e: MessageEvent) => void) | null } = { onmessage: null };
+
+    class FakeWorker {
+      onmessage: ((e: MessageEvent) => void) | null = null;
+      onerror: ((e: ErrorEvent) => void) | null = null;
+      constructor() {
+        // Keep a reference so the test can drive responses manually
+        workerRef = this;
+      }
+      // biome-ignore lint/suspicious/noExplicitAny: synthetic message
+      postMessage(msg: any) {
+        posted.push(msg);
+        callCount++;
+        const self = this;
+        if (callCount === 1) {
+          // First call: reply with an error
+          queueMicrotask(() => {
+            self.onmessage?.({
+              data: { requestId: msg.requestId, error: "boom" },
+            } as MessageEvent);
+          });
+        } else {
+          // Second call: reply with success
+          queueMicrotask(() => {
+            self.onmessage?.({
+              data: {
+                requestId: msg.requestId,
+                payload: {
+                  ir: { pieceId: msg.pieceId, verovioVersion: "", bars: [], pages: [], notes: {}, pageWidth: 2400 },
+                  pageSvgs: ["<svg/>"],
+                },
+              },
+            } as MessageEvent);
+          });
+        }
+      }
+      terminate() {}
+    }
+    // @ts-expect-error override global Worker for the test
+    globalThis.Worker = FakeWorker;
+
+    const { api } = await import("./api");
+    const orig = api.scores.getData;
+    // @ts-expect-error stub network fetch
+    api.scores.getData = async () => new ArrayBuffer(8);
+
+    try {
+      const r = new ScoreRenderer();
+
+      // First load: should fail (worker returns error), returns "failed"
+      const firstResult = await r.load("hanon_001", 2);
+      expect(firstResult).toBe("failed");
+
+      // Second load: sentPieceIds["hanon_001:2"] must have been cleared,
+      // so bytes are re-sent (the key indicator that the composite key was cleaned up).
+      const secondResult = await r.load("hanon_001", 2);
+      expect(secondResult).not.toBe("failed");
+
+      const secondMsg = posted[1];
+      expect(secondMsg).toBeDefined();
+      // bytes present proves sentPieceIds was properly cleared for the composite key
+      expect(secondMsg.bytes).toBeInstanceOf(ArrayBuffer);
+    } finally {
+      // @ts-expect-error restore
+      api.scores.getData = orig;
+    }
+  });
 });
