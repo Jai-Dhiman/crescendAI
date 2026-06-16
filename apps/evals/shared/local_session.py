@@ -16,7 +16,6 @@ import asyncio
 import json
 import subprocess
 import tempfile
-import uuid
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -66,6 +65,11 @@ def check_services(wrangler_url: str) -> None:
         raise RuntimeError(
             f"API not reachable at {wrangler_url}/health. "
             "Run `just dev` (or `just api`) before running the eval harness."
+        ) from exc
+    except requests.Timeout as exc:
+        raise RuntimeError(
+            f"API health check timed out at {wrangler_url}/health after 5s. "
+            "Ensure `just dev` is running and responsive."
         ) from exc
     if resp.status_code != 200:
         raise RuntimeError(
@@ -150,26 +154,48 @@ async def _drive_async(
 
         for idx, r2_key in enumerate(r2_keys):
             await ws.send(json.dumps({"type": "chunk_ready", "index": idx, "r2Key": r2_key}))
+            # Wait for chunk_processed before sending next chunk
+            try:
+                while True:
+                    raw = await asyncio.wait_for(ws.recv(), timeout=timeout_per_event)
+                    evt = json.loads(raw)
+                    etype = evt.get("type")
+                    if etype == "chunk_processed":
+                        break
+                    elif etype == "piece_identified":
+                        piece_identification = evt
+                    elif etype == "error":
+                        raise RuntimeError(
+                            f"DO returned error during chunk {idx}: {evt.get('message')}"
+                        )
+            except asyncio.TimeoutError:
+                raise RuntimeError(
+                    f"Timeout after {timeout_per_event}s waiting for chunk_processed "
+                    f"for chunk {idx} of {recording}. Is MuQ:8000 warm?"
+                )
 
         await ws.send(json.dumps({"type": "end_session"}))
 
-        while True:
-            try:
+        # Wait for synthesis
+        try:
+            while True:
                 raw = await asyncio.wait_for(ws.recv(), timeout=timeout_per_event)
-            except asyncio.TimeoutError:
-                raise RuntimeError(
-                    f"Timeout after {timeout_per_event}s waiting for synthesis "
-                    f"for {recording}. Is MuQ:8000 warm?"
-                )
-            evt = json.loads(raw)
-            etype = evt.get("type")
-            if etype == "synthesis":
-                synthesis_event = evt
-                break
-            elif etype == "piece_identified":
-                piece_identification = evt
-            elif etype == "error":
-                raise RuntimeError(f"DO returned error: {evt.get('message')}")
+                evt = json.loads(raw)
+                etype = evt.get("type")
+                if etype == "synthesis":
+                    synthesis_event = evt
+                    break
+                elif etype == "piece_identified":
+                    piece_identification = evt
+                elif etype == "error":
+                    raise RuntimeError(f"DO returned error: {evt.get('message')}")
+        except asyncio.TimeoutError:
+            raise RuntimeError(
+                f"Timeout after {timeout_per_event}s waiting for synthesis "
+                f"for {recording}. Is MuQ:8000 warm?"
+            )
+        except websockets.exceptions.ConnectionClosed:
+            pass  # Server closed connection after synthesis; check synthesis_event below
 
     if synthesis_event is None:
         raise RuntimeError(f"No synthesis received for {recording}")
@@ -191,10 +217,27 @@ def drive(
     Raises RuntimeError if services are unreachable, ffmpeg fails, wrangler
     r2 put fails, or no synthesis is received within timeout.
     """
+    import requests as _requests
+
     if eval_secret is None:
         eval_secret = read_eval_secret()
 
-    session_id = str(uuid.uuid4())
+    auth = _get_auth_session(wrangler_url)
+    resp = auth.post(
+        f"{wrangler_url}/api/practice/start",
+        json={},
+        headers={"x-eval-secret": eval_secret},
+        timeout=10,
+    )
+    if resp.status_code not in (200, 201):
+        raise RuntimeError(
+            f"Failed to start practice session: {resp.status_code} {resp.text}"
+        )
+    session_id = resp.json().get("sessionId")
+    if not session_id:
+        raise RuntimeError(
+            f"POST /api/practice/start response missing sessionId: {resp.text}"
+        )
 
     with tempfile.TemporaryDirectory(prefix="crescend-routing-eval-") as tmp:
         tmp_dir = Path(tmp)
