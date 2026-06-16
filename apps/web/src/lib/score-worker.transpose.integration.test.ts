@@ -78,8 +78,10 @@ describe("loadPiece transpose param", () => {
       }
       // 3. Strip per-element random id tokens from class attributes,
       //    e.g. class="tie id-jiay29h spanning" → class="tie spanning"
-      //    Pattern: " id-" followed by lowercase alphanumeric.
-      out = out.replace(/ id-[a-z0-9]+/g, "");
+      //    Scoped to class="..." values only to avoid stripping " id-<word>"
+      //    patterns that appear in text content or other attributes.
+      //    Inner /g removes ALL id- fragments per class (Verovio may emit multiple).
+      out = out.replace(/class="([^"]*)"/g, (_m, cls) => `class="${cls.replace(/ id-[a-z0-9]+/g, "")}"`)
       return out;
     };
     expect(stripIds(zero.pageSvgs[0])).toBe(stripIds(omitted.pageSvgs[0]));
