@@ -5,6 +5,8 @@
 > **Status update (2026-06-10, S1 shipped — #29):** The legacy `proposed_exercises` (synthesis) and `create_exercise` (chat tool) paths have been removed and replaced by the `ExerciseRoutingDecision` contract. All exercise prescriptions — whether emitted during post-session synthesis or via the `prescribe_exercise` chat tool — now produce a typed routing decision that persists to `pending_exercises`. See [S1 Contract](#s1-exercise-routing-contract-shipped-29) below.
 >
 > **Status update (2026-06-11, own-passage loop playback shipped — #45):** `ExerciseSetCard` redesigned with score-first layout and `LoopTransport` interactive playback. `LoopPlayer` (smplr piano + metronome + `LoopClock`) drives audio. `useLoopPlayer` hook manages countdown/playback state. `score-worker` gained `get_clip_playback` message for IR + playback notes. `tempoFactor` flows from the prescription routing decision into the transport slider.
+>
+> **Status update (2026-06-16, corpus-drill renderable assets + Verovio transpose-on-demand shipped — #46, epic #44 S3):** The 22 exercise primitives now ship as committed `.mxl` assets and render in the web score panel at any in-range key. (1) `model/src/exercise_corpus/build_render_assets.py` `build()` turns each committed `model/data/scores/exercise_primitives/*.xml` into a committed `model/data/exercise_primitives/mxl/{id}.mxl` (partitura-validate -> DOCTYPE-strip -> `wrap_as_mxl_zip`, idempotent, fail-loud on bad XML); `just build-exercise-assets` runs it and `just seed-exercise-assets` puts the `.mxl` to local R2 `scores/v1/{id}.mxl` (served by the unchanged `GET /api/scores/:pieceId/data`). (2) `ScoreRenderer.load(pieceId, transpose?)` and the worker's `loadPiece(..., transpose?)` thread an optional semitone integer to Verovio's `transpose` (stringified only at the `tk.setOptions` boundary); toolkit/IR caches now key on a composite `${pieceId}:${transpose ?? 0}` — this also fixed a pre-existing P0 where all clip rendering shared a non-composite cache key. Byte fetch stays keyed by `pieceId`; `transpose: 0` is byte-identical to the legacy path. (3) Hermetic Verovio-vs-partitura faithful-shift pitch-class oracle (`model/tests/exercise_corpus/test_render_assets_oracle.py`): intra-engine faithful-shift invariant across all 22 primitives (48 passed) + cross-engine baseline witness (2 documented `xfail` divergences: `burgmuller_001` repeat-expansion, `czerny_001` accidental-realization). Runtime selection/display (Worker picks primitive + key) is S4. (`corpus_drill` card still stub-renders until S4 wires selection.)
 
 ---
 
@@ -43,7 +45,7 @@ type ExerciseRoutingDecision =
 ### Rendering
 
 - **`own_passage_loop`** — rendered by `ExerciseSetCard` with interactive loop playback (shipped #45). Score-first card layout: score clip at the top, `LoopTransport` bar below (play/stop, tempo slider, bar-range label), animated `ScoreCursor` tracking playback. `LoopPlayer` audio orchestrator drives smplr piano + metronome aligned to `LoopClock`. `tempoFactor` from the prescription drives the initial tempo slider value.
-- **`corpus_drill`** — stub-renders as descriptive text until S3/S4 wire in the corpus retrieval + briefing layer.
+- **`corpus_drill`** — the 22 primitives now exist as renderable, transposable `.mxl` assets in R2 (S3/#46), so the score panel CAN engrave a chosen primitive at any in-range key. The card still stub-renders as descriptive text until S4 wires the runtime selection step (Worker picks `primitive_id` + key from the briefing layer).
 
 ### Persistence
 
