@@ -32,8 +32,32 @@ class ScoreSchemeHandler: NSObject, WKURLSchemeHandler {
         if relativePath.hasPrefix("/") { relativePath = String(relativePath.dropFirst()) }
         if relativePath.isEmpty { relativePath = "index.html" }
 
+        // Reject any path whose components contain ".." before touching the filesystem
+        let pathComponents = (relativePath as NSString).pathComponents
+        if pathComponents.contains("..") {
+            urlSchemeTask.didFailWithError(
+                NSError(domain: "ScoreSchemeHandler", code: 403,
+                        userInfo: [NSLocalizedDescriptionKey: "Path escape"])
+            )
+            return
+        }
+
         let bundlePath = Bundle.main.bundlePath
         let fullPath = "\(bundlePath)/dist-scorehost/\(relativePath)"
+
+        // Canonicalize and verify the resolved path stays inside dist-scorehost
+        let baseDir = URL(fileURLWithPath: "\(bundlePath)/dist-scorehost")
+            .resolvingSymlinksInPath().standardizedFileURL
+        let candidate = URL(fileURLWithPath: fullPath)
+            .resolvingSymlinksInPath().standardizedFileURL
+        guard candidate.path == baseDir.path || candidate.path.hasPrefix(baseDir.path + "/") else {
+            urlSchemeTask.didFailWithError(
+                NSError(domain: "ScoreSchemeHandler", code: 403,
+                        userInfo: [NSLocalizedDescriptionKey: "Path escape"])
+            )
+            return
+        }
+
         guard FileManager.default.fileExists(atPath: fullPath) else {
             urlSchemeTask.didFailWithError(
                 NSError(domain: "ScoreSchemeHandler", code: 404,
