@@ -57,6 +57,43 @@ final class ScoreHostBridgeTests: XCTestCase {
         XCTAssertThrowsError(try ScoreHostEvent(from: body))
     }
 
+    func test_playPassageSerializesCorrectly() throws {
+        let config = PlayPassageConfig(
+            pieceId: "chopin-op9-no2",
+            sessionId: "sess-abc123",
+            bars: [1, 8],
+            focusBars: [3, 5],
+            dimension: "phrasing",
+            annotation: "Shape the phrase peak here"
+        )
+        let artifact = ArtifactConfig.playPassage(config)
+        let json = try ScoreHostBridge.artifactJSON(for: artifact)
+        let decoded = try JSONSerialization.jsonObject(with: json.data(using: .utf8)!) as! [String: Any]
+        XCTAssertEqual(decoded["type"] as? String, "play_passage")
+        let inner = decoded["config"] as! [String: Any]
+        XCTAssertEqual(inner["pieceId"] as? String, "chopin-op9-no2")
+        XCTAssertEqual(inner["sessionId"] as? String, "sess-abc123")
+        XCTAssertEqual(inner["dimension"] as? String, "phrasing")
+    }
+
+    func test_playPassageWithoutSessionIdSerializesCorrectly() throws {
+        let config = PlayPassageConfig(
+            pieceId: "chopin-op9-no2",
+            sessionId: nil,
+            bars: [1, 8],
+            focusBars: nil,
+            dimension: "phrasing",
+            annotation: "Shape the phrase peak here"
+        )
+        let artifact = ArtifactConfig.playPassage(config)
+        let json = try ScoreHostBridge.artifactJSON(for: artifact)
+        let decoded = try JSONSerialization.jsonObject(with: json.data(using: .utf8)!) as! [String: Any]
+        XCTAssertEqual(decoded["type"] as? String, "play_passage")
+        let inner = decoded["config"] as! [String: Any]
+        XCTAssertEqual(inner["pieceId"] as? String, "chopin-op9-no2")
+        XCTAssertNil(inner["sessionId"])
+    }
+
     func test_scoreHighlightSerializesCorrectly() throws {
         let config = ScoreHighlightConfig(
             pieceId: "czerny-op299-no1",

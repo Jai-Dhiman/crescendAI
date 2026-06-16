@@ -1,14 +1,14 @@
 import SwiftUI
 import WebKit
 
-/// A SwiftUI view that renders a score_highlight artifact via ScoreWebView.
+/// A SwiftUI view that renders a play_passage artifact via the score WebView.
 ///
 /// Lifecycle:
 ///   1. makeUIView creates WKWebView + ScoreHostBridge together, loads scorehost://app/index.html
-///   2. On .ready event the Coordinator calls load(pieceId:) then showArtifact(.scoreHighlight)
+///   2. On .ready event the Coordinator calls load(pieceId:) then showArtifact(.playPassage)
 ///   3. Errors are thrown explicitly; there are no silent fallbacks.
-struct ArtifactScoreView: UIViewRepresentable {
-    let config: ScoreHighlightConfig
+struct ArtifactPlayPassageView: UIViewRepresentable {
+    let config: PlayPassageConfig
 
     func makeCoordinator() -> Coordinator {
         Coordinator(config: config)
@@ -51,11 +51,11 @@ struct ArtifactScoreView: UIViewRepresentable {
 
     @MainActor
     final class Coordinator {
-        let config: ScoreHighlightConfig
+        let config: PlayPassageConfig
         var bridge: ScoreHostBridge?
         private var didLoad = false
 
-        init(config: ScoreHighlightConfig) {
+        init(config: PlayPassageConfig) {
             self.config = config
         }
 
@@ -65,11 +65,11 @@ struct ArtifactScoreView: UIViewRepresentable {
             Task {
                 do {
                     try await bridge.load(pieceId: config.pieceId)
-                    try await bridge.showArtifact(.scoreHighlight(config))
+                    try await bridge.showArtifact(.playPassage(config))
                 } catch {
-                    // Surface the error to the bridge as a log event so it is observable.
+                    // Surface the error as a log so it is observable.
                     // Do not swallow silently.
-                    print("ArtifactScoreView: bridge call failed: \(error)")
+                    print("ArtifactPlayPassageView: bridge call failed: \(error)")
                 }
             }
         }

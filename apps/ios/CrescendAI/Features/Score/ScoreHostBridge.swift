@@ -97,7 +97,7 @@ class ScoreHostBridge: NSObject, WKScriptMessageHandler {
     }
 
     func setTempo(_ factor: Double) async throws {
-        try await callVoid(js: "ScoreHost.setTempo(\(factor))")
+        try await callVoid(js: "ScoreHost.setTempo(factor)", args: ["factor": factor])
     }
 
     nonisolated static func artifactJSON(for config: ArtifactConfig) throws -> String {

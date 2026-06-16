@@ -33,7 +33,8 @@ struct KeyboardGuideConfig: Codable {
 }
 
 struct PlayPassageConfig: Codable {
-    let sessionId: String
+    let pieceId: String
+    let sessionId: String?
     let bars: [Int]
     let focusBars: [Int]?
     let dimension: String
