@@ -23,7 +23,7 @@ def make_capture(
     *,
     piece_slug: str = "fur_elise",
     piece_resolved: bool = True,
-    dominant_dimension: str = "dynamics",
+    dominant_dimension: str | None = "dynamics",
     prescribed_exercise: dict | None = None,
     top_moment_bar_range: list[int] | None = None,
 ) -> SessionCapture:
