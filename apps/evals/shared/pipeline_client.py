@@ -53,6 +53,12 @@ class SynthesisResult:
     text: str
     is_fallback: bool
     eval_context: dict = field(default_factory=dict)
+    prescribed_exercise: dict | None = None
+
+    def __post_init__(self) -> None:
+        # Auto-populate from eval_context if not explicitly provided
+        if self.prescribed_exercise is None and "prescribed_exercise" in self.eval_context:
+            self.prescribed_exercise = self.eval_context["prescribed_exercise"]
 
 
 @dataclass
@@ -250,6 +256,7 @@ async def run_recording(
                             text=response.get("text", ""),
                             is_fallback=response.get("is_fallback", False),
                             eval_context=response.get("eval_context", {}),
+                            prescribed_exercise=response.get("eval_context", {}).get("prescribed_exercise"),
                         )
                     elif msg_type == "observation":
                         observations.append(_parse_observation(response))

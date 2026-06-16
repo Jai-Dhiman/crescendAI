@@ -551,6 +551,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 		await this.ctx.blockConcurrencyWhile(async () => {
 			const state = await this.readState();
 			state.chunksInFlight++;
+			state.receivedRealInferenceChunk = true;  // mark: this session used real inference
 			await this.ctx.storage.put("state", state);
 		});
 
@@ -1716,7 +1717,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 		// Eval sessions bypass v6 (whose strict validation gates silently no-op on sparse accumulator
 		// state) and use the legacy teacher path — same path the locked ASCF baseline was measured on.
 		try {
-			if (this.env.HARNESS_V6_ENABLED === "true" && !state.isEvalSession) {
+			if (this.env.HARNESS_V6_ENABLED === "true" && (!state.isEvalSession || state.receivedRealInferenceChunk)) {
 				let artifact: SynthesisArtifact | null = null;
 				let validationError: string | null = null;
 				const phase1Results: Array<{ tool: string; output: unknown }> = [];
@@ -1825,7 +1826,14 @@ export class SessionBrain extends DurableObject<Bindings> {
 				);
 				const wsPayloadWithEval =
 					evalContext !== null
-						? { ...wsPayload, eval_context: evalContext }
+						? {
+							...wsPayload,
+							eval_context: {
+								...evalContext,
+								prescribed_exercise: artifact.prescribed_exercise,
+								artifact,
+							},
+						  }
 						: wsPayload;
 				const sockets = this.ctx.getWebSockets();
 				for (const sock of sockets) {
