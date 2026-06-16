@@ -215,6 +215,7 @@ export async function loadPiece(
 	bytes: ArrayBuffer,
 	bindings: VerovioBindings,
 	pieceId?: string,
+	transpose?: number,
 ): Promise<LoadResult> {
 	const { module, ToolkitClass } = bindings;
 	const ZIP_MAGIC = 0x04034b50;
@@ -222,8 +223,18 @@ export async function loadPiece(
 		bytes.byteLength >= 4 &&
 		new DataView(bytes).getUint32(0, true) === ZIP_MAGIC;
 
+	const applyOpts = (t: VerovioTk) => {
+		t.setOptions(VEROVIO_OPTS);
+		// Verovio applies `transpose` at loadData time. A bare semitone count is
+		// auto-accidental-minimized. transpose:0 / undefined is a no-op, keeping
+		// real pieces byte-identical to the pre-transpose code path.
+		if (transpose !== undefined && transpose !== 0) {
+			t.setOptions({ transpose: String(transpose) });
+		}
+	};
+
 	let tk = new ToolkitClass(module);
-	tk.setOptions(VEROVIO_OPTS);
+	applyOpts(tk);
 	let loaded = false;
 
 	if (isZip) {
@@ -232,7 +243,7 @@ export async function loadPiece(
 			loaded = tk.loadZipDataBuffer(clone) as boolean;
 		} catch {
 			tk = new ToolkitClass(module);
-			tk.setOptions(VEROVIO_OPTS);
+			applyOpts(tk);
 		}
 	}
 
@@ -253,7 +264,7 @@ export async function loadPiece(
 		}
 		if (fallbackXml !== null) {
 			tk = new ToolkitClass(module);
-			tk.setOptions(VEROVIO_OPTS);
+			applyOpts(tk);
 			try {
 				const clean = fallbackXml.replace(
 					/<!DOCTYPE\s[^>[]*(\[[^\]]*\])?\s*>/g,
