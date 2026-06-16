@@ -1,12 +1,34 @@
 // ScoreHost JS facade — exposes window.ScoreHost for WKWebView consumption.
-// Fetches .mxl files from the bundled public/scores/ directory (not the live API)
-// and delegates engraving to the score-worker via the standard message protocol.
+// Fetches .mxl files from the bundled public/scores/ directory or from the live
+// API when window.__SCOREHOST_API_BASE is set (used from file:// / custom schemes).
+// Delegates engraving to the score-worker via the standard message protocol.
 
 import type { InlineComponent, PlayPassageConfig, ScoreHighlightConfig } from "../lib/types";
 import type { ScoreIR } from "../lib/score-ir";
 import { LoopPlayer } from "../lib/loop-player";
 import { ScoreCursor } from "../lib/score-cursor";
 import type { ClipPlaybackResult } from "../lib/score-worker";
+
+// When scorehost is loaded from file:// or a custom scheme (e.g. iOS WKWebView),
+// relative /api/ URLs fail. Callers may set window.__SCOREHOST_API_BASE before
+// any ScoreHost calls to prepend an absolute origin for those requests.
+// The base URL is read lazily on each fetch call so it can be set after module load.
+(function patchFetchForScorehost(): void {
+  const origFetch = window.fetch.bind(window);
+  window.fetch = function(input: RequestInfo | URL, init?: RequestInit) {
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+    const apiBase = (window as unknown as { __SCOREHOST_API_BASE?: string }).__SCOREHOST_API_BASE;
+    if (apiBase && url.startsWith("/api/")) {
+      return origFetch(`${apiBase}${url}`, init);
+    }
+    return origFetch(input, init);
+  };
+}());
 
 interface WorkerReply {
   requestId: string;

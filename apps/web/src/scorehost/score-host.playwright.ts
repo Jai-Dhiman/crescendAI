@@ -1,5 +1,9 @@
 import { test, expect } from "@playwright/test";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 
 test("ScoreHost facade is defined after bundle loads", async ({ page }) => {
@@ -106,4 +110,48 @@ test("ScoreHost play_passage renders clip and fires playback event", async ({ pa
 
   const transportPresent = await page.evaluate(() => !!document.getElementById("loop-transport"));
   expect(transportPresent).toBe(true);
+});
+
+// This test requires a local API server running at http://localhost:8787
+// Skip if not available
+test("ScoreHost.load fetches non-bundled piece from live API", async ({ page }) => {
+  const apiBaseUrl = process.env.SCOREHOST_API_URL ?? "http://localhost:8787";
+
+  // Check if API is reachable
+  const apiUp = await fetch(`${apiBaseUrl}/api/scores`).then(() => true).catch(() => false);
+  if (!apiUp) {
+    test.skip(true, "Local API not running — set SCOREHOST_API_URL or start `just api`");
+  }
+
+  const indexHtml = path.resolve(
+    __dirname,
+    "../../../dist-scorehost/index.html",
+  );
+  await page.goto(`file://${indexHtml}`);
+  await page.waitForFunction(() => typeof (window as any).ScoreHost !== "undefined", { timeout: 5000 });
+
+  // Inject API base URL so score-renderer fetches from local API
+  await page.evaluate((url: string) => {
+    (window as any).__SCOREHOST_API_BASE = url;
+  }, apiBaseUrl);
+
+  const loadResult = await page.evaluate(async () => {
+    return await (window as any).ScoreHost.load("chopin-nocturne-op9-no2");
+  });
+  expect(loadResult).toEqual({ ok: true });
+
+  const artifactJson = JSON.stringify({
+    type: "score_highlight",
+    config: {
+      pieceId: "chopin-nocturne-op9-no2",
+      highlights: [{ bars: [1, 4], dimension: "phrasing", annotation: "sing here" }],
+    },
+  });
+  await page.evaluate(async (json: string) => {
+    await (window as any).ScoreHost.showArtifact(json);
+  }, artifactJson);
+
+  await page.waitForSelector("svg use", { timeout: 15000 });
+  const useCount = await page.evaluate(() => document.querySelectorAll("svg use").length);
+  expect(useCount).toBeGreaterThan(0);
 });
