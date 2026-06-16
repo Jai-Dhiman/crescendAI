@@ -55,11 +55,6 @@ class SynthesisResult:
     eval_context: dict = field(default_factory=dict)
     prescribed_exercise: dict | None = None
 
-    def __post_init__(self) -> None:
-        # Auto-populate from eval_context if not explicitly provided
-        if self.prescribed_exercise is None and "prescribed_exercise" in self.eval_context:
-            self.prescribed_exercise = self.eval_context["prescribed_exercise"]
-
 
 @dataclass
 class SessionResult:

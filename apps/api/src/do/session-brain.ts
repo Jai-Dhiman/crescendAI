@@ -1830,8 +1830,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 							...wsPayload,
 							eval_context: {
 								...evalContext,
-								prescribed_exercise: artifact.prescribed_exercise,
-								artifact,
+								prescribed_exercise: artifact.prescribed_exercise ?? null,
 							},
 						  }
 						: wsPayload;
