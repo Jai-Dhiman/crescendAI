@@ -318,3 +318,7 @@ piece-id-feasibility:
 # Acquire audio for all 16 practice_eval pieces (yt-dlp required).
 piece-id-feasibility-acquire slug video_id:
     cd model && uv run python -c "from pathlib import Path; from piece_id_eval.acquire import acquire_audio; out = acquire_audio('{{video_id}}', Path('data/evals/practice_eval/{{slug}}/audio')); print('Downloaded:', out)"
+
+# Build the standalone scorehost web bundle (required before iOS build)
+build-scorehost:
+    cd apps/web && bun run build:scorehost

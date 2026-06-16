@@ -62,7 +62,8 @@ export interface KeyboardGuideConfig {
 }
 
 export interface PlayPassageConfig {
-	sessionId: string;
+	pieceId: string;
+	sessionId?: string;
 	bars: [number, number];
 	focusBars?: [number, number];
 	dimension: string;
