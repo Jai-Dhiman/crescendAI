@@ -195,12 +195,11 @@ def _score_tempo(capture: SessionCapture, ex: dict) -> tuple[bool, bool]:
     """Returns (tempo_in_bounds, tempo_weak_prior_flag).
 
     In-bounds: [0.25, 1.0] inclusive.
-    Weak prior flag: tempo_factor==1.0 on a timing-dominant session (no tempo
-    reduction prescribed for the dimension most likely to benefit from it).
+    Weak prior flag: tempo_factor==1.0 (or absent, treated as 1.0) on a
+    timing-dominant session (no tempo reduction prescribed for the dimension
+    most likely to benefit from it).
     """
-    tempo = ex.get("tempo_factor")
-    if tempo is None:
-        return (True, False)  # absent = schema default = 1.0, treated as in-bounds
+    tempo = ex.get("tempo_factor", 1.0)  # absent = schema default = 1.0
     in_bounds = 0.25 <= tempo <= 1.0
     weak_prior = (tempo == 1.0) and (capture.dominant_dimension == "timing")
     return (in_bounds, weak_prior)

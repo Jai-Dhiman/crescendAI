@@ -284,6 +284,35 @@ def test_tempo_no_weak_prior_flag_non_timing():
     assert score.tempo_weak_prior_flag is False
 
 
+def test_tempo_absent_treated_as_in_bounds():
+    """Absent tempo_factor is treated as 1.0 -- in-bounds."""
+    capture = make_capture(
+        prescribed_exercise={
+            "kind": "corpus_drill",
+            "target_dimension": "dynamics",
+            "bar_range": [1, 4],
+            # tempo_factor absent
+        },
+    )
+    score = score_session(capture)
+    assert score.tempo_in_bounds is True
+
+
+def test_tempo_absent_on_timing_session_flags_weak_prior():
+    """Absent tempo_factor (treated as 1.0) on timing-dominant session flags weak prior."""
+    capture = make_capture(
+        dominant_dimension="timing",
+        prescribed_exercise={
+            "kind": "corpus_drill",
+            "target_dimension": "timing",
+            "bar_range": [1, 4],
+            # tempo_factor absent -- effectively 1.0
+        },
+    )
+    score = score_session(capture)
+    assert score.tempo_weak_prior_flag is True
+
+
 # ---------------------------------------------------------------------------
 # aggregate
 # ---------------------------------------------------------------------------
