@@ -63,6 +63,7 @@
 		A400000033 /* ScoreHostBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000033 /* ScoreHostBridge.swift */; };
 		A400000034 /* ScoreSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000034 /* ScoreSchemeHandler.swift */; };
 		A400000035 /* ScoreWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000035 /* ScoreWebView.swift */; };
+		A400000036 /* ArtifactScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000036 /* ArtifactScoreView.swift */; };
 		A200000010 /* ScoreWebViewIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000010 /* ScoreWebViewIntegrationTests.swift */; };
 		A200000003 /* ConversationRecordTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000003 /* ConversationRecordTests.swift */; };
 		A200000004 /* ArtifactConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000004 /* ArtifactConfigTests.swift */; };
@@ -153,6 +154,7 @@
 		B400000033 /* ScoreHostBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreHostBridge.swift; sourceTree = "<group>"; };
 		B400000034 /* ScoreSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreSchemeHandler.swift; sourceTree = "<group>"; };
 		B400000035 /* ScoreWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreWebView.swift; sourceTree = "<group>"; };
+		B400000036 /* ArtifactScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactScoreView.swift; sourceTree = "<group>"; };
 		B200000010 /* ScoreWebViewIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreWebViewIntegrationTests.swift; sourceTree = "<group>"; };
 		B500000001 /* Lora-VariableFont_wght.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Lora-VariableFont_wght.ttf"; sourceTree = "<group>"; };
 		B500000004 /* dist-scorehost */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "dist-scorehost"; path = "../web/dist-scorehost"; sourceTree = SOURCE_ROOT; };
@@ -265,6 +267,7 @@
 				B400000033 /* ScoreHostBridge.swift */,
 				B400000034 /* ScoreSchemeHandler.swift */,
 				B400000035 /* ScoreWebView.swift */,
+				B400000036 /* ArtifactScoreView.swift */,
 			);
 			path = Score;
 			sourceTree = "<group>";
@@ -628,6 +631,7 @@
 				A400000033 /* ScoreHostBridge.swift in Sources */,
 				A400000034 /* ScoreSchemeHandler.swift in Sources */,
 				A400000035 /* ScoreWebView.swift in Sources */,
+				A400000036 /* ArtifactScoreView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
