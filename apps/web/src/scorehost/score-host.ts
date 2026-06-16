@@ -2,8 +2,11 @@
 // Fetches .mxl files from the bundled public/scores/ directory (not the live API)
 // and delegates engraving to the score-worker via the standard message protocol.
 
-import type { InlineComponent, ScoreHighlightConfig } from "../lib/types";
+import type { InlineComponent, PlayPassageConfig, ScoreHighlightConfig } from "../lib/types";
 import type { ScoreIR } from "../lib/score-ir";
+import { LoopPlayer } from "../lib/loop-player";
+import { ScoreCursor } from "../lib/score-cursor";
+import type { ClipPlaybackResult } from "../lib/score-worker";
 
 interface WorkerReply {
   requestId: string;
@@ -19,6 +22,11 @@ interface LoadPayload {
 let worker: Worker | null = null;
 let requestCounter = 0;
 const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+
+// Module-level state for the active loop player and cursor.
+let activePlayer: LoopPlayer | null = null;
+let activeCursor: ScoreCursor | null = null;
+let currentPieceId: string | null = null;
 
 // Per-pieceId cache of the load result so showArtifact can call renderScoreHighlight
 // without re-loading every time.
@@ -119,6 +127,125 @@ async function ensureLoaded(pieceId: string): Promise<void> {
   }
 }
 
+async function renderPlayPassage(config: PlayPassageConfig): Promise<void> {
+  const pieceId = config.pieceId;
+  await ensureLoaded(pieceId);
+
+  const [startBar, endBar] = config.bars;
+  const clipResult = await sendRequest<ClipPlaybackResult | "failed">(
+    { type: "get_clip_playback", pieceId, startBar, endBar },
+  );
+  if (clipResult === "failed") {
+    throw new Error(`renderPlayPassage: get_clip_playback failed for ${pieceId} bars ${startBar}-${endBar}`);
+  }
+
+  // Tear down any previous player/cursor before mutating DOM.
+  if (activePlayer) {
+    activePlayer.stop();
+    activePlayer = null;
+  }
+  if (activeCursor) {
+    activeCursor.stop();
+    activeCursor = null;
+  }
+
+  currentPieceId = pieceId;
+
+  const container = getContainer();
+  container.innerHTML = "";
+
+  // Render clip SVG.
+  const svgWrapper = document.createElement("div");
+  svgWrapper.style.cssText = "position:relative;width:100%;";
+  svgWrapper.innerHTML = clipResult.svg;
+  container.appendChild(svgWrapper);
+
+  const noteCount = svgWrapper.querySelectorAll("use").length;
+
+  // Build transport controls inside the WebView so AudioContext user-gesture
+  // chain is preserved when the user taps the Play button.
+  const transport = document.createElement("div");
+  transport.id = "loop-transport";
+  transport.style.cssText = "display:flex;align-items:center;gap:8px;padding:8px 0;";
+
+  const playBtn = document.createElement("button");
+  playBtn.id = "loop-play-btn";
+  playBtn.textContent = "Play";
+  playBtn.type = "button";
+  playBtn.style.cssText = "padding:6px 14px;border-radius:6px;border:1px solid #ccc;cursor:pointer;";
+
+  const tempoLabel = document.createElement("span");
+  tempoLabel.textContent = "Tempo:";
+  tempoLabel.style.cssText = "font-size:12px;";
+
+  const tempoSlider = document.createElement("input");
+  tempoSlider.type = "range";
+  tempoSlider.id = "loop-tempo-slider";
+  tempoSlider.min = "0.5";
+  tempoSlider.max = "1.5";
+  tempoSlider.step = "0.05";
+  tempoSlider.value = "1.0";
+
+  transport.appendChild(playBtn);
+  transport.appendChild(tempoLabel);
+  transport.appendChild(tempoSlider);
+  container.appendChild(transport);
+
+  const ir = clipResult.ir;
+  const notes = clipResult.notes;
+  const beatsPerBar = 4; // default 4/4; BarIR does not carry time signature
+  const bpmAtUnity = 120;
+
+  let isPlaying = false;
+
+  playBtn.addEventListener("click", async () => {
+    if (isPlaying) {
+      activePlayer?.stop();
+      activeCursor?.stop();
+      isPlaying = false;
+      playBtn.textContent = "Play";
+      emit("playback", { state: "stopped" });
+      return;
+    }
+
+    const ctx = new AudioContext();
+    const SOUNDFONT_PATH = "./soundfonts/acoustic_grand_piano-mp3.js";
+
+    if (activePlayer) {
+      activePlayer.stop();
+    }
+    activePlayer = new LoopPlayer({
+      ctx,
+      instrumentUrl: SOUNDFONT_PATH,
+      clipIR: ir,
+      clipNotes: notes,
+      beatsPerBar,
+      bpmAtUnity,
+      tempoFactor: parseFloat(tempoSlider.value),
+    });
+
+    activeCursor = new ScoreCursor({
+      pieceId,
+      container: svgWrapper,
+      ir,
+      qstampSource: () => activePlayer?.qstampSource() ?? null,
+    });
+
+    await activePlayer.play();
+    activeCursor.start();
+    isPlaying = true;
+    playBtn.textContent = "Stop";
+    emit("playback", { state: "playing" });
+  });
+
+  tempoSlider.addEventListener("input", () => {
+    const factor = parseFloat(tempoSlider.value);
+    activePlayer?.setTempoFactor(factor);
+  });
+
+  emit("rendered", { noteCount });
+}
+
 async function renderScoreHighlight(config: ScoreHighlightConfig): Promise<void> {
   const { pieceId } = config;
 
@@ -178,7 +305,7 @@ const ScoreHostImpl = {
       if (component.type === "score_highlight") {
         await renderScoreHighlight(component.config);
       } else if (component.type === "play_passage") {
-        throw new Error("play_passage not yet implemented");
+        await renderPlayPassage(component.config);
       } else if (component.type === "exercise_set") {
         throw new Error("exercise_set scoreClip not yet implemented");
       } else {
@@ -194,15 +321,32 @@ const ScoreHostImpl = {
   },
 
   async play(): Promise<void> {
-    throw new Error("play not yet implemented");
+    const playBtn = document.getElementById("loop-play-btn") as HTMLButtonElement | null;
+    if (!playBtn) {
+      throw new Error("play: no active loop transport — call showArtifact(play_passage) first");
+    }
+    playBtn.click();
   },
 
   async stop(): Promise<void> {
+    if (activePlayer) {
+      activePlayer.stop();
+      activePlayer = null;
+    }
+    if (activeCursor) {
+      activeCursor.stop();
+      activeCursor = null;
+    }
     emit("playback", { state: "stopped" });
   },
 
-  async setTempo(_factor: number): Promise<void> {
-    throw new Error("setTempo not yet implemented");
+  async setTempo(factor: number): Promise<void> {
+    const slider = document.getElementById("loop-tempo-slider") as HTMLInputElement | null;
+    if (slider) {
+      slider.value = String(factor);
+      slider.dispatchEvent(new Event("input"));
+    }
+    activePlayer?.setTempoFactor(factor);
   },
 };
 
