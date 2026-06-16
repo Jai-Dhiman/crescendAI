@@ -34,11 +34,11 @@ Group C (parallel with Group A/B — disjoint files): [SHIPS INDEPENDENTLY — w
 
 ---
 
-## Task 1: Verovio↔partitura pitch-class oracle (in-range offsets)
+## Task 1: Verovio↔partitura faithful-shift transpose oracle (in-range offsets)
 
 **Group:** 0 (parallel with Task 2)
 
-**Behavior being verified:** For every committed exercise-primitive `.xml`, transposing by an in-range semitone offset via Verovio produces the same pitch-class multiset as transposing via `transforms.py::transpose`.
+**Behavior being verified:** For every committed exercise-primitive `.xml`, in BOTH engines independently (Verovio and partitura), transposing by an in-range semitone offset N shifts the pitch-class multiset by exactly N mod 12 relative to the same engine's transpose-0 baseline. This is the property S3 actually needs — proof that each engine transposes by exactly N semitones — and it holds empirically for all 22 primitives in both engines, robustly to repeat expansion (both N and 0 expand identically within an engine) and to accidental realization (constant within one engine). A SECONDARY independent witness asserts cross-engine baseline (transpose-0) multiset agreement, which holds for 20 of 22 (the 2 known divergences `burgmuller_001` = repeat expansion, `czerny_001` = accidental realization are documented base-file-realization facts, NOT transpose bugs, and are marked xfail/skip — the PRIMARY faithful-shift assertion still covers all 22, so the transpose guarantee is NOT narrowed).
 **Interface under test:** `exercise_corpus.transforms.transpose(part, semitones)` and the `verovio` toolkit `setOptions({transpose})` + `loadData()` + timemap, both reading the same committed `.xml`.
 
 **Files:**
@@ -50,9 +50,26 @@ Group C (parallel with Group A/B — disjoint files): [SHIPS INDEPENDENTLY — w
 
 ```python
 # model/tests/exercise_corpus/test_render_assets_oracle.py
-"""Hermetic oracle: Verovio's transpose option must agree with
-transforms.py::transpose on pitch-class content, for every committed
-exercise-primitive MusicXML.
+"""Hermetic faithful-shift oracle: within EACH engine (Verovio and partitura),
+transposing a committed exercise-primitive MusicXML by N semitones must shift
+its pitch-class multiset by exactly N mod 12 relative to that same engine's
+transpose-0 baseline. This proves each engine transposes by exactly N — the
+property S3 needs — and is robust to repeat expansion (N and 0 expand
+identically within an engine) and to accidental realization (constant within
+one engine).
+
+A SECONDARY, independent cross-engine witness asserts that the transpose-0
+baseline multisets agree between Verovio and partitura. This holds for 20 of 22
+primitives. The 2 documented divergences are base-file-realization facts, NOT
+transpose bugs:
+  - burgmuller_001: contains <repeat> pairs; Verovio's renderToTimemap EXPANDS
+    repeats (420 onsets) while partitura reads the 248 literal score notes.
+  - czerny_001: no repeats, equal note sums (392 == 392), but partitura and
+    Verovio realize a handful of accidentals to different SOUNDING midi pitches,
+    so midi_pitch % 12 disagrees at baseline.
+Both are xfail(strict=True) on the SECONDARY check only; the PRIMARY
+faithful-shift assertion still covers ALL 22, so the transpose guarantee is NOT
+narrowed.
 
 Hermetic means: enumerate by globbing the COMMITTED
 model/data/scores/exercise_primitives/*.xml. Never touch the gitignored
@@ -80,6 +97,16 @@ _XML_FILES = sorted(glob.glob(str(_XML_DIR / "*.xml")))
 # the 88-key piano for these compact patterns. Off-keyboard symmetry is Task 2.
 _IN_RANGE_OFFSETS = list(range(-5, 7))
 
+# Primitives whose transpose-0 cross-engine baseline multisets diverge for a
+# DOCUMENTED base-file-realization reason (NOT a transpose bug). The PRIMARY
+# faithful-shift assertion still covers these, so the transpose guarantee is
+# unaffected. Asserted to be exactly this set so an UNEXPECTED new divergence
+# fails loudly rather than being masked.
+_BASELINE_DIVERGENCE = {
+    "burgmuller_001": "repeat expansion (Verovio timemap expands <repeat>, partitura reads literal notes)",
+    "czerny_001": "accidental realization (partitura vs Verovio sound a few accidentals to different midi pitches)",
+}
+
 
 def _pc_partitura(part) -> Counter:
     return Counter(n.midi_pitch % 12 for n in part.iter_all(Note))
@@ -102,35 +129,104 @@ def _pc_verovio(tk: "verovio.toolkit", xml: str, semitones: int) -> Counter:
     return c
 
 
+def _shift_by(pc: Counter, n: int) -> Counter:
+    """Shift every pitch class in the multiset by n semitones (mod 12)."""
+    shifted: Counter = Counter()
+    for cls, count in pc.items():
+        shifted[(cls + n) % 12] += count
+    return shifted
+
+
 def test_committed_xml_files_present():
     # Guards the hermetic enumeration: if the glob is empty the parametrized
     # tests would silently pass with zero cases.
     assert len(_XML_FILES) == 22, f"expected 22 committed primitive .xml, found {len(_XML_FILES)}"
 
 
+def test_baseline_divergence_set_is_exactly_the_two_known_cases():
+    # Lock the documented exception list so an unexpected NEW cross-engine
+    # baseline divergence cannot hide behind the xfail markers.
+    assert set(_BASELINE_DIVERGENCE) == {"burgmuller_001", "czerny_001"}
+    assert len(_BASELINE_DIVERGENCE) == 2
+
+
 @pytest.mark.parametrize("xml_path", _XML_FILES, ids=lambda p: Path(p).stem)
-def test_verovio_matches_partitura_pitch_classes(xml_path: str):
+def test_faithful_shift_invariant_holds_in_each_engine(xml_path: str):
+    """PRIMARY (all 22): within EACH engine, transpose-by-N == shift-by-N of
+    that engine's transpose-0 baseline. Proves each engine transposes by exactly
+    N semitones. Robust to repeats and accidental realization (the relation is
+    intra-engine, so any per-engine quirk is present identically at N and 0)."""
     xml = Path(xml_path).read_text()
     score = partitura.load_score(xml_path)
     part0 = list(score.parts)[0]
     tk = verovio.toolkit()
 
+    # Per-engine transpose-0 baselines.
+    base_partitura = _pc_partitura(transpose(part0, 0).part)
+    base_verovio = _pc_verovio(tk, xml, 0)
+
     matched = 0
     for semis in _IN_RANGE_OFFSETS:
+        if semis == 0:
+            continue
         try:
             partitura_pc = _pc_partitura(transpose(part0, semis).part)
         except ValueError:
-            # Off-keyboard for this primitive at this offset — Task 2 owns
-            # the rejection-symmetry assertion; skip here.
+            # Off-keyboard for this primitive at this offset — partitura raises
+            # (transforms.py lines 104-108); Task 2 owns rejection symmetry.
+            # Keep both engines symmetric: skip this offset entirely.
             continue
         verovio_pc = _pc_verovio(tk, xml, semis)
-        assert verovio_pc == partitura_pc, (
-            f"{Path(xml_path).stem} @ {semis} semitones: "
-            f"verovio {dict(verovio_pc)} != partitura {dict(partitura_pc)}"
+
+        assert partitura_pc == _shift_by(base_partitura, semis), (
+            f"{Path(xml_path).stem} @ {semis}: partitura did not faithfully "
+            f"shift its own baseline: {dict(partitura_pc)} != "
+            f"{dict(_shift_by(base_partitura, semis))}"
+        )
+        assert verovio_pc == _shift_by(base_verovio, semis), (
+            f"{Path(xml_path).stem} @ {semis}: verovio did not faithfully "
+            f"shift its own baseline: {dict(verovio_pc)} != "
+            f"{dict(_shift_by(base_verovio, semis))}"
         )
         matched += 1
 
     assert matched > 0, f"no in-range offsets matched for {Path(xml_path).stem}"
+
+
+def _baseline_marks(p: str):
+    stem = Path(p).stem
+    if stem in _BASELINE_DIVERGENCE:
+        return pytest.param(
+            p,
+            marks=pytest.mark.xfail(
+                reason=f"baseline cross-engine divergence ({_BASELINE_DIVERGENCE[stem]}); "
+                "documented base-file-realization fact, NOT a transpose bug — the "
+                "PRIMARY faithful-shift test still covers this primitive",
+                strict=True,
+            ),
+        )
+    return pytest.param(p)
+
+
+@pytest.mark.parametrize(
+    "xml_path", [_baseline_marks(p) for p in _XML_FILES], ids=lambda p: Path(p).stem
+)
+def test_baseline_cross_engine_agreement(xml_path: str):
+    """SECONDARY (independent witness, 20 of 22): the transpose-0 baseline
+    multisets agree between Verovio and partitura. The 2 documented divergences
+    (repeat expansion, accidental realization) are xfail(strict=True) — failing
+    loudly if they ever start agreeing, and never silently dropped."""
+    xml = Path(xml_path).read_text()
+    score = partitura.load_score(xml_path)
+    part0 = list(score.parts)[0]
+    tk = verovio.toolkit()
+
+    base_partitura = _pc_partitura(transpose(part0, 0).part)
+    base_verovio = _pc_verovio(tk, xml, 0)
+    assert base_verovio == base_partitura, (
+        f"{Path(xml_path).stem} baseline cross-engine mismatch: "
+        f"verovio {dict(base_verovio)} != partitura {dict(base_partitura)}"
+    )
 ```
 
 - [ ] **Step 2: Run test — verify it FAILS**
@@ -163,7 +259,7 @@ cd model && uv sync --group dev
 ```bash
 cd model && uv run pytest tests/exercise_corpus/test_render_assets_oracle.py -q
 ```
-Expected: PASS — `test_committed_xml_files_present` plus 22 parametrized cases all green. (Verovio emits `[Warning] Adding auxiliary KeySig for transposition` lines to stderr; these are not failures.)
+Expected: PASS — `test_committed_xml_files_present`, `test_baseline_divergence_set_is_exactly_the_two_known_cases`, all 22 `test_faithful_shift_invariant_holds_in_each_engine` cases green, and `test_baseline_cross_engine_agreement` reporting 20 passed + 2 xfailed (`burgmuller_001`, `czerny_001`). With `strict=True`, if either of those 2 begins agreeing it becomes an XPASS = failure, surfacing the change. (Verovio emits `[Warning] Adding auxiliary KeySig for transposition` lines to stderr; these are not failures.)
 
 - [ ] **Step 5: Commit**
 
@@ -424,7 +520,7 @@ def build(
 ```bash
 cd model && uv run pytest tests/exercise_corpus/test_build_render_assets.py -q
 ```
-Expected: PASS. If `test_build_emits_valid_mxl_with_matching_note_count` fails on an inner-note-count mismatch (i.e. the partitura-exported XML does not round-trip through the wrap as-is), the build step needs a normalization pass — this is the residual risk called out in the spec's Open Questions. Add the minimal partitura re-export inside `build()` and re-run.
+Expected: PASS. `build()` does DOCTYPE-strip + ZIP-wrap (`wrap_as_mxl_zip`) ONLY — the inner-note-count assertion is partitura-vs-partitura over a byte-preserving container, so it holds. Do NOT add a speculative partitura re-export normalization pass: the /challenge empirical run already produced Verovio timemaps for all 22 `.xml`, retiring the "do they render?" residual risk, and a re-export round-trip would risk dropping/re-spelling notes (especially `burgmuller_001`'s repeat structure) and break the inner-note-count lock. If a `.xml` genuinely fails to load, `build()` already RAISES naming the file (Step 3 guard) — that is a finding to surface, never a re-export fallback to paper over.
 
 - [ ] **Step 5: Commit**
 
@@ -931,7 +1027,121 @@ git add apps/web/src/lib/score-renderer.ts apps/web/src/lib/score-worker.ts apps
 | (C) loadPiece transpose param, string only at setOptions | 6 |
 | (C) transpose 0 == no-transpose (real-piece lock) | 6 |
 | (C) ScoreRenderer.load(pieceId, transpose), composite cache key | 7 |
-| (D) Verovio↔partitura PC-multiset oracle (in-range) | 1 |
+| (D) Verovio↔partitura faithful-shift oracle (in-range, all 22) + documented 2-file baseline-divergence xfail | 1 |
 | (D) off-keyboard rejection symmetry | 2 |
 | verovio added to model dev deps | 1 |
 ```
+
+---
+
+## Challenge Review
+
+Reviewed against actual code and empirical execution of the oracle's core assertion (verovio 6.2.1 + partitura, the exact API sequence in Task 1) on the real committed primitives.
+
+### CEO Pass
+
+**Premise — sound.** The problem is real and verified: `corpus_drill` renders stub text today (MEMORY confirms), the 22 `.xml` are committed but never in R2, and `ScoreRenderer.load`/`loadPiece` cannot transpose. The three-slice decomposition (offline assets / R2 seed / renderer transpose) plus a verification harness is the most direct path. No simpler framing exists — transpose-on-demand via Verovio's load-time `transpose` option avoids pre-materializing 12 keys × 22 primitives.
+
+**Scope — appropriately bounded.** Spec's "Not in scope" list (teacher selection, off-keyboard gate, playback, corpus breadth, ranking) is disciplined. The plan does not drift beyond the spec. 8 files touched, 1 new production module (`build_render_assets.py`) + 1 new test module — under the complexity threshold.
+
+**Existing coverage — correctly reused.** `wrap_as_mxl_zip` + `_strip_doctype` (`score_library/upload.py:16,29`) are real and do exactly what Task 3 delegates to. The data endpoint reuse (no API change, no migration) is verified against the spec's claim. `transforms.py::transpose` (lines 94–112) raises `ValueError(... "outside piano range" ...)` exactly as Task 2 asserts (`match="outside piano"` is a valid substring).
+
+**12-month alignment — neutral-to-positive.** Adds a committed-asset pipeline + a transpose surface that S4 (teacher-driven key selection) builds on. No tech debt that conflicts with the ideal; the `:0` composite-key default keeps real pieces byte-identical.
+
+[OBS] — The spec documents key decisions and trade-offs (MusicXML-not-MEI, endpoint reuse, semitone-int surface) but no rejected *alternatives* for the oracle approach beyond "headless Node → Python binding." Minor; not blocking.
+
+### Engineering Pass
+
+**Architecture — the feature slices (A/B/C) are sound; the harness (Group 0) is mis-specified.**
+
+Groups A, B, C check out against the code:
+- Task 3/4 `build()` delegates to proven `wrap_as_mxl_zip`; fail-loud + idempotent logic is correct and matches CLAUDE.md "explicit exceptions over silent fallbacks."
+- Task 5 recipes mirror existing `seed-scores`/`seed-fingerprint`; `set -euo pipefail` + zero-count guard is correct.
+- Task 6/7 renderer plumbing: the `applyOpts` refactor targets the three real `tk = new ToolkitClass(module); tk.setOptions(VEROVIO_OPTS)` sites in `score-worker.ts` (lines 225–226, 234–235, 255–256). Composite cache key `${pieceId}:${transpose ?? 0}` is correct. **Verified Task 7's back-compat claim:** the only `getIR(` / `.load(` callers (`app.sandbox.tsx:768`, `ScorePanel.tsx:284`, `ExerciseSetCard.tsx:171`, `score-renderer.test.ts`) all pass no transpose, so they resolve to the `:0` slot and keep working. `api.scores.getData` is a reassignable object property (`api.ts:411`), so Task 7's stub is viable.
+
+[BLOCKER] (confidence: 10/10) — **Task 1's oracle equivalence assertion fails empirically for 2 of the 22 primitives, which halts the entire build (Group 0 must be green before A/B/C dispatch).** I ran the exact Task 1 code (verovio 6.2.1, partitura, `transforms.py::transpose`) over all 22 committed `.xml` across offsets −5..+6. Result: **20 PASS, 2 FAIL** — `burgmuller_001` and `czerny_001`. Two independent root causes:
+  1. **Repeat expansion.** `burgmuller_001.xml` contains two `<repeat>` pairs (forward/backward, lines 16/1110/1190/2388). Verovio's `renderToTimemap` expands repeats, emitting **420** note onsets; partitura's `iter_all(Note)` reads the **248** literal score notes. The pitch-class multisets cannot match — they differ even at `transpose=0`.
+  2. **Accidental/enharmonic spelling divergence.** `czerny_001.xml` has **no repeats** and **equal note sums (392 == 392)**, yet still fails: partitura surfaces pitch classes {1, 3, 6} (4 chromatic notes) that Verovio's timemap collapses into diatonic neighbors (Verovio's counts for PC 4/0/5/2 are each one higher). This is a `midi_pitch % 12` disagreement between the two engines on how a handful of accidentals are realized — orthogonal to repeats.
+
+The spec's "empirically confirmed... histogram exactly equal to the base shifted +2 mod 12" (Design §"Verovio Python binding") was evidently validated on a repeat-free, accidental-free fixture (the Bach fixture per MEMORY), **not these primitives**. As written, `test_committed_xml_files_present` passes but `test_verovio_matches_partitura_pitch_classes[burgmuller_001]` and `[czerny_001]` go red and stay red, blocking Tasks 3–7.
+
+**What must change before executing:** Pick one and update Task 1 (and the spec's Verification Architecture / Open Questions):
+  - (a) **Normalize for repeats** — set Verovio `{"expand": ""}` off or de-duplicate by element id AND additionally reconcile accidental spelling; OR
+  - (b) **Compare a repeat-collapsed, spelling-robust invariant** — e.g. compare the set of distinct (octave-folded) pitch *names* via Verovio's MEI/humdrum export rather than the played timemap, so neither repeats nor MIDI-realization of accidentals perturb it; OR
+  - (c) **Narrow the oracle's corpus to the cases the invariant actually holds for** and assert that explicitly (e.g. parametrize over the 20 repeat-free/diatonic primitives, and add a *separate, correct* assertion for the 2 outliers) — but (c) weakens the "every committed primitive" guarantee the spec's Canonical Success State promises, so it needs a spec amendment, not just a plan edit.
+
+Note the `== 22` count assertion (`test_committed_xml_files_present`, plan line 108) and the all-22 parametrization must stay internally consistent with whichever fix is chosen — if the oracle narrows to 20, the count guard must not silently mask a missing-file regression.
+
+[RISK — RETIRED by loop 1] (confidence: 7/10) — **Task 3 inner-note-count assertion may also trip on the same content.** `test_build_emits_valid_mxl_with_matching_note_count` compares `_note_count_xml(inner) == _note_count_xml(xml_path)` — both via partitura, so this is partitura-vs-partitura and should hold (build only DOCTYPE-strips + ZIP-wraps, no re-export). RESOLUTION: the speculative "minimal partitura re-export" dangled in Task 3 Step 4 has been REMOVED from the plan. /challenge's empirical run produced Verovio timemaps for all 22 `.xml` (they all render after DOCTYPE-strip), retiring the "do they render?" residual risk that motivated a normalization pass; and a partitura load→save round-trip can drop/re-spell notes (especially `burgmuller_001`'s repeat structure) and would break the inner≠source count lock. `build()` is now contractually DOCTYPE-strip + ZIP-wrap only, RAISING (no re-export fallback) if a `.xml` genuinely fails to load — that is a finding to surface, not paper over.
+
+**Module Depth:**
+- `build_render_assets.py` — Interface: `build(xml_dir, out_dir) -> list[Path]` (1 public fn) + private `_existing_inner_xml`. Hides partitura-validate + DOCTYPE-strip + ZIP-wrap + idempotent-skip + fail-loud. **DEEP.**
+- `loadPiece` transpose path — adds one optional `number` param hiding Verovio's load-time engraving + cache-key derivation. **DEEP.**
+- `ScoreRenderer.load` — one optional param, composite key threaded through `sentPieceIds`/`irCache`/`getIR`. **DEEP.**
+- Oracle test module — it is the harness, not a production module. N/A.
+
+No shallow modules.
+
+**Code Quality:**
+[OBS] — `build()` uses `except Exception as e:  # noqa: BLE001` to re-raise as `ValueError` naming the file. This is the *acceptable* form of catch-all (it re-raises with context, does not swallow) and matches CLAUDE.md's fail-loud rule. Not a finding.
+[OBS] — `_existing_inner_xml` returns `None` on `BadZipFile` (idempotency probe), which then forces a rewrite — correct, not a silent fallback.
+
+**Test Philosophy — clean.** All tests exercise public interfaces (`build()`, `loadPiece`, `ScoreRenderer.load`) and assert observable behavior (valid ZIP, matching note count, different SVG, forwarded message field). The Task 7 `FakeWorker` stubs an *external boundary* (the Worker + the network via `api.scores.getData`), not an internal collaborator — allowed. No shape-only tests, no internal mocking.
+
+[OBS] — Task 6's `stripIds` SVG comparison (regex-strip `id="..."` then compare) is a legitimate behavior lock given Verovio randomizes element ids per `loadData` (confirmed by the existing `score-worker.integration.test.ts` cache-eviction test). Good.
+
+**Vertical Slice — mostly clean, one soft spot.**
+[RISK] (confidence: 6/10) — **Task 4 admits both its tests may already pass against Task 3 code** (`test_build_is_idempotent` is "a lock, not a driver"; the plan even instructs "watch each fail by temporarily reverting the relevant `build()` guard"). This is a borderline horizontal-slice smell: idempotency was implemented in Task 3, so Task 4 partly tests pre-built behavior. It is salvageable because the *driving* test (`test_build_raises_naming_bad_xml`) does bite, and the plan correctly mandates a revert-to-watch-it-fail step. Watch during execution that the bad-XML guard is genuinely seen failing before the lock is trusted. Not a blocker.
+
+**Test Coverage:**
+```
+[+] build_render_assets.py::build()
+    ├── happy path (22 valid .xml → 22 .mxl)        [TESTED ★★] Task 3
+    ├── idempotent re-run                           [TESTED ★★] Task 4
+    ├── bad XML → ValueError naming file            [TESTED ★★★] Task 4
+    └── empty xml_dir → FileNotFoundError           [GAP] no test (low sev — raise exists)
+[+] loadPiece(transpose)
+    ├── transpose:2 ≠ transpose:0 SVG               [TESTED ★★] Task 6
+    ├── transpose:0 == omitted (real-piece lock)    [TESTED ★★★] Task 6
+    └── off-keyboard transpose at engrave time      [N/A — gate deferred to S4]
+[+] ScoreRenderer.load(pieceId, transpose)
+    └── forwards transpose into load message        [TESTED ★★] Task 7
+```
+[OBS] — `build()`'s `FileNotFoundError` on empty dir (raise at line ~392) has no test. Low severity; the raise is unambiguous and not on a critical path.
+
+**Failure Modes — no silent failures.**
+- Task 3/4: bad XML raises naming the file; no skip-and-continue. ✓
+- Task 5: `set -euo pipefail` + explicit zero-count guard → recipe exits non-zero on R2 put failure. ✓ Partial-seed (some objects put, then a later put fails) leaves R2 partially populated, but the recipe exits non-zero and re-run is idempotent overwrite — acceptable, surfaced.
+- Task 6/7: a failed transposed load returns "failed" + `Sentry.captureException` upstream (no untransposed fallback) — matches spec intent. ✓
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| 22 committed `.xml` exist, gitignored `.db`/`.mid` excluded | SAFE | Verified: 22 `.xml`, `git check-ignore` empty for them |
+| `transforms.py::transpose(part, semitones)` raises "outside piano range" | SAFE | Verified at lines 104–108 |
+| `transpose()` returns `Variant` with `.part` | SAFE | Verified line 112 |
+| `wrap_as_mxl_zip` / `_strip_doctype` reusable | SAFE | Verified `upload.py:16,29` |
+| **Verovio `transpose` PC-multiset == partitura for EVERY primitive (absolute)** | **REPLACED** | FALSIFIED empirically (2/22: repeat expansion + accidental spelling). Loop 1 reframed the oracle to the faithful-SHIFT invariant (intra-engine shift-by-N), which holds for all 22 in both engines; cross-engine absolute baseline kept as a secondary witness with the 2 known divergences xfail(strict=True) |
+| Verovio Python binding exposes `setOptions/loadData/renderToTimemap/getMIDIValuesForElement` | SAFE | Verified: all work; `getMIDIValuesForElement` returns `{pitch, duration, time}` dict |
+| `verovio` Python binding installs cleanly as dev dep | SAFE | Verified: `verovio==6.2.1` installs |
+| Python verovio (6.2.1) ≈ web verovio (6.1.0) "same WASM core" | VALIDATE | Minor-version skew; the binding versions are not pinned-equal. Oracle correctness must not depend on exact-version timemap parity |
+| `api.scores.getData` reassignable for Task 7 stub | SAFE | Verified `api.ts:411` object property |
+| `getIR(`/`.load(` callers all pass no transpose (back-compat) | SAFE | Verified: only `app.sandbox.tsx`, `ScorePanel`, `ExerciseSetCard`, tests — none transpose |
+| Three `tk = new ToolkitClass` sites in `loadPiece` for `applyOpts` | SAFE | Verified lines 225, 234, 255 |
+| Task 3 inner-note-count holds without partitura re-export | VALIDATE | Holds for DOCTYPE-strip+wrap only; a re-export pass would risk count drift (see RISK) |
+| `build()` empty-dir raises `FileNotFoundError` | SAFE | Verified at impl; untested but unambiguous |
+
+### Summary
+[BLOCKER] count: 1
+[RISK]    count: 3
+[QUESTION] count: 0
+
+VERDICT: NEEDS_REWORK — Task 1's oracle asserts Verovio↔partitura pitch-class-multiset equality for all 22 committed primitives, but this is empirically false for `burgmuller_001` (Verovio expands its `<repeat>` sections: 420 vs 248 notes) and `czerny_001` (accidental/enharmonic spelling divergence despite equal 392-note sums). Because the plan gates Groups A/B/C on a green Group 0, Task 1 halts the entire build. Rework Task 1's comparison to be repeat- and accidental-robust (and amend the spec's Canonical Success State if the corpus is narrowed). Secondary: do NOT let `build()` grow the speculative partitura re-export (Task 3 Step 4) — it would risk the inner-note-count lock; keep `build()` to DOCTYPE-strip + ZIP-wrap only.
+
+### Loop 1 resolution (2026-06-15)
+
+Both findings addressed; the rework does NOT touch the A/B/C feature approach.
+
+- **BLOCKER (Task 1):** Reframed the oracle from an ABSOLUTE Verovio↔partitura multiset equality to a faithful-SHIFT invariant. PRIMARY (`test_faithful_shift_invariant_holds_in_each_engine`, all 22): within each engine, transpose-by-N == shift-by-N (mod 12) of that engine's transpose-0 baseline — proves each engine transposes by exactly N, robust to repeat expansion and accidental realization (both intra-engine). SECONDARY (`test_baseline_cross_engine_agreement`, 20 of 22): cross-engine baseline multiset agreement, with `burgmuller_001` (repeat expansion) and `czerny_001` (accidental realization) marked `pytest.mark.xfail(strict=True)`; `_BASELINE_DIVERGENCE` is a length-2 named constant locked by `test_baseline_divergence_set_is_exactly_the_two_known_cases` so an unexpected new divergence fails loudly. `test_committed_xml_files_present` still asserts exactly 22 .xml. The transpose guarantee is NOT narrowed — the PRIMARY assertion covers all 22.
+- **SECONDARY CORRECTION (Task 3 Step 4):** Removed the speculative partitura re-export normalization language. `build()` is DOCTYPE-strip + `wrap_as_mxl_zip` ONLY; it RAISES naming the file on a genuine load failure (no re-export fallback). The "do they render?" residual risk was retired empirically — /challenge produced Verovio timemaps for all 22 .xml. See the [RISK — RETIRED by loop 1] note above.
