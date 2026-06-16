@@ -40,3 +40,8 @@ committed `.xml` primitives instead. These 8 are out of scope for this build.
 - Caller audit: all 6 scoreRenderer.load callers + getIR caller pass no transpose → resolve to :0 (byte-identical back-compat). Verified.
 - REVIEW FIX (commit c9778537): code review flagged CRITICAL — worker-error cleanup paths (onmessage-error, onerror) deleted BARE pieceId from sentPieceIds (now composite-keyed) → claimed stale-key blocks retry. HONEST FINDING: bug was SHADOWED — load()'s own catch already clears the composite key on both error paths, so it never manifested. Fix threads sentKey?:string into PendingRequest so worker-error paths delete the correct composite key (defense-in-depth, internally correct independent of load's catch), and removed the now-dead sentPieceIds.has(pieceId) clause in ensureBytes (always false post-refactor; bytesCache.has dedupes). Added a regression test (error-then-retry re-sends bytes). Re-review APPROVED.
 - All 24 web score tests green.
+
+## Task 5: just build-exercise-assets + seed-exercise-assets recipes
+- Appended both recipes to Justfile (NOTE: file is tracked as `Justfile` capital-J on this macOS repo). Commit 42c3bb25.
+- build-exercise-assets prints "built 22 assets"; rebuild is byte-deterministic (no .mxl git changes). seed-exercise-assets succeeded live (wrangler available, 22 seeded to local R2 scores/v1/{id}.mxl).
+- Spec PASS, code review APPROVED (1 MINOR: reviewer suspected a comment source-path mismatch, but the comment's "model/data/scores/exercise_primitives/*.xml" EXACTLY matches build()'s _DEFAULT_XML_DIR — comment is correct, no fix needed). nullglob + zero-count guard is a correctness improvement over the seed-scores recipe it mirrors; correct musicxml+zip content-type.
