@@ -399,10 +399,10 @@ async function extractXmlFromMxl(bytes: ArrayBuffer): Promise<string | null> {
 
 type WorkerInMsg =
 	| { type: "load";             requestId: string; pieceId: string; bytes: ArrayBuffer; transpose?: number }
-	| { type: "get_page";         requestId: string; pieceId: string; pageN: number; pageWidth?: number }
-	| { type: "get_clip";         requestId: string; pieceId: string; startBar: number; endBar: number }
-	| { type: "get_clip_playback"; requestId: string; pieceId: string; startBar: number; endBar: number }
-	| { type: "get_ir";           requestId: string; pieceId: string };
+	| { type: "get_page";         requestId: string; pieceId: string; pageN: number; pageWidth?: number; transpose?: number }
+	| { type: "get_clip";         requestId: string; pieceId: string; startBar: number; endBar: number; transpose?: number }
+	| { type: "get_clip_playback"; requestId: string; pieceId: string; startBar: number; endBar: number; transpose?: number }
+	| { type: "get_ir";           requestId: string; pieceId: string; transpose?: number };
 
 // Worker message handler — only registers when loaded as a Web Worker (window is undefined)
 if (typeof window === "undefined") {
@@ -441,12 +441,12 @@ if (typeof window === "undefined") {
 			// Synchronous cache lookup — no await between here and toolkitCache.set
 			// so that concurrent handlers see the in-flight Promise rather than
 			// undefined and all independently returning "bytes required".
-			// load messages use a composite key so the same pieceId at different
-			// transpose values cache independently; non-load messages key by pieceId.
-			const cacheKey =
-				msg.type === "load"
-					? `${msg.pieceId}:${msg.transpose ?? 0}`
-					: msg.pieceId;
+			// ALL message types use the same composite key `${pieceId}:${transpose ?? 0}`.
+			// load() always stores under the transpose-suffixed key, so every
+			// subsequent get_clip/get_page/get_clip_playback/get_ir must look up the
+			// same key — keying non-load messages by bare pieceId was a cache MISS for
+			// every piece (even untransposed ones at `:0`).
+			const cacheKey = `${msg.pieceId}:${msg.transpose ?? 0}`;
 			const cached = toolkitCache.get(cacheKey);
 			let result: LoadResult | undefined;
 

@@ -126,23 +126,15 @@ export class ScoreRenderer {
     return this.irCache.get(`${pieceId}:${transpose ?? 0}`) ?? null;
   }
 
-  async getPage(pieceId: string, pageN: number, pageWidth?: number): Promise<string> {
-    const worker = this.ensureWorker();
-    return new Promise((resolve, reject) => {
-      const requestId = `req-${++this.requestCounter}`;
-      this.pendingRequests.set(requestId, {
-        resolve: resolve as (v: unknown) => void,
-        reject,
-        pieceId,
-      });
-      worker.postMessage({ type: "get_page", requestId, pieceId, pageN, pageWidth });
-    });
-  }
-
-  async getClip(
+  // transpose is optional and trailing so existing callers (which load real
+  // pieces at transpose 0 and never pass it) keep matching the loaded
+  // `pieceId:0` toolkit entry. It must be passed so the worker computes the
+  // same composite cache key load() stored the toolkit under.
+  async getPage(
     pieceId: string,
-    startBar: number,
-    endBar: number,
+    pageN: number,
+    pageWidth?: number,
+    transpose?: number,
   ): Promise<string> {
     const worker = this.ensureWorker();
     return new Promise((resolve, reject) => {
@@ -152,7 +144,25 @@ export class ScoreRenderer {
         reject,
         pieceId,
       });
-      worker.postMessage({ type: "get_clip", requestId, pieceId, startBar, endBar });
+      worker.postMessage({ type: "get_page", requestId, pieceId, pageN, pageWidth, transpose });
+    });
+  }
+
+  async getClip(
+    pieceId: string,
+    startBar: number,
+    endBar: number,
+    transpose?: number,
+  ): Promise<string> {
+    const worker = this.ensureWorker();
+    return new Promise((resolve, reject) => {
+      const requestId = `req-${++this.requestCounter}`;
+      this.pendingRequests.set(requestId, {
+        resolve: resolve as (v: unknown) => void,
+        reject,
+        pieceId,
+      });
+      worker.postMessage({ type: "get_clip", requestId, pieceId, startBar, endBar, transpose });
     });
   }
 
@@ -160,6 +170,7 @@ export class ScoreRenderer {
     pieceId: string,
     startBar: number,
     endBar: number,
+    transpose?: number,
   ): Promise<{ svg: string; ir: ScoreIR; notes: import("./score-worker").ClipNote[] }> {
     const worker = this.ensureWorker();
     return new Promise((resolve, reject) => {
@@ -169,7 +180,7 @@ export class ScoreRenderer {
         reject,
         pieceId,
       });
-      worker.postMessage({ type: "get_clip_playback", requestId, pieceId, startBar, endBar });
+      worker.postMessage({ type: "get_clip_playback", requestId, pieceId, startBar, endBar, transpose });
     });
   }
 }
