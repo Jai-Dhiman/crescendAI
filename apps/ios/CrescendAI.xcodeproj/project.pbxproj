@@ -61,6 +61,9 @@
 		A400000031 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000031 /* ChatService.swift */; };
 		A400000032 /* PracticeSessionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000032 /* PracticeSessionService.swift */; };
 		A400000033 /* ScoreHostBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000033 /* ScoreHostBridge.swift */; };
+		A400000034 /* ScoreSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000034 /* ScoreSchemeHandler.swift */; };
+		A400000035 /* ScoreWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000035 /* ScoreWebView.swift */; };
+		A200000010 /* ScoreWebViewIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000010 /* ScoreWebViewIntegrationTests.swift */; };
 		A200000003 /* ConversationRecordTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000003 /* ConversationRecordTests.swift */; };
 		A200000004 /* ArtifactConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000004 /* ArtifactConfigTests.swift */; };
 		A200000005 /* ChatServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000005 /* ChatServiceTests.swift */; };
@@ -71,6 +74,7 @@
 		A500000001 /* Lora-VariableFont_wght.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B500000001 /* Lora-VariableFont_wght.ttf */; };
 		A500000002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B500000002 /* Assets.xcassets */; };
 		A500000003 /* Figtree-VariableFont_wght.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B500000003 /* Figtree-VariableFont_wght.ttf */; };
+		A500000004 /* dist-scorehost in Resources */ = {isa = PBXBuildFile; fileRef = B500000004 /* dist-scorehost */; };
 		SA000000001 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = SP000000001 /* Sentry */; };
 /* End PBXBuildFile section */
 
@@ -147,7 +151,11 @@
 		B400000031 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
 		B400000032 /* PracticeSessionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionService.swift; sourceTree = "<group>"; };
 		B400000033 /* ScoreHostBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreHostBridge.swift; sourceTree = "<group>"; };
+		B400000034 /* ScoreSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreSchemeHandler.swift; sourceTree = "<group>"; };
+		B400000035 /* ScoreWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreWebView.swift; sourceTree = "<group>"; };
+		B200000010 /* ScoreWebViewIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreWebViewIntegrationTests.swift; sourceTree = "<group>"; };
 		B500000001 /* Lora-VariableFont_wght.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Lora-VariableFont_wght.ttf"; sourceTree = "<group>"; };
+		B500000004 /* dist-scorehost */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "dist-scorehost"; path = "../web/dist-scorehost"; sourceTree = SOURCE_ROOT; };
 		B500000002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B500000003 /* Figtree-VariableFont_wght.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Figtree-VariableFont_wght.ttf"; sourceTree = "<group>"; };
 		C100000001 /* CrescendAI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CrescendAI.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -255,6 +263,8 @@
 			isa = PBXGroup;
 			children = (
 				B400000033 /* ScoreHostBridge.swift */,
+				B400000034 /* ScoreSchemeHandler.swift */,
+				B400000035 /* ScoreWebView.swift */,
 			);
 			path = Score;
 			sourceTree = "<group>";
@@ -275,6 +285,7 @@
 				B500000002 /* Assets.xcassets */,
 				E100000015 /* Fonts */,
 				E100000016 /* SoundFonts */,
+				B500000004 /* dist-scorehost */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -367,6 +378,7 @@
 				B200000007 /* PracticeSessionServiceTests.swift */,
 				B200000008 /* MockURLProtocol.swift */,
 				B200000009 /* ScoreHostBridgeTests.swift */,
+				B200000010 /* ScoreWebViewIntegrationTests.swift */,
 			);
 			path = CrescendAITests;
 			sourceTree = "<group>";
@@ -551,6 +563,7 @@
 				A500000001 /* Lora-VariableFont_wght.ttf in Resources */,
 				A500000003 /* Figtree-VariableFont_wght.ttf in Resources */,
 				A500000002 /* Assets.xcassets in Resources */,
+				A500000004 /* dist-scorehost in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -613,6 +626,8 @@
 				A400000031 /* ChatService.swift in Sources */,
 				A400000032 /* PracticeSessionService.swift in Sources */,
 				A400000033 /* ScoreHostBridge.swift in Sources */,
+				A400000034 /* ScoreSchemeHandler.swift in Sources */,
+				A400000035 /* ScoreWebView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -629,6 +644,7 @@
 				A200000007 /* PracticeSessionServiceTests.swift in Sources */,
 				A200000008 /* MockURLProtocol.swift in Sources */,
 				A200000009 /* ScoreHostBridgeTests.swift in Sources */,
+				A200000010 /* ScoreWebViewIntegrationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
