@@ -112,34 +112,60 @@ test("ScoreHost play_passage renders clip and fires playback event", async ({ pa
   expect(transportPresent).toBe(true);
 });
 
-// This test requires a local API server running at http://localhost:8787
-// Skip if not available
-test("ScoreHost.load fetches non-bundled piece from live API", async ({ page }) => {
-  const apiBaseUrl = process.env.SCOREHOST_API_URL ?? "http://localhost:8787";
+// This test verifies that when window.__SCOREHOST_API_BASE is set, fetchScoreBytes
+// requests /api/scores/:pieceId/data from that origin instead of the bundled ./scores/ path.
+// It uses Playwright route interception — no real API server required.
+test("ScoreHost.load fetches non-bundled piece via __SCOREHOST_API_BASE (/api/scores/:id/data)", async ({ page }) => {
+  // Intercept the bundled path to ensure it is NOT what satisfies the load.
+  // Any request to ./scores/... from the file:// page would match this pattern.
+  let bundledPathHit = false;
+  await page.route("**/scores/chopin-nocturne-op9-no2.mxl", () => {
+    bundledPathHit = true;
+    // Do NOT fulfill — fall through to abort so the test fails loudly if this path is taken.
+    return Promise.resolve();
+  });
 
-  // Check if API is reachable
-  const apiUp = await fetch(`${apiBaseUrl}/api/scores`).then(() => true).catch(() => false);
-  if (!apiUp) {
-    test.skip(true, "Local API not running — set SCOREHOST_API_URL or start `just api`");
-  }
+  // Read the real .mxl bytes used by the other tests (czerny) to use as a stand-in fixture.
+  // The scorehost vite preview serves public/scores/ under /scores/.
+  // We intercept the API endpoint and return the czerny bytes (valid .mxl) so Verovio can parse.
+  let apiPathHit = false;
+  await page.route("**/api/scores/chopin-nocturne-op9-no2/data", async (route) => {
+    apiPathHit = true;
+    // Fetch the czerny fixture from the running vite preview as a valid .mxl stand-in.
+    const bytes = await fetch("http://localhost:5173/scores/czerny-op299-no1.mxl")
+      .then((r) => r.arrayBuffer())
+      .catch(() => null);
+    if (!bytes) {
+      await route.abort();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/octet-stream",
+      body: Buffer.from(bytes),
+    });
+  });
 
-  const indexHtml = path.resolve(
-    __dirname,
-    "../../../dist-scorehost/index.html",
-  );
-  await page.goto(`file://${indexHtml}`);
+  // Use the vite preview server (http://localhost:5173) so that absolute URL routing works.
+  await page.goto("/");
   await page.waitForFunction(() => typeof (window as any).ScoreHost !== "undefined", { timeout: 5000 });
 
-  // Inject API base URL so score-renderer fetches from local API
-  await page.evaluate((url: string) => {
-    (window as any).__SCOREHOST_API_BASE = url;
-  }, apiBaseUrl);
+  // Set __SCOREHOST_API_BASE to the Playwright base URL so /api/ routes resolve via the
+  // intercepted route above.
+  await page.evaluate(() => {
+    (window as any).__SCOREHOST_API_BASE = "http://localhost:5173";
+  });
 
   const loadResult = await page.evaluate(async () => {
     return await (window as any).ScoreHost.load("chopin-nocturne-op9-no2");
   });
   expect(loadResult).toEqual({ ok: true });
 
+  // The API path must have been hit — not the bundled ./scores/ path.
+  expect(apiPathHit).toBe(true);
+  expect(bundledPathHit).toBe(false);
+
+  // Verify the loaded score actually renders.
   const artifactJson = JSON.stringify({
     type: "score_highlight",
     config: {

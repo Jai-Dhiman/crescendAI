@@ -121,7 +121,10 @@ function getContainer(): HTMLElement {
 }
 
 async function fetchScoreBytes(pieceId: string): Promise<ArrayBuffer> {
-  const url = `./scores/${pieceId}.mxl`;
+  const apiBase = (window as unknown as { __SCOREHOST_API_BASE?: string }).__SCOREHOST_API_BASE;
+  const url = apiBase
+    ? `${apiBase}/api/scores/${pieceId}/data`
+    : `./scores/${pieceId}.mxl`;
   const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`Failed to fetch score for ${pieceId}: HTTP ${res.status}`);
@@ -215,7 +218,12 @@ async function renderPlayPassage(config: PlayPassageConfig): Promise<void> {
 
   const ir = clipResult.ir;
   const notes = clipResult.notes;
-  const beatsPerBar = 4; // default 4/4; BarIR does not carry time signature
+  const beatsPerBar = 4; // default 4/4; BarIR does not carry time signature yet
+  console.warn(JSON.stringify({
+    msg: "beatsPerBar defaulting to 4 — BarIR does not carry time signature; tempo will be wrong for non-4/4 pieces",
+    pieceId,
+    bars: config.bars,
+  }));
   const bpmAtUnity = 120;
 
   let isPlaying = false;
