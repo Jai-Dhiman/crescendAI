@@ -87,34 +87,37 @@ export class ScoreRenderer {
     });
   }
 
+  // bytes are transpose-independent; bytesCache and pendingFetches key by bare pieceId.
   async load(
     pieceId: string,
+    transpose?: number,
   ): Promise<{ ir: ScoreIR; pageSvgs: string[] } | "failed"> {
+    const key = `${pieceId}:${transpose ?? 0}`;
     await this.ensureBytes(pieceId);
-    const needsBytes = !this.sentPieceIds.has(pieceId);
+    const needsBytes = !this.sentPieceIds.has(key);
     const bytes = needsBytes ? this.bytesCache.get(pieceId) : undefined;
     if (needsBytes && bytes === undefined) {
       throw new Error(`Score bytes missing after fetch for pieceId: ${pieceId}`);
     }
-    if (needsBytes) this.sentPieceIds.add(pieceId);
+    if (needsBytes) this.sentPieceIds.add(key);
 
     try {
       const payload = await this.sendRequest<{ ir: ScoreIR; pageSvgs: string[] }>(
         pieceId,
-        { type: "load" },
+        { type: "load", transpose },
         bytes,
       );
-      this.irCache.set(pieceId, payload.ir);
+      this.irCache.set(key, payload.ir);
       return payload;
     } catch (err) {
-      this.sentPieceIds.delete(pieceId);
+      this.sentPieceIds.delete(key);
       Sentry.captureException(err);
       return "failed";
     }
   }
 
-  getIR(pieceId: string): ScoreIR | null {
-    return this.irCache.get(pieceId) ?? null;
+  getIR(pieceId: string, transpose?: number): ScoreIR | null {
+    return this.irCache.get(`${pieceId}:${transpose ?? 0}`) ?? null;
   }
 
   async getPage(pieceId: string, pageN: number, pageWidth?: number): Promise<string> {

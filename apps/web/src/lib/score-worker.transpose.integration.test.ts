@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { ScoreRenderer } from "./score-renderer";
 
 const FIXTURE_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -86,4 +87,49 @@ describe("loadPiece transpose param", () => {
     };
     expect(stripIds(zero.pageSvgs[0])).toBe(stripIds(omitted.pageSvgs[0]));
   }, 60_000);
+});
+
+describe("ScoreRenderer.load forwards transpose into the worker message", () => {
+  it("posts transpose in the load message", async () => {
+    // biome-ignore lint/suspicious/noExplicitAny: test capture array
+    const posted: any[] = [];
+    class FakeWorker {
+      onmessage: ((e: MessageEvent) => void) | null = null;
+      onerror: ((e: ErrorEvent) => void) | null = null;
+      // biome-ignore lint/suspicious/noExplicitAny: synthetic message
+      postMessage(msg: any) {
+        posted.push(msg);
+        queueMicrotask(() => {
+          this.onmessage?.({
+            data: {
+              requestId: msg.requestId,
+              payload: {
+                ir: { pieceId: `${msg.pieceId}`, verovioVersion: "", bars: [], pages: [], notes: {}, pageWidth: 2400 },
+                pageSvgs: ["<svg/>"],
+              },
+            },
+          } as MessageEvent);
+        });
+      }
+      terminate() {}
+    }
+    // @ts-expect-error override global Worker for the test
+    globalThis.Worker = FakeWorker;
+
+    const { api } = await import("./api");
+    const orig = api.scores.getData;
+    // @ts-expect-error stub network fetch
+    api.scores.getData = async () => new ArrayBuffer(8);
+
+    try {
+      const r = new ScoreRenderer();
+      await r.load("hanon_001", 2);
+      const loadMsg = posted.find((m) => m.type === "load");
+      expect(loadMsg).toBeDefined();
+      expect(loadMsg.transpose).toBe(2);
+    } finally {
+      // @ts-expect-error restore
+      api.scores.getData = orig;
+    }
+  });
 });

@@ -398,7 +398,7 @@ async function extractXmlFromMxl(bytes: ArrayBuffer): Promise<string | null> {
 }
 
 type WorkerInMsg =
-	| { type: "load";             requestId: string; pieceId: string; bytes: ArrayBuffer }
+	| { type: "load";             requestId: string; pieceId: string; bytes: ArrayBuffer; transpose?: number }
 	| { type: "get_page";         requestId: string; pieceId: string; pageN: number; pageWidth?: number }
 	| { type: "get_clip";         requestId: string; pieceId: string; startBar: number; endBar: number }
 	| { type: "get_clip_playback"; requestId: string; pieceId: string; startBar: number; endBar: number }
@@ -441,7 +441,13 @@ if (typeof window === "undefined") {
 			// Synchronous cache lookup — no await between here and toolkitCache.set
 			// so that concurrent handlers see the in-flight Promise rather than
 			// undefined and all independently returning "bytes required".
-			const cached = toolkitCache.get(msg.pieceId);
+			// load messages use a composite key so the same pieceId at different
+			// transpose values cache independently; non-load messages key by pieceId.
+			const cacheKey =
+				msg.type === "load"
+					? `${msg.pieceId}:${msg.transpose ?? 0}`
+					: msg.pieceId;
+			const cached = toolkitCache.get(cacheKey);
 			let result: LoadResult | undefined;
 
 			if (cached instanceof Promise) {
@@ -473,12 +479,13 @@ if (typeof window === "undefined") {
 					msg.bytes,
 					{ module: verovioModule, ToolkitClass: VerovioToolkitClass },
 					msg.pieceId,
+					msg.transpose,
 				);
-				toolkitCache.set(msg.pieceId, loadPromise);
+				toolkitCache.set(cacheKey, loadPromise);
 				result = await loadPromise;
 				// Replace the in-flight Promise with the settled result.
-				if (toolkitCache.get(msg.pieceId) === loadPromise) {
-					toolkitCache.set(msg.pieceId, result);
+				if (toolkitCache.get(cacheKey) === loadPromise) {
+					toolkitCache.set(cacheKey, result);
 				}
 			}
 
