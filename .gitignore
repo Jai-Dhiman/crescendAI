@@ -177,6 +177,11 @@ model/data/evals/practice_eval/*/audio/
 
 # Eval reports (regenerated)
 apps/api/evals/reports/
+
+# chroma-DTW eval transient outputs (baseline.json is committed; these regenerate
+# per `just chroma-eval-verify` run)
+model/data/evals/chroma_dtw/last_run.json
+model/data/evals/chroma_cache/
 .gitnexus
 
 # codedb MCP index snapshot

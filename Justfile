@@ -264,7 +264,7 @@ chroma-eval-prebuild:
 # Use this in pre-commit hooks and fast CI gates.
 chroma-eval-verify-smoke:
     cd model && uv run python -m chroma_dtw_eval.verify \
-        --baseline data/evals/chroma_dtw/baseline.json \
+        --baseline data/evals/chroma_dtw_fixtures/smoke_baseline.json \
         --manifest data/evals/chroma_dtw_fixtures/manifest.json \
         --skip-dtw
 

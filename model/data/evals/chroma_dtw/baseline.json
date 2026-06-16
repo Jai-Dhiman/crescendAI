@@ -1,11 +1,10 @@
 {
-  "primary": 0.0,
+  "primary": 40.0,
   "guards": {
-    "g1": 100.0,
-    "g2": 0.0,
-    "g3": 100.0,
-    "g4": 0.0,
-    "g5": 100.0
-  },
-  "notes": "smoke baseline; bach_prelude_c_wtc1 only; not statistically meaningful -- source additional scores before /autoresearch dispatch"
+    "g1": 0.0,
+    "g2": 0.6666666666666666,
+    "g3": 0.0,
+    "g4": 94.44444444444444,
+    "g5": 0.0
+  }
 }
