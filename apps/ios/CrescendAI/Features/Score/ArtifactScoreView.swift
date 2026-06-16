@@ -1,7 +1,8 @@
 import SwiftUI
 import WebKit
+import Sentry
 
-/// A SwiftUI view that renders a score_highlight artifact via ScoreWebView.
+/// A SwiftUI view that renders a score_highlight artifact via the score WebView (WKWebView + ScoreSchemeHandler + ScoreHostBridge).
 ///
 /// Lifecycle:
 ///   1. makeUIView creates WKWebView + ScoreHostBridge together, loads scorehost://app/index.html
@@ -67,8 +68,9 @@ struct ArtifactScoreView: UIViewRepresentable {
                     try await bridge.load(pieceId: config.pieceId)
                     try await bridge.showArtifact(.scoreHighlight(config))
                 } catch {
-                    // Surface the error to the bridge as a log event so it is observable.
+                    // Surface the error to Sentry and to the local log so it is observable.
                     // Do not swallow silently.
+                    SentrySDK.capture(error: error)
                     print("ArtifactScoreView: bridge call failed: \(error)")
                 }
             }

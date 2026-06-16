@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import Sentry
 
 /// A SwiftUI view that renders a play_passage artifact via the score WebView.
 ///
@@ -67,8 +68,9 @@ struct ArtifactPlayPassageView: UIViewRepresentable {
                     try await bridge.load(pieceId: config.pieceId)
                     try await bridge.showArtifact(.playPassage(config))
                 } catch {
-                    // Surface the error as a log so it is observable.
+                    // Surface the error to Sentry and to the local log so it is observable.
                     // Do not swallow silently.
+                    SentrySDK.capture(error: error)
                     print("ArtifactPlayPassageView: bridge call failed: \(error)")
                 }
             }

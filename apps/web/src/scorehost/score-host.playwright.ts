@@ -119,10 +119,10 @@ test("ScoreHost.load fetches non-bundled piece via __SCOREHOST_API_BASE (/api/sc
   // Intercept the bundled path to ensure it is NOT what satisfies the load.
   // Any request to ./scores/... from the file:// page would match this pattern.
   let bundledPathHit = false;
-  await page.route("**/scores/chopin-nocturne-op9-no2.mxl", () => {
+  await page.route("**/scores/chopin-nocturne-op9-no2.mxl", async (route) => {
     bundledPathHit = true;
-    // Do NOT fulfill — fall through to abort so the test fails loudly if this path is taken.
-    return Promise.resolve();
+    // Abort immediately so a regression to the bundled path fails fast with a clear error.
+    await route.abort();
   });
 
   // Read the real .mxl bytes used by the other tests (czerny) to use as a stand-in fixture.
