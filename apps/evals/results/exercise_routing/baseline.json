@@ -1,0 +1,8 @@
+{
+  "invocation_rate_floor": 0.0,
+  "kind_correctness_floor": 0.50,
+  "dimension_match_floor": 0.70,
+  "bar_range_grounding_floor": 0.50,
+  "tempo_sanity_floor": 0.90,
+  "notes": "Bootstrap floors from first real run. Run `just exercise-routing-ratchet` after a deliberate improvement."
+}

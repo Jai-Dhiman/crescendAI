@@ -322,3 +322,16 @@ piece-id-feasibility-acquire slug video_id:
 # Build the standalone scorehost web bundle (required before iOS build)
 build-scorehost:
     cd apps/web && bun run build:scorehost
+
+# Exercise-routing eval: drive all practice_eval WAVs through real local inference.
+# Requires `just dev` (MuQ:8000 + AMT:8001 + API:8787) and `just seed-fingerprint`.
+exercise-routing-eval:
+    cd apps/evals && uv run python -m pipeline.exercise_routing.eval_routing
+
+# Exercise-routing eval smoke: validate wiring without live services (CI-safe).
+exercise-routing-eval-smoke:
+    cd apps/evals && uv run python -m pipeline.exercise_routing.eval_routing --skip-inference
+
+# Promote last_run.json -> baseline.json after a deliberate routing improvement.
+exercise-routing-ratchet:
+    cd apps/evals && uv run python -m pipeline.exercise_routing.ratchet_baseline
