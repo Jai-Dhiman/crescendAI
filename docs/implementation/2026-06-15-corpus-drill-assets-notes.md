@@ -23,3 +23,9 @@ committed `.xml` primitives instead. These 8 are out of scope for this build.
 ## Task 3: build() produces valid MXL assets
 - Created build_render_assets.py (build()) + test_build_render_assets.py per plan. DOCTYPE-strip + wrap_as_mxl_zip only; idempotent; fail-loud naming the file on partitura load failure. Commit ef51e6ea. 1 passed.
 - Spec PASS. Code review APPROVED (3 MINOR non-blocking): double DOCTYPE-strip (harmless, build pre-strips for idempotency probe + wrap re-strips); hard-coded ==22 in test (redundant w/ len(produced)==len(xml_files)); imports private _strip_doctype across package boundary (coupling smell). None fixed (MINOR).
+
+## Task 6: loadPiece transpose param
+- loadPiece gained transpose?: number (4th param) + applyOpts(t) helper (VEROVIO_OPTS then transpose only if defined && !=0); 3 loadPiece-internal toolkit sites use applyOpts. Commit 7692b0f5.
+- DEVIATION (justified): plan's stripIds (single id="..." regex) was too narrow — Verovio randomizes IDs in 4 places (id attrs, xlink:href suffix, <style> CSS, class id- tokens). Implementer wrote a multi-step normalizer so the transpose:0==omitted structural lock is real.
+- REVIEW FIX (commit 95cd63cf): code review found the class id- strip was global (over-strip risk masking real engraving diffs). Scoped it to inside class="..." values via capture-group replace. Re-review APPROVED.
+- Tests: 2/2 transpose + 16/16 existing worker tests green. Test 1 (transpose:2 != transpose:0) is a weak predicate alone (raw SVGs always differ via random IDs); test 2 is the real no-op lock — both plan + challenge accepted test 1.
