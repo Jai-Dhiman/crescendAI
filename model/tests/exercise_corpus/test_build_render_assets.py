@@ -52,3 +52,28 @@ def test_build_emits_valid_mxl_with_matching_note_count(tmp_path: Path):
 
         # DOCTYPE must be stripped (Verovio WASM parser invariant).
         assert b"<!DOCTYPE" not in inner
+
+
+def test_build_is_idempotent(tmp_path: Path):
+    out_dir = tmp_path / "mxl"
+    build(xml_dir=_XML_DIR, out_dir=out_dir)
+    first = {p: (out_dir / f"{Path(p).stem}.mxl").read_bytes()
+             for p in glob.glob(str(_XML_DIR / "*.xml"))}
+
+    # Second run must not change any asset's bytes.
+    build(xml_dir=_XML_DIR, out_dir=out_dir)
+    for src, original_bytes in first.items():
+        again = (out_dir / f"{Path(src).stem}.mxl").read_bytes()
+        assert again == original_bytes, f"{Path(src).stem}.mxl changed on rebuild"
+
+
+def test_build_raises_naming_bad_xml(tmp_path: Path):
+    import pytest
+
+    bad_dir = tmp_path / "src"
+    bad_dir.mkdir()
+    bad = bad_dir / "broken_001.xml"
+    bad.write_text("<not-musicxml>this will not parse</not-musicxml>")
+
+    with pytest.raises(ValueError, match="broken_001"):
+        build(xml_dir=bad_dir, out_dir=tmp_path / "out")
