@@ -241,7 +241,6 @@ def main():
     mode_detection_data: list[dict] = []               # per-recording mode metrics
     score_following_data: list[dict] = []              # per-recording bar analysis
     synthesis_judge_results: list[dict] = []           # per-synthesis judge scores
-    exercise_data: list[dict] = []                     # per-exercise judge scores
     pass_a_syntheses: list[dict] = []                  # for differentiation test
     efficiency_data: list[dict] = []                   # latency tracking
     total_judge_calls = 0
@@ -259,7 +258,6 @@ def main():
         mode_detection_data = ckpt.get("mode_detection_data", [])
         score_following_data = ckpt.get("score_following_data", [])
         synthesis_judge_results = ckpt.get("synthesis_judge_results", [])
-        exercise_data = ckpt.get("exercise_data", [])
         pass_a_syntheses = ckpt.get("pass_a_syntheses", [])
         efficiency_data = ckpt.get("efficiency_data", [])
         total_judge_calls = ckpt.get("total_judge_calls", 0)
@@ -473,7 +471,6 @@ def main():
                     "mode_detection_data": mode_detection_data,
                     "score_following_data": score_following_data,
                     "synthesis_judge_results": synthesis_judge_results,
-                    "exercise_data": exercise_data,
                     "pass_a_syntheses": pass_a_syntheses,
                     "efficiency_data": efficiency_data,
                     "total_judge_calls": total_judge_calls,
@@ -579,7 +576,6 @@ def main():
         "mode_detection_data": mode_detection_data,
         "score_following_data": score_following_data,
         "synthesis_judge_results": synthesis_judge_results,
-        "exercise_data": exercise_data,
         "pass_a_syntheses": [
             {k: v for k, v in s.items() if k != "text"}
             for s in pass_a_syntheses  # exclude full text to save space

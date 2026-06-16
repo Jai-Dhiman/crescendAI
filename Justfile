@@ -293,7 +293,7 @@ chroma-eval-prebuild:
 # Use this in pre-commit hooks and fast CI gates.
 chroma-eval-verify-smoke:
     cd model && uv run python -m chroma_dtw_eval.verify \
-        --baseline data/evals/chroma_dtw/baseline.json \
+        --baseline data/evals/chroma_dtw_fixtures/smoke_baseline.json \
         --manifest data/evals/chroma_dtw_fixtures/manifest.json \
         --skip-dtw
 
@@ -347,3 +347,20 @@ piece-id-feasibility:
 # Acquire audio for all 16 practice_eval pieces (yt-dlp required).
 piece-id-feasibility-acquire slug video_id:
     cd model && uv run python -c "from pathlib import Path; from piece_id_eval.acquire import acquire_audio; out = acquire_audio('{{video_id}}', Path('data/evals/practice_eval/{{slug}}/audio')); print('Downloaded:', out)"
+
+# Build the standalone scorehost web bundle (required before iOS build)
+build-scorehost:
+    cd apps/web && bun run build:scorehost
+
+# Exercise-routing eval: drive all practice_eval WAVs through real local inference.
+# Requires `just dev` (MuQ:8000 + AMT:8001 + API:8787) and `just seed-fingerprint`.
+exercise-routing-eval:
+    cd apps/evals && uv run python -m pipeline.exercise_routing.eval_routing
+
+# Exercise-routing eval smoke: validate wiring without live services (CI-safe).
+exercise-routing-eval-smoke:
+    cd apps/evals && uv run python -m pipeline.exercise_routing.eval_routing --skip-inference
+
+# Promote last_run.json -> baseline.json after a deliberate routing improvement.
+exercise-routing-ratchet:
+    cd apps/evals && uv run python -m pipeline.exercise_routing.ratchet_baseline

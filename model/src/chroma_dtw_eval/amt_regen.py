@@ -36,6 +36,21 @@ AMT_CHUNK_S = 27.0
 TARGET_SR = 16000
 RETRY_LIMIT = 2
 
+# Aria-AMT emits sustained/held notes as many short same-pitch re-onsets (~50%
+# of raw notes are a same-pitch repeat within 80ms of a prior one). Merge those
+# into one note; the window is far below the legitimate repeated-16th spacing on
+# these pieces (>=190ms at performance tempo), so real repeats survive.
+DEDUP_WINDOW_S = 0.08
+
+# Distributional acceptance gate for the perf->score time-map. A usable map needs
+# enough monotonic anchors that SPAN the audio without a large blind gap -- NOT a
+# high match *count*. (matched/amt_notes is poisoned by AMT over-transcription;
+# matched/score_notes wrongly rejects clean-but-sparse maps -- e.g. the invention
+# aligns 0/202 non-monotonic, 95% span, yet only 44% of score notes.)
+MIN_ANCHORS = 100
+MIN_SPAN_FRACTION = 0.85
+MAX_ANCHOR_GAP_S = 8.0
+
 # Default paths anchored to THIS module's location, never relative to CWD.
 _MODULE_DIR = Path(__file__).resolve()
 DEFAULT_AMT_URL = os.environ.get("AMT_URL", "http://127.0.0.1:8001/transcribe")
@@ -45,6 +60,7 @@ DEFAULT_CACHE_ROOT = _MODULE_DIR.parents[2] / "data/evals/pseudo_truth"
 DEFAULT_SCORE_ROOT = _MODULE_DIR.parents[2] / "data/scores"
 DEFAULT_SCORE_BY_PIECE = {
     "bach_prelude_c_wtc1": DEFAULT_SCORE_ROOT / "bach.prelude.bwv_846.json",
+    "bach_invention_1": DEFAULT_SCORE_ROOT / "bach.inventions.1.json",
 }
 
 
@@ -214,13 +230,37 @@ def _load_bach_json_score(score_path: Path) -> tuple[np.ndarray, list[dict], str
     return score_na, measure_table, score_sha256, beat_sec
 
 
-def _amt_to_perf_na(notes: list[dict], beat_sec: float = 0.5) -> np.ndarray:
+def _dedup_amt_notes(notes: list[dict], window_s: float = DEDUP_WINDOW_S) -> list[dict]:
+    """Merge same-pitch re-onsets within `window_s`: keep the earliest onset and
+    extend its offset to cover the merged run. Removes the Aria-AMT note-repetition
+    artifact (a held note emitted as many short onsets) without touching real
+    repeated notes, which are spaced well above the window on these pieces.
+    """
+    by_pitch = sorted(notes, key=lambda n: (n["pitch"], n["onset"]))
+    out: list[dict] = []
+    last_for_pitch: dict[int, dict] = {}
+    for n in by_pitch:
+        pitch = int(n["pitch"])
+        prev = last_for_pitch.get(pitch)
+        if prev is not None and float(n["onset"]) - float(prev["onset"]) < window_s:
+            prev["offset"] = max(float(prev["offset"]), float(n["offset"]))
+            continue
+        merged = dict(n)
+        out.append(merged)
+        last_for_pitch[pitch] = merged
+    out.sort(key=lambda n: n["onset"])
+    return out
+
+
+def _amt_to_perf_na(notes: list[dict], beat_sec: float = 1.0) -> np.ndarray:
     """Convert raw AMT note dicts to the structured note array parangonar expects.
 
     parangonar requires both 'duration_beat' and 'onset_beat' for its piano-roll
-    computation. We derive both from the score's constant tempo (beat_sec).
-    Setting onset_beat = onset_sec / beat_sec gives parangonar accurate beat
-    positions for its DTW initialization; using 0.0 causes zero matches.
+    computation; onset_beat = 0.0 causes zero matches. We use beat_sec=1.0
+    (onset_beat == onset_sec) rather than the score's tempo: the perf runs
+    1.5-2.2x slower than the score's nominal tempo, so scaling by the SCORE beat
+    mis-initializes the matcher. Sec-as-beat removes that wrong assumption and
+    empirically lifts score alignment coverage (prelude 0.41 -> 0.59).
     """
     dtype = [
         ("onset_sec", float), ("onset_beat", float),
@@ -323,22 +363,39 @@ def regenerate_pseudo_truth(
     if not amt_notes:
         raise AmtRegenError(f"AMT returned zero notes for {audio_path}")
 
-    score_na, measure_table, score_sha256_2, beat_sec = _load_bach_json_score(score_path)
+    score_na, measure_table, score_sha256_2, _beat_sec = _load_bach_json_score(score_path)
     if score_sha256 != score_sha256_2:
         raise AmtRegenError(
             f"score file mutated during regen: {score_path} "
             f"(first sha={score_sha256!r}, second sha={score_sha256_2!r})"
         )
 
-    amt_perf_na = _amt_to_perf_na(amt_notes, beat_sec=beat_sec)
+    deduped_notes = _dedup_amt_notes(amt_notes)
+    amt_perf_na = _amt_to_perf_na(deduped_notes)
     matches = _match(score_na, amt_perf_na)
     perf_arr, score_arr = _build_pairs(score_na, amt_perf_na, matches)
 
-    if score_arr.size < 100 or score_arr.size / max(len(amt_notes), 1) < 0.5:
+    # Distributional acceptance: enough monotonic anchors (score_arr is already
+    # running-max'd in _build_pairs), spanning the audio without a large blind gap.
+    audio_dur = len(audio_16k) / TARGET_SR
+    n_anchors = int(perf_arr.size)
+    if n_anchors >= 2 and audio_dur > 0:
+        span_fraction = float(perf_arr.max() - perf_arr.min()) / audio_dur
+        max_gap = float(np.max(np.diff(np.sort(perf_arr))))
+    else:
+        span_fraction = 0.0
+        max_gap = float("inf")
+    if (
+        n_anchors < MIN_ANCHORS
+        or span_fraction < MIN_SPAN_FRACTION
+        or max_gap > MAX_ANCHOR_GAP_S
+    ):
         raise LowCoverageError(
-            f"insufficient match coverage: matched={score_arr.size}, "
-            f"amt_notes={len(amt_notes)}, match_rate="
-            f"{score_arr.size / max(len(amt_notes), 1):.3f}"
+            f"unusable pseudo-truth time-map: anchors={n_anchors} "
+            f"(min {MIN_ANCHORS}), span_fraction={span_fraction:.2f} "
+            f"(min {MIN_SPAN_FRACTION}), max_gap={max_gap:.2f}s "
+            f"(max {MAX_ANCHOR_GAP_S}s); raw_amt={len(amt_notes)}, "
+            f"deduped_amt={len(deduped_notes)}, score_notes={len(score_na)}"
         )
 
     config_body = (

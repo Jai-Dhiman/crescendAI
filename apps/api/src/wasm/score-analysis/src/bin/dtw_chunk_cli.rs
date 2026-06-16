@@ -13,9 +13,10 @@ use score_analysis::types::ScoreBar;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() != 5 {
+    if args.len() < 5 || args.len() > 8 {
         eprintln!(
-            "usage: dtw_chunk_cli <score_json> <frame_rate_hz> <decim_hz> <n_audio_frames>"
+            "usage: dtw_chunk_cli <score_json> <frame_rate_hz> <decim_hz> <n_audio_frames> \
+             [prior_score_frame] [band_back_frames] [band_fwd_frames]"
         );
         return ExitCode::from(2);
     }
@@ -38,6 +39,34 @@ fn main() -> ExitCode {
         Ok(v) => v,
         Err(e) => {
             eprintln!("bad n_audio: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    // Optional local-margin-in-band args. Absent -> prior < 0 -> unconstrained.
+    let parse_opt = |i: usize, default: i64| -> Result<i64, std::num::ParseIntError> {
+        match args.get(i) {
+            Some(s) => s.parse(),
+            None => Ok(default),
+        }
+    };
+    let prior_score_frame: i64 = match parse_opt(5, -1) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("bad prior_score_frame: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let band_back_frames: u32 = match parse_opt(6, 0) {
+        Ok(v) => v.max(0) as u32,
+        Err(e) => {
+            eprintln!("bad band_back_frames: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let band_fwd_frames: u32 = match parse_opt(7, 0) {
+        Ok(v) => v.max(0) as u32,
+        Err(e) => {
+            eprintln!("bad band_fwd_frames: {e}");
             return ExitCode::from(2);
         }
     };
@@ -76,7 +105,10 @@ fn main() -> ExitCode {
         .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
         .collect();
 
-    let result = match chroma_dtw_native(&audio, n_audio, &score_bars, frame_rate, decim) {
+    let result = match chroma_dtw_native(
+        &audio, n_audio, &score_bars, frame_rate, decim,
+        prior_score_frame, band_back_frames, band_fwd_frames,
+    ) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("dtw: {e}");

@@ -100,6 +100,7 @@ fn cosine_dist(
 fn subseq_dtw(
     audio: &[f32], n_audio: usize,  // row-major 12 x n_audio
     score: &[f32], n_score: usize,  // row-major 12 x n_score
+    band: Option<(usize, usize)>,   // restrict the endpoint argmin to [lo, hi)
 ) -> (Vec<(usize, usize)>, f32) {
     let n_a = n_audio;
     let n_s = n_score;
@@ -140,11 +141,22 @@ fn subseq_dtw(
     // After the loop `prev` holds the last audio row (n_a - 1); for n_a == 1 it holds row 0.
     let last = &prev;
 
-    // Find best end on last audio row (minimum over all score positions)
+    // Find best end on last audio row. A band restricts the endpoint search to
+    // [lo, hi) around a session prior, so the path cannot teleport to a distant
+    // look-alike passage (the global argmin's failure mode). An empty/degenerate
+    // band falls back to the full row rather than returning a bogus endpoint.
     let last_row = n_a - 1;
-    let j_end = (0..n_s)
+    let (lo, hi) = match band {
+        Some((lo, hi)) => {
+            let lo = lo.min(n_s);
+            let hi = hi.min(n_s);
+            if lo < hi { (lo, hi) } else { (0, n_s) }
+        }
+        None => (0, n_s),
+    };
+    let j_end = (lo..hi)
         .min_by(|&ja, &jb| last[ja].partial_cmp(&last[jb]).unwrap())
-        .unwrap_or(0);
+        .unwrap_or(lo);
 
     // Backtrack
     let mut path = Vec::with_capacity(n_a + n_s);
@@ -187,6 +199,13 @@ pub fn chroma_dtw_native(
     score_bars: &[ScoreBar],
     frame_rate_hz: f32,
     decim_hz: f32,
+    // Local-margin-in-band endpoint constraint. `prior_score_frame` is the
+    // expected score frame for this chunk's start (carried forward across a
+    // session); a negative value disables the band (global, legacy behaviour).
+    // The endpoint may land in [prior - back, prior + fwd) of the score.
+    prior_score_frame: i64,
+    band_back_frames: u32,
+    band_fwd_frames: u32,
 ) -> Result<BarMapChroma, String> {
     let n_a = n_audio as usize;
     if audio_f32.len() != 12 * n_a {
@@ -209,7 +228,38 @@ pub fn chroma_dtw_native(
         return Err("score has no notes".to_string());
     }
 
-    let (path, mean_cost) = subseq_dtw(audio_f32, n_a, &score_chroma, n_s);
+    let window = if prior_score_frame < 0 {
+        None
+    } else {
+        let prior = prior_score_frame as usize;
+        let lo = prior.saturating_sub(band_back_frames as usize);
+        let hi = prior.saturating_add(band_fwd_frames as usize).min(n_s);
+        if lo < hi { Some((lo, hi)) } else { None }
+    };
+    let (path, mean_cost) = match window {
+        Some((lo, hi)) => {
+            // Confine the ENTIRE warping path to the prior window [lo, hi), not just
+            // the endpoint argmin: slice the score columns, run subsequence DTW on
+            // the slice, then offset score frames back to absolute indices. Endpoint-
+            // only banding let the path midpoint warp back to a distant look-alike (a
+            // backward teleport) while the endpoint was forced forward; that frame-to-
+            // frame jitter is exactly what the g4 continuity guard penalises. The
+            // production path (prior < 0) keeps the full-score search -> parity-safe.
+            let win = hi - lo;
+            let mut sliced = vec![0.0_f32; 12 * win];
+            for pc in 0..12 {
+                let src = pc * n_s + lo;
+                let dst = pc * win;
+                sliced[dst..dst + win].copy_from_slice(&score_chroma[src..src + win]);
+            }
+            let (mut path, cost) = subseq_dtw(audio_f32, n_a, &sliced, win, None);
+            for (sf, _af) in path.iter_mut() {
+                *sf += lo;
+            }
+            (path, cost)
+        }
+        None => subseq_dtw(audio_f32, n_a, &score_chroma, n_s, None),
+    };
 
     // Build bar_per_frame at decim_hz by sampling the warping path
     let decim_step = (frame_rate_hz / decim_hz).round() as usize;
@@ -302,7 +352,8 @@ pub fn align_chunk_chroma(
         serde_wasm_bindgen::from_value(score_bars_js)
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-    let result = chroma_dtw_native(&audio_f32, n_audio, &score_bars, frame_rate_hz, decim_hz)
+    // Production WASM path keeps the legacy unconstrained search (prior < 0).
+    let result = chroma_dtw_native(&audio_f32, n_audio, &score_bars, frame_rate_hz, decim_hz, -1, 0, 0)
         .map_err(|e| JsValue::from_str(&e))?;
 
     serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
@@ -331,7 +382,7 @@ mod tests {
     fn n_audio_zero_returns_error() {
         let score_bars = vec![make_score_bar()];
         // n_audio = 0 => audio_f32 len = 12 * 0 = 0, passes length check, must be caught by guard
-        let result = chroma_dtw_native(&[], 0, &score_bars, 10.0, 2.0);
+        let result = chroma_dtw_native(&[], 0, &score_bars, 10.0, 2.0, -1, 0, 0);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "n_audio is zero");
     }
@@ -381,7 +432,7 @@ mod tests {
         audio_f32[0 * 2 + 1] = 1.0; // pc=0, af=1
 
         // frame_rate=10 Hz, decim_hz=10 Hz (1:1 so bar_per_frame has 2 entries).
-        let result = chroma_dtw_native(&audio_f32, 2, &[bar], 10.0, 10.0);
+        let result = chroma_dtw_native(&audio_f32, 2, &[bar], 10.0, 10.0, -1, 0, 0);
         assert!(result.is_ok(), "unexpected error: {:?}", result.err());
         let bar_map = result.unwrap();
 
@@ -443,7 +494,7 @@ mod tests {
             audio[(af % 12) * n_a + af] = 1.0;
         }
 
-        let result = chroma_dtw_native(&audio, n_a as u32, &[bar], 50.0, 5.0);
+        let result = chroma_dtw_native(&audio, n_a as u32, &[bar], 50.0, 5.0, -1, 0, 0);
         assert!(result.is_ok(), "unexpected error: {:?}", result.err());
         let bar_map = result.unwrap();
         // Only one bar exists, so every mapped frame must report bar 1.

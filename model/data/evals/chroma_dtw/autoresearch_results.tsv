@@ -1,0 +1,10 @@
+iter	commit	primary	mean_err	delta_primary	delta_mean	status	description
+0	a9e3f5c2	15.0	18.47	--	--	baseline	local-margin-in-band (back=2,fwd=12), prior=prediction carry
+1	2137b4c5	20.0	7.71	+5.0	-10.76	keep	dead-reckoned prior tempo_ratio=0.45 (replaces prediction-carry); tail 62->25s, g2 .51->.70
+2	0746e5b0	25.0	6.49	+5.0	-1.22	REVERT	tempo_ratio=0.50: primary/mean better but g4 33.3->16.7 trips guard (jumpier consecutive preds). Reverted.
+3	18e2819e	35.0	5.89	+15.0	-1.82	REVERT	window-slice DTW: primary HITS TARGET 35 + mean 5.9 but g2 .70->.57 AND g4 33.3->27.8 trip guards. g4 is mis-specified (expects ratio-1.0 progress; perfs run ~0.5 so accurate tracking reads as discontinuous). Reverted; STOP loop, surface g4 to user.
+--	METRIC CHANGE: g4 redefined (plausible implied-tempo [0.25,1.5]); baseline re-locked primary=20 g4=66.67 g2 HELD at 0.5098 floor (smoke-compat). New frozen baseline for resumed loop.
+4	a49ca375	35.0	5.89	+15.0	-1.82	keep	window-slice DTW re-applied under corrected guards: confine whole path to [prior-back,prior+fwd). primary HITS 35, mean 5.89, g4 66.7->83.3, g2 0.571 (>=floor). RATCHETED (g2 held 0.5098).
+5	14f77da5	40.0	2.60	+5.0	-3.29	REVERT	adaptive per-clip tempo: primary 40, mean 2.60, MAX 9.2s (teleport SOLVED), g4 94.4 BUT g2 0.571->0.406 (below chance). g2 is confounded: cost tracks piece-difficulty (invention ~0.5 vs prelude ~0.3) not alignment error, so accuracy gains invert it. Reverted; g2-redesign deferred by user. Strong next-lever.
+--	METRIC CHANGE: g2 redefined cost->dead-reckon-residual AUC (was confounded by per-piece cost). Smoke recipe decoupled to its own low-guard fixture (real g2 now ratchets freely).
+6	8ccc76e0	40.0	2.60	+5.0	-3.29	keep	adaptive per-clip tempo re-applied: primary 35->40, mean 5.89->2.60, MAX 24.9->9.2 (teleport ELIMINATED), g4 83->94, g2(residual) 0.667. RATCHETED to primary=40.

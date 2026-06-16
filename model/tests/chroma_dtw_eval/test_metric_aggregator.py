@@ -32,9 +32,10 @@ def test_primary_counts_practice_within_seconds_tolerance() -> None:
 
 
 def test_g4_continuity_consecutive_chunks() -> None:
-    # Three consecutive chunks at 0, 15, 30s on the same clip. Pair 0->1
-    # is continuous (delta_pred = 15 = delta_audio); pair 1->2 jumps
-    # 30s in predicted-score (delta 30 - delta_audio 15 = 15 > 5) -> not continuous.
+    # Three consecutive chunks at 0, 15, 30s on the same clip. Pair 0->1 has
+    # implied tempo delta_pred/delta_audio = 15/15 = 1.0 (in [0.25,1.5]) ->
+    # continuous; pair 1->2 jumps 45s in predicted-score over 15s audio ->
+    # ratio 3.0 > 1.5 (a forward teleport) -> not continuous.
     results = [
         ChunkResult(kind="practice", piece="p", video_id="v", start_audio_sec=0.0,
                     predicted_score_sec=0.0, error_seconds=0.0, cost=0.1),
@@ -76,7 +77,7 @@ def test_g2_threshold_scales_with_chunk_count() -> None:
     results = [
         ChunkResult(kind="practice", piece="p", video_id="v", start_audio_sec=float(i),
                     predicted_score_sec=float(i), error_seconds=0.5 if i < 2 else 2.0,
-                    cost=0.1 + 0.1 * i)
+                    cost=0.1 + 0.1 * i, dead_reckon_residual_sec=0.1 + 0.1 * i)
         for i in range(4)
     ]
     m = aggregate(results, baseline=bl, tolerance_s=1.5)

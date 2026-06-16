@@ -10,6 +10,8 @@
 		"build": "vite build",
 		"preview": "bun run build && vite preview",
 		"test": "vitest run",
+		"build:scorehost": "vite build --config vite.config.scorehost.ts",
+		"test:scorehost": "playwright test --config playwright.scorehost.config.ts",
 		"lint": "biome check src/",
 		"lint:fix": "biome check --write src/",
 		"format": "biome format --write src/",
@@ -45,6 +47,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.6",
+		"@playwright/test": "^1.60.0",
 		"@tanstack/devtools-vite": "^0.5.3",
 		"@testing-library/dom": "^10.4.0",
 		"@testing-library/jest-dom": "^6.9.1",

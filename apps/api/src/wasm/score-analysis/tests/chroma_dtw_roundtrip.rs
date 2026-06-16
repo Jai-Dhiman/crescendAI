@@ -51,7 +51,7 @@ fn chroma_dtw_roundtrip_coldstart() {
     let (audio_f32, n_audio, score_bars, expected) = load_fixture("ballade1_coldstart_111s");
 
     let result: BarMapChroma =
-        chroma_dtw_native(&audio_f32, n_audio, &score_bars, expected.frame_rate_hz, 5.0)
+        chroma_dtw_native(&audio_f32, n_audio, &score_bars, expected.frame_rate_hz, 5.0, -1, 0, 0)
             .expect("align_chunk_chroma_native should not fail on valid fixture");
 
     assert!(
@@ -94,7 +94,7 @@ fn chroma_dtw_roundtrip_forward() {
     let (audio_f32, n_audio, score_bars, expected) = load_fixture("ballade1_forward_2min");
 
     let result: BarMapChroma =
-        chroma_dtw_native(&audio_f32, n_audio, &score_bars, expected.frame_rate_hz, 5.0)
+        chroma_dtw_native(&audio_f32, n_audio, &score_bars, expected.frame_rate_hz, 5.0, -1, 0, 0)
             .expect("align_chunk_chroma_native should not fail on valid fixture");
 
     assert!(

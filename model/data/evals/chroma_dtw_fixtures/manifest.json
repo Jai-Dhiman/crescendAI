@@ -4,23 +4,159 @@
     "video_id": "VID0",
     "start_audio_sec": 0.0,
     "end_audio_sec": 15.0,
-    "audio_sha256": "fixture_stub_0001",
+    "audio_sha256": "b6add4bd0b483e8b",
     "position_bucket": "intro"
   },
   {
     "piece": "bach_prelude_c_wtc1",
     "video_id": "VID0",
-    "start_audio_sec": 30.0,
-    "end_audio_sec": 45.0,
-    "audio_sha256": "fixture_stub_0001",
+    "start_audio_sec": 12.0,
+    "end_audio_sec": 27.0,
+    "audio_sha256": "b6add4bd0b483e8b",
+    "position_bucket": "intro"
+  },
+  {
+    "piece": "bach_prelude_c_wtc1",
+    "video_id": "VID0",
+    "start_audio_sec": 24.0,
+    "end_audio_sec": 39.0,
+    "audio_sha256": "b6add4bd0b483e8b",
+    "position_bucket": "early"
+  },
+  {
+    "piece": "bach_prelude_c_wtc1",
+    "video_id": "VID0",
+    "start_audio_sec": 36.0,
+    "end_audio_sec": 51.0,
+    "audio_sha256": "b6add4bd0b483e8b",
+    "position_bucket": "early"
+  },
+  {
+    "piece": "bach_prelude_c_wtc1",
+    "video_id": "VID0",
+    "start_audio_sec": 48.0,
+    "end_audio_sec": 63.0,
+    "audio_sha256": "b6add4bd0b483e8b",
+    "position_bucket": "early"
+  },
+  {
+    "piece": "bach_prelude_c_wtc1",
+    "video_id": "VID0",
+    "start_audio_sec": 60.0,
+    "end_audio_sec": 75.0,
+    "audio_sha256": "b6add4bd0b483e8b",
     "position_bucket": "middle"
   },
   {
     "piece": "bach_prelude_c_wtc1",
     "video_id": "VID0",
-    "start_audio_sec": 100.0,
-    "end_audio_sec": 115.0,
-    "audio_sha256": "fixture_stub_0001",
+    "start_audio_sec": 72.0,
+    "end_audio_sec": 87.0,
+    "audio_sha256": "b6add4bd0b483e8b",
+    "position_bucket": "middle"
+  },
+  {
+    "piece": "bach_prelude_c_wtc1",
+    "video_id": "VID0",
+    "start_audio_sec": 84.0,
+    "end_audio_sec": 99.0,
+    "audio_sha256": "b6add4bd0b483e8b",
+    "position_bucket": "middle"
+  },
+  {
+    "piece": "bach_prelude_c_wtc1",
+    "video_id": "VID0",
+    "start_audio_sec": 96.0,
+    "end_audio_sec": 111.0,
+    "audio_sha256": "b6add4bd0b483e8b",
+    "position_bucket": "middle"
+  },
+  {
+    "piece": "bach_prelude_c_wtc1",
+    "video_id": "VID0",
+    "start_audio_sec": 108.0,
+    "end_audio_sec": 123.0,
+    "audio_sha256": "b6add4bd0b483e8b",
+    "position_bucket": "late"
+  },
+  {
+    "piece": "bach_prelude_c_wtc1",
+    "video_id": "VID0",
+    "start_audio_sec": 120.0,
+    "end_audio_sec": 135.0,
+    "audio_sha256": "b6add4bd0b483e8b",
+    "position_bucket": "late"
+  },
+  {
+    "piece": "bach_prelude_c_wtc1",
+    "video_id": "VID0",
+    "start_audio_sec": 132.0,
+    "end_audio_sec": 147.0,
+    "audio_sha256": "b6add4bd0b483e8b",
+    "position_bucket": "late"
+  },
+  {
+    "piece": "bach_invention_1",
+    "video_id": "7zVlDxBO5q4",
+    "start_audio_sec": 0.0,
+    "end_audio_sec": 15.0,
+    "audio_sha256": "bcebd1115917c445",
+    "position_bucket": "intro"
+  },
+  {
+    "piece": "bach_invention_1",
+    "video_id": "7zVlDxBO5q4",
+    "start_audio_sec": 12.0,
+    "end_audio_sec": 27.0,
+    "audio_sha256": "bcebd1115917c445",
+    "position_bucket": "early"
+  },
+  {
+    "piece": "bach_invention_1",
+    "video_id": "7zVlDxBO5q4",
+    "start_audio_sec": 24.0,
+    "end_audio_sec": 39.0,
+    "audio_sha256": "bcebd1115917c445",
+    "position_bucket": "early"
+  },
+  {
+    "piece": "bach_invention_1",
+    "video_id": "7zVlDxBO5q4",
+    "start_audio_sec": 36.0,
+    "end_audio_sec": 51.0,
+    "audio_sha256": "bcebd1115917c445",
+    "position_bucket": "middle"
+  },
+  {
+    "piece": "bach_invention_1",
+    "video_id": "7zVlDxBO5q4",
+    "start_audio_sec": 48.0,
+    "end_audio_sec": 63.0,
+    "audio_sha256": "bcebd1115917c445",
+    "position_bucket": "middle"
+  },
+  {
+    "piece": "bach_invention_1",
+    "video_id": "7zVlDxBO5q4",
+    "start_audio_sec": 60.0,
+    "end_audio_sec": 75.0,
+    "audio_sha256": "bcebd1115917c445",
+    "position_bucket": "middle"
+  },
+  {
+    "piece": "bach_invention_1",
+    "video_id": "7zVlDxBO5q4",
+    "start_audio_sec": 72.0,
+    "end_audio_sec": 87.0,
+    "audio_sha256": "bcebd1115917c445",
+    "position_bucket": "late"
+  },
+  {
+    "piece": "bach_invention_1",
+    "video_id": "7zVlDxBO5q4",
+    "start_audio_sec": 84.0,
+    "end_audio_sec": 99.0,
+    "audio_sha256": "bcebd1115917c445",
     "position_bucket": "late"
   }
 ]

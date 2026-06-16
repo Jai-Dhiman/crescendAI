@@ -366,51 +366,41 @@ Target: > 70% rated HIGH or MEDIUM.
 
 ---
 
-## 5. Exercise Generation Eval
+## 5. Exercise Routing Eval
 
-### Ideal Eval
+**Shipped:** Issue #48, merge `095fd143`. Supersedes the old `create_exercise` prose-judge framing.
 
-**Data:** 100+ synthesized exercises reviewed by piano teachers. Each teacher:
-1. Rates whether the exercise targets the identified weakness
-2. Rates whether a student could physically follow the instructions
-3. Attempts the exercise themselves and rates whether it would actually help
-4. Compares curated vs LLM-generated exercise quality
+The exercise-routing eval measures deterministic structural correctness of the teacher's `ExerciseRoutingDecision` output (the discriminated union shipped in issue #29: `own_passage_loop | corpus_drill`). It drives real local `chunk_ready` inference end-to-end — no mocks, no LLM judge.
 
-**Metrics:**
-- Expert agreement on exercise relevance (dimension targeting)
-- Feasibility rating (can a student do this?)
-- Pedagogical value (would this actually help?)
-- Curated vs generated preference rate
+### Axes (5 deterministic, stats-only)
 
-### Practical Eval (T5)
+| Axis | What it checks | Floor threshold |
+|------|---------------|-----------------|
+| `invocation_rate` | Fraction of sessions where teacher emits `prescribed_exercise` | ≥ 0.5 |
+| `kind_correctness` | `kind` field is a valid routing decision (`own_passage_loop` or `corpus_drill`) | ≥ 0.9 |
+| `dimension_match` | `dominant_dimension` matches a known 6-dim quality axis | ≥ 0.8 |
+| `bar_range_grounding` | `bar_range` is present and non-empty when kind is `own_passage_loop` | ≥ 0.6 |
+| `tempo_sanity` | `tempo_factor` in [0.5, 1.0] when present | ≥ 0.9 |
 
-**Data:** Subset of 361 T5 recordings where the teacher LLM invokes `create_exercise` during synthesis.
+### Committed baseline
 
-**Methodology:**
-- Run synthesis pipeline with exercise tool enabled
-- Capture tool invocations (or lack thereof)
-- Parse exercise artifacts for structural analysis
-- LLM judge evaluates exercise quality
+`apps/evals/results/exercise_routing/baseline.json` locks the floor thresholds above. The ratchet mechanism (`ratchet_baseline.py`) promotes `last_run.json` to `baseline.json` after a deliberate metric improvement.
 
-**Metrics (statistical, no LLM):**
+### Justfile recipes
 
-| Metric | How to compute | Target |
-|--------|---------------|--------|
-| Invocation rate | `sessions_with_exercise / total_sessions` | 20-40% |
-| Dimension targeting | `exercise.focus_dimension == top_teaching_moment.dimension` | > 85% |
-| Passage grounding | `exercise.source_passage` is non-empty and references specific bars | > 60% |
-| Catalog utilization | When a curated exercise matches, is it referenced? | > 40% |
-| Exercise count per invocation | Number of exercise steps (target: 1-3) | mean 1.5-2.5 |
+| Recipe | What it does |
+|--------|-------------|
+| `just exercise-routing-eval` | Full eval: drives real local chunk_ready inference, scores all axes, writes `last_run.json` |
+| `just exercise-routing-eval-smoke` | Fast sanity check — validates baseline.json structure and score module import; no real audio required |
+| `just exercise-routing-ratchet` | Promotes `last_run.json` → `baseline.json` after a deliberate improvement |
 
-**Metrics (LLM judge):**
+### Data and methodology
 
-| Criterion | Judge prompt | Target |
-|-----------|-------------|--------|
-| Actionability | "Could a pianist at skill level [N] follow these instructions and know exactly what to do?" | > 80% pass |
-| Specificity | "Rate 1-5: Is this exercise specific to this piece and passage (5) or a generic drill (1)?" | mean > 3.0 |
-| Dimension alignment | "The system identified [dimension] as the key weakness. Does this exercise directly address that dimension?" | > 85% pass |
+Replays `practice_eval` audio through the real local API (`chunk_ready` WebSocket path) — same path production hits. Captures `prescribed_exercise` from the `OnSessionEnd` artifact. No LLM judge; all axes are computed from the structured JSON output of `ExerciseRoutingDecision`.
 
-**Limitations:** If the teacher rarely invokes the tool (< 20% of sessions), the exercise eval has very few samples. We should NOT force tool invocation -- the invocation rate itself is a metric. If the sample is too small, we can run a separate exercise-focused eval that artificially includes exercise tool in the system prompt instruction.
+### Ideal eval (future)
+
+Teacher-rater study: 100+ routing decisions reviewed by piano teachers rating dimension targeting accuracy, passage relevance, and whether `own_passage_loop` vs `corpus_drill` routing was pedagogically correct for the identified weakness. Deferred until post-beta user data is available.
 
 ---
 
@@ -453,7 +443,16 @@ Target: > 70% rated HIGH or MEDIUM.
 | Synthesis-bar accuracy | When synthesis text mentions "bars X-Y", does it match accumulator bar_range for the relevant teaching moment? | > 80% |
 | Hallucinated bar references | Does synthesis mention bar numbers that appear nowhere in the accumulator data? | < 5% |
 
-**Limitations:** No ground truth bar alignment. We can only verify internal consistency (DTW output matches what synthesis says) not external correctness (DTW output matches what the student actually played). The plausibility checks (2-16 bars per chunk, monotonic in run-throughs) are structural heuristics, not correctness tests.
+### Shipped harness — chroma-DTW follower (#13)
+
+`model/src/chroma_dtw_eval/` is a real **external-correctness** eval that needs no expert bar annotations. AMT (Aria-AMT) transcribes each practice recording, parangonar aligns the transcription to the score, and the resulting monotonic perf→score time-map is the **pseudo-truth** (`just amt-regen-pseudo-truth <piece> <video_id>`). The follower's per-chunk predicted score position is then scored as **absolute error in seconds** against that map (`just chroma-eval-verify`), against a frozen `model/data/evals/chroma_dtw/baseline.json` plus 5 guards (teleport, silence, monotonicity, cost-vs-error AUC, continuity). Ratchet a genuine, guard-clean improvement with `just chroma-eval-ratchet`.
+
+- **Pseudo-truth acceptance is distributional, not a count ratio:** ≥100 monotonic anchors, ≥85% audio span, ≤8s max gap. (The original `matched/amt_notes ≥ 0.5` gate was unreachable — Aria-AMT over-transcribes ~2.8x as same-pitch re-onsets — so amt_regen now dedups those and uses sec-as-beat parangonar init.)
+- **Corpus (small):** 20 chunks across `bach_prelude_c_wtc1` + `bach_invention_1`. Expand before any strong claim.
+- **Current follower (`/autoresearch` #13):** primary = **40%** of chunks within 1.5s, mean |error| **2.6s**, max **9.2s** (vs the original unbanded baseline: primary 15%, mean 18.5s, max 62.6s — the lock-to-origin / teleport tail is eliminated). Three kept levers: a **dead-reckoned prior** (forward-marching expected position, breaks the lock-to-origin feedback stall), a **window-slice DTW** (confines the whole warping path — not just the endpoint — to the prior window), and **adaptive per-clip tempo** (re-estimate from confident predictions, gated to [0.3,1.0], so fast and slow performances each converge). See `model/data/evals/chroma_dtw/autoresearch_{results.tsv,changelog.md}` for the full loop.
+- **Two guards were found mis-specified and redefined during the loop:** g4 continuity assumed score advances at the audio rate (ratio 1.0), punishing accurate tracking of ~0.5× performances → now a tempo-agnostic teleport/stall detector (implied tempo ∈ [0.25,1.5]); g2 used cost-vs-error AUC, but path cost tracks per-piece chroma difficulty not alignment error → now AUC of the dead-reckon residual vs error.
+
+**Limitations:** The pseudo-truth is AMT-derived, not expert-annotated, so it carries its own transcription/alignment error (~40–60% of score notes align; the surviving anchors are monotonic and span ~95% of the audio). The corpus is tiny (2 pieces) and the `primary` (% within 1.5s) metric is a cliff with no gradient far from target — hill-climb on the sidecar mean |error| instead; the g4/g2 redefinitions in particular should be re-validated on a larger corpus. **Critically, these gains are eval-only:** the *production* DO path (`SessionBrain` → `alignChunkChroma`) still runs the unbanded global follower with no cross-chunk state — porting the dead-reckon prior + adaptive tempo + window-slice into production is tracked as a separate, downstream-gated issue (#58).
 
 ---
 

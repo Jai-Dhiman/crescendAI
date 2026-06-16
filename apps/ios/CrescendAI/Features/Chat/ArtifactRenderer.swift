@@ -7,26 +7,15 @@ struct ArtifactRenderer: View {
         switch config {
         case .exerciseSet(let c):
             ArtifactExerciseSetCard(config: c)
-        case .scoreHighlight:
-            ArtifactScoreHighlightPlaceholder()
+        case .scoreHighlight(let c):
+            ArtifactScoreView(config: c)
         case .keyboardGuide(let c):
             ArtifactKeyboardGuideCard(config: c)
+        case .playPassage(let c):
+            ArtifactPlayPassageView(config: c)
         case .unknown:
             EmptyView()
         }
-    }
-}
-
-private struct ArtifactScoreHighlightPlaceholder: View {
-    var body: some View {
-        RoundedRectangle(cornerRadius: 8)
-            .fill(CrescendColor.surface2)
-            .frame(height: 80)
-            .overlay(
-                Text("Score highlight")
-                    .font(CrescendFont.labelSM())
-                    .foregroundStyle(CrescendColor.tertiaryText)
-            )
     }
 }
 
