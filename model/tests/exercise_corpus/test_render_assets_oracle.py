@@ -176,3 +176,22 @@ def test_baseline_cross_engine_agreement(xml_path: str):
         f"{Path(xml_path).stem} baseline cross-engine mismatch: "
         f"verovio {dict(base_verovio)} != partitura {dict(base_partitura)}"
     )
+
+
+def _max_in_range_up(part) -> int:
+    """Smallest positive offset that pushes the highest note above MIDI 108."""
+    highest = max(n.midi_pitch for n in part.iter_all(Note))
+    return 108 - highest + 1  # this many semitones up is the first off-keyboard offset
+
+
+def test_partitura_rejects_off_keyboard_transpose():
+    # Use the first committed primitive; push it just past the top of the
+    # keyboard and assert transforms.py raises (the off-keyboard GATE itself is
+    # deferred to S4 — here we only assert the reject path exists and is sharp).
+    xml_path = _XML_FILES[0]
+    score = partitura.load_score(xml_path)
+    part0 = list(score.parts)[0]
+
+    off_offset = _max_in_range_up(part0)
+    with pytest.raises(ValueError, match="outside piano"):
+        transpose(part0, off_offset)
