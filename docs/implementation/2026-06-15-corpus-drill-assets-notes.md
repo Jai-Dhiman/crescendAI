@@ -34,3 +34,9 @@ committed `.xml` primitives instead. These 8 are out of scope for this build.
 - Appended test_build_is_idempotent + test_build_raises_naming_bad_xml; generated + committed 22 .mxl (real ZIPs, not gitignored). Commit b33e1553 (23 files). build_render_assets.py unchanged from Task 3.
 - Watch-it-fail proven for bad-xml guard (temp revert → DID NOT RAISE). Plan's <not-musicxml> junk sufficed (no fallback needed).
 - Spec PASS. Code review APPROVED (1 MINOR: local `import pytest` inside test fn — cosmetic, not fixed).
+
+## Task 7: ScoreRenderer.load composite cache key
+- Wired transpose through worker load message + ScoreRenderer. Composite key ${pieceId}:${transpose ?? 0} on toolkitCache (worker), sentPieceIds + irCache + getIR (renderer); bytesCache/ensureBytes stay bare-pieceId (bytes transpose-independent). Commit a2c122a4.
+- Caller audit: all 6 scoreRenderer.load callers + getIR caller pass no transpose → resolve to :0 (byte-identical back-compat). Verified.
+- REVIEW FIX (commit c9778537): code review flagged CRITICAL — worker-error cleanup paths (onmessage-error, onerror) deleted BARE pieceId from sentPieceIds (now composite-keyed) → claimed stale-key blocks retry. HONEST FINDING: bug was SHADOWED — load()'s own catch already clears the composite key on both error paths, so it never manifested. Fix threads sentKey?:string into PendingRequest so worker-error paths delete the correct composite key (defense-in-depth, internally correct independent of load's catch), and removed the now-dead sentPieceIds.has(pieceId) clause in ensureBytes (always false post-refactor; bytesCache.has dedupes). Added a regression test (error-then-retry re-sends bytes). Re-review APPROVED.
+- All 24 web score tests green.
