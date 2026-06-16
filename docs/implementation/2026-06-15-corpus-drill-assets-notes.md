@@ -29,3 +29,8 @@ committed `.xml` primitives instead. These 8 are out of scope for this build.
 - DEVIATION (justified): plan's stripIds (single id="..." regex) was too narrow — Verovio randomizes IDs in 4 places (id attrs, xlink:href suffix, <style> CSS, class id- tokens). Implementer wrote a multi-step normalizer so the transpose:0==omitted structural lock is real.
 - REVIEW FIX (commit 95cd63cf): code review found the class id- strip was global (over-strip risk masking real engraving diffs). Scoped it to inside class="..." values via capture-group replace. Re-review APPROVED.
 - Tests: 2/2 transpose + 16/16 existing worker tests green. Test 1 (transpose:2 != transpose:0) is a weak predicate alone (raw SVGs always differ via random IDs); test 2 is the real no-op lock — both plan + challenge accepted test 1.
+
+## Task 4: idempotency + fail-loud + 22 committed assets
+- Appended test_build_is_idempotent + test_build_raises_naming_bad_xml; generated + committed 22 .mxl (real ZIPs, not gitignored). Commit b33e1553 (23 files). build_render_assets.py unchanged from Task 3.
+- Watch-it-fail proven for bad-xml guard (temp revert → DID NOT RAISE). Plan's <not-musicxml> junk sufficed (no fallback needed).
+- Spec PASS. Code review APPROVED (1 MINOR: local `import pytest` inside test fn — cosmetic, not fixed).
