@@ -114,7 +114,10 @@ def test_faithful_shift_invariant_holds_in_each_engine(xml_path: str):
     base_partitura = _pc_partitura(transpose(part0, 0).part)
     base_verovio = _pc_verovio(tk, xml, 0)
 
-    matched = 0
+    # Two independent passes so a partitura off-keyboard rejection only skips
+    # ITS OWN branch — Verovio (which has no keyboard bound) is still asserted
+    # at every offset. Off-keyboard offsets still expect partitura to raise.
+    partitura_matched = 0
     for semis in _IN_RANGE_OFFSETS:
         if semis == 0:
             continue
@@ -123,23 +126,29 @@ def test_faithful_shift_invariant_holds_in_each_engine(xml_path: str):
         except ValueError:
             # Off-keyboard for this primitive at this offset — partitura raises
             # (transforms.py lines 104-108); Task 2 owns rejection symmetry.
-            # Keep both engines symmetric: skip this offset entirely.
+            # Skip only the partitura branch for this offset.
             continue
-        verovio_pc = _pc_verovio(tk, xml, semis)
-
         assert partitura_pc == _shift_by(base_partitura, semis), (
             f"{Path(xml_path).stem} @ {semis}: partitura did not faithfully "
             f"shift its own baseline: {dict(partitura_pc)} != "
             f"{dict(_shift_by(base_partitura, semis))}"
         )
+        partitura_matched += 1
+
+    verovio_matched = 0
+    for semis in _IN_RANGE_OFFSETS:
+        if semis == 0:
+            continue
+        verovio_pc = _pc_verovio(tk, xml, semis)
         assert verovio_pc == _shift_by(base_verovio, semis), (
             f"{Path(xml_path).stem} @ {semis}: verovio did not faithfully "
             f"shift its own baseline: {dict(verovio_pc)} != "
             f"{dict(_shift_by(base_verovio, semis))}"
         )
-        matched += 1
+        verovio_matched += 1
 
-    assert matched > 0, f"no in-range offsets matched for {Path(xml_path).stem}"
+    assert partitura_matched > 0, f"no in-range partitura offsets matched for {Path(xml_path).stem}"
+    assert verovio_matched > 0, f"no in-range verovio offsets matched for {Path(xml_path).stem}"
 
 
 def _baseline_marks(p: str):

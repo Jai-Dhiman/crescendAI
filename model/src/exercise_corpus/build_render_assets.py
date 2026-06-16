@@ -17,12 +17,15 @@ from __future__ import annotations
 
 import glob
 import io
+import logging
 import zipfile
 from pathlib import Path
 
 import partitura
 
 from score_library.upload import _strip_doctype, wrap_as_mxl_zip
+
+_logger = logging.getLogger(__name__)
 
 # Anchor to this module, never CWD (CLAUDE.md: just recipes shift CWD).
 _MODEL_ROOT = Path(__file__).resolve().parents[2]
@@ -41,6 +44,7 @@ def _existing_inner_xml(mxl_path: Path) -> bytes | None:
                 if not name.startswith("META-INF") and name.endswith(".xml"):
                     return zf.read(name)
     except zipfile.BadZipFile:
+        _logger.warning(f"corrupted existing .mxl, will rebuild: {mxl_path}")
         return None
     return None
 
@@ -75,15 +79,17 @@ def build(
         except Exception as e:  # noqa: BLE001 — re-raise with the offending file named
             raise ValueError(f"primitive .xml failed partitura load: {xml_path} ({e})") from e
 
-        stripped = _strip_doctype(xml_path.read_bytes())
+        raw_xml = xml_path.read_bytes()
         mxl_path = out_dir / f"{primitive_id}.mxl"
 
-        # Idempotent: skip if the inner XML already matches the stripped source.
-        if _existing_inner_xml(mxl_path) == stripped:
+        # Idempotent: skip if the inner XML already matches what wrap_as_mxl_zip
+        # would write. wrap_as_mxl_zip owns DOCTYPE stripping (sole owner), so we
+        # compare against the singly-stripped source it produces.
+        if _existing_inner_xml(mxl_path) == _strip_doctype(raw_xml):
             produced.append(mxl_path)
             continue
 
-        mxl_bytes = wrap_as_mxl_zip(stripped, primitive_id)
+        mxl_bytes = wrap_as_mxl_zip(raw_xml, primitive_id)
         mxl_path.write_bytes(mxl_bytes)
         produced.append(mxl_path)
 
