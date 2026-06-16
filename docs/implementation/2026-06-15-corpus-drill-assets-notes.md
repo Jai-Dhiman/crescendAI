@@ -19,3 +19,7 @@ committed `.xml` primitives instead. These 8 are out of scope for this build.
 - Watch-it-fail proven via bogus-match (real msg: "transpose by 25 puts pitch 109 outside piano range [21, 108]").
 - Result: 45 passed, 2 xfailed. Commit 4c6d9d50. Group 0 GREEN — A/B/C unblocked.
 - Code review MINOR notes (non-blocking): no highest<=108 guard in helper; test name says "partitura" but reject lives in transforms.py.
+
+## Task 3: build() produces valid MXL assets
+- Created build_render_assets.py (build()) + test_build_render_assets.py per plan. DOCTYPE-strip + wrap_as_mxl_zip only; idempotent; fail-loud naming the file on partitura load failure. Commit ef51e6ea. 1 passed.
+- Spec PASS. Code review APPROVED (3 MINOR non-blocking): double DOCTYPE-strip (harmless, build pre-strips for idempotency probe + wrap re-strips); hard-coded ==22 in test (redundant w/ len(produced)==len(xml_files)); imports private _strip_doctype across package boundary (coupling smell). None fixed (MINOR).
