@@ -128,4 +128,5 @@ aria = { git = "https://github.com/EleutherAI/aria.git" }
 dev = [
     "pytest>=8.4.2",
     "pytest-cov>=7.0.0",
+    "verovio>=4.0.0",
 ]
