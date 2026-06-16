@@ -173,6 +173,10 @@ async def _drive_async(
                     f"Timeout after {timeout_per_event}s waiting for chunk_processed "
                     f"for chunk {idx} of {recording}. Is MuQ:8000 warm?"
                 )
+            except websockets.exceptions.ConnectionClosed as exc:
+                raise RuntimeError(
+                    f"Connection closed waiting for chunk_processed for chunk {idx}: {exc}"
+                ) from exc
 
         await ws.send(json.dumps({"type": "end_session"}))
 

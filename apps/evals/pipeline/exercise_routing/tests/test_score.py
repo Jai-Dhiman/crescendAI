@@ -174,6 +174,22 @@ def test_dimension_match_none_when_not_invoked():
     assert score.dimension_match is None
 
 
+def test_dimension_match_none_when_invoked_but_no_dominant_dimension():
+    """When a prescription is invoked but teaching_moments is empty (no dominant dimension),
+    dimension_match must be None — not a crash and not False."""
+    capture = make_capture(
+        dominant_dimension=None,
+        prescribed_exercise={
+            "kind": "own_passage_loop",
+            "target_dimension": "dynamics",
+            "bar_range": [1, 4],
+            "tempo_factor": 0.8,
+        },
+    )
+    score = score_session(capture)
+    assert score.dimension_match is None
+
+
 # ---------------------------------------------------------------------------
 # bar_range_grounding
 # ---------------------------------------------------------------------------
