@@ -114,6 +114,35 @@ seed-score-json filter="":
     done
     echo "Seeded $count score JSON(s) into local R2."
 
+# Regenerate the committed renderable .mxl assets from the committed primitive
+# .xml (model/data/scores/exercise_primitives/*.xml -> model/data/exercise_primitives/mxl/*.mxl).
+# Deterministic + idempotent; raises naming any .xml that fails partitura load.
+build-exercise-assets:
+    cd model && uv run python -c "from exercise_corpus.build_render_assets import build; print(f'built {len(build())} assets')"
+
+# Seed the committed exercise-primitive .mxl assets into LOCAL wrangler R2 at
+# scores/v1/{primitive_id}.mxl so the UNCHANGED GET /api/scores/:pieceId/data
+# endpoint serves them for corpus_drill rendering. Flat keyspace: primitive ids
+# (hanon_001) cannot collide with real ASAP piece slugs. Run `just build-exercise-assets`
+# first. Mirrors `seed-scores` (real-piece .mxl) and `seed-fingerprint`.
+seed-exercise-assets:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    shopt -s nullglob
+    count=0
+    for f in model/data/exercise_primitives/mxl/*.mxl; do
+        base="$(basename "$f")"
+        cd apps/api && wrangler r2 object put "crescendai-bucket/scores/v1/$base" \
+            --file="../../$f" --content-type "application/vnd.recordare.musicxml+zip" --local >/dev/null && cd ../..
+        count=$((count+1))
+        echo "Seeded scores/v1/$base"
+    done
+    if [ "$count" -eq 0 ]; then
+        echo "ERROR: no .mxl found in model/data/exercise_primitives/mxl/ — run 'just build-exercise-assets' first" >&2
+        exit 1
+    fi
+    echo "Seeded $count exercise-primitive asset(s) into local R2."
+
 # Verify all 16 labeled eval pieces have a non-trivial, monotonic catalog entry
 catalog-verify:
     cd model && uv run python -c "from score_library.catalog_coverage import check_coverage, CANONICAL_MAP; from src.paths import Scores; import sys; f=check_coverage(Scores.root, CANONICAL_MAP); print(chr(10).join(f) if f else 'PASS'); sys.exit(1 if f else 0)"
