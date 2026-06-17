@@ -1,42 +1,9 @@
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { InferenceError } from "../../lib/errors";
 import { FIRST_SESSION_GUARDRAIL } from "../../services/prompts";
+import { callModel } from "./gateway-client";
 import { withRetries } from "./middleware";
 import { routeModel } from "./route-model";
 import type { HookEvent, Phase2Binding, PhaseContext } from "./types";
-
-interface AnthropicMessageResponse {
-	content: Array<
-		| { type: "text"; text: string }
-		| { type: "tool_use"; id: string; name: string; input: unknown }
-	>;
-	stop_reason: string;
-}
-
-// NOTE: callAnthropicMessage is intentionally duplicated from phase1.ts for Plan 1.
-// Extraction to a shared anthropic-client.ts is planned for a future task.
-async function callAnthropicMessage(
-	env: PhaseContext["env"],
-	body: unknown,
-): Promise<AnthropicMessageResponse> {
-	const client = routeModel("phase2_voice");
-	const url = `${env[client.gatewayUrlVar]}/anthropic/v1/messages`;
-	const res = await fetch(url, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			"x-api-key": env.ANTHROPIC_API_KEY,
-			"anthropic-version": "2023-06-01",
-		},
-		body: JSON.stringify(body),
-	});
-	if (!res.ok) {
-		throw new InferenceError(
-			`phase2 anthropic call failed: ${res.status} ${await res.text()}`,
-		);
-	}
-	return (await res.json()) as AnthropicMessageResponse;
-}
 
 export function buildPhase2Prompt(
 	digest: Record<string, unknown>,
@@ -95,7 +62,7 @@ export async function* runPhase2(
 			: "";
 
 	const userPrompt = buildPhase2Prompt(ctx.digest, diagnoses, guardrail);
-	const client = routeModel("phase2_voice");
+	const client = routeModel("phase2_voice", ctx.env);
 	const messages: Array<{ role: "user" | "assistant"; content: unknown }> = [
 		{ role: "user", content: userPrompt },
 	];
@@ -104,10 +71,10 @@ export async function* runPhase2(
 
 	for (let attempt = 1; attempt <= MAX_PHASE2_ATTEMPTS; attempt++) {
 		const response = await withRetries(() =>
-			callAnthropicMessage(ctx.env, {
+			callModel(ctx.env, client, {
 				model: client.model,
 				max_tokens: 2048,
-				messages,
+				messages: messages as Parameters<typeof callModel>[2]["messages"],
 				tools: [writeTool],
 				tool_choice: { type: "tool", name: binding.artifactToolName },
 			}),
