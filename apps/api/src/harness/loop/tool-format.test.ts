@@ -1,6 +1,6 @@
 // apps/api/src/harness/loop/tool-format.test.ts
 import { describe, expect, it } from "vitest";
-import { toOpenAIChatRequest, toAnthropicResponse } from "./tool-format";
+import { toAnthropicResponse, toOpenAIChatRequest } from "./tool-format";
 
 describe("toOpenAIChatRequest — tool definition mapping", () => {
 	it("converts input_schema to function.parameters inside type:function wrapper", () => {
@@ -32,6 +32,46 @@ describe("toOpenAIChatRequest — tool definition mapping", () => {
 				parameters: { type: "object", properties: { x: { type: "string" } } },
 			},
 		});
+	});
+
+	it("simplifies an object-union tool schema (Workers AI grammar can't compile anyOf-of-objects)", () => {
+		const req = {
+			model: "@cf/zai-org/glm-4.7-flash",
+			max_tokens: 2048,
+			messages: [{ role: "user" as const, content: "Hello" }],
+			tools: [
+				{
+					name: "write_artifact",
+					description: "emit",
+					input_schema: {
+						type: "object",
+						properties: {
+							ex: {
+								anyOf: [
+									{
+										type: "object",
+										properties: { kind: { type: "string", const: "a" } },
+										required: ["kind"],
+									},
+									{ type: "null" },
+								],
+							},
+						},
+					},
+				},
+			],
+			tool_choice: { type: "tool", name: "write_artifact" } as const,
+		};
+		const out = toOpenAIChatRequest(req);
+		const ex = (
+			out.tools[0].function.parameters.properties as Record<
+				string,
+				Record<string, unknown>
+			>
+		).ex;
+		// object-union collapsed to a single nullable object — no anyOf survives
+		expect(ex.anyOf).toBeUndefined();
+		expect(ex.type).toEqual(["object", "null"]);
 	});
 
 	it("converts tool_choice {type:'auto'} to string 'auto'", () => {

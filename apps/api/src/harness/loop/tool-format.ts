@@ -1,5 +1,6 @@
 // apps/api/src/harness/loop/tool-format.ts
 import { InferenceError } from "../../lib/errors";
+import { simplifyConstrainedSchema } from "./simplify-schema";
 
 export interface AnthropicToolDef {
 	name: string;
@@ -112,7 +113,7 @@ export function toOpenAIChatRequest(
 		function: {
 			name: t.name,
 			description: t.description,
-			parameters: t.input_schema,
+			parameters: simplifyConstrainedSchema(t.input_schema),
 		},
 	}));
 
