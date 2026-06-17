@@ -27,6 +27,15 @@ cd apps/api && bun run typecheck
 
 Final manual verification (not a task — do after all tasks are committed): start `just dev` then run `CRESCEND_COOKIE=… uv run /tmp/crescend-e2e/drive_cookie.py --wav model/data/evals/practice_eval/nocturne_op9no2/audio/_aySCutsVVQ.wav --piece "nocturne op 9 no 2" --chunks 8` and confirm the WS emits a `synthesis` event with a `write_synthesis_artifact` payload that has a 300–500-char headline, `focus_areas`, and `prescribed_exercise`.
 
+## Runtime config & challenge-risk notes (read before executing)
+
+The unit tests stub `Bindings` with `as unknown as Bindings`, so they pass regardless of `wrangler.toml`/`.dev.vars`. The runtime vars are sourced at `just dev` time from `apps/api/.dev.vars` in the **primary checkout** (not committed, not in this worktree). The post-2026-06-10 unification already defines `AI_GATEWAY_ENDPOINT` + `AI_GATEWAY_TOKEN` there; `CLOUDFLARE_API_TOKEN` is also already present (used by the existing `callWorkersAI`). `TEACHER_PROVIDER` is intentionally **unset** locally → `routeModel` defaults to `workers-ai`, which is the goal. The `[vars]` block in `wrangler.toml` binds none of these (correct — they are secrets/.dev.vars, not plaintext vars). **No `wrangler.toml` edit is required for local runs.** If a future deploy is wanted, `TEACHER_PROVIDER` and the gateway secrets are set via `wrangler secret`, out of scope here.
+
+Three risks from /challenge, addressed in-plan:
+1. **`callAnthropicStream` auth change is untested (Task 7).** The streaming chat path has no unit test in this plan (SSE translation is out of scope). After Task 7, the build agent MUST run the live chat smoke (see Task 7 Step 4b) before declaring done — a misconfigured `AI_GATEWAY_TOKEN` would break chat silently otherwise.
+2. **`wrangler.toml` runtime-var drift.** Mitigated by the config note above + the early grep check added to Task 4 Step 4b.
+3. **`toOpenAIChatRequest` drops text blocks from mixed `[text, tool_use]` assistant messages.** Qwen may emit a text preamble before tool_calls in Phase 1. Tool extraction is unaffected (context history is merely incomplete). Task 1 adds an explicit test pinning the *current, intentional* behavior (tool_use blocks are mapped; any leading text is dropped) so the decision is documented, not accidental. If live Phase 1 quality is poor, preserving text is a follow-up — NOT a blocker for credit-free runs.
+
 ---
 
 ## Task Groups
@@ -156,6 +165,45 @@ describe("toOpenAIChatRequest — message mapping", () => {
       type: "function",
       function: { name: "my_tool", arguments: JSON.stringify({ x: "val" }) },
     });
+  });
+
+  it("maps tool_use blocks from a mixed [text, tool_use] assistant message; leading text is intentionally dropped", () => {
+    // Documents the current contract: Qwen may emit a text preamble before its
+    // tool_calls. We map the tool_use into tool_calls; the text preamble is NOT
+    // carried into OpenAI history. Tool extraction is unaffected. If preserving
+    // the text proves necessary for Phase 1 quality, that is a follow-up.
+    const req = {
+      model: "@cf/qwen/qwen3-30b-a3b-fp8",
+      max_tokens: 2048,
+      messages: [
+        {
+          role: "assistant" as const,
+          content: [
+            { type: "text" as const, text: "Let me check the signals." },
+            {
+              type: "tool_use" as const,
+              id: "tu_1",
+              name: "my_tool",
+              input: { x: "val" },
+            },
+          ],
+        },
+      ],
+      tools: [],
+      tool_choice: { type: "auto" as const },
+    };
+    const out = toOpenAIChatRequest(req);
+    expect(out.messages).toHaveLength(1);
+    const msg = out.messages[0] as { role: string; content: string | null; tool_calls: unknown[] };
+    expect(msg.role).toBe("assistant");
+    expect(msg.tool_calls).toHaveLength(1);
+    expect(msg.tool_calls[0]).toEqual({
+      id: "tu_1",
+      type: "function",
+      function: { name: "my_tool", arguments: JSON.stringify({ x: "val" }) },
+    });
+    // The text preamble is dropped (content is null), not surfaced as a separate message.
+    expect(msg.content).toBeNull();
   });
 
   it("maps user tool_result blocks to individual role:tool messages", () => {
@@ -994,6 +1042,15 @@ cd apps/api && bun run typecheck
 ```
 Expected: exits 0 (no new errors)
 
+- [ ] **Step 4b: Confirm runtime-var sourcing (challenge RISK #2)**
+
+The new vars are NOT plaintext `[vars]` in `wrangler.toml` — they come from `.dev.vars` (local) / `wrangler secret` (prod). Confirm `wrangler.toml`'s `[vars]` block does NOT redundantly bind the old gateway vars (it should not bind any gateway var):
+
+```bash
+grep -nE "AI_GATEWAY_TEACHER|AI_GATEWAY_BACKGROUND|AI_GATEWAY_ENDPOINT|AI_GATEWAY_TOKEN|TEACHER_PROVIDER" apps/api/wrangler.toml
+```
+Expected: no output (gateway config is sourced from `.dev.vars`/secrets, not `wrangler.toml`). If any old var IS bound there, leave it — `wrangler.toml` is owned by the deploy flow, not this issue — but note it for the final manual verify.
+
 - [ ] **Step 5: Commit**
 
 ```bash
@@ -1662,6 +1719,19 @@ cd apps/api && bunx vitest run src/services/llm.test.ts
 ```
 Expected: PASS
 
+- [ ] **Step 4b: Live chat smoke — `callAnthropicStream` auth is untested by unit tests (challenge RISK #1)**
+
+`callAnthropicStream` had its auth swapped from `x-api-key`/`ANTHROPIC_API_KEY` to `cf-aig-authorization`/`AI_GATEWAY_TOKEN` with no SSE unit test (SSE translation is out of scope for this plan). Because the streaming chat path is the only currently-working Anthropic path, the build agent MUST manually confirm it still streams before declaring this task done. NOTE: chat stays on the Anthropic provider, so it requires the BYOK Anthropic account to have credits — if it returns `400 credit balance too low`, that is the known out-of-credits state (the entire reason for this issue), NOT an auth regression. Distinguish: a `401 AiGatewayError`/missing-`cf-aig-authorization` failure IS a regression and blocks; a `400 credit balance too low` is expected and does not block.
+
+```bash
+# With `just dev` running, send one chat message and confirm SSE tokens stream
+# (or a 400 credit error — both prove the gateway auth header is accepted):
+CRESCEND_COOKIE=… curl -N -sS https://localhost:8787/api/chat \
+  -H "Content-Type: application/json" -H "Cookie: $CRESCEND_COOKIE" \
+  -d '{"message":"hi","conversationId":null}' | head -5
+```
+Expected: SSE `event:`/`data:` lines stream, OR a `400 credit balance too low` (accepted). A `401`/`AiGatewayError` is a FAIL — re-check the `cf-aig-authorization` header.
+
 - [ ] **Step 5: Commit**
 
 ```bash
@@ -1816,3 +1886,180 @@ Expected: all green.
 ```bash
 git add apps/api/src/lib/types.ts apps/api/src/harness/loop/phase2-schema.test.ts apps/api/src/harness/loop/runHook.test.ts apps/api/src/services/teacher-synthesize-v6.test.ts apps/api/src/services/teacher-chat-v6.test.ts "apps/api/src/harness/skills/__catalog__/integration.test.ts" && git commit -m "feat(types): remove dead AI_GATEWAY_TEACHER/AI_GATEWAY_BACKGROUND/ANTHROPIC_API_KEY, update all test mocks"
 ```
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise.** The problem is real and precisely scoped: after the 2026-06-10 gateway unification, `phase1.ts` and `phase2.ts` build `undefined/anthropic/v1/messages` because `AI_GATEWAY_TEACHER` is no longer in `.dev.vars`, and the Anthropic account is out of credits. V6 synthesis has been silently dead for every local session. This plan is the direct fix.
+
+**Scope.** Eight files modified, two created (plus two new test files). Every change traces to the stated goal — no scope creep detected. The one non-obvious inclusion (`llm.ts` / `callWorkersAI` gateway-var fix) is a dependency cleanup correctly bundled in Task 7; it would break if left to drift.
+
+**12-Month alignment.**
+
+```
+CURRENT STATE                    THIS PLAN                      12-MONTH IDEAL
+phase1/phase2 dead locally   →   callModel shim, TEACHER_     →   provider toggle enables
+(undefined URL, no credits)       PROVIDER env toggle              Qwen→finetuned-Qwen swap
+                                  workers-ai default               with zero harness rewrites
+```
+
+The design explicitly keeps the Anthropic path selectable (`TEACHER_PROVIDER=anthropic`) so finetune A/B is a one-var swap. Aligned.
+
+**Alternatives.** The spec documents the chosen approach (shim at client boundary, preserving Anthropic-shaped types end-to-end) and explains the rejection of alternatives (JSON-mode prompting, hard swap). Covered.
+
+---
+
+### Engineering Pass
+
+**Architecture.**
+
+Data flow for `runPhase1` after the change:
+
+```
+runPhase1(ctx, binding)
+  └─ routeModel("phase1_analysis", ctx.env)  → {provider:"workers-ai"|"anthropic", model}
+  └─ callModel(env, client, body)             → AnthropicMessageResponse
+       ├── anthropic path: POST /anthropic/v1/messages, cf-aig-authorization
+       └── workers-ai path: toOpenAIChatRequest(body)
+                            → POST /workers-ai/v1/chat/completions
+                            → toAnthropicResponse(oaiRes)
+                            → AnthropicMessageResponse
+```
+
+Component boundaries are clean. `tool-format` is stateless and pure. `gateway-client` owns all HTTP + auth concern. `route-model` owns the env toggle. `phase1`/`phase2` are untouched in logic.
+
+**Critical type collision — `ModelClient` exported from two modules.**
+
+Both `gateway-client.ts` (Task 2, Step 3) and `route-model.ts` (Task 3, Step 3) define and export `interface ModelClient { provider: "anthropic" | "workers-ai"; model: string }`. When `phase1.ts` (Task 5) imports `routeModel` from `route-model` and passes the result to `callModel` from `gateway-client`, TypeScript will structurally unify them (they are identical shapes), so there is no compile error. However, the build agent may import `ModelClient` from either source when writing `phase1.ts`/`phase2.ts`, creating an ambiguous nominal dependency. This is not a type-error blocker but is an OBS: the canonical `ModelClient` should live in one file and be re-exported from the other, or both files should import from a shared location. The plan's provided `phase1.ts` implementation only imports from `gateway-client` and `route-model` without re-importing `ModelClient` by name, so in practice this is harmless — the return type of `routeModel` is inferred. Noting as OBS.
+
+**Phase1 test URL matching after Task 5.**
+
+After the `MOCK_BINDINGS` change to `AI_GATEWAY_ENDPOINT: "https://gw.example"` + `TEACHER_PROVIDER: "anthropic"`, `callModel` will POST to `https://gw.example/anthropic/v1/messages`. The existing `phase1.test.ts` mocks mock `global.fetch` unconditionally — they do not assert on the URL, only on call count and event types. So the URL change is transparent to those tests. Safe.
+
+**Phase2 test: `tool_choice` assertion may break.**
+
+`phase2.test.ts` line 88–94 asserts `callBody.tool_choice` equals `{ type: "tool", name: "write_synthesis_artifact" }`. After Task 6, the workers-ai path would translate this to `{ type: "function", function: { name: "write_synthesis_artifact" } }` before sending. However, Task 6 sets `TEACHER_PROVIDER: "anthropic"` in `MOCK_BINDINGS`, so the anthropic path is taken — the body is passed verbatim to fetch, and `tool_choice` is not translated. The assertion holds. Safe.
+
+**Task 7 — `callAnthropicStream` not tested.**
+
+The plan updates `callAnthropic` and `callAnthropicStream` in `llm.ts` but the test (`llm.test.ts`) only covers `callWorkersAI`. The `callAnthropicStream` gateway-var/auth change is applied in the implementation but has no test coverage for the new `cf-aig-authorization` header or the `AI_GATEWAY_ENDPOINT` URL path. The spec explicitly excludes streaming chat from the Workers AI scope, but the auth fix to `callAnthropicStream` is still a behavior change to a live path (the `/api/chat` SSE endpoint) with zero test coverage of the changed auth header.
+
+**`wrangler.toml` not mentioned.**
+
+The plan adds `AI_GATEWAY_ENDPOINT`, `AI_GATEWAY_TOKEN`, `TEACHER_PROVIDER`, and `CLOUDFLARE_API_TOKEN` to `Bindings` in `types.ts`. `wrangler.toml` must declare these vars for the worker to see them at runtime. The spec does not mention updating `wrangler.toml`, and the plan has no task for it. For `TEACHER_PROVIDER` (the new toggle) this means a local `.dev.vars` entry is required — if absent, `routeModel` defaults to `workers-ai` (the desired default), so it is not a blocker for the Workers AI goal. But if `.dev.vars` does not have `AI_GATEWAY_ENDPOINT`/`AI_GATEWAY_TOKEN`, the worker fails at runtime even though types compile. This was the original bug; the plan addresses the code but not the runtime binding config.
+
+---
+
+### Module Depth Audit
+
+| Module | Exported interface | Implementation | Verdict |
+|--------|-------------------|----------------|---------|
+| `tool-format.ts` | 2 functions + ~8 type exports | ~100 LOC, handles all Anthropic↔OpenAI mapping including content-block fan-out, tool_choice variants, JSON parsing | DEEP |
+| `gateway-client.ts` | 1 function (`callModel`) + `ModelClient` type | ~40 LOC, two provider branches, fetch, error handling, delegates to tool-format | DEEP |
+| `route-model.ts` | 1 function (`routeModel`) + `ModelClient` + `TaskKind` | ~15 LOC, two constant returns | SHALLOW — but this is acceptable: the function is a pure config lookup and its simplicity is intentional. The interface is trivial because the logic is trivial. Not a smell here. |
+
+---
+
+### Test Philosophy Audit
+
+All tests mock only the external HTTP boundary (`global.fetch`). No internal collaborators are mocked. Tests assert on observable behavior: returned Anthropic-shaped response, outgoing URL, outgoing headers, event sequences, call counts. No private methods are called, no internal state is inspected. Philosophy is sound.
+
+**`phase2.test.ts` `tool_choice` body inspection.** Line 88–94 in the existing test parses the fetch body and asserts `callBody.tool_choice`. This is testing what went over the wire (the HTTP boundary), not internal state — this is acceptable. However, after Task 6 switches to `callModel`, the body sent to fetch is now the Anthropic-format body (for the anthropic path). The assertion `callBody.tool_choice.type === "tool"` remains correct because the anthropic path passes the body verbatim. If the path were `workers-ai`, `toOpenAIChatRequest` translates `{type:"tool",name:X}` to `{type:"function",function:{name:X}}` and the assertion would fail. The `TEACHER_PROVIDER: "anthropic"` in the updated mock prevents this. This coupling is fragile — if someone later runs the test against a `workers-ai` mock env, the assertion silently changes meaning.
+
+---
+
+### Vertical Slice Audit
+
+Each task has exactly one failing-test step, one implementation step, one commit. No horizontal slicing. The group dependency (A → B → C) is correctly sequenced: Tasks 1-4 create the new modules; Tasks 5-7 replace the call sites; Task 8 removes dead vars and mops up the remaining test mocks that were left in place by Tasks 5-7 to avoid compile errors mid-build.
+
+The "write failing test" for Task 4 is a typecheck rather than a runtime test. This is appropriate — the behavior being gated is "these new fields must exist in Bindings so that subsequent Tasks compile." A typecheck is the correct instrument here.
+
+---
+
+### Test Coverage Gaps
+
+```
+[+] tool-format.ts
+    ├── toOpenAIChatRequest()
+    │   ├── [TESTED] tool def mapping (input_schema → function.parameters) ★★★
+    │   ├── [TESTED] tool_choice auto → "auto" ★★★
+    │   ├── [TESTED] tool_choice tool → {type:"function",function:{name}} ★★★
+    │   ├── [TESTED] string user content ★★
+    │   ├── [TESTED] assistant tool_use blocks → tool_calls ★★★
+    │   ├── [TESTED] user tool_result blocks → role:tool messages ★★★
+    │   └── [GAP]   assistant message with MIXED text + tool_use blocks
+    │               (text block is silently dropped in current impl — no test covers this)
+    └── toAnthropicResponse()
+        ├── [TESTED] tool_calls → tool_use blocks, arguments JSON-parsed ★★★
+        ├── [TESTED] text content → text block, end_turn ★★★
+        ├── [TESTED] tool_calls present → stop_reason tool_use ★★
+        └── [TESTED] null content + null tool_calls → empty content ★★
+
+[+] gateway-client.ts
+    ├── callModel() — anthropic
+    │   ├── [TESTED] URL, cf-aig-authorization, anthropic-version headers ★★★
+    │   ├── [TESTED] non-2xx → InferenceError ★★★
+    │   └── [GAP]   response body JSON parse error (malformed JSON from gateway)
+    └── callModel() — workers-ai
+        ├── [TESTED] URL, cf-aig-authorization, Authorization headers ★★★
+        ├── [TESTED] response translated to Anthropic shape ★★★
+        └── [TESTED] non-2xx → InferenceError ★★★
+
+[+] llm.ts — callAnthropic / callAnthropicStream
+    ├── [GAP] cf-aig-authorization header — no test (only callWorkersAI is tested)
+    └── [GAP] AI_GATEWAY_ENDPOINT URL path for Anthropic — no test
+```
+
+The mixed text+tool_use gap in `toOpenAIChatRequest` is the only functionally significant gap. In the current implementation (Task 1, Step 3), when an assistant message has `content: [{type:"text",...}, {type:"tool_use",...}]`, the `for (const block of msg.content)` loop only appends `tool_calls` — the text block is dropped silently. In practice, Phase 1 multi-atom turns will have assistant messages with both text preamble and tool calls. If Qwen emits a text preamble before the tool_use (which it sometimes does), the tool_calls still come through correctly (the only thing dropped is the text preamble on the assistant turn), so this is a correctness gap but not a synthesis-breaking bug. The Phase 2 forced-tool path always returns tool_calls only (no preamble expected).
+
+---
+
+### Failure Modes
+
+| Task | Failure scenario | Recovery |
+|------|-----------------|----------|
+| T1: tool-format | JSON.parse of malformed `function.arguments` throws | Propagates as uncaught exception through `callModel` → `withRetries` catches `InferenceError` only; a SyntaxError from JSON.parse would propagate as an unhandled exception through `runPhase2` and surface as a DO-level error, visible in logs. Not silent. |
+| T2: gateway-client | `res.text()` on error response is awaited inside `InferenceError` constructor throw | `res.text()` is called before the throw, correctly consumes the body. Safe. |
+| T3: route-model | `TEACHER_PROVIDER` undefined → defaults to workers-ai | Correct intended behavior. |
+| T7: llm.ts | `callAnthropicStream` used by chat path — auth change from `x-api-key` to `cf-aig-authorization` | If `AI_GATEWAY_TOKEN` is undefined in `.dev.vars`, stream requests fail with 401 from the gateway. This is the same root cause as the original bug, now for the chat path. Since `.dev.vars` was updated as part of the gateway unification, this should already be populated — but it is an assumption. |
+| T8: dead-var removal | TypeScript errors in files not listed in the plan | The plan lists 5 test files. If any other file references `AI_GATEWAY_TEACHER`/`ANTHROPIC_API_KEY`/`AI_GATEWAY_BACKGROUND`, typecheck in Step 4 will catch it before commit. Explicit failure, not silent. |
+
+---
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|-----------|---------|--------|
+| `.dev.vars` already contains `AI_GATEWAY_ENDPOINT`, `AI_GATEWAY_TOKEN`, `CLOUDFLARE_API_TOKEN` | VALIDATE | These were added in the 2026-06-10 gateway unification. Plan does not verify them. If absent, runtime fails even though tests pass. |
+| `TEACHER_PROVIDER` not being in `.dev.vars` causes `routeModel` to default to `workers-ai` | SAFE | `env.TEACHER_PROVIDER === "anthropic"` is the only branch that returns anthropic; any other value (undefined, empty, etc.) returns workers-ai. |
+| Qwen3-30B-A3B's `tool_choice:{type:"function",function:{name}}` forced call always returns `tool_calls` (never a bare text response) | VALIDATE | Proven via live curl for the non-agentic case, but Phase 2's repair loop depends on this holding across 3 attempts. If Qwen ignores the forced tool_choice on a repair turn, `toolUse` is undefined and `phase_error` is emitted — explicit failure, not silent. |
+| The existing `phase1.test.ts` tests pass unchanged (besides `MOCK_BINDINGS`) after `callAnthropicMessage` is replaced by `callModel` | SAFE | Tests mock global fetch unconditionally and assert on event types and call counts, not on URL or headers. The URL changes, but tests do not check it. |
+| The `phase2.test.ts` `tool_choice` body assertion holds after Task 6 | SAFE | Confirmed: `TEACHER_PROVIDER: "anthropic"` causes `callModel` to take the anthropic path, which sends the body verbatim without `toOpenAIChatRequest` translation. The assertion value is unchanged. |
+| `wrangler.toml` does not need updating | RISKY | `wrangler.toml` defines which vars are bound. If it still lists `AI_GATEWAY_TEACHER`/`AI_GATEWAY_BACKGROUND` but not `AI_GATEWAY_ENDPOINT`/`AI_GATEWAY_TOKEN`, `wrangler dev` will log unknown-binding warnings and the runtime will miss the new vars. Plan does not check or update `wrangler.toml`. |
+| No other production code references `AI_GATEWAY_TEACHER`/`AI_GATEWAY_BACKGROUND`/`ANTHROPIC_API_KEY` beyond the 5 test files listed in Task 8 | VALIDATE | Typecheck in Task 8 Step 4 will surface any missed references. But the build agent should run `grep -r AI_GATEWAY_TEACHER apps/api/src` before removing the fields, not rely on typecheck alone discovering them mid-step. |
+
+---
+
+### Summary
+
+[BLOCKER] count: 0
+[RISK]    count: 3
+[QUESTION] count: 0
+[OBS]     count: 2
+
+**[RISK] (confidence: 8/10)** — `callAnthropicStream` in `llm.ts` (Task 7) has its auth header changed from `x-api-key: ANTHROPIC_API_KEY` to `cf-aig-authorization: Bearer AI_GATEWAY_TOKEN` with no test coverage of the new header or URL. The live SSE chat path (`/api/chat`) is the only user-visible path currently on Anthropic. If `AI_GATEWAY_TOKEN` is misconfigured, chat breaks silently in `.dev` — with no test to catch it. Fallback: manual `curl` the chat endpoint after Task 7 to confirm stream headers.
+
+**[RISK] (confidence: 7/10)** — `wrangler.toml` is not updated in the plan. If it still binds the old `AI_GATEWAY_TEACHER`/`AI_GATEWAY_BACKGROUND` vars and not the new `AI_GATEWAY_ENDPOINT`/`AI_GATEWAY_TOKEN`, `wrangler dev` may warn or produce incorrect runtime behavior even though all tests pass (tests use `as unknown as Bindings` stubs, not wrangler-resolved env). The final manual verification step (`just dev` + driver) will catch this, but it should be checked earlier. Fallback: add a one-line check `grep AI_GATEWAY_ENDPOINT apps/api/wrangler.toml` to Task 4 before the commit.
+
+**[RISK] (confidence: 6/10)** — `toOpenAIChatRequest` silently drops text blocks from mixed assistant messages (content: `[{type:"text",...}, {type:"tool_use",...}]`). Phase 1 multi-atom agentic turns may produce such responses from Qwen. The tool_calls are still extracted correctly, so synthesis is not broken — but the text preamble is lost from the reconstructed conversation context, which may cause context drift on multi-turn Phase 1 reasoning. No test covers this. Fallback: if Phase 1 quality is poor on live runs, inspect the Phase 1 fetch bodies for text+tool_use mixed responses.
+
+**[OBS]** — `ModelClient` is defined and exported from both `route-model.ts` and `gateway-client.ts`. Both definitions are identical. TypeScript structural typing means this compiles without error, but the build agent should import `ModelClient` from one canonical source only — preferably `route-model.ts` (it is the producer) and import it into `gateway-client.ts`.
+
+**[OBS]** — The `phase2.test.ts` `tool_choice` body assertion (`callBody.tool_choice.type === "tool"`) holds only because `TEACHER_PROVIDER: "anthropic"` is set in `MOCK_BINDINGS`, which causes the body to pass through verbatim. If that mock is ever changed to test the workers-ai path, the assertion would fail with a confusing mismatch (`{type:"function",...}` vs `{type:"tool",...}`). Consider adding a comment noting this coupling.
+
+---
+
+VERDICT: PROCEED_WITH_CAUTION — [RISK: callAnthropicStream auth change untested; RISK: wrangler.toml not updated for new vars; RISK: mixed text+tool_use assistant messages silently drop text blocks]
