@@ -1,5 +1,5 @@
-import { InferenceError } from "../../lib/errors";
 import { withRetries, wrapToolCall } from "./middleware";
+import { callModel } from "./gateway-client";
 import { routeModel } from "./route-model";
 import type {
 	CompoundBinding,
@@ -7,33 +7,6 @@ import type {
 	Phase1Event,
 	ToolDefinition,
 } from "./types";
-
-interface AnthropicMessageResponse {
-	content: Array<
-		| { type: "text"; text: string }
-		| { type: "tool_use"; id: string; name: string; input: unknown }
-	>;
-	stop_reason: string;
-}
-
-interface UserMsg {
-	role: "user";
-	content:
-		| string
-		| Array<{
-				type: "tool_result";
-				tool_use_id: string;
-				content: string;
-				is_error?: boolean;
-		  }>;
-}
-
-interface AssistantMsg {
-	role: "assistant";
-	content: AnthropicMessageResponse["content"];
-}
-
-type Msg = UserMsg | AssistantMsg;
 
 function buildPhase1Tools(tools: ToolDefinition[]): unknown[] {
 	return tools.map((t) => ({
@@ -43,36 +16,19 @@ function buildPhase1Tools(tools: ToolDefinition[]): unknown[] {
 	}));
 }
 
-// NOTE: callAnthropicMessage is intentionally duplicated in phase2.ts for Plan 1.
-// Extraction to a shared anthropic-client.ts is planned for a future task.
-async function callAnthropicMessage(
-	env: PhaseContext["env"],
-	body: unknown,
-): Promise<AnthropicMessageResponse> {
-	const client = routeModel("phase1_analysis");
-	const url = `${env[client.gatewayUrlVar]}/anthropic/v1/messages`;
-	const res = await fetch(url, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			"x-api-key": env.ANTHROPIC_API_KEY,
-			"anthropic-version": "2023-06-01",
-		},
-		body: JSON.stringify(body),
-	});
-	if (!res.ok) {
-		throw new InferenceError(
-			`phase1 anthropic call failed: ${res.status} ${await res.text()}`,
-		);
-	}
-	return (await res.json()) as AnthropicMessageResponse;
-}
-
 export async function* runPhase1(
 	ctx: PhaseContext,
 	binding: CompoundBinding,
 ): AsyncGenerator<Phase1Event> {
-	const messages: Msg[] = [
+	const messages: Array<{
+		role: "user" | "assistant";
+		content:
+			| string
+			| Array<
+					| { type: "tool_use"; id: string; name: string; input: unknown }
+					| { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean }
+			  >;
+	}> = [
 		{
 			role: "user",
 			content:
@@ -81,18 +37,22 @@ export async function* runPhase1(
 		},
 	];
 	const toolMap = new Map(binding.tools.map((t) => [t.name, t]));
-	const client = routeModel("phase1_analysis");
+	const client = routeModel("phase1_analysis", ctx.env);
 	let toolCallCount = 0;
 	let turnCount = 0;
 
 	while (turnCount < ctx.turnCap) {
 		turnCount++;
 		const response = await withRetries(() =>
-			callAnthropicMessage(ctx.env, {
+			callModel(ctx.env, client, {
 				model: client.model,
 				max_tokens: 2048,
 				messages,
-				tools: buildPhase1Tools(binding.tools),
+				tools: buildPhase1Tools(binding.tools) as Array<{
+					name: string;
+					description: string;
+					input_schema: Record<string, unknown>;
+				}>,
 				tool_choice: { type: "auto" },
 			}),
 		);
@@ -144,7 +104,9 @@ export async function* runPhase1(
 				continue;
 			}
 			try {
-				const output = await wrapToolCall(tu.name, ctx, () => def.invoke(tu.input, ctx));
+				const output = await wrapToolCall(tu.name, ctx, () =>
+					def.invoke(tu.input, ctx),
+				);
 				yield {
 					type: "phase1_tool_result",
 					id: tu.id,
