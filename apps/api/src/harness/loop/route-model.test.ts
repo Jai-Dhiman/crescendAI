@@ -25,6 +25,16 @@ describe("routeModel — workers-ai provider (default)", () => {
 		expect(client.provider).toBe("workers-ai");
 		expect(client.model).toBe("@cf/qwen/qwen3-30b-a3b-fp8");
 	});
+
+	it("uses TEACHER_MODEL override for the workers-ai model when set", () => {
+		const env = {
+			TEACHER_PROVIDER: "workers-ai",
+			TEACHER_MODEL: "@cf/zai-org/glm-4.7-flash",
+		} as unknown as Bindings;
+		const client = routeModel("phase1_analysis", env);
+		expect(client.provider).toBe("workers-ai");
+		expect(client.model).toBe("@cf/zai-org/glm-4.7-flash");
+	});
 });
 
 describe("routeModel — anthropic provider (toggle)", () => {

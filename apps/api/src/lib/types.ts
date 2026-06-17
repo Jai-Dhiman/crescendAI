@@ -21,6 +21,7 @@ export interface Bindings {
 	AI_GATEWAY_ENDPOINT: string;
 	AI_GATEWAY_TOKEN: string;
 	TEACHER_PROVIDER?: string;
+	TEACHER_MODEL?: string;
 	CLOUDFLARE_API_TOKEN: string;
 	MUQ_ENDPOINT: string;
 	AMT_ENDPOINT: string;

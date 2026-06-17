@@ -21,5 +21,8 @@ export function routeModel(_kind: TaskKind, env: Bindings): ModelClient {
 	if (env.TEACHER_PROVIDER === "anthropic") {
 		return ANTHROPIC_CLIENT;
 	}
+	if (env.TEACHER_MODEL) {
+		return { provider: "workers-ai", model: env.TEACHER_MODEL };
+	}
 	return WORKERS_AI_CLIENT;
 }
