@@ -39,7 +39,7 @@
                                   +----+
 ```
 
-Both platforms upload 15-second audio chunks to the shared API worker. The worker orchestrates cloud inference (HF endpoint), teaching moment selection (deviation-magnitude gate), and a two-stage LLM pipeline (Workers AI subagent for analysis, Anthropic for teacher delivery). iOS receives observations on-demand ("How was that?"); web pushes them in real time via WebSocket.
+Both platforms upload 15-second audio chunks to the shared API worker. The worker orchestrates cloud inference (HF endpoint), teaching moment selection (deviation-magnitude gate), and a two-stage LLM pipeline (Workers AI subagent for analysis, Workers AI Qwen3-30B-A3B for teacher delivery by default). iOS receives observations on-demand ("How was that?"); web pushes them in real time via WebSocket.
 
 ### Platform Strategy (CEO Review 2026-03-19)
 
