@@ -7,7 +7,7 @@ afterEach(() => {
 });
 
 describe("callWorkersAI", () => {
-	it("sends Authorization Bearer header with CLOUDFLARE_API_TOKEN", async () => {
+	it("sends Authorization Bearer + cf-aig-authorization headers to AI_GATEWAY_ENDPOINT/workers-ai path", async () => {
 		const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
 			new Response(
 				JSON.stringify({
@@ -18,7 +18,8 @@ describe("callWorkersAI", () => {
 		);
 
 		const mockEnv = {
-			AI_GATEWAY_BACKGROUND: "https://gateway.example.com",
+			AI_GATEWAY_ENDPOINT: "https://gateway.example.com",
+			AI_GATEWAY_TOKEN: "gw-token-abc",
 			CLOUDFLARE_API_TOKEN: "test-cf-token-abc123",
 		} as unknown as Bindings;
 
@@ -37,6 +38,7 @@ describe("callWorkersAI", () => {
 
 		const headers = init.headers as Record<string, string>;
 		expect(headers["Authorization"]).toBe("Bearer test-cf-token-abc123");
+		expect(headers["cf-aig-authorization"]).toBe("Bearer gw-token-abc");
 		expect(result).toBe("Test title");
 	});
 
@@ -46,7 +48,8 @@ describe("callWorkersAI", () => {
 		);
 
 		const mockEnv = {
-			AI_GATEWAY_BACKGROUND: "https://gateway.example.com",
+			AI_GATEWAY_ENDPOINT: "https://gateway.example.com",
+			AI_GATEWAY_TOKEN: "bad-gw-token",
 			CLOUDFLARE_API_TOKEN: "bad-token",
 		} as unknown as Bindings;
 
