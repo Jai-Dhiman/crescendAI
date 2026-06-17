@@ -5,7 +5,7 @@ import type {
 	AnthropicChatRequest,
 	AnthropicMessageResponse,
 } from "./tool-format";
-import { toOpenAIChatRequest, toAnthropicResponse } from "./tool-format";
+import { toAnthropicResponse, toOpenAIChatRequest } from "./tool-format";
 
 export interface ModelClient {
 	provider: "anthropic" | "workers-ai";

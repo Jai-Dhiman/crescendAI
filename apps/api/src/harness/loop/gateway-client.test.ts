@@ -1,8 +1,8 @@
 // apps/api/src/harness/loop/gateway-client.test.ts
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { InferenceError } from "../../lib/errors";
 import type { Bindings } from "../../lib/types";
 import { callModel } from "./gateway-client";
-import { InferenceError } from "../../lib/errors";
 
 const BASE_ENV = {
 	AI_GATEWAY_ENDPOINT: "https://gw.example.com",
@@ -151,7 +151,7 @@ describe("callModel — workers-ai provider", () => {
 		expect(url).toBe("https://gw.example.com/workers-ai/v1/chat/completions");
 		const headers = init.headers as Record<string, string>;
 		expect(headers["cf-aig-authorization"]).toBe("Bearer gw-token-abc");
-		expect(headers["Authorization"]).toBe("Bearer cf-token-xyz");
+		expect(headers.Authorization).toBe("Bearer cf-token-xyz");
 		expect(headers["Content-Type"]).toBe("application/json");
 		// Response is translated back to Anthropic shape
 		expect(result.stop_reason).toBe("tool_use");

@@ -1,10 +1,10 @@
-import { withRetries, wrapToolCall } from "./middleware";
 import { callModel } from "./gateway-client";
+import { withRetries, wrapToolCall } from "./middleware";
 import { routeModel } from "./route-model";
 import type {
 	CompoundBinding,
-	PhaseContext,
 	Phase1Event,
+	PhaseContext,
 	ToolDefinition,
 } from "./types";
 
@@ -27,7 +27,12 @@ export async function* runPhase1(
 			| Array<
 					| { type: "text"; text: string }
 					| { type: "tool_use"; id: string; name: string; input: unknown }
-					| { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean }
+					| {
+							type: "tool_result";
+							tool_use_id: string;
+							content: string;
+							is_error?: boolean;
+					  }
 			  >;
 	}> = [
 		{
