@@ -653,8 +653,9 @@ describe("synthesizeV6 adapter", () => {
 		const ctx = {
 			db: {} as ServiceContext["db"],
 			env: {
-				AI_GATEWAY_TEACHER: "https://gw.example",
-				ANTHROPIC_API_KEY: "k",
+				AI_GATEWAY_ENDPOINT: "https://gw.example",
+				AI_GATEWAY_TOKEN: "test-gw-token",
+				TEACHER_PROVIDER: "anthropic",
 			} as ServiceContext["env"],
 		};
 

@@ -125,7 +125,7 @@ export async function saveAssistantMessage(
 		.set({ updatedAt: new Date() })
 		.where(eq(conversations.id, conversationId));
 
-	if (isNewConversation && env.AI_GATEWAY_BACKGROUND) {
+	if (isNewConversation && env.AI_GATEWAY_ENDPOINT) {
 		try {
 			const titlePrompt = buildTitlePrompt(firstUserMessage);
 			const title = await callWorkersAI(

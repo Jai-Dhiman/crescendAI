@@ -5,8 +5,9 @@ import { runPhase1Streaming } from "./teacher";
 import { getCompoundBinding } from "../harness/loop/compound-registry";
 
 const MOCK_ENV = {
-	AI_GATEWAY_TEACHER: "https://gw.example",
-	ANTHROPIC_API_KEY: "test-key",
+	AI_GATEWAY_ENDPOINT: "https://gw.example",
+	AI_GATEWAY_TOKEN: "test-gw-token",
+	TEACHER_PROVIDER: "anthropic",
 } as unknown as Bindings;
 
 
