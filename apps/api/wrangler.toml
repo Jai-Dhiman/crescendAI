@@ -26,6 +26,11 @@ SENTRY_DSN = "https://13e64989bc4d83f5299ee06e5c4c7bf2@o4511017227321344.ingest.
 MUQ_ENDPOINT = "https://mxcyiqltad84v9w1.us-east4.gcp.endpoints.huggingface.cloud"
 AMT_ENDPOINT = ""
 HARNESS_V6_ENABLED = "true"
+# V6 teacher model (#62). route-model.ts defaults to the qwen finetune target, but
+# qwen3-30b-a3b-fp8's 32K context can't fit the ~30.7K Phase-1 prompt; glm-4.7-flash
+# (131K ctx, cheapest fitter, built for multi-turn tool-calling) is the chosen runtime
+# model. Flip back to qwen once the finetuned teacher ships with adequate context.
+TEACHER_MODEL = "@cf/zai-org/glm-4.7-flash"
 
 [[hyperdrive]]
 binding = "HYPERDRIVE"
