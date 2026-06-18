@@ -25,7 +25,8 @@
 Group A (parallel): Task 1, Task 2
 Group B (sequential, depends on A): Task 3
 Group C (sequential, depends on B): Task 4
-Group D (sequential, depends on C): Task 5, Task 6 (parallel within group)
+Group D (sequential, depends on C): Task 5
+Group D2 (sequential, depends on D — Task 6 imports e2e.ui_verifier created in Task 5): Task 6
 Group E (sequential, depends on D): Task 7
 ```
 
@@ -1074,6 +1075,8 @@ def verify_session_ui(
     )
     expected_card_count = len(renderable_components)
 
+    page = None  # Guard for the screenshot-recovery block if an exception fires early.
+
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=not headed)
@@ -1086,7 +1089,13 @@ def verify_session_ui(
                     f"Browser debug auth failed: {auth_resp.status} {auth_resp.text()[:200]}"
                 )
 
-            page = browser.new_page()
+            # CRITICAL: the page MUST be created in `context`, not via browser.new_page().
+            # browser.new_page() creates a page in the DEFAULT context, which does NOT
+            # hold the auth cookie set by context.request.post("/api/auth/debug"). A page
+            # in the default context hits 401 on GET /api/auth/session and redirects to
+            # /signin, so the conversation never renders. context.new_page() shares the
+            # cookie jar with the authenticated request, so the page is authenticated.
+            page = context.new_page()
 
             # Navigate to the conversation
             nav_url = f"{web_url}/app/c/{capture.conversation_id}"
@@ -1182,11 +1191,14 @@ def verify_session_ui(
 
     except Exception as exc:
         error = f"{error or ''}\nUnexpected error: {exc}".strip()
-        # Still try to take screenshot if page exists
-        try:
-            page.screenshot(path=screenshot_path, full_page=True)  # type: ignore[possibly-undefined]
-        except Exception:
-            pass
+        # Still try to take screenshot if a page was created. `page` is initialized to
+        # None before the try block, so this guard never raises NameError even when the
+        # exception fired before context.new_page() ran.
+        if page is not None:
+            try:
+                page.screenshot(path=screenshot_path, full_page=True)
+            except Exception:
+                pass
 
     passed = (
         headline_matched
@@ -1257,7 +1269,7 @@ Refs #68"
 
 ## Task 6: Confirm flow — verify prescription exists before asserting confirm->reveal
 
-**Group:** D (parallel with Task 5 — can be developed concurrently, but requires live conversation from Task 3 to run)
+**Group:** D2 (sequential, depends on D — Task 6 imports `e2e.ui_verifier` which is created in Task 5; it CANNOT run in parallel with Task 5)
 **Requires live stack:** Yes
 
 **Behavior being verified:** When `has_pending_exercise=True` (i.e., the nocturne recording produced a prescription), clicking Confirm in the ReflectionMessage component causes the ExerciseSetCard to appear; when `has_pending_exercise=False`, the confirm flow is gracefully skipped.
@@ -1267,7 +1279,7 @@ Refs #68"
 **Files:**
 - Extend: `apps/evals/e2e/tests/test_ui_verifier_live.py` — add second test function
 
-**Note:** This task is parallel to Task 5. The test goes into the same file but is a separate test function. If Task 5 is not yet committed, this task's test can be in a new file `test_ui_confirm_flow_live.py` instead.
+**Dependency note (build agent):** Task 6 depends on `apps/evals/e2e/ui_verifier.py` from Task 5. Do NOT dispatch Task 6 in parallel with Task 5 — `from e2e.ui_verifier import verify_session_ui` will hit `ModuleNotFoundError` if Task 5 has not committed. Run Task 5 to completion (commit), then dispatch Task 6.
 
 - [ ] **Step 1: Write the failing test**
 
