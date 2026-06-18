@@ -1,4 +1,4 @@
-"""Deep driver: one WAV -> SessionCapture over the real chunk_ready path.
+"""Deep driver: one WAV -> SessionCapture or PersistedSessionCapture over real paths.
 
 Hides WS connect, eval-identity headers, ffmpeg chunking, local R2 upload,
 chunk_ready message loop, synthesis event parsing, and eval_context deserialization.
@@ -6,6 +6,10 @@ The caller hands over a WAV path and piece slug; the caller receives a SessionCa
 
 drive() raises RuntimeError if services are unavailable — the health check fires
 before any WS connection attempt.
+
+drive_persisted() is the non-eval variant that authenticates as the debug user,
+creates a real conversation so the DO persists synthesis to the DB, and returns
+a PersistedSessionCapture that includes the conversationId needed by the UI verifier.
 
 SessionCapture is defined in pipeline.exercise_routing.score and re-exported here
 so callers can import it from either location without duplication.
@@ -16,16 +20,43 @@ import asyncio
 import json
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
 import websockets
 
 from pipeline.exercise_routing.score import SessionCapture  # single definition
-from shared.pipeline_client import _get_auth_session
+from shared.pipeline_client import _get_auth_session, _get_debug_auth
 
 # Re-export so callers can do `from shared.local_session import SessionCapture`
-__all__ = ["SessionCapture", "drive", "check_services", "read_eval_secret"]
+__all__ = [
+    "SessionCapture",
+    "PersistedSessionCapture",
+    "drive",
+    "drive_persisted",
+    "check_services",
+    "read_eval_secret",
+]
+
+
+@dataclass
+class PersistedSessionCapture:
+    """Output of drive_persisted(): same as SessionCapture plus conversationId.
+
+    The conversationId is the real DB conversation that now holds the synthesis
+    message — the UI verifier navigates to /app/c/<conversationId> to assert it.
+    """
+    session_id: str
+    conversation_id: str
+    recording: Path
+    piece_slug: str
+    headline_text: str
+    components: list[dict]
+    is_fallback: bool
+    piece_identification: dict | None
+    prescribed_exercise: dict | None
+    chunk_scores: list[list[float]]
 
 CHUNK_SECONDS = 15
 R2_BUCKET = "crescendai-bucket"
@@ -297,4 +328,200 @@ def drive(
         dominant_dimension=dominant_dimension,
         prescribed_exercise=prescribed_exercise,
         synthesis_text=synth.get("text", ""),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Non-eval persisted driver (issue #68)
+# ---------------------------------------------------------------------------
+
+async def _drive_persisted_async(
+    recording: Path,
+    piece_slug: str,
+    session_id: str,
+    conversation_id: str,
+    r2_keys: list[str],
+    wrangler_url: str,
+    auth_session,
+    timeout_per_event: float,
+) -> dict:
+    """Async inner driver for drive_persisted(). No eval params — pure non-eval session."""
+    parsed = urlparse(wrangler_url)
+    ws_scheme = "wss" if parsed.scheme == "https" else "ws"
+    # Pass conversationId so the DO persists synthesis under this conversation.
+    ws_url = (
+        f"{ws_scheme}://{parsed.netloc}/api/practice/ws/{session_id}"
+        f"?conversationId={conversation_id}"
+    )
+
+    headers: dict[str, str] = {}
+    token = auth_session.headers.get("Authorization", "")
+    if token:
+        headers["Authorization"] = token
+    cookie_str = "; ".join(f"{k}={v}" for k, v in auth_session.cookies.items())
+    if cookie_str:
+        headers["Cookie"] = cookie_str
+
+    piece_identification: dict | None = None
+    synthesis_event: dict | None = None
+    chunk_scores: list[list[float]] = []
+
+    async with websockets.connect(ws_url, additional_headers=headers) as ws:
+        await ws.send(json.dumps({"type": "set_piece", "query": piece_slug}))
+
+        for idx, r2_key in enumerate(r2_keys):
+            await ws.send(json.dumps({"type": "chunk_ready", "index": idx, "r2Key": r2_key}))
+            try:
+                while True:
+                    raw = await asyncio.wait_for(ws.recv(), timeout=timeout_per_event)
+                    evt = json.loads(raw)
+                    etype = evt.get("type")
+                    if etype == "chunk_processed":
+                        scores = evt.get("scores")
+                        if scores:
+                            chunk_scores.append(scores)
+                        break
+                    elif etype == "piece_identified":
+                        piece_identification = evt
+                    elif etype == "error":
+                        raise RuntimeError(
+                            f"DO returned error during chunk {idx}: {evt.get('message')}"
+                        )
+            except asyncio.TimeoutError:
+                raise RuntimeError(
+                    f"Timeout after {timeout_per_event}s waiting for chunk_processed "
+                    f"for chunk {idx}. Is MuQ:8000 warm?"
+                )
+            except websockets.exceptions.ConnectionClosed as exc:
+                raise RuntimeError(
+                    f"Connection closed waiting for chunk_processed for chunk {idx}: {exc}"
+                ) from exc
+
+        await ws.send(json.dumps({"type": "end_session"}))
+
+        try:
+            while True:
+                raw = await asyncio.wait_for(ws.recv(), timeout=timeout_per_event)
+                evt = json.loads(raw)
+                etype = evt.get("type")
+                if etype == "synthesis":
+                    synthesis_event = evt
+                    break
+                elif etype == "piece_identified":
+                    piece_identification = evt
+                elif etype == "error":
+                    raise RuntimeError(f"DO returned error: {evt.get('message')}")
+        except asyncio.TimeoutError:
+            raise RuntimeError(
+                f"Timeout after {timeout_per_event}s waiting for synthesis. "
+                "Is MuQ:8000 warm?"
+            )
+        except websockets.exceptions.ConnectionClosed:
+            pass  # Server closed after synthesis; check synthesis_event below
+
+    if synthesis_event is None:
+        raise RuntimeError(f"No synthesis received for {recording}")
+
+    return {
+        "synthesis": synthesis_event,
+        "piece_identification": piece_identification,
+        "chunk_scores": chunk_scores,
+    }
+
+
+def drive_persisted(
+    recording: Path,
+    piece_slug: str,
+    wrangler_url: str = "http://localhost:8787",
+    api_dir: Path = DEFAULT_API_DIR,
+    timeout_per_event: float = 120.0,
+    max_chunks: int = 6,
+) -> PersistedSessionCapture:
+    """Drive one WAV through the chunk_ready path as the debug user; persist to DB.
+
+    Unlike drive(), this function:
+    - Authenticates as the debug user via /api/auth/debug (no eval-override headers).
+    - Creates a new conversation via POST /api/practice/start so the SessionBrain DO
+      receives conversationId and persists the V6 synthesis message to the DB.
+    - Returns a PersistedSessionCapture with the conversationId for the UI verifier.
+
+    Raises RuntimeError if services are unreachable, ffmpeg fails, wrangler r2 put
+    fails, or no synthesis is received within timeout.
+    """
+    auth = _get_debug_auth(wrangler_url)
+
+    # Start a fresh session without conversationId so the server creates one.
+    resp = auth.post(
+        f"{wrangler_url}/api/practice/start",
+        json={},
+        timeout=10,
+    )
+    if resp.status_code not in (200, 201):
+        raise RuntimeError(
+            f"Failed to start practice session: {resp.status_code} {resp.text}"
+        )
+    data = resp.json()
+    session_id = data.get("sessionId")
+    conversation_id = data.get("conversationId")
+    if not session_id:
+        raise RuntimeError(
+            f"POST /api/practice/start response missing sessionId: {resp.text}"
+        )
+    if not conversation_id:
+        raise RuntimeError(
+            f"POST /api/practice/start response missing conversationId: {resp.text}"
+        )
+
+    with tempfile.TemporaryDirectory(prefix="crescend-e2e-") as tmp:
+        tmp_dir = Path(tmp)
+        chunks = _slice_to_webm_chunks(recording, tmp_dir, max_chunks)
+
+        r2_keys: list[str] = []
+        for idx, chunk_path in enumerate(chunks):
+            r2_key = f"sessions/{session_id}/chunks/{idx}.webm"
+            _upload_chunk_to_r2(api_dir, r2_key, chunk_path)
+            r2_keys.append(r2_key)
+
+        result = asyncio.run(
+            _drive_persisted_async(
+                recording=recording,
+                piece_slug=piece_slug,
+                session_id=session_id,
+                conversation_id=conversation_id,
+                r2_keys=r2_keys,
+                wrangler_url=wrangler_url,
+                auth_session=auth,
+                timeout_per_event=timeout_per_event,
+            )
+        )
+
+    synth = result["synthesis"]
+    piece_id_evt = result["piece_identification"]
+    chunk_scores = result["chunk_scores"]
+
+    piece_identification = None
+    if piece_id_evt:
+        piece_identification = {
+            "pieceId": piece_id_evt.get("pieceId", ""),
+            "confidence": piece_id_evt.get("confidence", 0.0),
+        }
+
+    prescribed_exercise = None
+    components = synth.get("components", [])
+    for comp in components:
+        if comp.get("type") == "pending_exercise":
+            prescribed_exercise = comp.get("config")
+            break
+
+    return PersistedSessionCapture(
+        session_id=session_id,
+        conversation_id=conversation_id,
+        recording=recording,
+        piece_slug=piece_slug,
+        headline_text=synth.get("text", ""),
+        components=components,
+        is_fallback=synth.get("isFallback", True),
+        piece_identification=piece_identification,
+        prescribed_exercise=prescribed_exercise,
+        chunk_scores=chunk_scores,
     )
