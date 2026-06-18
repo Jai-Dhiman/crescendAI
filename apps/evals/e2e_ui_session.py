@@ -43,25 +43,44 @@ DEFAULT_RECORDING = (
 )
 DEFAULT_PIECE_SLUG = "nocturne_op9no2"
 DEFAULT_SCREENSHOT = Path("/tmp/e2e-ui-session.png")
+# The api_dir must match the wrangler dev process cwd so --local R2 puts go
+# to the same .wrangler/state the running worker reads.
+DEFAULT_API_DIR = REPO_ROOT / "apps" / "api"
 
 
-def _lowest_dim(chunk_scores: list[list[float]]) -> str | None:
+def _lowest_dim(chunk_scores: list[list[float] | dict]) -> str | None:
     """Return the name of the dimension with the lowest mean score across all chunks.
 
-    Dimension order matches the 6-dim output of MuQ:
-      0=dynamics, 1=timing, 2=pedaling, 3=articulation, 4=phrasing, 5=interpretation
+    Accepts rows as either:
+    - list: positional index maps to dim_names order
+    - dict: keyed by dimension name (as returned by the chunk_processed WS event)
     """
     dim_names = ["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"]
     if not chunk_scores:
         return None
-    n_dims = min(len(dim_names), min(len(row) for row in chunk_scores))
-    if n_dims == 0:
-        return None
-    means = [
-        sum(row[i] for row in chunk_scores) / len(chunk_scores)
-        for i in range(n_dims)
-    ]
-    return dim_names[means.index(min(means))]
+
+    # Detect row format from the first row
+    first = chunk_scores[0]
+    if isinstance(first, dict):
+        # Dict format: {dynamics: x, timing: y, ...}
+        present = [d for d in dim_names if d in first]
+        if not present:
+            return None
+        means = {
+            d: sum(row.get(d, 0.0) for row in chunk_scores) / len(chunk_scores)  # type: ignore[union-attr]
+            for d in present
+        }
+        return min(means, key=lambda d: means[d])
+    else:
+        # List format: positional
+        n_dims = min(len(dim_names), min(len(row) for row in chunk_scores))  # type: ignore[arg-type]
+        if n_dims == 0:
+            return None
+        means_list = [
+            sum(row[i] for row in chunk_scores) / len(chunk_scores)  # type: ignore[index]
+            for i in range(n_dims)
+        ]
+        return dim_names[means_list.index(min(means_list))]
 
 
 def run(
@@ -69,12 +88,15 @@ def run(
     piece_slug: str,
     wrangler_url: str = "http://localhost:8787",
     web_url: str = "http://localhost:3000",
+    api_dir: Path | None = None,
     screenshot_path: Path = DEFAULT_SCREENSHOT,
     max_chunks: int = 6,
     timeout_per_event: float = 120.0,
     headless: bool = True,
 ) -> int:
     """Run the full e2e test. Returns 0 on pass, 1 on failure."""
+    effective_api_dir = api_dir if api_dir is not None else DEFAULT_API_DIR
+
     # --- Pre-flight ---
     if not recording.exists():
         print(f"ERROR: recording not found: {recording}", file=sys.stderr)
@@ -100,6 +122,7 @@ def run(
             recording=recording,
             piece_slug=piece_slug,
             wrangler_url=wrangler_url,
+            api_dir=effective_api_dir,
             timeout_per_event=timeout_per_event,
             max_chunks=max_chunks,
         )
@@ -193,6 +216,12 @@ def _cli() -> None:
         default=DEFAULT_SCREENSHOT,
         help="Path to save the Playwright screenshot",
     )
+    parser.add_argument(
+        "--api-dir",
+        type=Path,
+        default=None,
+        help="api/ directory for wrangler r2 --local puts (defaults to REPO_ROOT/apps/api)",
+    )
     parser.add_argument("--max-chunks", type=int, default=6)
     parser.add_argument("--timeout", type=float, default=120.0, help="Per-event WS timeout (seconds)")
     parser.add_argument("--no-headless", action="store_true")
@@ -204,6 +233,7 @@ def _cli() -> None:
             piece_slug=args.piece_slug,
             wrangler_url=args.wrangler_url,
             web_url=args.web_url,
+            api_dir=args.api_dir,
             screenshot_path=args.screenshot,
             max_chunks=args.max_chunks,
             timeout_per_event=args.timeout,

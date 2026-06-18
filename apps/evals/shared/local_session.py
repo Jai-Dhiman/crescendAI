@@ -56,7 +56,7 @@ class PersistedSessionCapture:
     is_fallback: bool
     piece_identification: dict | None
     prescribed_exercise: dict | None
-    chunk_scores: list[list[float]]
+    chunk_scores: list[list[float] | dict]
 
 CHUNK_SECONDS = 15
 R2_BUCKET = "crescendai-bucket"
@@ -364,7 +364,7 @@ async def _drive_persisted_async(
 
     piece_identification: dict | None = None
     synthesis_event: dict | None = None
-    chunk_scores: list[list[float]] = []
+    chunk_scores: list[list[float] | dict] = []
 
     async with websockets.connect(ws_url, additional_headers=headers) as ws:
         await ws.send(json.dumps({"type": "set_piece", "query": piece_slug}))
