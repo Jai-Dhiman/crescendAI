@@ -97,7 +97,7 @@ Three labels: `SUPPORTED | REFUTED | UNVERIFIABLE`
 | `unlocalizable` | no score in catalog / piece not identified / span < alignment_uncertainty |
 | `substrate_failure` | AMT or alignment substrate raised an error |
 | `region_too_short` | measured region has fewer events than minimum for a reliable estimate |
-| `near_threshold` | `|d - tau| <= error_bar` — measurement lands in the dead-band |
+| `near_threshold` | `abs(abs(d) - tau) <= error_bar` — the deviation *magnitude* lands in the dead-band around `tau` (NOT around 0) |
 
 **Verdict dispatch:**
 1. If `dimension.status != "active"` → `UNVERIFIABLE(out_of_scope_dim | gated_dim)`
@@ -105,8 +105,8 @@ Three labels: `SUPPORTED | REFUTED | UNVERIFIABLE`
 3. If substrate failed → `UNVERIFIABLE(substrate_failure)`
 4. If region has fewer than minimum events → `UNVERIFIABLE(region_too_short)`
 5. Compute signed deviation `d` vs reference
-6. If `|d - tau| <= error_bar` → `UNVERIFIABLE(near_threshold)`
-7. If `d` confirms `polarity` direction beyond `tau` → `SUPPORTED`
+6. If `abs(abs(d) - tau) <= error_bar` → `UNVERIFIABLE(near_threshold)` (compare the deviation magnitude `abs(d)` to the threshold `tau`; the dead-band is centered on `tau`, not on 0)
+7. If `d` confirms `polarity` direction beyond `tau` (`abs(d) > tau` and `sign(d)` matches polarity; for `neutral` polarity, `abs(d) < tau` with no anomaly) → `SUPPORTED`
 8. Otherwise → `REFUTED`
 
 **Headline metric:**
