@@ -221,6 +221,18 @@ migrate-generate:
 migrate-prod:
     cd apps/api && bun run migrate
 
+# --- E2E UI Session Test (issue #68) ---
+
+# Drive one real recording through the live local stack (MuQ+AMT -> glm V6 synthesis)
+# and verify the synthesis renders correctly in the web UI via Playwright.
+# Requires: just dev (or just dev-muq) + just seed-fingerprint already running.
+# Default recording: model/data/evals/practice_eval/nocturne_op9no2/audio/_aySCutsVVQ.wav
+e2e-ui-session recording=("model/data/evals/practice_eval/nocturne_op9no2/audio/_aySCutsVVQ.wav") piece="nocturne_op9no2":
+    cd apps/evals && uv run python -m e2e_ui_session \
+        --recording "../../{{recording}}" \
+        --piece-slug "{{piece}}" \
+        --screenshot /tmp/e2e-ui-session.png
+
 # --- E2E Pipeline Eval ---
 
 # Run full E2E pipeline eval (cache -> pipeline -> analyze)
