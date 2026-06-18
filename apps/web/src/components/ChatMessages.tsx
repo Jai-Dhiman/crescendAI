@@ -211,7 +211,7 @@ const MessageBubble = memo(function MessageBubble({
 		message.sessionId
 	) {
 		return (
-			<div className="flex justify-start animate-fade-in">
+			<div className="flex justify-start animate-fade-in" data-testid="synthesis-message">
 				<div className="max-w-[80%]">
 					<ReflectionMessage
 						sessionId={message.sessionId}
@@ -225,7 +225,7 @@ const MessageBubble = memo(function MessageBubble({
 	}
 
 	return (
-		<div className="flex justify-start animate-fade-in">
+		<div className="flex justify-start animate-fade-in" data-testid={message.messageType === "synthesis" ? "synthesis-message" : undefined}>
 			<div className="max-w-[80%]">
 				{message.messageType === "observation" && message.dimension && (
 					<span className="inline-block text-xs px-2 py-0.5 rounded-full bg-surface-2 text-text-secondary mb-1">
@@ -240,7 +240,9 @@ const MessageBubble = memo(function MessageBubble({
 						))}
 					</div>
 				)}
-				<MessageContent content={message.content} />
+				<span data-testid={message.messageType === "synthesis" ? "synthesis-headline" : undefined}>
+					<MessageContent content={message.content} />
+				</span>
 				{!message.streaming &&
 					renderableComponents.map((component, i) => (
 						<Artifact

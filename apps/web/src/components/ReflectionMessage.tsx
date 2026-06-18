@@ -44,7 +44,7 @@ export function ReflectionMessage({
 
 	return (
 		<div className="flex flex-col gap-3 mt-1">
-			<p className="text-body-sm text-text-primary leading-relaxed">
+			<p className="text-body-sm text-text-primary leading-relaxed" data-testid="synthesis-headline">
 				{reflectionText}
 			</p>
 
@@ -54,6 +54,7 @@ export function ReflectionMessage({
 						type="button"
 						onClick={handleConfirm}
 						disabled={confirmState === "loading"}
+						data-testid="confirm-exercise-button"
 						className="text-body-xs px-3 py-1.5 rounded-lg border border-accent text-accent hover:bg-accent/10 transition disabled:opacity-50"
 					>
 						{confirmState === "loading" ? "Adding..." : "Confirm"}
