@@ -243,7 +243,8 @@ def _save_screenshot(page: Page, path: Path | None) -> Path | None:
         path.parent.mkdir(parents=True, exist_ok=True)
         page.screenshot(path=str(path))
         return path
-    except Exception:
+    except Exception as exc:
+        print(f"[warn] screenshot save failed: {exc}", file=sys.stderr)
         return None
 
 

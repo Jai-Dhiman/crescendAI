@@ -5,14 +5,13 @@ All tests are offline — no live services required.
 from __future__ import annotations
 
 import inspect
-import json
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parents[3]))
+sys.path.insert(0, str(Path(__file__).parents[2]))
 
 from shared.local_session import (
     PersistedSessionCapture,

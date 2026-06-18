@@ -12,11 +12,9 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
-
-sys.path.insert(0, str(Path(__file__).parents[3]))
+sys.path.insert(0, str(Path(__file__).parents[2]))
 
 from e2e_ui_session import _lowest_dim
 from ui_verifier import VerificationResult
