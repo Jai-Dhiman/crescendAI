@@ -115,3 +115,34 @@ def test_scoped_out_fraction_matches_distribution() -> None:
         f"scoped_out_fraction={audit['scoped_out_fraction']} does not match "
         f"computed {expected_fraction} from dimension_distribution"
     )
+
+
+def test_header_aggregates_match_sample_claims_array() -> None:
+    """Hard constraint: header aggregates must be derivable from the array,
+    never trusted as hand-written values. Recompute every aggregate from
+    sample_claims and assert the header matches."""
+    from collections import Counter
+
+    audit = _load_audit()
+    claims = audit["sample_claims"]
+
+    assert audit["total_claims"] == len(claims)
+
+    dim = Counter(c["dimension"] for c in claims)
+    for dimension, count in audit["dimension_distribution"].items():
+        assert dim.get(dimension, 0) == count, (
+            f"dimension_distribution[{dimension}]={count} but array has {dim.get(dimension, 0)}"
+        )
+
+    pol = Counter(c["polarity"] for c in claims)
+    for polarity, count in audit["polarity_distribution"].items():
+        assert pol.get(polarity, 0) == count, (
+            f"polarity_distribution[{polarity}]={count} but array has {pol.get(polarity, 0)}"
+        )
+
+    scoped_out_dims = {"phrasing", "interpretation", "timbre"}
+    scoped_count = sum(dim.get(d, 0) for d in scoped_out_dims)
+    expected_fraction = scoped_count / len(claims)
+    assert abs(audit["scoped_out_fraction"] - expected_fraction) < 0.001, (
+        f"scoped_out_fraction={audit['scoped_out_fraction']} but array gives {expected_fraction}"
+    )
