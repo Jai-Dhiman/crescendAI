@@ -73,7 +73,7 @@
       "reliability_tier": 1,
       "measurement": "amt_onsets_region_tempo_fit",
       "minimum_events": 8,
-      "notes": "Tolerance is a percent deviation from established_tempo over the region, NOT absolute onset-ms. This is robust to alignment jitter. Half-pedal and flutter pedaling are out of scope."
+      "notes": "Tolerance is a percent deviation from established_tempo over the region, NOT absolute onset-ms. This is robust to alignment jitter."
     },
     "pedaling": {
       "status": "active",
