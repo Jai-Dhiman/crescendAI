@@ -95,8 +95,10 @@
         "tolerance": { "$ref": "#/$defs/provisional_tolerance" },
         "reliability_tier": { "type": "integer", "minimum": 1, "maximum": 3 },
         "measurement": { "type": "string" },
-        "minimum_events": { "type": "integer", "minimum": 1 }
-      }
+        "minimum_events": { "type": "integer", "minimum": 1 },
+        "notes": { "type": "string" }
+      },
+      "additionalProperties": false
     },
     "gated_dimension": {
       "type": "object",
@@ -107,7 +109,8 @@
         "reference": { "type": "string" },
         "check": { "type": "string" },
         "rationale": { "type": "string" }
-      }
+      },
+      "additionalProperties": false
     },
     "scoped_out_dimension": {
       "type": "object",
@@ -115,7 +118,8 @@
       "properties": {
         "status": { "type": "string", "const": "scoped_out" },
         "rationale": { "type": "string" }
-      }
+      },
+      "additionalProperties": false
     },
     "dimension_entry": {
       "oneOf": [

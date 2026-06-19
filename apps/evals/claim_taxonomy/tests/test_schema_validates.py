@@ -95,6 +95,33 @@ def test_minimal_valid_taxonomy_skeleton_passes_schema() -> None:
     jsonschema.validate(instance=skeleton, schema=schema)
 
 
+def test_llm_in_truth_label_true_fails_schema() -> None:
+    """Non-circularity invariant: llm_in_truth_label=true must be rejected.
+
+    The verifier's truth label may never invoke an LLM. The schema encodes
+    this with const:false; if that constraint were removed, this test fails.
+    """
+    schema = _load_schema()
+    bad = {
+        "taxonomy_version": "v0",
+        "extractor_judge_boundary": {
+            "description": "x",
+            "llm_in_truth_label": True,
+        },
+        "claim_schema": {},
+        "dimensions": {},
+        "verdict_spec": {
+            "labels": [],
+            "unverifiable_reason_codes": [],
+            "faithfulness_formula": "x",
+            "coverage_formula": "x",
+            "unverifiable_reporting": "x",
+        },
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=bad, schema=schema)
+
+
 def test_taxonomy_missing_required_field_fails_schema() -> None:
     """A skeleton missing taxonomy_version must fail schema validation."""
     schema = _load_schema()
