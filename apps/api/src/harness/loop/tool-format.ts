@@ -17,9 +17,14 @@ export interface AnthropicToolChoiceTool {
 	name: string;
 }
 
+export interface AnthropicToolChoiceNone {
+	type: "none";
+}
+
 export type AnthropicToolChoice =
 	| AnthropicToolChoiceAuto
-	| AnthropicToolChoiceTool;
+	| AnthropicToolChoiceTool
+	| AnthropicToolChoiceNone;
 
 export interface AnthropicToolUseBlock {
 	type: "tool_use";
@@ -136,6 +141,8 @@ export function toOpenAIChatRequest(
 	if (req.tool_choice) {
 		if (req.tool_choice.type === "auto") {
 			tool_choice = "auto";
+		} else if (req.tool_choice.type === "none") {
+			tool_choice = "none";
 		} else if (req.tool_choice.type === "tool") {
 			tool_choice = {
 				type: "function",

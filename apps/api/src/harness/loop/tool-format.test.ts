@@ -86,6 +86,18 @@ describe("toOpenAIChatRequest — tool definition mapping", () => {
 		expect(out.tool_choice).toBe("auto");
 	});
 
+	it("converts tool_choice {type:'none'} to string 'none'", () => {
+		const req = {
+			model: "@cf/zai-org/glm-4.7-flash",
+			max_tokens: 2048,
+			messages: [{ role: "user" as const, content: "Just respond." }],
+			tools: [],
+			tool_choice: { type: "none" } as const,
+		};
+		const out = toOpenAIChatRequest(req);
+		expect(out.tool_choice).toBe("none");
+	});
+
 	it("converts tool_choice {type:'tool',name:'foo'} to {type:'function',function:{name:'foo'}}", () => {
 		const req = {
 			model: "@cf/qwen/qwen3-30b-a3b-fp8",
