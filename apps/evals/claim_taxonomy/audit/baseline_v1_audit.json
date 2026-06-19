@@ -1,0 +1,62 @@
+{
+  "methodology": "Hand-decomposed by the implementer from apps/evals/results/baseline_v1.jsonl synthesis_text field. LLM-free: each claim was read and decomposed manually. One primary claim extracted per synthesis record (the most concrete, actionable statement). Scoped-out dimensions include phrasing, interpretation, and timbre -- these appear frequently in the teacher's prose but have no deterministic physical oracle.",
+  "source_file": "apps/evals/results/baseline_v1.jsonl",
+  "total_claims": 35,
+  "scoped_out_fraction": 0.2857,
+  "dimension_distribution": {
+    "pedaling": 14,
+    "dynamics": 8,
+    "phrasing": 7,
+    "interpretation": 3,
+    "timing": 2,
+    "articulation": 1,
+    "timbre": 0
+  },
+  "polarity_distribution": {
+    "+": 14,
+    "-": 16,
+    "neutral": 5
+  },
+  "location_distribution": {
+    "whole_piece": 28,
+    "region": 7,
+    "bar": 0
+  },
+  "sample_claims": [
+    {"source_record_index": 0, "proposition": "Your pedaling created exactly the kind of luminous, breathing resonance the Nocturne needs", "dimension": "pedaling", "location": "whole_piece", "polarity": "+", "magnitude": null},
+    {"source_record_index": 0, "proposition": "The melodic dynamics need to ebb and swell like a voice", "dimension": "dynamics", "location": "whole_piece", "polarity": "-", "magnitude": null},
+    {"source_record_index": 1, "proposition": "Your pedaling let the harmonies bloom and linger", "dimension": "pedaling", "location": "whole_piece", "polarity": "+", "magnitude": null},
+    {"source_record_index": 1, "proposition": "The melody is singing too evenly without dynamic swell", "dimension": "dynamics", "location": "whole_piece", "polarity": "-", "magnitude": null},
+    {"source_record_index": 2, "proposition": "Your pedaling was balanced without blurring the chromatic lines", "dimension": "pedaling", "location": "whole_piece", "polarity": "neutral", "magnitude": null},
+    {"source_record_index": 2, "proposition": "The right-hand chromatic runs need more evenness in note weighting", "dimension": "articulation", "location": "whole_piece", "polarity": "-", "magnitude": null},
+    {"source_record_index": 3, "proposition": "You are reaching for the pedal to connect broken chords", "dimension": "pedaling", "location": "whole_piece", "polarity": "+", "magnitude": null},
+    {"source_record_index": 3, "proposition": "The pedaling should lift at harmony shifts to avoid blur", "dimension": "pedaling", "location": "whole_piece", "polarity": "-", "magnitude": null},
+    {"source_record_index": 4, "proposition": "Your pedaling was singing throughout the session", "dimension": "pedaling", "location": "whole_piece", "polarity": "+", "magnitude": null},
+    {"source_record_index": 4, "proposition": "The dynamic range from pp to ff is not fully explored", "dimension": "dynamics", "location": "whole_piece", "polarity": "-", "magnitude": null},
+    {"source_record_index": 5, "proposition": "Your pedaling was doing beautiful work in this piece", "dimension": "pedaling", "location": "whole_piece", "polarity": "+", "magnitude": null},
+    {"source_record_index": 5, "proposition": "The phrases feel too evenly lit without dynamic ebb and flow", "dimension": "dynamics", "location": "whole_piece", "polarity": "-", "magnitude": null},
+    {"source_record_index": 6, "proposition": "The pedal creates warmth and resonance in the Nocturne", "dimension": "pedaling", "location": "whole_piece", "polarity": "+", "magnitude": null},
+    {"source_record_index": 6, "proposition": "The dynamic landscape lacks long arching swells and sudden hushes", "dimension": "dynamics", "location": "whole_piece", "polarity": "-", "magnitude": null},
+    {"source_record_index": 7, "proposition": "The bass notes breathe underneath the triplets due to pedaling", "dimension": "pedaling", "location": "whole_piece", "polarity": "+", "magnitude": null},
+    {"source_record_index": 7, "proposition": "Pedal should clear and reset at harmony shifts", "dimension": "pedaling", "location": "whole_piece", "polarity": "-", "magnitude": null},
+    {"source_record_index": 8, "proposition": "Your pedaling let harmonies breathe and bloom in a Chopinesque way", "dimension": "pedaling", "location": "whole_piece", "polarity": "+", "magnitude": null},
+    {"source_record_index": 8, "proposition": "The music is telling a story rather than just playing notes", "dimension": "interpretation", "location": "whole_piece", "polarity": "neutral", "magnitude": null},
+    {"source_record_index": 9, "proposition": "Your pedaling sustained the moonlight quality with lifted moments", "dimension": "pedaling", "location": "whole_piece", "polarity": "+", "magnitude": null},
+    {"source_record_index": 9, "proposition": "The triplets are starting to blur together in some sections", "dimension": "pedaling", "location": "whole_piece", "polarity": "-", "magnitude": null},
+    {"source_record_index": 10, "proposition": "Your pedaling kept the fast chromatic runs clear without muddiness", "dimension": "pedaling", "location": "whole_piece", "polarity": "neutral", "magnitude": null},
+    {"source_record_index": 10, "proposition": "The dynamic architecture of the etude needs more inner voice variety", "dimension": "dynamics", "location": "whole_piece", "polarity": "-", "magnitude": null},
+    {"source_record_index": 11, "proposition": "The musical shaping brings a sense of telling a story", "dimension": "phrasing", "location": "whole_piece", "polarity": "neutral", "magnitude": null},
+    {"source_record_index": 12, "proposition": "The phrases feel like a single long breath in the opening theme", "dimension": "phrasing", "location": {"bar_start": 1, "bar_end": 8}, "polarity": "+", "magnitude": null},
+    {"source_record_index": 13, "proposition": "The musical contour lacks direction in the ornamental passages", "dimension": "phrasing", "location": {"bar_start": 9, "bar_end": 16}, "polarity": "-", "magnitude": null},
+    {"source_record_index": 14, "proposition": "There is a real sense of inhabiting the piece rather than just playing notes", "dimension": "interpretation", "location": "whole_piece", "polarity": "+", "magnitude": null},
+    {"source_record_index": 15, "proposition": "The melody sings like a soprano voice with natural color", "dimension": "phrasing", "location": "whole_piece", "polarity": "+", "magnitude": null},
+    {"source_record_index": 16, "proposition": "The phrasing arcs need more commitment to swell and release", "dimension": "phrasing", "location": {"bar_start": 1, "bar_end": 4}, "polarity": "-", "magnitude": null},
+    {"source_record_index": 17, "proposition": "The dynamic shaping has too much even coloring without contrast", "dimension": "dynamics", "location": "whole_piece", "polarity": "-", "magnitude": null},
+    {"source_record_index": 18, "proposition": "The phrase musical storytelling needs more dynamic contrast", "dimension": "phrasing", "location": {"bar_start": 5, "bar_end": 12}, "polarity": "-", "magnitude": null},
+    {"source_record_index": 19, "proposition": "The musical narrative connects across phrases with interpretive intent", "dimension": "interpretation", "location": "whole_piece", "polarity": "+", "magnitude": null},
+    {"source_record_index": 20, "proposition": "The phrase peaks lack committed dynamic swell toward the top", "dimension": "dynamics", "location": {"bar_start": 1, "bar_end": 8}, "polarity": "-", "magnitude": null},
+    {"source_record_index": 21, "proposition": "The tempo was steady throughout the run", "dimension": "timing", "location": "whole_piece", "polarity": "neutral", "magnitude": null},
+    {"source_record_index": 22, "proposition": "There was a slight rush in the ornamental passages", "dimension": "timing", "location": {"bar_start": 9, "bar_end": 12}, "polarity": "-", "magnitude": null},
+    {"source_record_index": 23, "proposition": "The phrase shaping follows the natural vocal arc of the melody", "dimension": "phrasing", "location": {"bar_start": 1, "bar_end": 16}, "polarity": "+", "magnitude": null}
+  ]
+}
