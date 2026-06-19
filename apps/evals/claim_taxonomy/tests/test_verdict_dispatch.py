@@ -184,6 +184,19 @@ def test_claim_confirming_polarity_returns_supported() -> None:
     assert reason is None
 
 
+def test_positive_polarity_confirming_direction_returns_supported() -> None:
+    # polarity="+", d=+12.0, tau=8.0, error_bar=2.0
+    # |abs(d) - tau| = |12 - 8| = 4.0 > 2.0 (not near threshold)
+    # d > 0 and abs(d) > tau -> SUPPORTED
+    claim = _make_claim(
+        polarity="+",
+        _measurement=_make_measurement(d=12.0, tau=8.0, error_bar=2.0),
+    )
+    verdict, reason = route_verdict(claim, REGISTRY)
+    assert verdict == "SUPPORTED"
+    assert reason is None
+
+
 def test_neutral_polarity_with_no_anomaly_returns_supported() -> None:
     # polarity="neutral" asserts absence-of-problem
     # d near zero (no anomaly detected) -> SUPPORTED
