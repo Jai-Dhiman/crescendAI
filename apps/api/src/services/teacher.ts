@@ -382,6 +382,225 @@ export async function* parseAnthropicStream(
 }
 
 // ---------------------------------------------------------------------------
+// parseOpenAIStream
+// ---------------------------------------------------------------------------
+
+interface OpenAIStreamToolCallAccumulator {
+	id: string;
+	name: string;
+	argumentsAccumulator: string;
+}
+
+export async function* parseOpenAIStream(
+	stream: ReadableStream,
+	processToolFn: ProcessToolFn,
+): AsyncGenerator<TeacherEvent> {
+	const decoder = new TextDecoder();
+	const reader = stream.getReader();
+
+	const toolAccumulators = new Map<number, OpenAIStreamToolCallAccumulator>();
+	const state = {
+		fullText: "",
+		allComponents: [] as InlineComponent[],
+		toolCalls: [] as ToolCallRecord[],
+		stopReason: "stop",
+		hasToolCallThisTurn: false,
+	};
+
+	let textBuffer = "";
+
+	function* parseLines(raw: string): Generator<Record<string, unknown>> {
+		const messages = raw.split(/\n\n/);
+		for (const message of messages) {
+			for (const line of message.split("\n")) {
+				const trimmed = line.trim();
+				if (!trimmed.startsWith("data:")) continue;
+				const payload = trimmed.slice("data:".length).trim();
+				if (payload === "[DONE]") continue;
+				let parsed: Record<string, unknown>;
+				try {
+					parsed = JSON.parse(payload) as Record<string, unknown>;
+				} catch (err) {
+					console.error(
+						JSON.stringify({
+							level: "error",
+							message: "parseOpenAIStream: failed to parse SSE data",
+							payload,
+							error: err instanceof Error ? err.message : String(err),
+						}),
+					);
+					Sentry.captureException(err, {
+						tags: { service: "teacher", operation: "openai_sse_parse" },
+						extra: { payload },
+					});
+					continue;
+				}
+				yield parsed;
+			}
+		}
+	}
+
+	async function* processChunk(
+		parsed: Record<string, unknown>,
+	): AsyncGenerator<TeacherEvent> {
+		const choices = parsed["choices"] as
+			| Array<Record<string, unknown>>
+			| undefined;
+		if (!choices || choices.length === 0) return;
+
+		const choice = choices[0];
+		const delta = choice["delta"] as Record<string, unknown> | undefined;
+		const finishReason = choice["finish_reason"] as string | null | undefined;
+
+		if (delta) {
+			const content = delta["content"] as string | null | undefined;
+			if (content && !state.hasToolCallThisTurn) {
+				state.fullText += content;
+				yield { type: "delta", text: content };
+			}
+
+			const toolCalls = delta["tool_calls"] as
+				| Array<{
+						index: number;
+						id?: string;
+						type?: string;
+						function?: { name?: string; arguments?: string };
+				  }>
+				| undefined;
+
+			if (toolCalls) {
+				for (const tc of toolCalls) {
+					const idx = tc.index;
+					if (!toolAccumulators.has(idx)) {
+						toolAccumulators.set(idx, {
+							id: tc.id ?? "",
+							name: tc.function?.name ?? "",
+							argumentsAccumulator: "",
+						});
+						state.hasToolCallThisTurn = true;
+						const accum = toolAccumulators.get(idx)!;
+						if (accum.name) {
+							yield { type: "tool_start", name: accum.name };
+						}
+					} else {
+						const accum = toolAccumulators.get(idx)!;
+						if (tc.id) accum.id = tc.id;
+						if (tc.function?.name) accum.name = tc.function.name;
+					}
+					if (tc.function?.arguments) {
+						toolAccumulators.get(idx)!.argumentsAccumulator +=
+							tc.function.arguments;
+					}
+				}
+			}
+		}
+
+		if (finishReason) {
+			state.stopReason = finishReason;
+
+			if (finishReason === "tool_calls" || toolAccumulators.size > 0) {
+				const indices = Array.from(toolAccumulators.keys()).sort(
+					(a, b) => a - b,
+				);
+				for (const idx of indices) {
+					const accum = toolAccumulators.get(idx)!;
+
+					if (!state.hasToolCallThisTurn) {
+						state.hasToolCallThisTurn = true;
+						yield { type: "tool_start", name: accum.name };
+					}
+
+					let toolInput: unknown;
+					try {
+						toolInput = JSON.parse(accum.argumentsAccumulator);
+					} catch (err) {
+						const parseMsg =
+							err instanceof Error ? err.message : String(err);
+						console.error(
+							JSON.stringify({
+								level: "error",
+								message: "parseOpenAIStream: failed to parse tool arguments",
+								toolName: accum.name,
+								accumulated: accum.argumentsAccumulator,
+								error: parseMsg,
+							}),
+						);
+						yield {
+							type: "tool_error",
+							name: accum.name,
+							message: `The model sent malformed input for ${accum.name}: ${parseMsg}`,
+						};
+						continue;
+					}
+
+					const result = await processToolFn(accum.name, toolInput);
+					state.toolCalls.push({
+						id: accum.id,
+						name: accum.name,
+						input: toolInput,
+						result,
+					});
+					if (!result.isError) {
+						state.allComponents.push(...result.componentsJson);
+						yield {
+							type: "tool_result",
+							name: result.name,
+							componentsJson: result.componentsJson,
+						};
+					} else {
+						yield {
+							type: "tool_error",
+							name: result.name,
+							message: result.errorMessage ?? "Tool call failed.",
+						};
+					}
+				}
+				toolAccumulators.clear();
+			}
+		}
+	}
+
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+
+			textBuffer += decoder.decode(value, { stream: true });
+
+			const lastDoubleNewline = textBuffer.lastIndexOf("\n\n");
+			if (lastDoubleNewline === -1) continue;
+
+			const toProcess = textBuffer.slice(0, lastDoubleNewline + 2);
+			textBuffer = textBuffer.slice(lastDoubleNewline + 2);
+
+			for (const parsed of parseLines(toProcess)) {
+				for await (const ev of processChunk(parsed)) {
+					yield ev;
+				}
+			}
+		}
+
+		if (textBuffer.trim()) {
+			for (const parsed of parseLines(textBuffer)) {
+				for await (const ev of processChunk(parsed)) {
+					yield ev;
+				}
+			}
+		}
+	} finally {
+		reader.releaseLock();
+	}
+
+	yield {
+		type: "done",
+		fullText: state.fullText,
+		allComponents: state.allComponents,
+		toolCalls: state.toolCalls,
+		stopReason: state.stopReason,
+	};
+}
+
+// ---------------------------------------------------------------------------
 // stripAnalysis
 // ---------------------------------------------------------------------------
 
