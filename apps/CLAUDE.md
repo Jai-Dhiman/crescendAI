@@ -56,7 +56,7 @@ Always follow that guide when editing files under `api/src/`.
 - `GET /api/conversations` - List conversations
 - `GET /api/conversations/:id` - Get conversation with messages
 - `DELETE /api/conversations/:id` - Delete conversation
-- `POST /api/chat` - SSE streaming chat with Anthropic
+- `POST /api/chat` - SSE streaming chat with glm-4.7-flash@WorkersAI (Anthropic selectable via TEACHER_PROVIDER=anthropic)
 - `POST /api/sync` - iOS delta sync (student baselines + sessions)
 - `POST /api/waitlist` - Email waitlist signup
 - `POST /api/extract-goals` - Extract goals from message (Workers AI)
