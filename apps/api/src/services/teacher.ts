@@ -402,6 +402,10 @@ export async function* parseOpenAIStream(
 	const reader = stream.getReader();
 
 	const toolAccumulators = new Map<number, OpenAIStreamToolCallAccumulator>();
+	// Tracks which tool indices have already emitted a tool_start, so each tool emits
+	// exactly one regardless of streamed-fragment vs single-final-chunk delivery (and
+	// when the tool name arrives in a later fragment than the index first appeared).
+	const startedTools = new Set<number>();
 	const state = {
 		fullText: "",
 		allComponents: [] as InlineComponent[],
@@ -482,7 +486,8 @@ export async function* parseOpenAIStream(
 						});
 						state.hasToolCallThisTurn = true;
 						const accum = toolAccumulators.get(idx)!;
-						if (accum.name) {
+						if (accum.name && !startedTools.has(idx)) {
+							startedTools.add(idx);
 							yield { type: "tool_start", name: accum.name };
 						}
 					} else {
@@ -508,8 +513,9 @@ export async function* parseOpenAIStream(
 				for (const idx of indices) {
 					const accum = toolAccumulators.get(idx)!;
 
-					if (!state.hasToolCallThisTurn) {
-						state.hasToolCallThisTurn = true;
+					state.hasToolCallThisTurn = true;
+					if (!startedTools.has(idx)) {
+						startedTools.add(idx);
 						yield { type: "tool_start", name: accum.name };
 					}
 
@@ -599,7 +605,10 @@ export async function* parseOpenAIStream(
 		fullText: state.fullText,
 		allComponents: state.allComponents,
 		toolCalls: state.toolCalls,
-		stopReason: state.stopReason,
+		// Normalize OpenAI's "tool_calls" finish_reason to Anthropic's "tool_use" so the
+		// shared runPhase1Streaming continuation guard (stopReason === "tool_use") works
+		// identically on both provider paths. Without this, glm tool turns abort early.
+		stopReason: state.stopReason === "tool_calls" ? "tool_use" : state.stopReason,
 	};
 }
 
@@ -668,7 +677,7 @@ export async function* runPhase1Streaming(
 				JSON.stringify({
 					level: "error",
 					message:
-						"runPhase1Streaming: parseAnthropicStream did not yield done event",
+						"runPhase1Streaming: stream parser did not yield done event",
 					turn,
 				}),
 			);

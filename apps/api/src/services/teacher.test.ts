@@ -827,7 +827,9 @@ describe("parseOpenAIStream — streamed tool-call (fragment accumulation)", () 
 		if (done?.type === "done") {
 			expect(done.toolCalls).toHaveLength(1);
 			expect(done.toolCalls[0].name).toBe("prescribe_exercise");
-			expect(done.stopReason).toBe("tool_calls");
+			// parseOpenAIStream normalizes OpenAI's "tool_calls" finish_reason to
+			// Anthropic's "tool_use" so runPhase1Streaming's shared continuation guard works.
+			expect(done.stopReason).toBe("tool_use");
 		}
 	});
 });
@@ -856,7 +858,9 @@ describe("parseOpenAIStream — single-chunk tool-call (no streaming fragments)"
 		if (done?.type === "done") {
 			expect(done.toolCalls).toHaveLength(1);
 			expect(done.toolCalls[0].id).toBe("call_xyz");
-			expect(done.stopReason).toBe("tool_calls");
+			// parseOpenAIStream normalizes OpenAI's "tool_calls" finish_reason to
+			// Anthropic's "tool_use" so runPhase1Streaming's shared continuation guard works.
+			expect(done.stopReason).toBe("tool_use");
 		}
 	});
 });
