@@ -28,8 +28,8 @@ The #68 e2e harness is headless by default and has no chat-turn scripting; #69 v
 2. Drives the Nocturne recording through MuQ + AMT + V6 synthesis (reusing `drive_persisted()`).
 3. Opens a headed Chrome window with `slow_mo=700ms`. A human can watch the synthesis appear.
 4. Asserts the V6 synthesis message renders in the DOM (existing #68 criteria a/b).
-5. Types "what do you know about me?" into the chat input, waits (bounded 45s) for the streamed reply, asserts the reply text contains the two canary tokens (case-insensitive).
-6. Types "give me a left-hand drill for bars 1-4" into chat, waits (bounded 45s) for a reply, checks whether `[data-testid=exercise-set-card]` appeared (non-fatal; reports TOOL_RENDERED vs TEXT_ONLY).
+5. Types "what do you know about me?" into the chat input, waits (bounded, default 90s, `--reply-timeout` override) for the streamed reply, asserts the reply text contains the two canary tokens (case-insensitive).
+6. Types "give me a left-hand drill for bars 1-4" into chat, waits (bounded, default 90s) for a reply, checks whether `[data-testid=exercise-set-card]` appeared (non-fatal; reports TOOL_RENDERED vs TEXT_ONLY).
 7. If the session had a prescription, confirms the exercise card from the synthesis (existing #68 criterion c).
 8. Prints a table:
 
@@ -48,7 +48,7 @@ OVERALL: PASS
 
 **Headed by default, headless via flag.** The feature's purpose is visual human confirmation. `--no-headless` is not an add-on; it is the default for the new orchestrator. CI can pass `--headless`.
 
-**Bounded waits everywhere.** The prior #68 build wedged for ~14 hours on an unbounded SSE/wait. Every `page.wait_for_selector`, `expect`, and `wait_for_function` call in this build carries an explicit `timeout_ms` argument. The chat-reply wait is max 45 s; page nav is max 15 s; synthesis-message is max 30 s.
+**Bounded waits everywhere.** The prior #68 build wedged for ~14 hours on an unbounded SSE/wait. Every `page.wait_for_selector`, `expect`, and `wait_for_function` call in this build carries an explicit `timeout_ms` argument. The chat-reply wait defaults to 90 s (operator-overridable via `--reply-timeout` to absorb Workers AI glm cold-start, which MEMORY.md notes can exceed 100 s); page nav is max 15 s; synthesis-message is max 30 s.
 
 **Additive `data-testid="assistant-message"` on the regular assistant bubble.** The existing test IDs (`synthesis-message`, `synthesis-headline`) are in place. Regular chat replies (`role=assistant`, `messageType != "synthesis"`) have no testid today. Adding one is the minimal surgical change enabling Playwright to reliably detect when a new chat reply has finished streaming. The change is purely additive — no behavior is changed.
 

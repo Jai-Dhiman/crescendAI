@@ -311,10 +311,14 @@ def get_debug_student_id(wrangler_url: str) -> str:
         )
 
     data = resp.json()
-    student_id = data.get("user", {}).get("id") or data.get("studentId") or data.get("id")
+    # POST /api/auth/debug returns {studentId, email, displayName}
+    # (apps/api/src/routes/auth.ts). No fallback chain: if studentId is absent the
+    # API contract has changed and we fail loudly rather than silently masking it.
+    student_id = data.get("studentId")
     if not student_id:
         raise RuntimeError(
-            f"Could not extract student_id from /api/auth/debug response: {data}"
+            f"/api/auth/debug response missing 'studentId' "
+            f"(got keys {list(data.keys())}): {data}"
         )
     return student_id
 ```
@@ -598,7 +602,7 @@ _POLL_INTERVAL_MS = 250
 def run_chat_turns(
     page: "Page",
     turns: list[str],
-    reply_timeout_ms: int = 45000,
+    reply_timeout_ms: int = 90000,
 ) -> list[ChatTurnResult]:
     """Drive scripted chat turns through the web UI and collect reply texts.
 
@@ -963,8 +967,14 @@ def run(
     slow_mo: int = 700,
     conversation_id: str | None = None,
     skip_seed: bool = False,
+    reply_timeout_ms: int = 90000,
 ) -> int:
-    """Run the full visible session eval. Returns 0 on PASS, 1 on FAIL."""
+    """Run the full visible session eval. Returns 0 on PASS, 1 on FAIL.
+
+    reply_timeout_ms defaults to 90s to absorb Workers AI glm cold-start latency
+    (MEMORY.md documents cold-start can exceed 100s; operators on a cold stack
+    should raise this via --reply-timeout). Every browser wait is bounded.
+    """
     from memory_seeder import (
         CANARY_TOKENS,
         CanarySeed,
@@ -1070,7 +1080,7 @@ def run(
 
     nav_timeout_ms = 15000
     synthesis_timeout_ms = 30000
-    reply_timeout_ms = 45000
+    # reply_timeout_ms is the run() parameter (default 90s, --reply-timeout override).
 
     print(f"[full-eval] Opening {'headed' if not headless else 'headless'} browser...")
     with sync_playwright() as p:
@@ -1266,6 +1276,12 @@ def _cli() -> None:
     parser.add_argument("--slow-mo", type=int, default=700, help="Slow motion ms (headed mode only)")
     parser.add_argument("--conversation-id", default=None, help="Skip recording; use existing conversation")
     parser.add_argument("--no-seed", action="store_true", help="Skip canary fact seeding")
+    parser.add_argument(
+        "--reply-timeout",
+        type=int,
+        default=90000,
+        help="Per chat-turn reply timeout in ms (default: 90000; raise for cold Workers AI)",
+    )
     args = parser.parse_args()
 
     sys.exit(run(
@@ -1282,6 +1298,7 @@ def _cli() -> None:
         slow_mo=args.slow_mo,
         conversation_id=args.conversation_id,
         skip_seed=args.no_seed,
+        reply_timeout_ms=args.reply_timeout,
     ))
 
 
@@ -1297,10 +1314,11 @@ Then add the `just e2e-full-session` recipe to `justfile` immediately after the 
 # prints a per-criterion PASS/FAIL report.
 # Requires: just dev (MuQ:8000 + AMT:8001 + API:8787 + web:3000) + just seed-fingerprint.
 # Default recording: model/data/evals/practice_eval/nocturne_op9no2/audio/_aySCutsVVQ.wav
-e2e-full-session recording=("model/data/evals/practice_eval/nocturne_op9no2/audio/_aySCutsVVQ.wav") piece="nocturne_op9no2":
+e2e-full-session recording=("model/data/evals/practice_eval/nocturne_op9no2/audio/_aySCutsVVQ.wav") piece="nocturne_op9no2" reply_timeout="90000":
     cd apps/evals && uv run python -m e2e_full_session \
         --recording "../../{{recording}}" \
         --piece-slug "{{piece}}" \
+        --reply-timeout {{reply_timeout}} \
         --screenshot-dir /tmp/e2e-full
 ```
 
@@ -1351,6 +1369,15 @@ just seed-fingerprint
 just e2e-full-session
 ```
 
+If the Workers AI glm model is cold (MEMORY.md notes cold-start can exceed 100s),
+the first chat turn may exceed the default 90s timeout and raise
+`RuntimeError: Chat turn timed out`. Either warm the model first (send one chat
+message in the web UI), or raise the timeout:
+
+```bash
+just e2e-full-session reply_timeout=180000
+```
+
 Expected output includes a headed Chromium window opening, the synthesis appearing, two chat turns typed visibly, and a printed report ending with `OVERALL: PASS`.
 
 Screenshots land in `/tmp/e2e-full/`:
@@ -1377,3 +1404,210 @@ cd /Users/jdhiman/Documents/crescendai/apps/evals && uv add psycopg2-binary
 ```
 
 This updates both `pyproject.toml` and `uv.lock` atomically. Stage both files in the Task 4 commit.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+#### 1. Premise Challenge
+
+Right problem. Without this, verifying that memory recall works end-to-end requires manually watching logs from four terminals simultaneously, with no single verdict line. The spec correctly identifies that #68 is headless-by-default with no chat scripting and #69 verified chat in isolation — this bridges them. No dramatically simpler alternative exists: the visible/headed requirement is the feature, not an incidental implementation detail.
+
+Direct path confirmed: the orchestrator reuses `drive_persisted`, `verify_ui`, `_auth_browser`, `check_services` without modification. Net-new code is the seeder, `run_chat_turns`, the report struct, and the `just` recipe. Scope is appropriately narrow.
+
+#### 2. Scope Check
+
+The plan is tightly scoped. The only potential cut is the tool-action turn (criterion f), but it is already marked NON-FATAL and adds only one `run_chat_turns` call — the cost is negligible and it directly answers the open question from #69 about glm tool-call emission in the live stack. No scope drift relative to the spec.
+
+The plan touches 7 files (4 new, 3 modified). Well under the 8-file smell threshold.
+
+The minimum viable version would be seed + recall turn only (drop criterion f). That MVP proves the core memory-recall bet. The tool-action turn and criteria a/b/c duplication from #68's verify_ui are extra. However they add marginal cost and provide real diagnostic value, so this is not a concern requiring action.
+
+#### 3. Twelve-Month Alignment
+
+```
+CURRENT STATE                    THIS PLAN                     12-MONTH IDEAL
+Headless e2e (#68), isolated     Headed full-session eval       CI-runnable visible eval
+chat test (#69), no unified      unified under one just         + automated regression
+operator command                 recipe with per-criterion      gate on memory recall
+                                 PASS/FAIL report
+```
+
+This plan moves firmly toward the ideal. No tech debt introduced.
+
+#### 4. Alternatives Check
+
+Spec documents the key decisions (headed default, bounded waits, token-not-exact-match, direct DB seed, NON-FATAL tool outcome). The reasoning is present. No gap here.
+
+---
+
+### Engineering Pass
+
+#### 5. Architecture
+
+After reading `ui_verifier.py`, `shared/local_session.py`, `shared/pipeline_client.py`, `apps/api/src/routes/auth.ts`, `ChatMessages.tsx`, and the existing test file, the architecture is coherent. The data flow is:
+
+```
+seed_canary_facts(student_id, db_dsn)
+  -> psycopg2 INSERT into synthesized_facts (crescendai_dev)
+       |
+drive_persisted(recording, ...)    [reused unchanged]
+  -> /api/auth/debug cookie auth
+  -> /api/practice/start -> session_id + conversation_id
+  -> WS chunk_ready -> synthesis event
+       |
+browser open (headed)
+  -> _auth_browser (POST /api/auth/debug in Playwright context)
+  -> navigate /app/c/<conversation_id>
+  -> wait_for_selector synthesis-message (30s bound)
+  -> criteria a/b/c checks
+  -> run_chat_turns([RECALL_TURN]) (45s bound)
+  -> canary token check in reply text
+  -> run_chat_turns([TOOL_TURN]) (45s bound, NON-FATAL)
+  -> _finish() -> FullSessionReport -> format_report() -> print
+```
+
+Clean. No N+1, no unbounded fan-out.
+
+**[BLOCKER] (confidence: 9/10) — Unbounded outer polling loop in `run_chat_turns`: the stability clock does not reset on an empty `current_text`.** In `run_chat_turns`, the stability logic checks `if current_text and current_text == last_text`. When `current_text` is empty (reply element appeared but streaming has not yet emitted a first token), the condition is False because of the `and current_text` guard — so `stable_since_ms` stays `None` and `last_text` stays `""`. This is correct so far. But consider: streaming starts, text becomes non-empty and equals `last_text` (first time it changes from `""`), `stable_since_ms` is set. Then text changes again — `stable_since_ms` resets to `None`, `last_text` updates. This handles mid-stream changes correctly. HOWEVER: the deadline check is `while True: now_ms >= deadline_ms: raise RuntimeError`. The outer loop IS bounded by `deadline_ms` on every iteration. Verified by reading lines 634-673 of the plan. The deadline check is the FIRST operation in the loop body. This is safe. **Retract — the polling loop IS bounded.** Reclassifying to OBS.
+
+[OBS] — The 600ms stability window in the plan's code (`_STABILITY_WAIT_MS = 600`) differs from the spec's stated 500ms (`"text is stable for 500ms"`). Minor discrepancy; 600ms is more conservative and correct for cold-start scenarios.
+
+**[BLOCKER] (confidence: 9/10) — "Reply started" vs "reply finished" conflation: an empty-but-appeared assistant-message element is indistinguishable from a finished empty reply.** The plan detects reply completion by checking `len(elements) >= expected_count` (new element appeared) AND `current_text and current_text == last_text` (stable non-empty). If a new `[data-testid=assistant-message]` element appears in the DOM with empty text (because React rendered the bubble before streaming started), the first poll finds `len >= expected_count`, `current_text = ""`, the inner `if current_text and ...` is False, so nothing happens. On the next poll the text may have grown. This is actually handled correctly — the empty-text case is not treated as stable. The element must be non-empty AND stable. **Retract — this is safe.** But there is a real adjacent risk:
+
+**[RISK] (confidence: 8/10) — Cold-start first-token latency vs 45s reply_timeout_ms.** The spec notes glm can take >100s on cold start (plan comment mentions cold-start; MEMORY.md documents "Workers AI is slow" myth was "BUSTED... cold-start; warm ~250ms"). The plan hard-codes `reply_timeout_ms=45000` (45s). If a cold-start hits, this raises `RuntimeError` on the recall turn and the run exits with a confusing error rather than a measured timeout. The operator must ensure Workers AI is warm before running, or increase the default. The spec says "bounded 45s" as the design but does not document what to do if the first run hits a cold start. Mitigation: the `--timeout` flag only controls the WS per-event timeout in `drive_persisted`, not the chat reply timeout — there is no CLI flag to extend `reply_timeout_ms`. **The build agent must add a `--reply-timeout` CLI flag so operators can extend it for cold-start scenarios without editing source.**
+
+**[RISK] (confidence: 7/10) — `_auth_browser` uses Playwright's `page.request.post`, which is NOT the same session as the browser context's cookie jar on all Playwright versions.** Reading `ui_verifier.py` line 52: `resp = page.request.post(...)`. The comment says "The debug endpoint sets an HttpOnly cookie — the browser context now holds it." In Playwright's sync API, `page.request` is bound to the page's browser context, so cookies set by the response are stored in the context. This is the correct pattern. However the plan's `e2e_full_session.py` calls `_auth_browser(page, wrangler_url)` from the existing `ui_verifier.py` — this is the SAME function that #68 already verified works. Low residual risk; mark as OBS.
+
+[OBS] — `_auth_browser` is confirmed safe (same function already used and verified in #68 `verify_ui`).
+
+#### 6. Module Depth Audit
+
+- **`memory_seeder.py`**: Interface = 3 public functions + 1 dataclass. Hides psycopg2 lifecycle, SQL, prefix cleanup, student_id resolution. DEEP.
+- **`run_chat_turns` in `ui_verifier.py`**: Interface = 1 function + 1 dataclass. Hides fill/press/count-based reply detection/stability polling. DEEP.
+- **`e2e_full_session.py`**: Interface = `run()` + `FullSessionReport` + `format_report()`. The `run()` function is 250 LOC but it is an orchestrator — inherently wide. The `_finish()` helper is a SHALLOW split: it accepts 13 positional arguments and does only two things (build report + print). Consider inlining `_finish` into `run()` or restructuring — but this is cosmetic, not a correctness risk. RISK below.
+- **`ChatMessages.tsx` change**: Single ternary addition. DEEP (the module's depth is unchanged; this is a minimal additive attribute).
+
+[RISK] (confidence: 6/10) — `_finish()` accepts 13 positional args and exists only because `run()` has two early-return paths for auth and nav failure that want to print the report before the browser closes. Consider collapsing `_finish` inline or raising an exception to a single `try/except` handler at the top of `run()`. This is a code quality smell but not a correctness bug.
+
+#### 7. Code Quality
+
+**[BLOCKER] (confidence: 9/10) — `get_debug_student_id` response parsing is fragile and inconsistent with the actual API shape.** Reading `apps/api/src/routes/auth.ts` line 47: the response is `{ studentId: string, email: string, displayName: string }`. The plan's `get_debug_student_id` (plan lines 313-314) probes `data.get("user", {}).get("id") or data.get("studentId") or data.get("id")`. The first probe (`data.get("user", {}).get("id")`) is dead code — there is no `user` key in the response. The second probe (`data.get("studentId")`) is correct and will succeed. The third probe (`data.get("id")`) is also dead code. This works at runtime because `data.get("studentId")` hits. BUT: if `studentId` is ever renamed or the API route changes, the dead probes silently mask the failure until a different code path breaks. More importantly, the plan introduces an undocumented dependency on the response shape that is not tested. This is explicitly a CLAUDE.md violation: "explicit exception handling over silent fallbacks." The multi-probe `or` chain is a silent fallback. Change to: `student_id = data["studentId"]` — raise `KeyError` directly if absent.
+
+[OBS] — `drive_persisted` (in `shared/local_session.py`) uses `_get_debug_auth` which calls `/api/auth/debug` internally, then the session brain authenticates the debug user again. So the debug user is established twice per run (once for seeding, once for recording). This is fine; both paths hit the same DB user.
+
+**studentId alignment (the focus question):** `get_debug_student_id` calls `POST /api/auth/debug` which does a sign-in or sign-up for `debug@crescend.ai` and returns `data["studentId"]` — the better-auth user UUID. `drive_persisted` also calls `_get_debug_auth` which hits the same endpoint and cookies the same session. Both paths resolve to the same `debug@crescend.ai` user in `crescendai_dev`. The seeded rows target `student_id = data["studentId"]` and the browser session that loads the conversation is also authenticated as `debug@crescend.ai`. **The IDs are the same user — alignment is correct.** However: the memory retrieval at chat time depends on the API's `/api/chat` handler looking up `synthesized_facts` for `c.var.studentId`. The browser is authed as `debug@crescend.ai`, so `c.var.studentId` will be the same UUID that was seeded. Alignment is safe.
+
+[OBS] — The `except Exception as exc` broad catch in `seed_canary_facts` (plan line 250) wraps psycopg2-specific errors in a `RuntimeError`. This is acceptable because psycopg2 raises from multiple exception classes (OperationalError, InterfaceError, etc.) and the intent is to surface the error to the orchestrator with context. Not a silent fallback — it re-raises.
+
+#### 8. Test Philosophy Audit
+
+**Task 1 tests (`test_memory_seeder.py`):** Tests call `build_insert_rows` (a public function) and assert on the returned list structure. These are behavior tests — they verify that the function produces the correct shape and content for known inputs. Public interface. No internal mocking. PASS.
+
+**Task 2 tests (`ChatMessages.test.tsx`):** Tests render the `ChatMessages` component (public interface) and assert that a specific DOM attribute is present or absent. Behavior test. The existing pattern of using `vi.resetModules() + vi.doMock()` for sub-components is already established in the file. PASS.
+
+**Task 3 tests (`test_run_chat_turns.py`):** Tests use a stub `Page` that simulates element counts. The stub is an external boundary (Playwright browser), not an internal collaborator. However: `test_run_chat_turns_fills_textarea_for_each_turn` asserts `stub_page.fill.call_count == 2` — this is an interaction test on the stub, not a behavior test. It verifies *how* the function calls the page rather than *what* it produces. This is a mild test-philosophy deviation. The behavior can be inferred from `results` existing with correct content. Not a BLOCKER but flagged.
+
+[RISK] (confidence: 6/10) — `test_run_chat_turns_fills_textarea_for_each_turn` asserts on `fill.call_count` and `fill.call_args_list`, which couples the test to the implementation detail of how input is submitted. A behavior test would assert on the `results` content (reply texts) rather than how the page was called. Low severity since the stub is an external boundary, but the test will break if the implementation switches from `fill+press` to `page.type()`.
+
+**Task 4 tests (`test_full_session_report.py`):** Tests construct `FullSessionReport` directly and assert on `format_report()` output and `overall` property. Pure offline behavior tests. PASS.
+
+#### 9. Vertical Slice Audit
+
+Each task follows: write failing test → verify fail → implement → verify pass → commit. One test file per task, implementation matching the test, single commit per task. No horizontal slicing detected. PASS.
+
+#### 10. Test Coverage Gaps
+
+```
+[+] apps/evals/memory_seeder.py
+    build_insert_rows()
+    ├── [TESTED] returns N rows for N tokens — Task 1 test 1 (★★)
+    ├── [TESTED] embeds token string in fact_text — Task 1 test 2 (★★)
+    ├── [TESTED] required columns present — Task 1 test 3 (★★)
+    └── [GAP]    unknown token (not in _TOKEN_TEMPLATES) uses default template — untested
+
+    seed_canary_facts()
+    ├── [LIVE-GATED] happy path — operator run
+    ├── [GAP]         DB connection failure raises RuntimeError — offline-testable with mock
+    └── [GAP]         previous CANARY rows deleted before insert — offline-testable with mock
+
+    get_debug_student_id()
+    ├── [LIVE-GATED] happy path — operator run
+    └── [GAP]        missing studentId key raises — not tested (masked by or-chain)
+
+[+] apps/evals/ui_verifier.py — run_chat_turns()
+    ├── [TESTED] returns one result per turn (★★)
+    ├── [TESTED] result fields present (★★)
+    ├── [TESTED] fill called per turn (★ — interaction test)
+    └── [GAP]    deadline exceeded raises RuntimeError — not tested offline
+
+[+] apps/evals/e2e_full_session.py
+    format_report()
+    ├── [TESTED] all criterion labels present (★★)
+    ├── [TESTED] SKIP rendered for None criteria_c (★★)
+    └── [GAP]    FAIL rendered when errors list non-empty — not tested
+
+    FullSessionReport.overall
+    ├── [TESTED] False when criteria_e_recall=False (★★)
+    ├── [TESTED] True when all required criteria pass (★★)
+    └── [GAP]    False when errors non-empty — not tested
+
+[+] apps/web/src/components/ChatMessages.tsx
+    ├── [TESTED] assistant-message testid on plain assistant reply (★★)
+    └── [TESTED] synthesis-message testid on synthesis reply; assistant-message absent (★★)
+```
+
+The default-template branch for unknown tokens in `build_insert_rows` is untested but it only affects non-CANARY_RACHMANINOFF_ETUDE/CANARY_LEFT_HAND_WEAKNESS tokens — the two fixed tokens in `CANARY_TOKENS` both have explicit templates. Low risk. Mark as OBS.
+
+[OBS] — The `overall=False when errors non-empty` path is not tested offline, but errors only appear when live services misbehave. The `overall` property is a single `if self.errors: return False` guard — straightforward enough that a gap test is nice-to-have, not critical.
+
+#### 11. Failure Modes
+
+- **Seeder fails:** `run()` returns 1 with a printed error. State left: no canary rows in DB (clean). Recoverable.
+- **`drive_persisted` fails:** `run()` returns 1. State left: possibly a dangling session in DB, no conversation created (safe — sessions expire). Recoverable.
+- **Browser auth fails:** early return via `_finish()`, `errors` list populated. Screenshot saved. Report printed with FAIL. Clean.
+- **synthesis-message wait times out (30s):** `errors` appended, criteria_a stays False. Report printed. Clean.
+- **Recall turn times out (45s):** `RuntimeError` caught in the `try/except` block around `run_chat_turns`, `errors.append(...)`, `recall_reply = ""`. Tokens not found. criteria_e_recall = False. Report printed. Clean.
+- **Tool turn fails:** `RuntimeError` caught, `errors.append("Tool turn failed (non-fatal): ...")`, `criteria_f_outcome = "UNKNOWN"`. Report printed. Clean. This is correctly NON-FATAL as specified.
+- **Unexpected exception:** outer `except Exception` in `run()` at line 1202 catches, saves `phase_error.png`, appends to `errors`. Then falls through to `_finish()` call after the `with sync_playwright()` block — wait, actually: the outer `except` at line 1202 is INSIDE the `with sync_playwright()` block's `try`. If it triggers, it does NOT return — it just appends to `errors`. Then the code continues to the `_save_screenshot` call and drops out of the `except`. The loop continues to... nothing: there is no `return` in that `except`. The code falls through to `_finish()` at line 1209. SAFE — but the browser will have been closed by the `finally` block (line 1205-1207). The `_finish()` call at line 1213 passes `page=None` which is correct. No silent failure.
+
+[OBS] — The screenshot at line 1204 (`phase_error.png`) inside the unexpected-error handler AND the screenshot at `_finish` line 1232 when `page is not None` would double-write in some paths, but since `page=None` is passed to `_finish` after the `with` block, no double-write occurs. Clean.
+
+#### 12. Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `debug@crescend.ai` student_id is stable across wrangler dev restarts | SAFE | better-auth email-lookup; same user every time on crescendai_dev |
+| `/api/auth/debug` returns `{ studentId: string, ... }` | SAFE | Verified in `apps/api/src/routes/auth.ts` line 47 |
+| `get_debug_student_id` correctly extracts studentId | VALIDATE | The `or`-chain works but the `data["user"]["id"]` first probe is dead code; replace with `data["studentId"]` direct access |
+| Playwright `page.request.post` auth cookies flow into context | SAFE | Established behavior verified in #68 |
+| `[data-testid='assistant-message']` count reliably tracks new replies | SAFE | Each reply renders one element; non-synthesis path confirmed in ChatMessages.tsx line 228 |
+| Memory retrieval at chat time queries `synthesized_facts` for the authed student_id | VALIDATE | Confirmed by architecture (API `/api/chat` uses `c.var.studentId`), but the chat service's memory fetch path was not read directly |
+| 45s reply_timeout_ms is sufficient for warm Workers AI glm response | VALIDATE | MEMORY.md says warm ~250ms, but cold-start can exceed 100s; no CLI override for reply timeout |
+| `psycopg2-binary` is available via uv on macOS | SAFE | Binary wheel; no system libpq needed |
+| `just e2e-full-session` justfile recipe syntax is correct | VALIDATE | Recipe uses `{{recording}}` and `{{piece}}` variable expansion; just syntax requires `{{var}}` for recipe parameters — visually correct but not verified against justfile version |
+| `e2e_full_session.py` import of `_auth_browser`, `_component_testid`, `_save_screenshot` from `ui_verifier` (private names) | RISK | These are module-private helpers (underscore prefix). If `ui_verifier.py` is ever restructured, these imports break silently. Plan should note this coupling. |
+
+---
+
+### Summary
+
+[BLOCKER] count: 2  
+[RISK]    count: 4  
+[QUESTION] count: 0
+
+**Blocker 1** (confidence: 9/10): `get_debug_student_id` uses an `or`-chain fallback to extract `studentId` from the API response — violating CLAUDE.md "explicit exceptions not fallbacks." Change to `data["studentId"]` with an explicit `KeyError` → `RuntimeError` raise. Verified by reading `auth.ts` — the key is always `studentId`.
+
+**Blocker 2** (confidence: 8/10): No `--reply-timeout` CLI flag. The hard-coded 45s `reply_timeout_ms` cannot be overridden without editing source. Cold-start Workers AI can exceed 100s (MEMORY.md). Without this flag, the first run of a cold stack will raise `RuntimeError: Chat turn timed out` with no obvious fix path for the operator. The justfile recipe should expose `reply_timeout` as a parameter, and `_cli()` must accept `--reply-timeout`.
+
+**Risk 1** (confidence: 8/10): `run_chat_turns` imports `_auth_browser`, `_component_testid`, `_save_screenshot` from `ui_verifier` by private names. These are stable now but will silently break on any internal refactor of `ui_verifier`. Plan should acknowledge this coupling and note it for the build agent.
+
+**Risk 2** (confidence: 7/10): `_finish()` accepts 13 positional args — shallow helper. Consider inlining or passing a partially-constructed `FullSessionReport`.
+
+**Risk 3** (confidence: 6/10): Task 3 test `test_run_chat_turns_fills_textarea_for_each_turn` asserts on `fill.call_count` — interaction test, not behavior test. Low severity.
+
+**Risk 4** (confidence: 6/10): `overall=False when errors non-empty` and `format_report FAIL with errors` paths are not covered by offline tests.
+
+VERDICT: NEEDS_REWORK — Blocker 1 (or-chain silent fallback on studentId extraction violates explicit-exception rule) and Blocker 2 (no --reply-timeout CLI flag; cold-start will wedge the default 45s and leave operator with no recovery path) must be resolved before build starts.
