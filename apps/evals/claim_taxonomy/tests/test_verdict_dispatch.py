@@ -7,6 +7,8 @@ can be verified independently of measurement substrate.
 """
 from __future__ import annotations
 
+import copy
+
 import pytest
 
 from claim_taxonomy.verdict_dispatch import route_verdict
@@ -70,14 +72,12 @@ BASE_TIMING_CLAIM = {
 
 
 def _make_claim(**overrides) -> dict:
-    import copy
     claim = copy.deepcopy(BASE_TIMING_CLAIM)
     claim.update(overrides)
     return claim
 
 
 def _make_measurement(**overrides) -> dict:
-    import copy
     m = copy.deepcopy(BASE_TIMING_CLAIM["_measurement"])
     m.update(overrides)
     return m
@@ -116,6 +116,17 @@ def test_unlocalizable_claim_returns_unverifiable() -> None:
     verdict, reason = route_verdict(claim, REGISTRY)
     assert verdict == "UNVERIFIABLE"
     assert reason == "unlocalizable"
+
+
+def test_missing_localizable_raises_type_error() -> None:
+    claim = _make_claim(
+        _measurement={
+            "d": -12.0, "tau": 8.0, "error_bar": 2.0, "event_count": 20,
+            # no localizable
+        }
+    )
+    with pytest.raises(TypeError, match="localizable"):
+        route_verdict(claim, REGISTRY)
 
 
 # ---------------------------------------------------------------------------

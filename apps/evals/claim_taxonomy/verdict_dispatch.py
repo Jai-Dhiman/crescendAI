@@ -38,7 +38,9 @@ def route_verdict(
     Raises:
         TypeError: if dimension is not in registry, or _measurement is missing.
     """
-    dimension_name = claim.get("dimension")
+    if "dimension" not in claim:
+        raise TypeError("claim must include a 'dimension' key.")
+    dimension_name = claim["dimension"]
     if dimension_name not in registry:
         raise TypeError(
             f"Unknown dimension '{dimension_name}'. "
@@ -64,7 +66,12 @@ def route_verdict(
         return ("UNVERIFIABLE", "gated_dim")
 
     # Step 3: not localizable
-    if not m.get("localizable", True):
+    if "localizable" not in m:
+        raise TypeError(
+            "_measurement must include 'localizable' (bool). "
+            "The verifier (issue #65) resolves the location before calling route_verdict."
+        )
+    if not m["localizable"]:
         return ("UNVERIFIABLE", "unlocalizable")
 
     # Step 4: substrate failure
@@ -79,6 +86,9 @@ def route_verdict(
     d = m["d"]
     tau = m["tau"]
     error_bar = m["error_bar"]
+
+    # Step 6: compute signed deviation d vs reference — performed by the verifier
+    # (#65) and supplied via _measurement; this stub consumes d/tau/error_bar directly.
 
     # Step 7: near threshold
     if abs(abs(d) - tau) <= error_bar:
