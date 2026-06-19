@@ -86,6 +86,18 @@ describe("toOpenAIChatRequest — tool definition mapping", () => {
 		expect(out.tool_choice).toBe("auto");
 	});
 
+	it("converts tool_choice {type:'none'} to string 'none'", () => {
+		const req = {
+			model: "@cf/zai-org/glm-4.7-flash",
+			max_tokens: 2048,
+			messages: [{ role: "user" as const, content: "Just respond." }],
+			tools: [],
+			tool_choice: { type: "none" } as const,
+		};
+		const out = toOpenAIChatRequest(req);
+		expect(out.tool_choice).toBe("none");
+	});
+
 	it("converts tool_choice {type:'tool',name:'foo'} to {type:'function',function:{name:'foo'}}", () => {
 		const req = {
 			model: "@cf/qwen/qwen3-30b-a3b-fp8",
@@ -329,5 +341,61 @@ describe("toAnthropicResponse — OpenAI → Anthropic response mapping", () => 
 		const out = toAnthropicResponse(oaiRes);
 		expect(out.content).toEqual([]);
 		expect(out.stop_reason).toBe("end_turn");
+	});
+});
+
+describe("toOpenAIChatRequest — system block translation", () => {
+	it("prepends an array of system blocks as a leading role:system message, stripping cache_control", () => {
+		const req = {
+			model: "@cf/zai-org/glm-4.7-flash",
+			max_tokens: 2048,
+			system: [
+				{ type: "text" as const, text: "You are a helpful teacher.", cache_control: { type: "ephemeral" as const } },
+				{ type: "text" as const, text: "<student_memory>some facts</student_memory>" },
+			],
+			messages: [{ role: "user" as const, content: "How do I improve my dynamics?" }],
+			tools: [],
+			tool_choice: { type: "auto" } as const,
+		};
+
+		const out = toOpenAIChatRequest(req);
+
+		expect(out.messages[0]).toEqual({
+			role: "system",
+			content: "You are a helpful teacher.\n\n<student_memory>some facts</student_memory>",
+		});
+		expect(out.messages[1]).toEqual({ role: "user", content: "How do I improve my dynamics?" });
+		expect(out.messages).toHaveLength(2);
+	});
+
+	it("prepends a plain string system field as a leading role:system message", () => {
+		const req = {
+			model: "@cf/zai-org/glm-4.7-flash",
+			max_tokens: 2048,
+			system: "You are a piano teacher.",
+			messages: [{ role: "user" as const, content: "Hello" }],
+			tools: [],
+			tool_choice: { type: "auto" } as const,
+		};
+
+		const out = toOpenAIChatRequest(req);
+
+		expect(out.messages[0]).toEqual({ role: "system", content: "You are a piano teacher." });
+		expect(out.messages[1]).toEqual({ role: "user", content: "Hello" });
+	});
+
+	it("does not prepend a system message when system field is absent", () => {
+		const req = {
+			model: "@cf/zai-org/glm-4.7-flash",
+			max_tokens: 2048,
+			messages: [{ role: "user" as const, content: "Hello" }],
+			tools: [],
+			tool_choice: { type: "auto" } as const,
+		};
+
+		const out = toOpenAIChatRequest(req);
+
+		expect(out.messages[0]).toEqual({ role: "user", content: "Hello" });
+		expect(out.messages).toHaveLength(1);
 	});
 });

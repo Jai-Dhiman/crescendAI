@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { parseAnthropicStream, stripAnalysis, synthesizeV6, chatV6 } from "./teacher";
+import { parseAnthropicStream, parseOpenAIStream, stripAnalysis, synthesizeV6, chatV6 } from "./teacher";
 import type { InlineComponent } from "./tool-processor";
-import type { SynthesisInput } from "./teacher";
+import type { SynthesisInput, TeacherEvent } from "./teacher";
 import type { ServiceContext } from "../lib/types";
 import type { HookEvent } from "../harness/loop/types";
 import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
@@ -708,7 +708,10 @@ function makeSSEStream(text: string): ReadableStream {
 }
 
 const stubCtx = {
-	env: {} as never,
+	// Pin to the Anthropic provider so chatV6 uses the mocked callAnthropicStream;
+	// without this, routeModel() falls to the Workers AI path and callWorkersAIStream
+	// builds an undefined gateway URL (no AI_GATEWAY_ENDPOINT in this stub env).
+	env: { TEACHER_PROVIDER: "anthropic" } as never,
 	db: {} as never,
 } as unknown as ServiceContext;
 
@@ -724,5 +727,140 @@ describe("chatV6", () => {
 
 		expect(events.some((e) => e.type === "delta")).toBe(true);
 		expect(events.at(-1)?.type).toBe("done");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// parseOpenAIStream helpers
+// ---------------------------------------------------------------------------
+
+function makeOpenAIStream(chunks: string[]): ReadableStream {
+	const encoder = new TextEncoder();
+	return new ReadableStream({
+		start(controller) {
+			for (const chunk of chunks) {
+				controller.enqueue(encoder.encode(chunk));
+			}
+			controller.close();
+		},
+	});
+}
+
+// Noop tool processor — never called in text-only tests.
+const noopOpenAITool = async (_name: string, _input: unknown) => ({
+	name: "noop",
+	componentsJson: [],
+	isError: false as const,
+});
+
+// Tool processor that returns a fake component for "prescribe_exercise".
+const exerciseTool = async (name: string, _input: unknown) => ({
+	name,
+	componentsJson: [{ type: "exercise_card", data: { id: "ex-1" } }],
+	isError: false as const,
+});
+
+// ---------------------------------------------------------------------------
+// Test: parseOpenAIStream — text-only response
+// ---------------------------------------------------------------------------
+
+describe("parseOpenAIStream — text-only response", () => {
+	it("yields one delta event per content fragment LIVE (before finish), preserving fragment boundaries", async () => {
+		const sseChunks = [
+			`data: {"choices":[{"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}\n\n`,
+			`data: {"choices":[{"delta":{"content":", world"},"finish_reason":null}]}\n\n`,
+			`data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n`,
+			`data: [DONE]\n\n`,
+		];
+
+		const events: TeacherEvent[] = [];
+		for await (const ev of parseOpenAIStream(makeOpenAIStream(sseChunks), noopOpenAITool)) {
+			events.push(ev);
+		}
+
+		const deltaTexts = events
+			.filter((e): e is Extract<TeacherEvent, { type: "delta" }> => e.type === "delta")
+			.map((d) => d.text);
+		expect(deltaTexts).toEqual(["Hello", ", world"]);
+
+		const firstDeltaIdx = events.findIndex((e) => e.type === "delta");
+		const doneIdx = events.findIndex((e) => e.type === "done");
+		const lastDeltaIdx =
+			events.length - 1 - [...events].reverse().findIndex((e) => e.type === "delta");
+		expect(firstDeltaIdx).toBeGreaterThanOrEqual(0);
+		expect(lastDeltaIdx).toBeLessThan(doneIdx);
+
+		const done = events.at(-1);
+		expect(done?.type).toBe("done");
+		if (done?.type === "done") {
+			expect(done.fullText).toBe("Hello, world");
+			expect(done.stopReason).toBe("stop");
+			expect(done.toolCalls).toHaveLength(0);
+		}
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Test: parseOpenAIStream — streamed tool-call (fragment accumulation)
+// ---------------------------------------------------------------------------
+
+describe("parseOpenAIStream — streamed tool-call (fragment accumulation)", () => {
+	it("accumulates tool_call fragments by index and calls processToolFn, yielding tool_start then tool_result then done", async () => {
+		const sseChunks = [
+			`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_abc","type":"function","function":{"name":"prescribe_exercise","arguments":""}}]},"finish_reason":null}]}\n\n`,
+			`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"drills\\":"}}]},"finish_reason":null}]}\n\n`,
+			`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"[\\"scale\\"]}"}}]},"finish_reason":null}]}\n\n`,
+			`data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}\n\n`,
+			`data: [DONE]\n\n`,
+		];
+
+		const events: TeacherEvent[] = [];
+		for await (const ev of parseOpenAIStream(makeOpenAIStream(sseChunks), exerciseTool)) {
+			events.push(ev);
+		}
+
+		expect(events.some((e) => e.type === "tool_start" && e.name === "prescribe_exercise")).toBe(true);
+		expect(events.some((e) => e.type === "tool_result" && e.name === "prescribe_exercise")).toBe(true);
+
+		const done = events.at(-1);
+		expect(done?.type).toBe("done");
+		if (done?.type === "done") {
+			expect(done.toolCalls).toHaveLength(1);
+			expect(done.toolCalls[0].name).toBe("prescribe_exercise");
+			// parseOpenAIStream normalizes OpenAI's "tool_calls" finish_reason to
+			// Anthropic's "tool_use" so runPhase1Streaming's shared continuation guard works.
+			expect(done.stopReason).toBe("tool_use");
+		}
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Test: parseOpenAIStream — single-chunk tool-call (no streaming fragments)
+// ---------------------------------------------------------------------------
+
+describe("parseOpenAIStream — single-chunk tool-call (no streaming fragments)", () => {
+	it("handles a model that emits the entire tool_call in one non-delta chunk", async () => {
+		const sseChunks = [
+			`data: {"choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_xyz","type":"function","function":{"name":"prescribe_exercise","arguments":"{\\"drills\\":[\\"arpeggio\\"]}"}}]},"finish_reason":"tool_calls"}]}\n\n`,
+			`data: [DONE]\n\n`,
+		];
+
+		const events: TeacherEvent[] = [];
+		for await (const ev of parseOpenAIStream(makeOpenAIStream(sseChunks), exerciseTool)) {
+			events.push(ev);
+		}
+
+		expect(events.some((e) => e.type === "tool_start" && e.name === "prescribe_exercise")).toBe(true);
+		expect(events.some((e) => e.type === "tool_result" && e.name === "prescribe_exercise")).toBe(true);
+
+		const done = events.at(-1);
+		expect(done?.type).toBe("done");
+		if (done?.type === "done") {
+			expect(done.toolCalls).toHaveLength(1);
+			expect(done.toolCalls[0].id).toBe("call_xyz");
+			// parseOpenAIStream normalizes OpenAI's "tool_calls" finish_reason to
+			// Anthropic's "tool_use" so runPhase1Streaming's shared continuation guard works.
+			expect(done.stopReason).toBe("tool_use");
+		}
 	});
 });

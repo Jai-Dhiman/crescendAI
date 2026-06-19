@@ -17,9 +17,14 @@ export interface AnthropicToolChoiceTool {
 	name: string;
 }
 
+export interface AnthropicToolChoiceNone {
+	type: "none";
+}
+
 export type AnthropicToolChoice =
 	| AnthropicToolChoiceAuto
-	| AnthropicToolChoiceTool;
+	| AnthropicToolChoiceTool
+	| AnthropicToolChoiceNone;
 
 export interface AnthropicToolUseBlock {
 	type: "tool_use";
@@ -50,9 +55,16 @@ export interface AnthropicMessage {
 	content: string | AnthropicContentBlock[];
 }
 
+export interface AnthropicSystemBlock {
+	type: "text";
+	text: string;
+	cache_control?: { type: "ephemeral" };
+}
+
 export interface AnthropicChatRequest {
 	model: string;
 	max_tokens: number;
+	system?: string | AnthropicSystemBlock[];
 	messages: AnthropicMessage[];
 	tools?: AnthropicToolDef[];
 	tool_choice?: AnthropicToolChoice;
@@ -93,6 +105,7 @@ interface OpenAIToolCall {
 }
 
 type OpenAIMessage =
+	| { role: "system"; content: string }
 	| { role: "user"; content: string }
 	| { role: "assistant"; content: string | null; tool_calls?: OpenAIToolCall[] }
 	| { role: "tool"; tool_call_id: string; content: string };
@@ -103,6 +116,13 @@ interface OpenAIChatRequest {
 	messages: OpenAIMessage[];
 	tools: OpenAIToolDef[];
 	tool_choice: OpenAIToolChoice;
+}
+
+function resolveSystemText(system: string | AnthropicSystemBlock[]): string {
+	if (typeof system === "string") {
+		return system;
+	}
+	return system.map((b) => b.text).join("\n\n");
 }
 
 export function toOpenAIChatRequest(
@@ -121,6 +141,8 @@ export function toOpenAIChatRequest(
 	if (req.tool_choice) {
 		if (req.tool_choice.type === "auto") {
 			tool_choice = "auto";
+		} else if (req.tool_choice.type === "none") {
+			tool_choice = "none";
 		} else if (req.tool_choice.type === "tool") {
 			tool_choice = {
 				type: "function",
@@ -130,6 +152,9 @@ export function toOpenAIChatRequest(
 	}
 
 	const messages: OpenAIMessage[] = [];
+	if (req.system !== undefined) {
+		messages.push({ role: "system", content: resolveSystemText(req.system) });
+	}
 	for (const msg of req.messages) {
 		if (typeof msg.content === "string") {
 			messages.push({

@@ -1,5 +1,7 @@
 import { InferenceError } from "../lib/errors";
 import type { Bindings } from "../lib/types";
+import type { AnthropicChatRequest } from "../harness/loop/tool-format";
+import { toOpenAIChatRequest } from "../harness/loop/tool-format";
 
 // ---------------------------------------------------------------------------
 // Content block types for multi-turn tool_use conversations
@@ -97,6 +99,36 @@ export async function callAnthropicStream(
 
 	if (!res.body) {
 		throw new InferenceError("Anthropic stream response has no body");
+	}
+
+	return res.body;
+}
+
+export async function callWorkersAIStream(
+	env: Bindings,
+	body: AnthropicChatRequest,
+): Promise<ReadableStream> {
+	const url = `${env.AI_GATEWAY_ENDPOINT}/workers-ai/v1/chat/completions`;
+	const oaiBody = toOpenAIChatRequest(body);
+	const res = await fetch(url, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"cf-aig-authorization": `Bearer ${env.AI_GATEWAY_TOKEN}`,
+			Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
+		},
+		body: JSON.stringify({ ...oaiBody, stream: true }),
+	});
+
+	if (!res.ok) {
+		const text = await res.text();
+		throw new InferenceError(
+			`Workers AI stream request failed: ${res.status} ${text}`,
+		);
+	}
+
+	if (!res.body) {
+		throw new InferenceError("Workers AI stream response has no body");
 	}
 
 	return res.body;
