@@ -708,7 +708,10 @@ function makeSSEStream(text: string): ReadableStream {
 }
 
 const stubCtx = {
-	env: {} as never,
+	// Pin to the Anthropic provider so chatV6 uses the mocked callAnthropicStream;
+	// without this, routeModel() falls to the Workers AI path and callWorkersAIStream
+	// builds an undefined gateway URL (no AI_GATEWAY_ENDPOINT in this stub env).
+	env: { TEACHER_PROVIDER: "anthropic" } as never,
 	db: {} as never,
 } as unknown as ServiceContext;
 

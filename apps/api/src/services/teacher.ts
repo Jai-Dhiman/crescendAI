@@ -15,7 +15,10 @@ import {
 	type AnthropicSystemBlock,
 	callAnthropic,
 	callAnthropicStream,
+	callWorkersAIStream,
 } from "./llm";
+import { routeModel } from "../harness/loop/route-model";
+import type { AnthropicChatRequest } from "../harness/loop/tool-format";
 import { buildMemoryContext } from "./memory";
 import { buildSynthesisFraming, UNIFIED_TEACHER_SYSTEM } from "./prompts";
 import * as segmentLoopsService from "./segment-loops";
@@ -633,17 +636,26 @@ export async function* runPhase1Streaming(
 	const accumulatedComponents: InlineComponent[] = [];
 
 	for (let turn = 0; turn < ctx.turnCap; turn++) {
-		const stream = await callAnthropicStream(ctx.env, {
-			model: "claude-sonnet-4-20250514",
+		const client = routeModel("phase1_analysis", ctx.env);
+		const chatBody: AnthropicChatRequest = {
+			model: client.model,
 			max_tokens: 2048,
 			system: systemBlocks,
 			messages: currentMessages,
 			tools: toolSchemas,
 			tool_choice: { type: "auto" },
-		});
+		};
+		const stream =
+			client.provider === "workers-ai"
+				? await callWorkersAIStream(ctx.env, chatBody)
+				: await callAnthropicStream(ctx.env, chatBody);
 
 		let doneEvent: TeacherEvent | null = null;
-		for await (const event of parseAnthropicStream(stream, processToolFn)) {
+		const parseStream =
+			client.provider === "workers-ai"
+				? parseOpenAIStream(stream, processToolFn)
+				: parseAnthropicStream(stream, processToolFn);
+		for await (const event of parseStream) {
 			if (event.type === "done") {
 				doneEvent = event;
 			} else {
@@ -726,20 +738,26 @@ export async function* runPhase1Streaming(
 
 	// Turn cap exhausted — force a text response with tool_choice: none
 	try {
-		const forcedStream = await callAnthropicStream(ctx.env, {
-			model: "claude-sonnet-4-20250514",
+		const forcedClient = routeModel("phase1_analysis", ctx.env);
+		const forcedBody: AnthropicChatRequest = {
+			model: forcedClient.model,
 			max_tokens: 2048,
 			system: systemBlocks,
 			messages: currentMessages,
 			tools: toolSchemas,
 			tool_choice: { type: "none" },
-		});
+		};
+		const forcedStream =
+			forcedClient.provider === "workers-ai"
+				? await callWorkersAIStream(ctx.env, forcedBody)
+				: await callAnthropicStream(ctx.env, forcedBody);
 
 		let forcedDone: TeacherEvent | null = null;
-		for await (const event of parseAnthropicStream(
-			forcedStream,
-			processToolFn,
-		)) {
+		const parseForcedStream =
+			forcedClient.provider === "workers-ai"
+				? parseOpenAIStream(forcedStream, processToolFn)
+				: parseAnthropicStream(forcedStream, processToolFn);
+		for await (const event of parseForcedStream) {
 			if (event.type === "done") {
 				forcedDone = event;
 			} else {

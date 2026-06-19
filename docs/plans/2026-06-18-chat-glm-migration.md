@@ -1294,3 +1294,146 @@ After all tasks are committed:
   in `pendingTextDeltas` and flushing at `finish_reason`. The Task 3 text-only test was
   strengthened to assert `deltaTexts === ["Hello", ", world"]` and that all deltas precede
   the `done` event, so the live-streaming behavior is now test-enforced.
+
+---
+
+## Challenge Review (Re-run 2026-06-19)
+
+### CEO Pass
+
+**Premise:** The prior BLOCKER (untested Anthropic-path regression after provider branch)
+and the live-streaming residual risk are both addressed in commit `233ff212` as plan-only
+edits. No source code was modified — correct, since this is a pre-build review pass.
+
+**Right problem?** Yes. The three concrete gaps (system field, `tool_choice:none`, no WAI
+streaming path) are verified against the actual source files. All three gaps exist exactly
+as described.
+
+**Scope:** 5 files, no new services, no new tables. Scope is tight. The "tools reliability
+decision point" is correctly deferred to live verification rather than over-engineering
+a fallback upfront.
+
+**12-Month alignment:**
+```
+CURRENT STATE                     THIS PLAN                         12-MONTH IDEAL
+chat always hits Anthropic  →     chat routes to glm via WAI    →   zero-Anthropic chat,
+                                   Anthropic path unchanged           Anthropic only for synthesis
+```
+No tech debt created. The plan is additive and the Anthropic path is an explicit regression
+guard.
+
+**Alternatives:** Spec documents the chosen approach and its decision points. Sufficient.
+
+---
+
+### Engineering Pass
+
+**Fix 1 confirmed — Task 4 Step 1.2 (BLOCKER resolution):**
+
+Read `runStreamingHook.test.ts` directly (line 13-20). Confirmed:
+- Current `stubHookCtx.env` is `{} as never`
+- The plan's Step 1.2 replaces it with `{ TEACHER_PROVIDER: "anthropic" } as never`
+- With `before/after` code blocks and correct rationale
+
+The fix is correct. After Task 4 Step 3 adds the `routeModel` branch, `{}` would cause
+`routeModel` to fall through to the `WORKERS_AI_CLIENT` default (since `env.TEACHER_PROVIDER`
+would be `undefined`, not `"anthropic"`), causing the happy-path test to call the unmocked
+`callWorkersAIStream` and crash. Pinning to `"anthropic"` closes this.
+
+**Fix 2 confirmed — `parseOpenAIStream` live text deltas (Residual resolution):**
+
+The plan's Task 3 implementation emits `yield { type: "delta", text: content }` immediately
+inside the `if (content && !state.hasToolCallThisTurn)` block — no buffering. The test
+asserts `deltaTexts === ["Hello", ", world"]` (two separate events) AND that all deltas
+precede the `done` index. This is test-enforced, not just structural.
+
+**System-block regression check (Task 1a):**
+
+The existing `callAnthropicStream` in `llm.ts` takes its own local `AnthropicRequest`
+(which already has `system?: string | AnthropicSystemBlock[]`). `runPhase1Streaming`
+currently passes `system: systemBlocks` directly to `callAnthropicStream` — that type
+already has the field.
+
+After Task 1a, `AnthropicChatRequest` (in `tool-format.ts`) gains the same `system` field.
+After Task 4, `runPhase1Streaming` builds a unified `chatBody: AnthropicChatRequest` and
+passes it to `callAnthropicStream`. Structural compatibility check:
+- `AnthropicChatRequest.messages: AnthropicMessage[]` vs `AnthropicRequest.messages: LlmMessage[]`
+  — `AnthropicMessage` has `role: "user" | "assistant"`, `LlmMessage` has `role: "system" | "user" | "assistant"`. Assignable (subset).
+- `tools?: AnthropicToolDef[]` vs `tools?: unknown[]` — assignable.
+- `tool_choice?: AnthropicToolChoice` vs `tool_choice?: unknown` — assignable.
+
+No TypeScript error. The Anthropic path is structurally unaffected. [SAFE]
+
+**`tool_choice:none` on forced-final-turn (Task 1b):**
+
+The plan branches both the main-loop call and the forced-final-turn call on
+`client.provider`. The forced-final-turn uses `tool_choice: { type: "none" }`, which
+maps to `"none"` via Task 1b's fix in `toOpenAIChatRequest`. The Anthropic path already
+handles `{ type: "none" }` natively in the Anthropic API — the plan does NOT change the
+Anthropic call body, so no regression there.
+
+**`routeModel` default — glm vs qwen:**
+
+`route-model.ts` line 12: `WORKERS_AI_CLIENT.model = "@cf/qwen/qwen3-30b-a3b-fp8"`. The
+spec and plan target `@cf/zai-org/glm-4.7-flash`. When `TEACHER_MODEL` is set (Task 4
+Step 3b comment notes), `routeModel` returns `{ provider: "workers-ai", model: env.TEACHER_MODEL }`.
+So to get glm, the env must have `TEACHER_MODEL="@cf/zai-org/glm-4.7-flash"` set in
+`wrangler.toml` or `.dev.vars`. The plan does not address this config step explicitly.
+
+[RISK] (confidence: 7/10) — If `TEACHER_MODEL` is not set in `.dev.vars`/`wrangler.toml`,
+`routeModel` defaults to `@cf/qwen/qwen3-30b-a3b-fp8` (qwen), not glm-4.7-flash. The
+issue title says "Chat GLM Migration" but the code routes to qwen by default. The live
+verification step (Step 4c) implicitly depends on `TEACHER_MODEL` being set. This is not
+a blocker (the streaming plumbing works for any WAI model) but the build agent should
+confirm the env var is set when running live verification.
+
+**Task 2 test — `AnthropicChatRequest` import type:**
+
+The Task 2 test imports `AnthropicChatRequest` from `"../harness/loop/tool-format"`. After
+Task 1a adds `system` to that type, the test's `stubBody` (which has no `system` field)
+will still be valid — `system` is optional. Safe.
+
+**Single-chunk tool-call coverage:**
+
+Task 3's third test exercises the single-chunk delivery path. The plan's implementation
+handles this in `processChunk` via the `if (!state.hasToolCallThisTurn)` branch inside the
+`finish_reason` flush — emits `tool_start` there instead of at accumulator-creation time.
+Logic is correct and test verifies it.
+
+**Tool-start timing for streamed tool-calls:**
+
+In the streaming fragment path, `tool_start` is emitted when the accumulator is first
+created (first fragment with `id` and `name`). If glm delivers `name` in a later fragment
+(not the first), `accum.name` will be `""` and `tool_start` is suppressed (the
+`if (accum.name)` guard). This is a known edge case the plan notes at the "Tools
+reliability decision point" — acceptable deferral.
+
+**Hygiene — no leftover challenge cruft in plan body:**
+
+The plan body (Tasks 1a-4) contains no stale challenge-review text. The "Challenge
+Resolution" section is a proper appendix. The review section from this run is appended
+separately. Clean.
+
+---
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `AnthropicChatRequest` (tool-format.ts) is structurally assignable to `AnthropicRequest` (llm.ts) so Task 4 can pass a unified body to `callAnthropicStream` | SAFE | Verified structurally above — all fields compatible |
+| `routeModel` returns `provider:"anthropic"` when `TEACHER_PROVIDER:"anthropic"` | SAFE | Confirmed in route-model.ts line 21 |
+| `stubHookCtx.env = { TEACHER_PROVIDER:"anthropic" } as never` keeps all existing runStreamingHook tests on the Anthropic path | SAFE | Confirmed: `routeModel` checks `env.TEACHER_PROVIDER === "anthropic"` first |
+| No circular import is introduced by `llm.ts` importing `tool-format.ts` | SAFE | Confirmed: tool-format.ts imports only simplify-schema.ts and errors.ts; no cycle |
+| `TEACHER_MODEL` env var is set to `@cf/zai-org/glm-4.7-flash` in `.dev.vars` for live verification | VALIDATE | Not confirmed from plan or wrangler.toml; live step will silently use qwen if unset |
+| `parseOpenAIStream` implementation compiles without new imports beyond what teacher.ts already has (Sentry, InferenceError, etc.) | SAFE | teacher.ts already imports Sentry; InferenceError is imported |
+| `callAnthropicStream` type in llm.ts is exported via named import in teacher.ts | SAFE | Confirmed at teacher.ts line 17 |
+
+---
+
+### Summary
+
+[BLOCKER] count: 0
+[RISK]    count: 1 (TEACHER_MODEL env var for live verification — not a build blocker)
+[QUESTION] count: 0
+
+VERDICT: PROCEED
