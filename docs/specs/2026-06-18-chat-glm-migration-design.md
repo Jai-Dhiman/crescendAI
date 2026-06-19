@@ -125,6 +125,8 @@ tool choice normalization.
 **Interface (new export):**
 - `parseOpenAIStream(stream: ReadableStream, processToolFn: ProcessToolFn): AsyncGenerator<TeacherEvent>`
   — Reads OpenAI SSE (`choices[].delta.content`, `choices[].delta.tool_calls[]`)
+  — Yields text `delta` events LIVE (one per content fragment, before the terminal
+    `done`) so the browser renders token-by-token — does NOT buffer-and-flush
   — Accumulates tool-call fragments by index
   — Handles single-chunk tool-call delivery (no fragments, entire tool_call in one chunk)
   — Yields same `TeacherEvent` union as `parseAnthropicStream`
@@ -136,7 +138,7 @@ tool choice normalization.
   - Forced-final-turn works correctly because `tool_choice:{type:"none"}` now maps to `"none"` (Task 1b)
 
 **Hides:** Provider routing, SSE parsing differences between Anthropic and OpenAI SSE
-formats, tool-call fragment accumulation, text delta buffering.
+formats, tool-call fragment accumulation, live text delta emission.
 
 **Depth verdict:** DEEP — caller (and all tests) see only `TeacherEvent` regardless of
 which provider is active.

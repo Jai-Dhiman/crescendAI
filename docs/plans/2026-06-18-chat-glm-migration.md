@@ -505,11 +505,12 @@ toOpenAIChatRequest so system blocks and tool_choice fixes from Tasks
 
 **Behavior being verified:** `parseOpenAIStream` reads an OpenAI-format SSE stream and
 yields `TeacherEvent` values identical in shape to those from `parseAnthropicStream`:
-`delta` events for text, `tool_start`/`tool_result`/`tool_error` events for tool calls,
+`delta` events for text (yielded LIVE, one per content fragment, before the terminal
+event — not buffered), `tool_start`/`tool_result`/`tool_error` events for tool calls,
 and a terminal `done` event with `fullText`, `allComponents`, `toolCalls`, `stopReason`.
-It handles three SSE shapes: text-only stream, tool-call delivered in streaming fragments
-(one chunk per `index` field per `delta.tool_calls` entry), and tool-call delivered in a
-single non-delta chunk (all tool_calls fields present at once).
+It handles three SSE shapes: text-only stream (token-by-token), tool-call delivered in
+streaming fragments (one chunk per `index` field per `delta.tool_calls` entry), and
+tool-call delivered in a single non-delta chunk (all tool_calls fields present at once).
 
 **Interface under test:** `parseOpenAIStream` exported from
 `apps/api/src/services/teacher.ts`
@@ -557,8 +558,10 @@ const exerciseTool = async (name: string, _input: unknown) => ({
 });
 
 describe("parseOpenAIStream — text-only response", () => {
-  it("yields delta events for each text fragment and a done event with fullText", async () => {
-    // OpenAI SSE for a simple text-only response, delivered in two chunks.
+  it("yields one delta event per content fragment LIVE (before finish), preserving fragment boundaries", async () => {
+    // OpenAI SSE for a simple text-only response, delivered as two content
+    // fragments. Each fragment must surface as its own delta event so the
+    // browser renders token-by-token — NOT buffered and flushed at finish.
     const sseChunks = [
       `data: {"choices":[{"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}\n\n`,
       `data: {"choices":[{"delta":{"content":", world"},"finish_reason":null}]}\n\n`,
@@ -571,8 +574,20 @@ describe("parseOpenAIStream — text-only response", () => {
       events.push(ev);
     }
 
-    const deltas = events.filter((e): e is Extract<TeacherEvent, { type: "delta" }> => e.type === "delta");
-    expect(deltas.map((d) => d.text).join("")).toBe("Hello, world");
+    // Two distinct delta events, one per fragment — proves live streaming, not
+    // a single concatenated flush at the end.
+    const deltaTexts = events
+      .filter((e): e is Extract<TeacherEvent, { type: "delta" }> => e.type === "delta")
+      .map((d) => d.text);
+    expect(deltaTexts).toEqual(["Hello", ", world"]);
+
+    // Both deltas must precede the terminal done event (live ordering).
+    const firstDeltaIdx = events.findIndex((e) => e.type === "delta");
+    const doneIdx = events.findIndex((e) => e.type === "done");
+    const lastDeltaIdx =
+      events.length - 1 - [...events].reverse().findIndex((e) => e.type === "delta");
+    expect(firstDeltaIdx).toBeGreaterThanOrEqual(0);
+    expect(lastDeltaIdx).toBeLessThan(doneIdx);
 
     const done = events.at(-1);
     expect(done?.type).toBe("done");
@@ -678,7 +693,6 @@ export async function* parseOpenAIStream(
     allComponents: [] as InlineComponent[],
     toolCalls: [] as ToolCallRecord[],
     stopReason: "stop",
-    pendingTextDeltas: [] as string[],
     hasToolCallThisTurn: false,
   };
 
@@ -729,11 +743,16 @@ export async function* parseOpenAIStream(
     const finishReason = choice["finish_reason"] as string | null | undefined;
 
     if (delta) {
-      // Text content
+      // Text content — yield live for incremental streaming UX. Unlike the
+      // Anthropic SSE format (which interleaves text + tool_use blocks within a
+      // single turn and forces us to buffer narration), OpenAI emits tool_calls
+      // deltas without preceding content when it decides to call a tool. So
+      // streaming text the moment it arrives is safe and matches the browser's
+      // expectation of token-by-token rendering.
       const content = delta["content"] as string | null | undefined;
-      if (content) {
+      if (content && !state.hasToolCallThisTurn) {
         state.fullText += content;
-        state.pendingTextDeltas.push(content);
+        yield { type: "delta", text: content };
       }
 
       // Tool calls (streaming fragment accumulation)
@@ -755,8 +774,6 @@ export async function* parseOpenAIStream(
               name: tc.function?.name ?? "",
               argumentsAccumulator: "",
             });
-            // Discard buffered text — it was intermediate narration
-            state.pendingTextDeltas = [];
             state.hasToolCallThisTurn = true;
             const accum = toolAccumulators.get(idx)!;
             if (accum.name) {
@@ -789,7 +806,6 @@ export async function* parseOpenAIStream(
           //  hasToolCallThisTurn was false at accumulator creation time)
           if (!state.hasToolCallThisTurn) {
             state.hasToolCallThisTurn = true;
-            state.pendingTextDeltas = [];
             yield { type: "tool_start", name: accum.name };
           }
 
@@ -838,15 +854,8 @@ export async function* parseOpenAIStream(
           }
         }
         toolAccumulators.clear();
-      } else {
-        // Text finish — flush pending deltas
-        if (state.pendingTextDeltas.length > 0) {
-          for (const text of state.pendingTextDeltas) {
-            yield { type: "delta", text };
-          }
-          state.pendingTextDeltas = [];
-        }
       }
+      // Text-finish needs no flush: content deltas were yielded live above.
     }
   }
 
@@ -937,12 +946,12 @@ call site from `chatV6`).
 
 - [ ] **Step 1: Write the failing test**
 
-Add a new `describe` block to
-`apps/api/src/harness/loop/runStreamingHook.test.ts`. The existing tests mock
-`callAnthropicStream`. Add a parallel mock for `callWorkersAIStream` and verify the
-Workers AI path routes correctly.
+This step makes THREE edits to `apps/api/src/harness/loop/runStreamingHook.test.ts`. All
+three are required for the suite to remain green after the Step 3 implementation lands.
 
-At the top of `runStreamingHook.test.ts`, the existing mock is:
+**Step 1.1 — mock `callWorkersAIStream` alongside `callAnthropicStream`.**
+
+The existing mock at the top of the file is:
 
 ```typescript
 vi.mock("../../services/llm", async (importOriginal) => {
@@ -952,7 +961,7 @@ vi.mock("../../services/llm", async (importOriginal) => {
 import { callAnthropicStream } from "../../services/llm";
 ```
 
-Replace with (to mock both functions):
+Replace it with (mock both functions):
 
 ```typescript
 vi.mock("../../services/llm", async (importOriginal) => {
@@ -962,7 +971,43 @@ vi.mock("../../services/llm", async (importOriginal) => {
 import { callAnthropicStream, callWorkersAIStream } from "../../services/llm";
 ```
 
-Then add this new describe block after the existing ones:
+**Step 1.2 — pin `stubHookCtx` to the Anthropic provider (REQUIRED — prevents a broken
+suite).**
+
+After Step 3 lands, `runPhase1Streaming` calls `routeModel(ctx.env)`. The existing
+`stubHookCtx` has `env: {} as never`, so `routeModel` returns `workers-ai` — which would
+make the existing "happy path" test (which mocks only `callAnthropicStream`) call the
+unmocked `callWorkersAIStream` and crash. Set `TEACHER_PROVIDER:"anthropic"` on
+`stubHookCtx.env` so every test that uses it continues to exercise the Anthropic path.
+
+The existing declaration is:
+
+```typescript
+const stubHookCtx: HookContext = {
+  env: {} as never,
+  studentId: "s1",
+  sessionId: "",
+  conversationId: null,
+  digest: {},
+  waitUntil: () => {},
+};
+```
+
+Replace it with:
+
+```typescript
+const stubHookCtx: HookContext = {
+  env: { TEACHER_PROVIDER: "anthropic" } as never,
+  studentId: "s1",
+  sessionId: "",
+  conversationId: null,
+  digest: {},
+  waitUntil: () => {},
+};
+```
+
+**Step 1.3 — add the new Workers AI path test.** Add this describe block after the
+existing ones:
 
 ```typescript
 describe("runStreamingHook — Workers AI path", () => {
@@ -1147,13 +1192,11 @@ Expected: All tests in `runStreamingHook.test.ts` PASS (existing Anthropic tests
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-69-chat-glm-migration/apps/api && bun run test
 ```
 
-Expected: Full suite passes. Existing `callAnthropicStream` mock in the original
-`runStreamingHook.test.ts` "happy path" test continues to pass because `TEACHER_PROVIDER`
-is absent in `stubHookCtx.env` (which is `{} as never`), so `routeModel` returns
-`workers-ai` — update the original happy-path test to use
-`{ ...stubHookCtx, env: { TEACHER_PROVIDER: "anthropic" } as never }` to keep it
-exercising the Anthropic path explicitly. Or add `TEACHER_PROVIDER: "anthropic"` to
-`stubHookCtx` — whichever is minimally invasive.
+Expected: Full suite passes. The existing `runStreamingHook.test.ts` "happy path" test
+continues to exercise the Anthropic path because Step 1.2 pinned `stubHookCtx.env` to
+`{ TEACHER_PROVIDER: "anthropic" }` (so `routeModel` returns the Anthropic client and the
+already-mocked `callAnthropicStream` is used). If this test now fails calling an unmocked
+`callWorkersAIStream`, Step 1.2 was skipped — apply it before proceeding.
 
 **Step 4c: Live verification (gated on `just api` running)**
 
@@ -1235,3 +1278,19 @@ After all tasks are committed:
 - [ ] Live chat turn surfaces `<student_memory>` facts (memory recall works)
 - [ ] No Anthropic API calls appear in the CF AI Gateway dashboard for chat turns
 - [ ] If streaming tool-calls work live: document in issue #69 comment. If not: file follow-up and apply `tool_choice:"none"` on WAI path.
+
+---
+
+## Challenge Resolution (2026-06-19)
+
+`/challenge` returned NEEDS_REWORK with one BLOCKER and one residual risk. Both fixed:
+
+- **[BLOCKER] resolved** — Task 4 Step 1 now contains an explicit numbered sub-step
+  (Step 1.2) that pins `stubHookCtx.env` to `{ TEACHER_PROVIDER: "anthropic" }`, with its
+  own before/after code, so the existing happy-path test keeps exercising the Anthropic
+  path after the provider branch lands. The fix is no longer prose-only.
+- **[Residual risk] resolved** — `parseOpenAIStream` (Task 3) now yields text `delta`
+  events LIVE (one per content fragment, before the terminal `done`) instead of buffering
+  in `pendingTextDeltas` and flushing at `finish_reason`. The Task 3 text-only test was
+  strengthened to assert `deltaTexts === ["Hello", ", world"]` and that all deltas precede
+  the `done` event, so the live-streaming behavior is now test-enforced.
