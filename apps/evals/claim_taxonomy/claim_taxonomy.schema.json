@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crescend.ai/schemas/claim_taxonomy/v0",
+  "title": "CrescendAI Claim Taxonomy",
+  "description": "Versioned taxonomy of (dimension, location) music-feedback claims for the deterministic verifier.",
+  "type": "object",
+  "required": [
+    "taxonomy_version",
+    "extractor_judge_boundary",
+    "claim_schema",
+    "dimensions",
+    "verdict_spec"
+  ],
+  "properties": {
+    "taxonomy_version": {
+      "type": "string",
+      "description": "Semantic version of this taxonomy artifact."
+    },
+    "extractor_judge_boundary": {
+      "type": "object",
+      "required": ["description", "llm_in_truth_label"],
+      "properties": {
+        "description": { "type": "string" },
+        "llm_in_truth_label": {
+          "type": "boolean",
+          "const": false,
+          "description": "Must be false: the verifier's truth label never invokes an LLM."
+        }
+      },
+      "additionalProperties": false
+    },
+    "claim_schema": {
+      "type": "object",
+      "description": "JSON Schema fragment describing a single structured claim."
+    },
+    "dimensions": {
+      "type": "object",
+      "description": "Registry of all musical dimensions and their verifiability status.",
+      "additionalProperties": {
+        "$ref": "#/$defs/dimension_entry"
+      }
+    },
+    "verdict_spec": {
+      "type": "object",
+      "required": [
+        "labels",
+        "unverifiable_reason_codes",
+        "faithfulness_formula",
+        "coverage_formula",
+        "unverifiable_reporting"
+      ],
+      "properties": {
+        "labels": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "unverifiable_reason_codes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "faithfulness_formula": { "type": "string" },
+        "coverage_formula": { "type": "string" },
+        "unverifiable_reporting": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "provisional_tolerance": {
+      "type": "object",
+      "required": ["name", "provisional", "unit", "calibration_source", "locked"],
+      "properties": {
+        "name": { "type": "string" },
+        "provisional": { "type": "number" },
+        "unit": { "type": "string" },
+        "calibration_source": { "type": "string" },
+        "locked": { "type": "boolean", "const": false }
+      },
+      "additionalProperties": false
+    },
+    "active_dimension": {
+      "type": "object",
+      "required": [
+        "status",
+        "reference",
+        "check",
+        "tolerance",
+        "reliability_tier",
+        "measurement",
+        "minimum_events"
+      ],
+      "properties": {
+        "status": { "type": "string", "const": "active" },
+        "reference": { "type": "string" },
+        "check": { "type": "string" },
+        "tolerance": { "$ref": "#/$defs/provisional_tolerance" },
+        "reliability_tier": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "measurement": { "type": "string" },
+        "minimum_events": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "gated_dimension": {
+      "type": "object",
+      "required": ["status", "gate_id", "reference", "check"],
+      "properties": {
+        "status": { "type": "string", "const": "gated_on_measurement" },
+        "gate_id": { "type": "string" },
+        "reference": { "type": "string" },
+        "check": { "type": "string" },
+        "rationale": { "type": "string" }
+      }
+    },
+    "scoped_out_dimension": {
+      "type": "object",
+      "required": ["status", "rationale"],
+      "properties": {
+        "status": { "type": "string", "const": "scoped_out" },
+        "rationale": { "type": "string" }
+      }
+    },
+    "dimension_entry": {
+      "oneOf": [
+        { "$ref": "#/$defs/active_dimension" },
+        { "$ref": "#/$defs/gated_dimension" },
+        { "$ref": "#/$defs/scoped_out_dimension" }
+      ]
+    }
+  }
+}
