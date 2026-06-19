@@ -34,7 +34,7 @@ Group C (parallel, independent of A and B, depends on Group 0): Task 5
 - Create: `apps/evals/claim_taxonomy/tests/test_schema_validates.py`
 - Modify: `apps/evals/pyproject.toml` (add `claim_taxonomy` to hatch wheel packages)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/claim_taxonomy/tests/test_schema_validates.py
@@ -148,14 +148,14 @@ def test_taxonomy_missing_required_field_fails_schema() -> None:
         jsonschema.validate(instance=bad, schema=schema)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy/apps/evals && uv run pytest claim_taxonomy/tests/test_schema_validates.py -v 2>&1 | head -40
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_taxonomy'` or `FileNotFoundError` on SCHEMA_PATH (schema file does not exist yet).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Create the package init files first:
 
@@ -316,14 +316,14 @@ Then create the JSON Schema. This schema validates `claim_taxonomy.json` (the fu
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy/apps/evals && uv run pytest claim_taxonomy/tests/test_schema_validates.py -v 2>&1 | tail -20
 ```
 Expected: PASS — all 5 tests green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy && git add apps/evals/claim_taxonomy/__init__.py apps/evals/claim_taxonomy/tests/__init__.py apps/evals/claim_taxonomy/audit/__init__.py apps/evals/claim_taxonomy/claim_taxonomy.schema.json apps/evals/claim_taxonomy/tests/test_schema_validates.py apps/evals/pyproject.toml && git commit -m "feat(taxonomy): JSON Schema + package scaffold + schema self-validation test (#63)"
@@ -343,7 +343,7 @@ cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy && git
 - Create: `apps/evals/claim_taxonomy/claim_taxonomy.json`
 - Modify: `apps/evals/claim_taxonomy/tests/test_schema_validates.py` (add two new tests)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `apps/evals/claim_taxonomy/tests/test_schema_validates.py`:
 
@@ -410,14 +410,14 @@ def test_extractor_judge_boundary_llm_flag_is_false() -> None:
     assert taxonomy["extractor_judge_boundary"]["llm_in_truth_label"] is False
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy/apps/evals && uv run pytest claim_taxonomy/tests/test_schema_validates.py::test_claim_taxonomy_json_exists -v 2>&1 | tail -10
 ```
 Expected: FAIL — `AssertionError: Taxonomy not found` (file does not exist yet).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Create `apps/evals/claim_taxonomy/claim_taxonomy.json`:
 
@@ -572,14 +572,14 @@ Create `apps/evals/claim_taxonomy/claim_taxonomy.json`:
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy/apps/evals && uv run pytest claim_taxonomy/tests/test_schema_validates.py -v 2>&1 | tail -20
 ```
 Expected: PASS — all tests (original 5 + 6 new) green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy && git add apps/evals/claim_taxonomy/claim_taxonomy.json apps/evals/claim_taxonomy/tests/test_schema_validates.py && git commit -m "feat(taxonomy): claim_taxonomy.json v0 with all 7 dimensions + extended schema tests (#63)"
@@ -599,7 +599,7 @@ cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy && git
 - Create: `apps/evals/claim_taxonomy/verdict_dispatch.py`
 - Create: `apps/evals/claim_taxonomy/tests/test_verdict_dispatch.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/claim_taxonomy/tests/test_verdict_dispatch.py
@@ -837,14 +837,14 @@ def test_missing_measurement_context_raises_type_error() -> None:
         route_verdict(claim, REGISTRY)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy/apps/evals && uv run pytest claim_taxonomy/tests/test_verdict_dispatch.py -v 2>&1 | head -20
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_taxonomy.verdict_dispatch'` (file does not exist yet).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # apps/evals/claim_taxonomy/verdict_dispatch.py
@@ -947,14 +947,14 @@ def route_verdict(
     return ("REFUTED", None)
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy/apps/evals && uv run pytest claim_taxonomy/tests/test_verdict_dispatch.py -v 2>&1 | tail -20
 ```
 Expected: PASS — all 12 tests green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy && git add apps/evals/claim_taxonomy/verdict_dispatch.py apps/evals/claim_taxonomy/tests/test_verdict_dispatch.py && git commit -m "feat(taxonomy): verdict_dispatch.py routing stub + round-trip tests (#63)"
@@ -973,7 +973,7 @@ cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy && git
 **Files:**
 - Create: `apps/evals/claim_taxonomy/tests/test_round_trip.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/claim_taxonomy/tests/test_round_trip.py
@@ -1148,7 +1148,7 @@ def test_unresolvable_location_returns_unverifiable() -> None:
     assert reason == "unlocalizable"
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy/apps/evals && uv run pytest claim_taxonomy/tests/test_round_trip.py -v 2>&1 | head -20
@@ -1159,20 +1159,20 @@ This task is an integration test over the artifacts built in Tasks 2 and 3 — i
 
 If Tasks 2 and 3 are already merged, the second meaningful failure mode is a real assertion error from one of the routing tests — this is the integration test catching a Task 2/Task 3 bug that the unit tests missed (e.g. a dimension registry entry the round-trip claim exercises differently). That is exactly what this task exists to catch.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No new implementation files are created in this task. The "implementation" is the verification that the Task 2 and Task 3 artifacts integrate correctly. Run the test (Step 4). If every assertion passes, this task is done. If any assertion fails, the bug lives in the Task 2 (`claim_taxonomy.json`) or Task 3 (`verdict_dispatch.py`) artifact — go fix it there, re-run that task's own unit tests plus this round-trip test, and amend the relevant earlier commit or add a fix commit scoped to that artifact. Never patch the round-trip test to mask an artifact bug.
 
 The most likely integration bug to surface: the `neutral` polarity branch in `verdict_dispatch.py`. After the near_threshold check (step 7) already removes the dead-band, the neutral SUPPORTED condition must be `abs(d) < tau` (strict), not `abs(d) <= tau`, because the boundary case is owned by near_threshold. Confirm `test_neutral_polarity_with_no_anomaly_returns_supported` (Task 3) and any neutral round-trip claim here both pass with this strict-less-than logic. If they conflict, the fix is in Task 3's `verdict_dispatch.py`, not here.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy/apps/evals && uv run pytest claim_taxonomy/tests/ -v 2>&1 | tail -30
 ```
 Expected: PASS — all tests in the entire `claim_taxonomy/tests/` suite green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy && git add apps/evals/claim_taxonomy/tests/test_round_trip.py && git commit -m "test(taxonomy): round-trip integration test claim_taxonomy.json → schema → route_verdict (#63)"
@@ -1192,7 +1192,7 @@ cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy && git
 - Create: `apps/evals/claim_taxonomy/audit/baseline_v1_audit.json`
 - Create: `apps/evals/claim_taxonomy/tests/test_audit_integrity.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/claim_taxonomy/tests/test_audit_integrity.py
@@ -1314,14 +1314,14 @@ def test_scoped_out_fraction_matches_distribution() -> None:
     )
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy/apps/evals && uv run pytest claim_taxonomy/tests/test_audit_integrity.py -v 2>&1 | head -15
 ```
 Expected: FAIL — `AssertionError: Audit file not found` (file does not exist yet).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Create `apps/evals/claim_taxonomy/audit/baseline_v1_audit.json` by reading `apps/evals/results/baseline_v1.jsonl` directly and manually decomposing 35 representative claims. The procedure:
 
@@ -1667,14 +1667,14 @@ The file contents below are the result of this manual decomposition, drawn from 
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy/apps/evals && uv run pytest claim_taxonomy/tests/test_audit_integrity.py -v 2>&1 | tail -20
 ```
 Expected: PASS — all 10 tests green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-63-claim-taxonomy && git add apps/evals/claim_taxonomy/audit/baseline_v1_audit.json apps/evals/claim_taxonomy/tests/test_audit_integrity.py && git commit -m "feat(taxonomy): baseline_v1_audit.json 35-claim hand-decomposition + integrity tests (#63)"
@@ -1801,3 +1801,62 @@ The hatch build config lists `packages = ["shared", "pipeline", "model", "memory
 **VERDICT: NEEDS_REWORK — two blockers must be resolved before execution:**
 1. All pytest run commands must use `cd apps/evals && uv run pytest claim_taxonomy/tests/...` (not `uv run --directory apps/evals pytest apps/evals/...`).
 2. `baseline_v1_audit.json` internal arithmetic is inconsistent (`scoped_out_fraction: 0.4` disagrees with `dimension_distribution` by a factor that will cause `test_scoped_out_fraction_matches_distribution` to fail). The build agent must derive all aggregate statistics by counting from the `sample_claims` array directly, not copy the pre-filled values verbatim.
+
+---
+
+## Confirming Challenge Review (Pass 2 — post eba674e7)
+
+**Context:** This is a second-pass confirming review. The prior pass (above) returned NEEDS_REWORK with two blockers and three risks. Commit `eba674e7` claimed to address all of them. This pass reads the current plan from disk and verifies each fix holds, then checks for anything missed.
+
+### Prior Blocker Status
+
+**Prior Blocker 1 (pytest path doubling): RESOLVED.**
+All Step 2 and Step 4 pytest commands now use `cd .../apps/evals && uv run pytest claim_taxonomy/tests/...` — the correct form. No path doubling exists anywhere in the plan. Verified by grepping all `uv run pytest` occurrences. Fix holds.
+
+**Prior Blocker 2 (audit arithmetic): RESOLVED.**
+The audit JSON in the plan now states `"scoped_out_fraction": 0.2857`, `"total_claims": 35`, and `sample_claims` array of length 35. Arithmetic verified by script: `scoped_count = phrasing(7) + interpretation(3) + timbre(0) = 10`; `10/35 = 0.2857`. `sum(dimension_distribution.values()) = 35`. `sum(polarity_distribution.values()) = 35`. All three consistency checks used by `test_dimension_distribution_sums_to_total`, `test_scoped_out_fraction_matches_distribution`, and `test_sample_claims_count_matches_total` will pass. Fix holds.
+
+### Prior Risk Status
+
+**Prior Risk 1 (near_threshold formula — spec vs code divergence): PARTIALLY RESOLVED.**
+The spec (`docs/specs/2026-06-18-claim-taxonomy-design.md`) was updated and now correctly states `abs(abs(d) - tau) <= error_bar` at both the table (line 100) and the dispatch step 6 (line 108). The `verdict_dispatch.py` implementation in the plan uses `abs(abs(d) - tau)`. The test arithmetic is internally consistent (verified: d=-9.0, tau=8.0, error_bar=2.0 → `abs(9.0-8.0)=1.0 <= 2.0` fires correctly). However, the `dispatch_order` array inside `claim_taxonomy.json` (the committed artifact) still reads `"7. If abs(d - tau) <= error_bar → UNVERIFIABLE(near_threshold)"` — the old incorrect formula. This is the contract artifact that issue #65 will read. The spec and code are now correct; the JSON artifact is not. Downgraded to [RISK] because the dispatch_order strings are non-executable human-readable prose and no test validates their content, but #65's implementer reading the artifact without also reading the spec will implement the wrong formula.
+
+**Prior Risk 2 (Task 4 TDD watch-it-fail): ACKNOWLEDGED IN PLAN, not fixed (by design).**
+The plan correctly explains the watch-it-fail constraint (Step 2 notes collection failure as the initial failing state). This is acceptable for a pure integration test with no new implementation. No change needed.
+
+**Prior Risk 3 (claim_taxonomy missing from hatch build packages): RESOLVED.**
+Task 1 Step 3 now explicitly modifies `apps/evals/pyproject.toml` to add `claim_taxonomy` to `packages = ["shared", "pipeline", "model", "memory", "inference", "claim_taxonomy"]`. Fix holds.
+
+**Prior RISKY presumption (`scoped_out_fraction: 0.4`): RESOLVED.** Value is now 0.2857. Fix holds.
+
+### New Findings
+
+**[RISK] (confidence: 8/10) — `claim_taxonomy.json` artifact's `dispatch_order` step 7 still contains the wrong `near_threshold` formula.**
+The committed JSON artifact (Task 2 Step 3) contains `"7. If abs(d - tau) <= error_bar → UNVERIFIABLE(near_threshold)"`. The correct formula is `abs(abs(d) - tau) <= error_bar`. The spec and the code are now correct, but the artifact — which is the primary contract document for #65 — is not. No test catches this because `dispatch_order` is an array of human-readable strings with no schema constraint on their content. The build agent must change this string in the `claim_taxonomy.json` block to `"7. If abs(abs(d) - tau) <= error_bar → UNVERIFIABLE(near_threshold)"` before committing Task 2. Without this fix, an #65 implementer reading only the taxonomy artifact will implement the wrong dead-band.
+
+**[OBS] — `timbre: 0` in `dimension_distribution` is structurally benign.**
+The `dimension_distribution` header in the audit JSON includes `"timbre": 0`. The `test_dimension_distribution_sums_to_total` test calls `sum(dist.values())` over the header dict — `0` contributes nothing, so the sum is still 35 and the test passes. The `test_scoped_out_fraction_matches_distribution` test uses `dist.get(d, 0)` which handles both the present-with-zero case and the absent case identically. No test failure. The explicit zero is cosmetically redundant but not harmful.
+
+**[OBS] — All 40 test functions are accounted for: 5 (Task 1) + 6 (Task 2, added to test_schema_validates.py) + 12 (Task 3) + 7 (Task 4) + 10 (Task 5) = 40. Counts stated in each task ("all N tests green") are accurate.**
+
+**[OBS] — Non-circularity invariant holds throughout.** `llm_in_truth_label: false` is schema-enforced (`"const": false`), artifact-stated, and test-guarded. `verdict_dispatch.py` contains zero LLM calls. `baseline_v1_audit.json` methodology field explicitly states LLM-free decomposition. The invariant is protected at three independent layers.
+
+### Presumption Inventory (Pass 2)
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `jsonschema>=4.20.0` available in eval env | SAFE | Pinned in `pyproject.toml` under `teacher-model-stage0` optional dep. Verified. |
+| `claim_taxonomy` importable by pytest | SAFE | Package init files created in Task 1; pytest rootdir = `apps/evals` from `pyproject.toml`. Same mechanism as `teaching_knowledge` in existing tests. |
+| `baseline_v1.jsonl` has ≥35 non-empty synthesis_text records | SAFE | Verified: 920 non-empty records of 2271 total. |
+| Audit arithmetic (total, fraction, distributions) is internally consistent | SAFE | Verified by script: all three consistency assertions pass with the current plan values. |
+| `dispatch_order` step 7 string in `claim_taxonomy.json` is read as contract by #65 | VALIDATE | It is prose, not executable — but if #65 reads the artifact rather than the spec, it will get the wrong formula. The build agent must fix this string. |
+
+### Summary
+
+[BLOCKER] count: 0
+[RISK]    count: 1
+[QUESTION] count: 0
+
+The two prior blockers are resolved. The one remaining risk (dispatch_order step 7 wrong formula in the JSON artifact) is a documentation inconsistency between the artifact and the spec/code — no test catches it, and it will mislead the #65 implementer. It is a one-line fix in the Task 2 JSON block.
+
+VERDICT: PROCEED_WITH_CAUTION — fix `dispatch_order` step 7 in `claim_taxonomy.json` (change `"abs(d - tau)"` to `"abs(abs(d) - tau)"`) as part of the Task 2 commit before proceeding.
