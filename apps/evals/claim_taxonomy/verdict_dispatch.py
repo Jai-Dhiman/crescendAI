@@ -95,6 +95,10 @@ def route_verdict(
         return ("UNVERIFIABLE", "near_threshold")
 
     # Step 8 & 9: polarity confirmation
+    if polarity not in ("+", "-", "neutral"):
+        raise TypeError(
+            f"claim['polarity'] must be one of '+', '-', 'neutral'; got {polarity!r}."
+        )
     if polarity == "+":
         supported = d > 0 and abs(d) > tau
     elif polarity == "-":

@@ -222,6 +222,16 @@ def test_fabricated_anomaly_where_none_exists_returns_refuted() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Error handling: invalid polarity raises TypeError
+# ---------------------------------------------------------------------------
+
+def test_invalid_polarity_raises_type_error() -> None:
+    claim = _make_claim(polarity="bad_value")
+    with pytest.raises(TypeError, match="polarity"):
+        route_verdict(claim, REGISTRY)
+
+
+# ---------------------------------------------------------------------------
 # Error handling: unknown dimension raises TypeError
 # ---------------------------------------------------------------------------
 
