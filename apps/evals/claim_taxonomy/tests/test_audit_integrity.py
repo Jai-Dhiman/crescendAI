@@ -146,3 +146,16 @@ def test_header_aggregates_match_sample_claims_array() -> None:
     assert abs(audit["scoped_out_fraction"] - expected_fraction) < 0.001, (
         f"scoped_out_fraction={audit['scoped_out_fraction']} but array gives {expected_fraction}"
     )
+
+    def _loc_bucket(loc) -> str:
+        if loc == "whole_piece":
+            return "whole_piece"
+        if isinstance(loc, dict) and loc.get("bar_end") == loc.get("bar_start"):
+            return "bar"
+        return "region"
+
+    loc = Counter(_loc_bucket(c["location"]) for c in claims)
+    for bucket, count in audit["location_distribution"].items():
+        assert loc.get(bucket, 0) == count, (
+            f"location_distribution[{bucket}]={count} but array has {loc.get(bucket, 0)}"
+        )
