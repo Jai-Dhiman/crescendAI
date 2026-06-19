@@ -134,3 +134,65 @@ def test_taxonomy_missing_required_field_fails_schema() -> None:
     }
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=bad, schema=schema)
+
+
+TAXONOMY_PATH = TAXONOMY_DIR / "claim_taxonomy.json"
+
+
+def test_claim_taxonomy_json_exists() -> None:
+    assert TAXONOMY_PATH.exists(), f"Taxonomy not found at {TAXONOMY_PATH}"
+
+
+def test_claim_taxonomy_json_validates_against_schema() -> None:
+    """Full claim_taxonomy.json must pass JSON Schema validation."""
+    schema = _load_schema()
+    with open(TAXONOMY_PATH) as f:
+        taxonomy = json.load(f)
+    # Must not raise
+    jsonschema.validate(instance=taxonomy, schema=schema)
+
+
+def test_all_seven_dimensions_present() -> None:
+    with open(TAXONOMY_PATH) as f:
+        taxonomy = json.load(f)
+    expected = {
+        "timing", "pedaling", "dynamics", "articulation",
+        "phrasing", "interpretation", "timbre"
+    }
+    actual = set(taxonomy["dimensions"].keys())
+    assert actual == expected, f"Missing: {expected - actual}, Extra: {actual - expected}"
+
+
+def test_active_dimensions_have_complete_registry() -> None:
+    with open(TAXONOMY_PATH) as f:
+        taxonomy = json.load(f)
+    required_active_fields = {
+        "status", "reference", "check", "tolerance",
+        "reliability_tier", "measurement", "minimum_events"
+    }
+    for dim_name, dim in taxonomy["dimensions"].items():
+        if dim["status"] == "active":
+            missing = required_active_fields - set(dim.keys())
+            assert not missing, (
+                f"Active dimension '{dim_name}' missing fields: {missing}"
+            )
+
+
+def test_all_tolerances_are_provisional() -> None:
+    with open(TAXONOMY_PATH) as f:
+        taxonomy = json.load(f)
+    for dim_name, dim in taxonomy["dimensions"].items():
+        if dim.get("status") == "active":
+            tol = dim["tolerance"]
+            assert tol["locked"] is False, (
+                f"Dimension '{dim_name}': tolerance must be locked=false (provisional)"
+            )
+            assert tol["calibration_source"] == "#65/M1 error-bar study", (
+                f"Dimension '{dim_name}': calibration_source must point to #65/M1"
+            )
+
+
+def test_extractor_judge_boundary_llm_flag_is_false() -> None:
+    with open(TAXONOMY_PATH) as f:
+        taxonomy = json.load(f)
+    assert taxonomy["extractor_judge_boundary"]["llm_in_truth_label"] is False

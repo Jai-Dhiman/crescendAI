@@ -1,0 +1,148 @@
+{
+  "taxonomy_version": "v0",
+  "extractor_judge_boundary": {
+    "description": "An LLM may be used as the claim extractor (prose to structured claim). The verifier's truth label (SUPPORTED | REFUTED | UNVERIFIABLE) must never invoke an LLM. This boundary is the PROVE/ViCrit non-circularity defense: the checker's correctness is grounded in a programmatic oracle over a measured signal, not any model's opinion.",
+    "llm_in_truth_label": false
+  },
+  "claim_schema": {
+    "type": "object",
+    "required": ["proposition", "dimension", "location", "polarity"],
+    "properties": {
+      "proposition": {
+        "type": "string",
+        "description": "Free-text source claim from the teacher's prose output."
+      },
+      "dimension": {
+        "type": "string",
+        "enum": ["timing", "pedaling", "dynamics", "articulation", "phrasing", "interpretation", "timbre"],
+        "description": "Musical dimension the claim is about."
+      },
+      "location": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["bar_start", "bar_end"],
+            "properties": {
+              "bar_start": { "type": "integer", "minimum": 1 },
+              "bar_end": { "type": "integer", "minimum": 1 }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "string",
+            "const": "whole_piece"
+          }
+        ],
+        "description": "Bar-range [bar_start, bar_end] (inclusive) or 'whole_piece'. Beat granularity is not admissible."
+      },
+      "polarity": {
+        "type": "string",
+        "enum": ["+", "-", "neutral"],
+        "description": "+: signed anomaly in the positive direction. -: signed anomaly in the negative direction. neutral: asserts a virtue or absence-of-problem."
+      },
+      "magnitude": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["value", "unit"],
+            "properties": {
+              "value": { "type": "number" },
+              "unit": { "type": "string" }
+            },
+            "additionalProperties": false
+          },
+          { "type": "null" }
+        ],
+        "description": "Optional. When present, tightens the check. When null, falls back to sign+tolerance check."
+      }
+    },
+    "additionalProperties": false
+  },
+  "dimensions": {
+    "timing": {
+      "status": "active",
+      "reference": "established_tempo",
+      "check": "signed_tempo_deviation",
+      "tolerance": {
+        "name": "signed_tempo_deviation",
+        "provisional": 8.0,
+        "unit": "percent",
+        "calibration_source": "#65/M1 error-bar study",
+        "locked": false
+      },
+      "reliability_tier": 1,
+      "measurement": "amt_onsets_region_tempo_fit",
+      "minimum_events": 8,
+      "notes": "Tolerance is a percent deviation from established_tempo over the region, NOT absolute onset-ms. This is robust to alignment jitter. Half-pedal and flutter pedaling are out of scope."
+    },
+    "pedaling": {
+      "status": "active",
+      "reference": "self_density",
+      "check": "pedal_presence_density",
+      "tolerance": {
+        "name": "pedal_presence_density_deviation",
+        "provisional": 0.25,
+        "unit": "fraction",
+        "calibration_source": "#65/M1 error-bar study",
+        "locked": false
+      },
+      "reliability_tier": 2,
+      "measurement": "amt_sustain_pedal_events",
+      "minimum_events": 2,
+      "notes": "Coarse on/off and density only. Half-pedal and flutter pedaling are out of scope. reference is self_density: fraction of bars with at least one pedal event in the same piece."
+    },
+    "dynamics": {
+      "status": "gated_on_measurement",
+      "gate_id": "rms_lufs_estimator",
+      "reference": "within_region_range",
+      "check": "dynamic_range_zscore_and_contour_slope_sign",
+      "rationale": "No audio-domain loudness estimator exists in the repo (only MIDI velocity, which is not perceived loudness). Gate: rms_lufs_estimator must be validated before this dimension is admissible. Relative within-region loudness only; absolute dB is inadmissible because recording gain is uncontrolled."
+    },
+    "articulation": {
+      "status": "gated_on_measurement",
+      "gate_id": "offset_accuracy_validation",
+      "reference": "self_overlap_ratio",
+      "check": "legato_staccato_overlap_ratio",
+      "rationale": "AMT offsets are weaker than onsets (higher quantization error). Gate: offset_accuracy_validation must confirm offset reliability before this dimension is admissible. Region-level only; single-bar articulation claims are too fragile."
+    },
+    "phrasing": {
+      "status": "scoped_out",
+      "rationale": "Perceptual. The only available proxy is itself a perceptual model output, which reintroduces circularity."
+    },
+    "interpretation": {
+      "status": "scoped_out",
+      "rationale": "Definitionally subjective. No deterministic physical oracle exists."
+    },
+    "timbre": {
+      "status": "scoped_out",
+      "rationale": "No physical proxy. Timbre is a multi-dimensional perceptual construct with no single measurable correlate in the available signal chain."
+    }
+  },
+  "verdict_spec": {
+    "labels": ["SUPPORTED", "REFUTED", "UNVERIFIABLE"],
+    "unverifiable_reason_codes": [
+      "out_of_scope_dim",
+      "gated_dim",
+      "unlocalizable",
+      "substrate_failure",
+      "region_too_short",
+      "near_threshold"
+    ],
+    "dispatch_order": [
+      "1. If dimension.status == 'scoped_out' -> UNVERIFIABLE(out_of_scope_dim)",
+      "2. If dimension.status == 'gated_on_measurement' and gate not validated -> UNVERIFIABLE(gated_dim)",
+      "3. If location is not resolvable (no score in catalog / piece not identified / span < alignment_uncertainty) -> UNVERIFIABLE(unlocalizable)",
+      "4. If measurement substrate raised an error -> UNVERIFIABLE(substrate_failure)",
+      "5. If region has fewer than dimension.minimum_events -> UNVERIFIABLE(region_too_short)",
+      "6. Compute signed deviation d vs reference",
+      "7. If abs(abs(d) - tau) <= error_bar -> UNVERIFIABLE(near_threshold)",
+      "8. If d confirms polarity direction beyond tau -> SUPPORTED",
+      "9. Otherwise -> REFUTED"
+    ],
+    "span_vs_uncertainty_failsafe": "Verifier must downgrade to UNVERIFIABLE(unlocalizable) when alignment_uncertainty >= location_span. location_span = bar_end - bar_start + 1 for bar-range; undefined (infinite) for whole_piece.",
+    "faithfulness_formula": "SUPPORTED / (SUPPORTED + REFUTED)",
+    "coverage_formula": "(SUPPORTED + REFUTED) / total_claims",
+    "unverifiable_reporting": "histogram_by_reason_code",
+    "note": "UNVERIFIABLE claims are never folded into faithfulness or coverage. They are reported as a separate histogram by typed reason code."
+  }
+}
