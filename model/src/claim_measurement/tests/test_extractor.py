@@ -26,7 +26,9 @@ def _find_any_bundle() -> Path | None:
     if not DEFAULT_BUNDLE_ROOT.exists():
         return None
     for p in DEFAULT_BUNDLE_ROOT.rglob("*.json"):
-        if not p.name.endswith(".tmp"):
+        # Skip metadata/manifest files (e.g. _index.json written by the runner);
+        # real bundles live at <piece>/<video>.json.
+        if not p.name.endswith(".tmp") and not p.name.startswith("_"):
             return p
     return None
 
