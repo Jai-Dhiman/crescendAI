@@ -131,10 +131,23 @@ def _post_chunk(amt_url: str, pcm: np.ndarray) -> dict:
     ) from last_exc
 
 
-def _transcribe_clip(audio_16k: np.ndarray, amt_url: str) -> list[dict]:
+def _transcribe_clip_with_pedals(
+    audio_16k: np.ndarray, amt_url: str
+) -> tuple[list[dict], list[dict]]:
+    """Transcribe a clip in AMT_CHUNK_S chunks, threading BOTH notes and pedal events.
+
+    The AMT server (apps/inference/amt/server.py) returns ``midi_notes`` and
+    ``pedal_events`` with times relative to each posted chunk; both receive the same
+    ``offset = i * AMT_CHUNK_S`` so they share one clip-relative time axis.
+
+    pedal_events schema (server-emitted, passed through unchanged): ``{"time": sec, "value": 0|127}``.
+    Returns (notes, pedal_events). A chunk body lacking ``pedal_events`` (older server /
+    error path) contributes no pedal events rather than raising.
+    """
     n_chunks = max(1, int(np.ceil(len(audio_16k) / (AMT_CHUNK_S * TARGET_SR))))
     chunk_len = int(AMT_CHUNK_S * TARGET_SR)
     all_notes: list[dict] = []
+    all_pedals: list[dict] = []
     for i in range(n_chunks):
         start = i * chunk_len
         end = min(start + chunk_len, len(audio_16k))
@@ -153,7 +166,18 @@ def _transcribe_clip(audio_16k: np.ndarray, amt_url: str) -> list[dict]:
                 "pitch": int(n["pitch"]),
                 "velocity": int(n.get("velocity", 80)),
             })
-    return all_notes
+        for p in body.get("pedal_events") or []:
+            all_pedals.append({
+                "time": float(p["time"]) + offset,
+                "value": int(p["value"]),
+            })
+    return all_notes, all_pedals
+
+
+def _transcribe_clip(audio_16k: np.ndarray, amt_url: str) -> list[dict]:
+    """Notes-only transcription (backward-compatible wrapper around the pedal-aware path)."""
+    notes, _ = _transcribe_clip_with_pedals(audio_16k, amt_url)
+    return notes
 
 
 def _load_bach_json_score(score_path: Path) -> tuple[np.ndarray, list[dict], str, float]:
