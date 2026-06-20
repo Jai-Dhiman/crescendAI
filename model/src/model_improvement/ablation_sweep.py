@@ -21,7 +21,7 @@ import torch
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
-from src.paths import Checkpoints, Embeddings, Labels, Results
+from src.paths import Checkpoints, Embeddings, Evals, Labels, Results
 
 from model_improvement.audio_encoders import MuQLoRAMaxModel, MuQFrozenProbeModel
 from model_improvement.data import (
@@ -31,9 +31,11 @@ from model_improvement.data import (
 from model_improvement.evaluation import (
     evaluate_model,
     per_piece_pairwise_bootstrap,
+    summarize_ood_folds,
     build_validation_gate_block,
     print_validation_gate_summary,
 )
+from model_improvement.ood_harness import OODDataset, run_ood_test
 from model_improvement.taxonomy import load_composite_labels, NUM_DIMS
 from model_improvement.training import train_model
 
@@ -210,6 +212,12 @@ def run_ablation_sweep(
 
     key_to_piece = {k: piece for piece, ks in piece_to_keys.items() for k in ks}
 
+    # OOD practice set (#76); empty until phone clips land -> gate reports SKIPPED.
+    ood_dataset = OODDataset(
+        cache_dir=Evals.ood_practice / "embeddings",
+        labels_path=Evals.ood_practice / "labels.json",
+    )
+
     print(f"Loaded {len(labels)} labels, {len(embeddings)} embeddings, {len(folds)} folds")
 
     # Resume from existing results
@@ -251,6 +259,7 @@ def run_ablation_sweep(
         muq_fold_masks: list[dict] = []
         combined_preds: list[list[float]] = []
         combined_keys: list[str] = []
+        ood_fold_results: list[dict] = []
         for fold_idx in fold_range:
             fold = folds[fold_idx]
             print(f"\n  Fold {fold_idx}")
@@ -327,6 +336,13 @@ def run_ablation_sweep(
                 combined_preds.extend(fold_res["predictions"])
                 combined_keys.extend(fold_res["pred_keys"])
 
+            ood_fold_results.append(run_ood_test(
+                trained_model, ood_dataset,
+                encode_fn=lambda m, inp, mask: m.encode(inp, mask),
+                compare_fn=lambda m, z_a, z_b: m.compare(z_a, z_b),
+                predict_fn=lambda m, inp, mask: m.predict_scores(inp, mask),
+            ))
+
             elapsed = time.time() - start_time
             pw = fold_res.get("pairwise", 0)
             r2 = fold_res.get("r2", 0)
@@ -361,10 +377,15 @@ def run_ablation_sweep(
                 preds_tensor, combined_keys, labels, key_to_piece,
                 n_boot=1000, seed=42,
             )
+        ood_summary = summarize_ood_folds(
+            ood_fold_results,
+            fold_pairwise_mean=results[config_name]["pairwise_mean"],
+        )
         validation_block = build_validation_gate_block(
             fold_metrics,
             muq_masks=(muq_fold_masks or None),
             per_piece=per_piece,
+            ood_summary=ood_summary,
         )
         results[config_name]["validation_gates"] = validation_block
 

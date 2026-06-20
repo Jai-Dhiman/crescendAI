@@ -141,6 +141,73 @@ class AudioAugmentor:
         result = torch.from_numpy(audio_np).to(device)
         return result
 
+    def room_ir_convolve(
+        self,
+        waveform: torch.Tensor,
+        sample_rate: int,
+        p: float = 1.0,
+    ) -> torch.Tensor:
+        """Convolve a waveform with a practice-room IR with probability p.
+
+        Public, composable entry point for the practice-augmentation pipeline.
+        Uses a real IR from ir_dir when available, otherwise a synthetic
+        exponential-decay room IR. Accepts a tensor or ndarray of shape [C, T]
+        and returns the same type, shape preserved.
+
+        Args:
+            waveform: [C, T] tensor or ndarray.
+            sample_rate: sample rate in Hz.
+            p: probability of applying the convolution (0 => identity).
+        """
+        if not 0.0 <= p <= 1.0:
+            raise ValueError(f"p must be in [0, 1], got {p}")
+        if random.random() >= p:
+            return waveform
+
+        is_tensor = torch.is_tensor(waveform)
+        device = waveform.device if is_tensor else None
+        audio = (
+            waveform.cpu().numpy().astype(np.float32)
+            if is_tensor
+            else np.asarray(waveform, dtype=np.float32)
+        )
+        if audio.ndim != 2:
+            raise ValueError(f"Expected [C, T], got shape {audio.shape}")
+
+        out = self._apply_room_ir(audio, sample_rate)
+        return torch.from_numpy(out).to(device) if is_tensor else out
+
+    def add_practice_noise(
+        self,
+        waveform: torch.Tensor,
+        sample_rate: int,
+        snr_range: tuple[float, float] = (10.0, 30.0),
+        p: float = 1.0,
+    ) -> torch.Tensor:
+        """Mix pink noise at a random SNR in snr_range with probability p.
+
+        Public, composable entry point matching the practice-distribution plan
+        (untreated-room noise floor). Accepts a tensor or ndarray of shape
+        [C, T] and returns the same type, shape preserved.
+        """
+        if not 0.0 <= p <= 1.0:
+            raise ValueError(f"p must be in [0, 1], got {p}")
+        if random.random() >= p:
+            return waveform
+
+        is_tensor = torch.is_tensor(waveform)
+        device = waveform.device if is_tensor else None
+        audio = (
+            waveform.cpu().numpy().astype(np.float32)
+            if is_tensor
+            else np.asarray(waveform, dtype=np.float32)
+        )
+        if audio.ndim != 2:
+            raise ValueError(f"Expected [C, T], got shape {audio.shape}")
+
+        out = self._mix_pink_noise(audio, sample_rate, snr_range=snr_range)
+        return torch.from_numpy(out).to(device) if is_tensor else out
+
     def _apply_room_ir(
         self, audio: np.ndarray, sample_rate: int
     ) -> np.ndarray:

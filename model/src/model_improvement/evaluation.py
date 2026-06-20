@@ -786,6 +786,49 @@ def flag_single_piece_regressions(
     return flagged
 
 
+def summarize_ood_folds(
+    ood_fold_results: list[dict],
+    fold_pairwise_mean: float | None = None,
+) -> dict:
+    """Aggregate per-fold OOD results into one OOD pairwise + gap summary.
+
+    The OOD set (phone-captured practice clips) is held strictly outside the
+    piece-stratified folds. Each fold's model is scored on it; we average the
+    OOD pairwise across folds and, given the clean-fold pairwise mean, report the
+    gap (clean - OOD), where a positive gap is degradation. The practice-
+    augmentation exit criterion is gap <= 0.10.
+
+    Args:
+        ood_fold_results: per-fold run_ood_test outputs (some may be
+            {"skipped": "empty_ood_dataset"} when no clips are present).
+        fold_pairwise_mean: the clean fold pairwise mean for this config.
+
+    Returns:
+        {"skipped": ...} when no fold scored OOD, else a dict with
+        ood_pairwise_mean, ood_pairwise_per_fold, n_folds_scored, n_samples, and
+        (when fold_pairwise_mean given) ood_minus_fold_gap.
+    """
+    scored = [
+        r for r in ood_fold_results
+        if r and not r.get("skipped") and r.get("pairwise") is not None
+    ]
+    if not scored:
+        return {"skipped": "empty_ood_dataset", "n_folds_scored": 0}
+
+    pw = float(np.mean([r["pairwise"] for r in scored]))
+    out: dict = {
+        "ood_pairwise_mean": pw,
+        "ood_pairwise_per_fold": [r["pairwise"] for r in scored],
+        "n_folds_scored": len(scored),
+        "n_samples": scored[0].get("n_samples"),
+    }
+    if fold_pairwise_mean is not None:
+        out["fold_pairwise_mean"] = fold_pairwise_mean
+        # clean - OOD: positive => OOD degradation. Exit criterion: <= 0.10.
+        out["ood_minus_fold_gap"] = fold_pairwise_mean - pw
+    return out
+
+
 def build_validation_gate_block(
     fold_metrics: list[dict],
     *,
@@ -793,9 +836,10 @@ def build_validation_gate_block(
     aria_masks=None,
     per_piece: dict | None = None,
     per_piece_baseline: dict | None = None,
+    ood_summary: dict | None = None,
     g2_threshold: float = G2_DECORRELATION_THRESHOLD,
 ) -> dict:
-    """Assemble the three WS2 validation gates into one JSON-serializable block.
+    """Assemble the WS2 validation gates into one JSON-serializable block.
 
     Args:
         fold_metrics: per-fold evaluate_model results (for dimension_collapse).
@@ -804,6 +848,8 @@ def build_validation_gate_block(
             skipped (single stream) rather than silently omitted.
         per_piece: per_piece_pairwise output for this run.
         per_piece_baseline: prior per_piece_pairwise to flag regressions against.
+        ood_summary: summarize_ood_folds output (OOD pairwise + gap). When None,
+            the OOD gate is explicitly marked not_run.
     """
     collapse_per_fold = [m.get("dimension_collapse_score") for m in fold_metrics]
     collapse_vals = [
@@ -837,6 +883,8 @@ def build_validation_gate_block(
             block["single_piece_regressions"] = flag_single_piece_regressions(
                 per_piece, per_piece_baseline
             )
+
+    block["ood"] = ood_summary if ood_summary is not None else {"skipped": "not_run"}
 
     return block
 
@@ -884,3 +932,21 @@ def print_validation_gate_summary(block: dict) -> None:
                 f"      {r['piece']}: {r['current']:.4f} vs baseline "
                 f"{r['baseline']:.4f} (delta {r['delta']:+.4f})"
             )
+
+    ood = block.get("ood", {})
+    if ood.get("skipped"):
+        print(f"  OOD practice gate: SKIPPED ({ood['skipped']})")
+    else:
+        pw = ood.get("ood_pairwise_mean", float("nan"))
+        gap = ood.get("ood_minus_fold_gap")
+        gap_str = f", gap (clean-OOD)={gap:+.4f}" if isinstance(gap, float) else ""
+        flag = (
+            " EXCEEDS 0.10 TARGET"
+            if isinstance(gap, float) and gap > 0.10
+            else ""
+        )
+        print(
+            f"  OOD practice gate: pairwise={pw:.4f}{gap_str} "
+            f"(n={ood.get('n_samples')} clips, {ood.get('n_folds_scored')} folds)"
+            f"{flag}"
+        )

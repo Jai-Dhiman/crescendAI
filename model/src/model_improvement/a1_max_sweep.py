@@ -31,7 +31,7 @@ import pytorch_lightning as pl
 from functools import partial
 from torch.utils.data import DataLoader
 
-from src.paths import Checkpoints, Embeddings, Labels, Results
+from src.paths import Checkpoints, Embeddings, Evals, Labels, Results
 
 from model_improvement.audio_encoders import MuQLoRAMaxModel
 from model_improvement.data import (
@@ -43,9 +43,11 @@ from model_improvement.data import (
 from model_improvement.evaluation import (
     evaluate_model,
     per_piece_pairwise_bootstrap,
+    summarize_ood_folds,
     build_validation_gate_block,
     print_validation_gate_summary,
 )
+from model_improvement.ood_harness import OODDataset, run_ood_test
 from model_improvement.taxonomy import load_composite_labels, NUM_DIMS
 
 # Sweep grid
@@ -199,6 +201,15 @@ def run_sweep(
         with open(baseline_results_path) as f:
             baseline_results = json.load(f)
 
+    # OOD practice set (held strictly outside the folds). Empty until ~30 phone
+    # clips are captured per data/evals/ood_practice/README.md; run_ood_test then
+    # returns {"skipped": "empty_ood_dataset"} and the gate reports SKIPPED.
+    ood_dataset = OODDataset(
+        cache_dir=Evals.ood_practice / "embeddings",
+        labels_path=Evals.ood_practice / "labels.json",
+    )
+    print(f"OOD practice set: {len(ood_dataset)} clips")
+
     print(f"Loaded {len(labels)} labels, {len(embeddings)} embeddings, {len(folds)} folds")
 
     all_configs = list(
@@ -250,6 +261,7 @@ def run_sweep(
         muq_fold_masks: list[dict] = []
         combined_preds: list[list[float]] = []
         combined_keys: list[str] = []
+        ood_fold_results: list[dict] = []
         for fold_idx, fold in enumerate(folds):
             run_count += 1
             print(f"\n  Fold {fold_idx} (run {run_count}/{total_runs})")
@@ -319,6 +331,14 @@ def run_sweep(
                 combined_preds.extend(fold_res["predictions"])
                 combined_keys.extend(fold_res["pred_keys"])
 
+            # Score this fold's model on the held-out OOD practice set (#76).
+            ood_fold_results.append(run_ood_test(
+                trained_model, ood_dataset,
+                encode_fn=lambda m, inp, mask: m.encode(inp, mask),
+                compare_fn=lambda m, z_a, z_b: m.compare(z_a, z_b),
+                predict_fn=lambda m, inp, mask: m.predict_scores(inp, mask),
+            ))
+
             elapsed = time.time() - start_time
             pw = fold_res.get("pairwise", 0)
             r2 = fold_res.get("r2", 0)
@@ -383,12 +403,18 @@ def run_sweep(
             .get("validation_gates", {})
             .get("per_piece_pairwise")
         )
+        # OOD pairwise + OOD-minus-fold gap (#76).
+        ood_summary = summarize_ood_folds(
+            ood_fold_results,
+            fold_pairwise_mean=results[config_name]["pairwise_mean"],
+        )
         validation_block = build_validation_gate_block(
             fold_metrics,
             muq_masks=(muq_fold_masks or None),
             aria_masks=(aria_fold_masks or None),
             per_piece=per_piece,
             per_piece_baseline=baseline_per_piece,
+            ood_summary=ood_summary,
         )
         results[config_name]["validation_gates"] = validation_block
 
