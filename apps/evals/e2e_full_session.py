@@ -268,7 +268,14 @@ def run(
     synthesis_timeout_ms = 30000
     screenshot_paths: list[str] = []
 
-    print(f"[full-eval] Opening {'headed' if not headless else 'headless'} browser...")
+    if not headless:
+        print("\n" + "=" * 66)
+        print("[full-eval] The session + synthesis phase above is terminal-only.")
+        print("[full-eval] A Chrome window is opening NOW — watch the chat play out.")
+        print("[full-eval] It will STAY OPEN at the end until you press Enter here.")
+        print("=" * 66 + "\n")
+    else:
+        print("[full-eval] Opening headless browser...")
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless, slow_mo=slow_mo if not headless else 0)
         context = browser.new_context()
@@ -412,6 +419,13 @@ def run(
         except Exception as exc:
             errors.append(f"Unexpected error: {exc}")
         finally:
+            # When watching headed, keep the window open so the human can inspect the
+            # rendered chat/synthesis. Never block in headless / non-TTY (CI) runs.
+            if not headless and sys.stdin.isatty():
+                input(
+                    "\n[full-eval] Browser left open for inspection. "
+                    "Press Enter here to close it and print the report... "
+                )
             context.close()
             browser.close()
 
