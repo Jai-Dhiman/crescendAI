@@ -7,6 +7,8 @@
 > the forward-looking companion.
 
 > **Status (2026-04-21):** Clean-fold baseline established and optimized. **A1-Max optimized: 79.85% pairwise, R2=0.336** (4-fold mean, clean folds). **Aria Phase C pipeline validated:** `AriaLoRAModel` (LoRA rank-32 on layers 8-15 of 16, PEFT) smoke-tested on MPS — all assertions pass (LoRA grads non-zero, base frozen, no NaN, loss trending down). Cloud convergence run blocked on T5 labeling. See `model/src/model_improvement/aria_encoder.py` and `model/scripts/smoke_test_aria.py`.
+>
+> **Research path 1 (verifiable feedback) — deterministic claim verifier SHIPPED (#65, 2026-06-19):** `claim_taxonomy.json` bumped to v0.1 (dynamics dimension activated). `DynamicsMeasurer`, `TimingMeasurer`, `PedalingMeasurer`, `LocationResolver`, `verify()` orchestrator, and CLI shipped in `apps/evals/claim_taxonomy/verifier/`. Signed-d convention + error-bar table documented in `docs/model/claim-verifier-signed-d-conventions.md`. `BundleExtractor` skeleton present; real-claim faithfulness rate (#67) and proxy-to-perception gate (#66) are next.
 
 > **FOLD LEAK WARNING:** All pairwise accuracy numbers in the Legacy Results section below were computed with leaked folds (segments from the same piece appearing in both train and val splits). These numbers are INVALID for model comparison. Clean piece-stratified folds are now in place. All future results use piece-stratified CV only.
 
