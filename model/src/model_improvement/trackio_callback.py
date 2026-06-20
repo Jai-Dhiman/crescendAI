@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from typing import Any
 
@@ -27,7 +28,9 @@ class TrackioCallback(pl.Callback):
         self.experiment_id = experiment_id
         self.project = project
         self.config = config or {}
-        self.space_id = space_id
+        # Fall back to TRACKIO_SPACE_ID so cloud (HF Jobs) runs persist their
+        # dashboard to a Space instead of logging to ephemeral local storage.
+        self.space_id = space_id or os.environ.get("TRACKIO_SPACE_ID")
         self._active = False
 
     def on_fit_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
