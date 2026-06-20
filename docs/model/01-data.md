@@ -33,7 +33,7 @@ The training code (`src/model_improvement/data.py`) loads only embeddings and me
 - Tier-specific signals: labels, placements, contrastive mappings, augmented pairs
 
 For Aria (symbolic path), training also loads:
-- AMT MIDI: performance MIDI transcribed from audio (via Aria-AMT; local `localhost:8001`, prod unset -> Tier 3, #9)
+- AMT MIDI: performance MIDI transcribed from audio (via Aria-AMT; local `localhost:8001`, prod unset -> Tier 3, #9). Per-segment training MIDI is produced offline by the AMT extraction pipeline (`just amt-run-all`, issue #72): `prepare_amt_audio.py` stages WAVs per tier and `apps/inference/extract_amt_midi.py` writes `data/midi/amt/{t1,cliburn,chopin}/{seg_id}.mid` consumed by `AriaMidiPairDataset`. Caveat: T1 (PercePiano) WAVs are fluidsynth-rendered from ground-truth MIDI because the original Pianoteq audio is gone, so T1 AMT MIDI is a timbre proxy (treat #77 D4 numbers as a lower bound).
 - Score MIDI: from score library (242 ASAP pieces deployed to D1 + R2)
 
 ## Datasets
