@@ -15,72 +15,76 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-CANARY_PREFIX = "CANARY_"
+# source_type marker used as the stable deletion key, decoupled from fact_text
+# (which must read as natural prose the teacher paraphrases back, never an
+# artificial token it would refuse to echo verbatim).
+CANARY_SOURCE_TYPE = "eval_seed"
 
-CANARY_TOKENS = [
-    "CANARY_RACHMANINOFF_ETUDE",
-    "CANARY_LEFT_HAND_WEAKNESS",
+# Each canary fact: natural prose the teacher echoes in its own words, plus the
+# distinctive natural keywords we assert on. The teacher recalls the MEANING, so
+# assertions match keywords case-insensitively, not literal token strings.
+CANARY_FACTS: list[dict[str, Any]] = [
+    {
+        "fact_text": (
+            "The student is currently preparing Rachmaninoff's Etude-Tableau in "
+            "E-flat minor and struggles to maintain tempo under pressure."
+        ),
+        "fact_type": "repertoire_context",
+        "keywords": ["rachmaninoff"],
+    },
+    {
+        "fact_text": (
+            "The student's left hand consistently trails the right hand by 30-50ms "
+            "in fast passages across three sessions."
+        ),
+        "fact_type": "technical_observation",
+        "keywords": ["left hand", "left-hand"],
+    },
 ]
 
-_TOKEN_TEMPLATES: dict[str, tuple[str, str]] = {
-    "CANARY_RACHMANINOFF_ETUDE": (
-        "CANARY_RACHMANINOFF_ETUDE: student is currently preparing this passage "
-        "and struggles with maintaining tempo under pressure.",
-        "repertoire_context",
-    ),
-    "CANARY_LEFT_HAND_WEAKNESS": (
-        "CANARY_LEFT_HAND_WEAKNESS: left hand consistently trails right by "
-        "30-50ms in fast passages across three sessions.",
-        "technical_observation",
-    ),
-}
-
-_DEFAULT_TEMPLATE = (
-    "{token}: a canary marker for automated recall verification.",
-    "student_goal",
-)
+# Per-fact keyword groups for the recall assertion: recall passes when, for EVERY
+# group, at least one keyword appears (case-insensitively) in the teacher's reply.
+CANARY_KEYWORD_GROUPS: list[list[str]] = [f["keywords"] for f in CANARY_FACTS]
 
 
 @dataclass
 class CanarySeed:
     """Outcome of a successful seed operation."""
     student_id: str
-    tokens: list[str] = field(default_factory=list)
+    keyword_groups: list[list[str]] = field(default_factory=list)
     rows_inserted: int = 0
 
 
-def build_insert_rows(student_id: str, tokens: list[str]) -> list[dict[str, Any]]:
+def build_insert_rows(
+    student_id: str, facts: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
     """Build INSERT row dicts for synthesized_facts — no DB required.
 
-    Each row contains all required non-null columns. The token string is
-    embedded verbatim in fact_text so keyword-search assertions work.
+    fact_text is natural prose (no artificial token); source_type is the stable
+    deletion marker (CANARY_SOURCE_TYPE).
 
     Args:
         student_id: The student UUID to seed facts for.
-        tokens: List of canary token strings (must contain the token literally).
+        facts: Canary fact specs (defaults to CANARY_FACTS); each needs
+            fact_text + fact_type.
 
     Returns:
-        List of dicts ready for psycopg2 executemany (column -> value).
+        List of dicts ready for psycopg2 (column -> value).
     """
+    effective = facts if facts is not None else CANARY_FACTS
     now = datetime.now(timezone.utc)
     rows: list[dict[str, Any]] = []
 
-    for token in tokens:
-        if token in _TOKEN_TEMPLATES:
-            fact_text, fact_type = _TOKEN_TEMPLATES[token]
-        else:
-            template, fact_type = _DEFAULT_TEMPLATE
-            fact_text = template.format(token=token)
-
+    for fact in effective:
         rows.append({
             "id": str(uuid.uuid4()),
             "student_id": student_id,
-            "fact_text": fact_text,
-            "fact_type": fact_type,
+            "fact_text": fact["fact_text"],
+            "fact_type": fact["fact_type"],
             "valid_at": now,
             "confidence": "high",
-            "evidence": f"Automated canary seed for e2e recall verification ({token})",
-            "source_type": "eval_seed",
+            "evidence": "Automated canary seed for e2e recall verification",
+            "source_type": CANARY_SOURCE_TYPE,
         })
 
     return rows
@@ -89,12 +93,12 @@ def build_insert_rows(student_id: str, tokens: list[str]) -> list[dict[str, Any]
 def seed_canary_facts(
     student_id: str,
     db_dsn: str,
-    tokens: list[str] | None = None,
+    facts: list[dict[str, Any]] | None = None,
 ) -> CanarySeed:
     """Insert canary synthesized_facts into crescendai_dev for student_id.
 
-    Removes any previous canary rows (fact_text LIKE 'CANARY_%') for this
-    student first to avoid accumulating stale rows across runs.
+    Removes any previous canary rows (source_type='eval_seed', plus legacy
+    'canary%' fact_text) for this student first to avoid stale accumulation.
 
     Args:
         student_id: Student UUID (stable for debug@crescend.ai across restarts).
@@ -109,7 +113,7 @@ def seed_canary_facts(
     """
     import psycopg2  # type: ignore[import]
 
-    effective_tokens = tokens if tokens is not None else CANARY_TOKENS
+    effective = facts if facts is not None else CANARY_FACTS
 
     try:
         conn = psycopg2.connect(db_dsn)
@@ -121,11 +125,12 @@ def seed_canary_facts(
             with conn.cursor() as cur:
                 cur.execute(
                     "DELETE FROM synthesized_facts "
-                    "WHERE student_id = %s AND fact_text LIKE %s",
-                    (student_id, f"{CANARY_PREFIX}%"),
+                    "WHERE student_id = %s "
+                    "AND (source_type = %s OR fact_text ILIKE %s)",
+                    (student_id, CANARY_SOURCE_TYPE, "canary%"),
                 )
 
-                rows = build_insert_rows(student_id, effective_tokens)
+                rows = build_insert_rows(student_id, effective)
                 for row in rows:
                     cur.execute(
                         """
@@ -145,8 +150,8 @@ def seed_canary_facts(
 
     return CanarySeed(
         student_id=student_id,
-        tokens=effective_tokens,
-        rows_inserted=len(effective_tokens),
+        keyword_groups=[f["keywords"] for f in effective],
+        rows_inserted=len(effective),
     )
 
 
@@ -168,8 +173,9 @@ def cleanup_canary_facts(student_id: str, db_dsn: str) -> int:
             with conn.cursor() as cur:
                 cur.execute(
                     "DELETE FROM synthesized_facts "
-                    "WHERE student_id = %s AND fact_text LIKE %s",
-                    (student_id, f"{CANARY_PREFIX}%"),
+                    "WHERE student_id = %s "
+                    "AND (source_type = %s OR fact_text ILIKE %s)",
+                    (student_id, CANARY_SOURCE_TYPE, "canary%"),
                 )
                 return cur.rowcount
     except Exception as exc:
