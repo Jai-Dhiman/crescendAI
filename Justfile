@@ -86,6 +86,11 @@ seed-scores:
 fingerprint:
     cd model && uv run python -m score_library.cli fingerprint --scores-dir data/scores --output-dir data/fingerprints
 
+# Audit score-MIDI coverage for Aria score-conditioning (issue #73). Writes
+# data/manifests/score_midi_coverage.json; exits non-zero on any uncovered T1/T5 piece.
+score-midi-audit:
+    uv run model/scripts/audit_score_midi_coverage.py --validate-midi
+
 # Seed the v2 piece-ID artifact into LOCAL wrangler R2 for `wrangler dev`.
 # Run `just fingerprint` first to produce model/data/fingerprints/piece_index.json.
 seed-fingerprint:
