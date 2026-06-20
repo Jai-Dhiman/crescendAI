@@ -103,6 +103,13 @@ gh issue close N --reason completed --comment "Closed by <PR# or commit>"
 - One issue = one branch = one PR. Branch name: `issue-NNN-short-slug`.
 - PR body must include `Closes #NNN` so merge auto-closes the issue.
 - Local merges (no PR) require explicit `gh issue close NNN` in `/ship`.
+- **One session = one worktree (anti-pollution).** Concurrent sessions share ONE primary checkout, which can only hold one branch — so two sessions working at the repo root inevitably commit onto the same branch and mix work. Before your first code edit, create/enter an isolated worktree tied to the issue and do ALL editing there:
+  ```bash
+  BRANCH=issue-NNN-slug
+  git worktree add ".worktrees/$BRANCH" -b "$BRANCH"   # .worktrees/ is gitignored
+  cd ".worktrees/$BRANCH"
+  ```
+  `/build` already does this automatically. For `/investigate`, `/autoresearch`, and manual fixes, do it yourself. The primary checkout (repo root) is reserved for orchestration and `/ship`'s merge. A `PreToolUse` hook (`.claude/hooks/guard-primary-tree-edits.py`) **enforces** this: it blocks edits made from the primary checkout while on `main`/`master`. If it blocks you, you forgot to enter a worktree.
 
 ## Coding Standards
 

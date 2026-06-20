@@ -16,3 +16,4 @@ audio_gate/results/
 __pycache__/
 *.pyc
 .venv/
+results/
