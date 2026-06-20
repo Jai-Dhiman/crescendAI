@@ -114,8 +114,10 @@ def _slice_recordings(
         start = float(s["segment_start"])
         dur = float(s["segment_end"]) - start
         tmp = out.with_suffix(".wav.tmp")
+        # `-f wav` is required: ffmpeg infers the output muxer from the file
+        # extension, and the atomic-write `.wav.tmp` name is not recognized.
         run(["ffmpeg", "-y", "-ss", f"{start}", "-t", f"{dur}", "-i", str(rec),
-             "-ac", "1", "-ar", "16000", str(tmp)])
+             "-ac", "1", "-ar", "16000", "-f", "wav", str(tmp)])
         tmp.replace(out)
         done += 1
         if (i + 1) % 200 == 0:
