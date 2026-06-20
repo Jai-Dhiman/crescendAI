@@ -225,7 +225,16 @@ const MessageBubble = memo(function MessageBubble({
 	}
 
 	return (
-		<div className="flex justify-start animate-fade-in" data-testid={message.messageType === "synthesis" ? "synthesis-message" : undefined}>
+		<div
+			className="flex justify-start animate-fade-in"
+			data-testid={
+				message.messageType === "synthesis"
+					? "synthesis-message"
+					: message.role === "assistant"
+						? "assistant-message"
+						: undefined
+			}
+		>
 			<div className="max-w-[80%]">
 				{message.messageType === "observation" && message.dimension && (
 					<span className="inline-block text-xs px-2 py-0.5 rounded-full bg-surface-2 text-text-secondary mb-1">

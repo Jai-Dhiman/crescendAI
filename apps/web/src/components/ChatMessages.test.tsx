@@ -135,3 +135,67 @@ describe("ChatMessages — ReflectionMessage routing", () => {
 		).toHaveLength(0);
 	});
 });
+
+describe("ChatMessages — assistant-message testid", () => {
+	it("renders data-testid=assistant-message on a plain assistant reply", async () => {
+		vi.resetModules();
+		vi.doMock("./Artifact", () => ({ Artifact: () => null }));
+		vi.doMock("./MessageContent", () => ({
+			MessageContent: ({ content }: { content: string }) =>
+				React.createElement("div", { "data-testid": "message-content" }, content),
+		}));
+		vi.doMock("./ToolCallBar", () => ({ ToolCallBar: () => null }));
+
+		const { ChatMessages } = await import("./ChatMessages");
+		const message = {
+			id: "msg-assistant",
+			role: "assistant" as const,
+			content: "Here is my feedback on your playing.",
+			createdAt: new Date().toISOString(),
+		};
+		render(React.createElement(ChatMessages, { messages: [message] }));
+		expect(document.querySelector("[data-testid='assistant-message']")).not.toBeNull();
+	});
+
+	it("does NOT add assistant-message testid to a synthesis message", async () => {
+		vi.resetModules();
+		vi.doMock("./Artifact", () => ({ Artifact: () => null }));
+		vi.doMock("./MessageContent", () => ({
+			MessageContent: ({ content }: { content: string }) =>
+				React.createElement("div", { "data-testid": "message-content" }, content),
+		}));
+		vi.doMock("./ToolCallBar", () => ({ ToolCallBar: () => null }));
+
+		const { ChatMessages } = await import("./ChatMessages");
+		const message = {
+			id: "msg-synth",
+			role: "assistant" as const,
+			content: "Your phrasing needs work.",
+			createdAt: new Date().toISOString(),
+			messageType: "synthesis" as const,
+		};
+		render(React.createElement(ChatMessages, { messages: [message] }));
+		expect(document.querySelector("[data-testid='synthesis-message']")).not.toBeNull();
+		expect(document.querySelector("[data-testid='assistant-message']")).toBeNull();
+	});
+
+	it("does NOT add assistant-message testid to a user message", async () => {
+		vi.resetModules();
+		vi.doMock("./Artifact", () => ({ Artifact: () => null }));
+		vi.doMock("./MessageContent", () => ({
+			MessageContent: ({ content }: { content: string }) =>
+				React.createElement("div", { "data-testid": "message-content" }, content),
+		}));
+		vi.doMock("./ToolCallBar", () => ({ ToolCallBar: () => null }));
+
+		const { ChatMessages } = await import("./ChatMessages");
+		const message = {
+			id: "msg-user",
+			role: "user" as const,
+			content: "How was my playing?",
+			createdAt: new Date().toISOString(),
+		};
+		render(React.createElement(ChatMessages, { messages: [message] }));
+		expect(document.querySelector("[data-testid='assistant-message']")).toBeNull();
+	});
+});
