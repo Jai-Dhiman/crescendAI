@@ -6,72 +6,70 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-import pytest
 
+def test_build_insert_rows_defaults_to_canary_facts():
+    from memory_seeder import CANARY_FACTS, build_insert_rows
 
-def test_build_insert_rows_returns_one_row_per_token():
-    from memory_seeder import build_insert_rows
+    rows = build_insert_rows(student_id="student-abc")
 
-    rows = build_insert_rows(
-        student_id="student-abc",
-        tokens=["CANARY_RACHMANINOFF_ETUDE", "CANARY_LEFT_HAND_WEAKNESS"],
-    )
-
-    assert len(rows) == 2
+    assert len(rows) == len(CANARY_FACTS)
     for row in rows:
         assert row["student_id"] == "student-abc"
-        assert row["fact_text"].startswith("CANARY_")
         assert row["fact_type"] in ("technical_observation", "repertoire_context", "student_goal")
         assert "valid_at" in row
         assert row["confidence"] in ("high", "medium", "low")
         assert row["evidence"]
-        assert row["source_type"]
+        assert row["source_type"] == "eval_seed"
 
 
-def test_build_insert_rows_embeds_token_in_fact_text():
+def test_fact_text_is_natural_prose_not_a_token():
+    """fact_text must be natural prose (the teacher echoes meaning, not tokens)."""
     from memory_seeder import build_insert_rows
 
-    rows = build_insert_rows(
-        student_id="s1",
-        tokens=["CANARY_RACHMANINOFF_ETUDE", "CANARY_LEFT_HAND_WEAKNESS"],
-    )
+    rows = build_insert_rows("s1")
+    texts = " ".join(r["fact_text"] for r in rows).lower()
 
-    texts = [r["fact_text"] for r in rows]
-    assert any("CANARY_RACHMANINOFF_ETUDE" in t for t in texts)
-    assert any("CANARY_LEFT_HAND_WEAKNESS" in t for t in texts)
+    # No artificial CANARY_ token leaks into the seeded prose.
+    assert "canary_" not in texts
+    # The distinctive natural keywords ARE present so recall is assertable.
+    assert "rachmaninoff" in texts
+    assert "left hand" in texts
+
+
+def test_keyword_groups_match_facts_and_are_findable_in_prose():
+    from memory_seeder import CANARY_FACTS, CANARY_KEYWORD_GROUPS
+
+    assert len(CANARY_KEYWORD_GROUPS) == len(CANARY_FACTS)
+    # Each fact's first keyword appears (case-insensitively) in its own prose.
+    for fact, group in zip(CANARY_FACTS, CANARY_KEYWORD_GROUPS):
+        assert group, "every fact needs at least one assertion keyword"
+        assert group[0].lower() in fact["fact_text"].lower()
 
 
 def test_build_insert_rows_required_columns_present():
     from memory_seeder import build_insert_rows
 
     required = {
-        "student_id", "fact_text", "fact_type",
+        "id", "student_id", "fact_text", "fact_type",
         "valid_at", "confidence", "evidence", "source_type",
     }
-    rows = build_insert_rows("s1", ["CANARY_X"])
+    rows = build_insert_rows("s1")
     assert required.issubset(rows[0].keys())
 
 
-def test_build_insert_rows_token_uniqueness():
+def test_build_insert_rows_unique_ids():
     from memory_seeder import build_insert_rows
 
-    tokens = ["CANARY_A", "CANARY_B", "CANARY_C"]
-    rows = build_insert_rows("s1", tokens)
+    rows = build_insert_rows("s1")
     ids = [r["id"] for r in rows]
     assert len(ids) == len(set(ids)), "Each row must have a unique id"
 
 
-def test_build_insert_rows_idempotent_tokens():
-    """Calling build_insert_rows twice with same tokens embeds same token strings."""
+def test_build_insert_rows_accepts_custom_facts():
     from memory_seeder import build_insert_rows
 
-    tokens = ["CANARY_X", "CANARY_Y"]
-    rows1 = build_insert_rows("s1", tokens)
-    rows2 = build_insert_rows("s1", tokens)
-
-    texts1 = [r["fact_text"] for r in rows1]
-    texts2 = [r["fact_text"] for r in rows2]
-    # Token strings must be present in both runs
-    for token in tokens:
-        assert any(token in t for t in texts1)
-        assert any(token in t for t in texts2)
+    custom = [{"fact_text": "natural prose fact", "fact_type": "student_goal", "keywords": ["prose"]}]
+    rows = build_insert_rows("s1", custom)
+    assert len(rows) == 1
+    assert rows[0]["fact_text"] == "natural prose fact"
+    assert rows[0]["source_type"] == "eval_seed"
