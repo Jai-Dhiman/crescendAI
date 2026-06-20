@@ -34,7 +34,7 @@ Group E (sequential, depends on D): Task 8 (BundleExtractor + CLI + smoke test),
 - Create: `apps/evals/claim_taxonomy/verifier/measurers/__init__.py`
 - Test: `apps/evals/claim_taxonomy/tests/test_verifier_models.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/claim_taxonomy/tests/test_verifier_models.py
@@ -92,14 +92,14 @@ def test_unverifiable_error_reason_codes_are_strings() -> None:
         assert err.reason_code == code
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_verifier_models.py -x 2>&1 | head -20
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_taxonomy.verifier'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # apps/evals/claim_taxonomy/verifier/__init__.py
@@ -141,14 +141,14 @@ class UnverifiableError(Exception):
 # apps/evals/claim_taxonomy/verifier/measurers/__init__.py
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_verifier_models.py -x
 ```
 Expected: PASS (4 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd apps/evals && git add claim_taxonomy/verifier/__init__.py claim_taxonomy/verifier/models.py claim_taxonomy/verifier/measurers/__init__.py claim_taxonomy/tests/test_verifier_models.py && git commit -m "feat(verifier): add VerdictResult dataclass and UnverifiableError (#65)"
@@ -167,7 +167,7 @@ cd apps/evals && git add claim_taxonomy/verifier/__init__.py claim_taxonomy/veri
 - Create: `apps/evals/claim_taxonomy/verifier/substrate_error.py`
 - Test: `apps/evals/claim_taxonomy/tests/test_substrate_error.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/claim_taxonomy/tests/test_substrate_error.py
@@ -257,14 +257,14 @@ def test_alignment_uncertainty_monotone_with_anchor_spread() -> None:
     assert u_dense <= u_sparse + 0.005  # allow tiny float tolerance
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_substrate_error.py -x 2>&1 | head -20
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_taxonomy.verifier.substrate_error'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # apps/evals/claim_taxonomy/verifier/substrate_error.py
@@ -331,14 +331,14 @@ class SubstrateErrorEngine:
         return float(np.std(estimates))
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_substrate_error.py -x
 ```
 Expected: PASS (9 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd apps/evals && git add claim_taxonomy/verifier/substrate_error.py claim_taxonomy/tests/test_substrate_error.py && git commit -m "feat(verifier): add SubstrateErrorEngine with seeded MC (#65)"
@@ -357,7 +357,7 @@ cd apps/evals && git add claim_taxonomy/verifier/substrate_error.py claim_taxono
 - Create: `apps/evals/claim_taxonomy/verifier/location_resolver.py`
 - Test: `apps/evals/claim_taxonomy/tests/test_location_resolver.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/claim_taxonomy/tests/test_location_resolver.py
@@ -457,14 +457,14 @@ def test_resolved_region_has_uncertainty_field() -> None:
     assert region.location_span_bars == 3  # bar 2, 3, 4
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_location_resolver.py -x 2>&1 | head -20
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_taxonomy.verifier.location_resolver'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # apps/evals/claim_taxonomy/verifier/location_resolver.py
@@ -606,14 +606,14 @@ class LocationResolver:
         )
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_location_resolver.py -x
 ```
 Expected: PASS (6 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd apps/evals && git add claim_taxonomy/verifier/location_resolver.py claim_taxonomy/tests/test_location_resolver.py && git commit -m "feat(verifier): add LocationResolver with MC failsafe (#65)"
@@ -632,7 +632,7 @@ cd apps/evals && git add claim_taxonomy/verifier/location_resolver.py claim_taxo
 - Create: `apps/evals/claim_taxonomy/verifier/measurers/timing.py`
 - Test: `apps/evals/claim_taxonomy/tests/test_timing_measurer.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/claim_taxonomy/tests/test_timing_measurer.py
@@ -758,14 +758,14 @@ def test_error_bar_is_positive() -> None:
     assert not result.substrate_failure
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_timing_measurer.py -x 2>&1 | head -20
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_taxonomy.verifier.measurers.timing'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # apps/evals/claim_taxonomy/verifier/measurers/timing.py
@@ -920,14 +920,14 @@ class TimingMeasurer:
         return Measurement(d=d, error_bar=error_bar, event_count=event_count, substrate_failure=False)
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_timing_measurer.py -x
 ```
 Expected: PASS (6 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd apps/evals && git add claim_taxonomy/verifier/measurers/timing.py claim_taxonomy/tests/test_timing_measurer.py && git commit -m "feat(verifier): add TimingMeasurer with injection harness (#65)"
@@ -946,7 +946,7 @@ cd apps/evals && git add claim_taxonomy/verifier/measurers/timing.py claim_taxon
 - Create: `apps/evals/claim_taxonomy/verifier/measurers/pedaling.py`
 - Test: `apps/evals/claim_taxonomy/tests/test_pedaling_measurer.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/claim_taxonomy/tests/test_pedaling_measurer.py
@@ -1077,14 +1077,14 @@ def test_error_bar_positive() -> None:
     assert result.error_bar >= 0.0
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_pedaling_measurer.py -x 2>&1 | head -20
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_taxonomy.verifier.measurers.pedaling'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # apps/evals/claim_taxonomy/verifier/measurers/pedaling.py
@@ -1252,14 +1252,14 @@ class PedalingMeasurer:
         return Measurement(d=d, error_bar=error_bar, event_count=event_count, substrate_failure=False)
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_pedaling_measurer.py -x
 ```
 Expected: PASS (6 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd apps/evals && git add claim_taxonomy/verifier/measurers/pedaling.py claim_taxonomy/tests/test_pedaling_measurer.py && git commit -m "feat(verifier): add PedalingMeasurer with CC injection harness (#65)"
@@ -1278,7 +1278,7 @@ cd apps/evals && git add claim_taxonomy/verifier/measurers/pedaling.py claim_tax
 - Create: `apps/evals/claim_taxonomy/verifier/measurers/dynamics.py`
 - Test: `apps/evals/claim_taxonomy/tests/test_dynamics_measurer.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/claim_taxonomy/tests/test_dynamics_measurer.py
@@ -1423,14 +1423,14 @@ def test_error_bar_positive(tmp_path) -> None:
     assert result.event_count >= 20
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_dynamics_measurer.py -x 2>&1 | head -20
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_taxonomy.verifier.measurers.dynamics'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # apps/evals/claim_taxonomy/verifier/measurers/dynamics.py
@@ -1544,14 +1544,14 @@ class DynamicsMeasurer:
         return Measurement(d=d, error_bar=error_bar, event_count=event_count, substrate_failure=False)
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_dynamics_measurer.py -x
 ```
 Expected: PASS (5 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd apps/evals && git add claim_taxonomy/verifier/measurers/dynamics.py claim_taxonomy/tests/test_dynamics_measurer.py && git commit -m "feat(verifier): add DynamicsMeasurer with RMS envelope injection (#65)"
@@ -1570,7 +1570,7 @@ cd apps/evals && git add claim_taxonomy/verifier/measurers/dynamics.py claim_tax
 - Create: `apps/evals/claim_taxonomy/verifier/orchestrator.py`
 - Test: `apps/evals/claim_taxonomy/tests/test_verifier_orchestrator.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/claim_taxonomy/tests/test_verifier_orchestrator.py
@@ -1744,14 +1744,14 @@ def test_verify_returns_verdict_result_type() -> None:
     assert result.substrate_versions == bundle["substrate_versions"]
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_verifier_orchestrator.py -x 2>&1 | head -20
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_taxonomy.verifier.orchestrator'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # apps/evals/claim_taxonomy/verifier/orchestrator.py
@@ -1952,14 +1952,14 @@ def verify(
     )
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_verifier_orchestrator.py -x
 ```
 Expected: PASS (5 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd apps/evals && git add claim_taxonomy/verifier/orchestrator.py claim_taxonomy/tests/test_verifier_orchestrator.py && git commit -m "feat(verifier): add verify() orchestrator wired to route_verdict (#65)"
@@ -1981,7 +1981,7 @@ cd apps/evals && git add claim_taxonomy/verifier/orchestrator.py claim_taxonomy/
 - Modify: `apps/evals/claim_taxonomy/tests/test_round_trip.py`
 - Modify: `apps/evals/claim_taxonomy/tests/test_schema_validates.py`
 
-- [ ] **Step 1: Write the failing CLI test**
+- [x] **Step 1: Write the failing CLI test**
 
 ```python
 # Test in test_verifier_orchestrator.py — add this test
@@ -2022,14 +2022,14 @@ def test_cli_verify_outputs_json(tmp_path) -> None:
     assert out["dimension"] == "phrasing"
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_verifier_orchestrator.py::test_cli_verify_outputs_json -x 2>&1 | head -20
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_taxonomy.verifier.cli'`
 
-- [ ] **Step 3: Implement CLI**
+- [x] **Step 3: Implement CLI**
 
 ```python
 # apps/evals/claim_taxonomy/verifier/cli.py
@@ -2080,7 +2080,7 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-- [ ] **Step 4: Implement BundleExtractor**
+- [x] **Step 4: Implement BundleExtractor**
 
 ```python
 # model/src/claim_measurement/__init__.py
@@ -2254,7 +2254,7 @@ def test_bundle_schema_if_exists() -> None:
     assert isinstance(bundle["measure_table"], list)
 ```
 
-- [ ] **Step 5: Update taxonomy test files**
+- [x] **Step 5: Update taxonomy test files**
 
 In `apps/evals/claim_taxonomy/tests/test_round_trip.py`, update `test_dynamics_gated_returns_unverifiable` to reflect v0.1:
 
@@ -2288,14 +2288,14 @@ def test_dynamics_active_routes_correctly() -> None:
 
 In `apps/evals/claim_taxonomy/tests/test_schema_validates.py`, update `test_all_tolerances_are_provisional` to allow dynamics as active (it already passes the active_dimension schema check; no change needed if taxonomy validates). Also update any hardcoded `"v0"` version string if present.
 
-- [ ] **Step 6: Run all verifier tests**
+- [x] **Step 6: Run all verifier tests**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/ -x --tb=short 2>&1 | tail -20
 ```
 Expected: All PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd apps/evals && git add claim_taxonomy/verifier/cli.py claim_taxonomy/tests/test_verifier_orchestrator.py claim_taxonomy/tests/test_round_trip.py claim_taxonomy/tests/test_schema_validates.py
@@ -2313,7 +2313,7 @@ git commit -m "feat(verifier): add CLI, BundleExtractor skeleton, update taxonom
 **Files:**
 - Modify: `apps/evals/claim_taxonomy/claim_taxonomy.json`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/evals/claim_taxonomy/tests/test_taxonomy_v01.py
@@ -2363,14 +2363,14 @@ def test_three_active_dimensions() -> None:
     assert set(active) == {"timing", "pedaling", "dynamics"}, f"Active dims: {active}"
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_taxonomy_v01.py -x 2>&1 | head -20
 ```
 Expected: FAIL — `AssertionError: Expected v0.1, got v0`
 
-- [ ] **Step 3: Update claim_taxonomy.json**
+- [x] **Step 3: Update claim_taxonomy.json**
 
 Edit `apps/evals/claim_taxonomy/claim_taxonomy.json`:
 
@@ -2397,14 +2397,14 @@ Edit `apps/evals/claim_taxonomy/claim_taxonomy.json`:
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_taxonomy_v01.py -x
 ```
 Expected: PASS (5 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd apps/evals && git add claim_taxonomy/claim_taxonomy.json claim_taxonomy/tests/test_taxonomy_v01.py && git commit -m "feat(taxonomy): bump to v0.1; activate dynamics dimension (#65)"
@@ -2421,7 +2421,7 @@ cd apps/evals && git add claim_taxonomy/claim_taxonomy.json claim_taxonomy/tests
 - Create: `docs/model/claim-verifier-signed-d-conventions.md`
 - Test: included in test_taxonomy_v01.py (add one test)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `apps/evals/claim_taxonomy/tests/test_taxonomy_v01.py`:
 
@@ -2437,14 +2437,14 @@ def test_signed_d_convention_doc_exists() -> None:
     assert "error_bar" in content
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_taxonomy_v01.py::test_signed_d_convention_doc_exists -x 2>&1 | head -10
 ```
 Expected: FAIL — `AssertionError: Signed-d convention doc not found`
 
-- [ ] **Step 3: Create the document**
+- [x] **Step 3: Create the document**
 
 ```markdown
 # Claim Verifier: Per-Dimension Signed-d Conventions and Error-Bar Table
@@ -2520,21 +2520,21 @@ The mistake-injection harness (bundle-level signal perturbation) tests measurer 
 | dynamics | 20 | RMS frames (hop=512, SR=16kHz) | ~640ms audio |
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/test_taxonomy_v01.py -x
 ```
 Expected: PASS (6 tests)
 
-- [ ] **Step 5: Run full verifier suite**
+- [x] **Step 5: Run full verifier suite**
 
 ```bash
 cd apps/evals && uv run pytest claim_taxonomy/tests/ --tb=short 2>&1 | tail -20
 ```
 Expected: All existing + new tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add docs/model/claim-verifier-signed-d-conventions.md apps/evals/claim_taxonomy/tests/test_taxonomy_v01.py && git commit -m "docs(model): add signed-d convention and error-bar table for verifier (#65)"
@@ -2553,3 +2553,228 @@ All tests should pass. Post issue comment:
 ```bash
 gh issue comment 65 --body "STATE: Plan and spec committed to branch issue-65-deterministic-claim-verifier. Next: run /challenge on docs/plans/2026-06-19-deterministic-claim-verifier.md before executing."
 ```
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+#### 1. Premise Challenge
+
+Right problem. Without a programmatic truth oracle, the "faithfulness rate" metric in research path #1 is unfalsifiable — every verification step bottoms out at a human judgment or a second LLM call, reintroducing the circularity that the PROVE/ViCrit defense is supposed to eliminate. This plan is the direct path to the core bet.
+
+No dramatically simpler alternative exists. The bundle-as-interface design (extract separately from verify) is the correct decomposition: it keeps the substrate (AMT server, parangonar, librosa) out of the eval environment and makes the auditable artifact inspectable. The alternative — inline extraction inside the verifier — would couple a live HTTP call into what must be a deterministic offline checker.
+
+Existing coverage: `verdict_dispatch.py` + `route_verdict` (shipped, tested, locked) already implement the dispatch chain. This plan correctly extends that rather than replacing it.
+
+#### 2. Scope Check
+
+The plan's scope is tight. The three active measurer tasks (Tasks 4-6) are genuinely required to populate `_measurement`, and each has a distinct substrate. Nothing is gold-plating.
+
+The plan wisely defers: GATE 1 error-rich localization, real-claim faithfulness (#67), proxy-to-perception (#66). Those are correctly flagged as not blockers.
+
+The signed-d convention doc (Task 10) is small and provides the durable reference that prevents future drift in sign polarity. Worth keeping.
+
+Complexity: 10 tasks, ~18 new files. Justified — each file is a single-concern module with real depth (SubstrateErrorEngine hides MC internals; LocationResolver hides score→audio interpolation + uncertainty failsafe; each Measurer hides its signal-chain logic). The interface count (3-4 exported symbols each) is low relative to the hidden implementation.
+
+#### 3. Twelve-Month Alignment
+
+```
+CURRENT STATE                              THIS PLAN                           12-MONTH IDEAL
+route_verdict exists but nothing           Adds programmatic truth oracle       Full faithfulness
+populates _measurement from real           (3 dimensions: timing, pedaling,     measurement harness
+audio; dynamics is gated; pedaling         dynamics); enables offline batch      across all
+measurer stubs are empty; no CLI           verification; unlocks dynamics;       verifiable dimensions
+                                           surfaces error bars; provides CLI
+```
+
+Moves cleanly toward the ideal. No tech debt created that conflicts with future dimension expansion — the measurer registry in orchestrator.py is open/closed (add a key, add a file, done).
+
+#### 4. Alternatives Check
+
+Spec documents the two-environment split rationale. The choice to reuse `chroma_dtw_eval.amt_regen` internals rather than duplicate them is correct and documented. No undocumented alternatives.
+
+---
+
+### Engineering Pass
+
+#### 5. Architecture
+
+Data flow:
+
+```
+extract_bundle()               verify()
+  audio + score_path  -->  bundle JSON  -->  LocationResolver.resolve()
+       |                       |                    |
+  _transcribe_clip()     measure_table            ResolvedRegion
+  _match()/_build_pairs()  anchors                    |
+  pedal_events: []         notes              Measurer.measure()
+       |                   pedal_events              |
+  bundle JSON file         audio_path           Measurement(d, error_bar, event_count)
+                                                     |
+                                             _measurement dict
+                                                     |
+                                             route_verdict()  (SHIPPED, LOCKED)
+                                                     |
+                                             VerdictResult
+```
+
+The boundary is clean. `route_verdict` is never touched.
+
+One architectural issue found: the orchestrator's `_MEASURER_REGISTRY` is a module-level mutable global initialized lazily. This is not thread-safe. In the current CLI / batch-eval usage (single process, single thread), it is harmless. In a future parallel batch runner, it would cause a race. Low severity for the current scope.
+
+Security: no user input flows to SQL, shell, or LLM. Audio path comes from a trusted bundle JSON. No exposure.
+
+Deployment: all new code is offline Python eval tooling — no migration, no rollback concern.
+
+#### 6. Module Depth Audit
+
+| Module | Exported interface | Hidden implementation | Verdict |
+|--------|-------------------|-----------------------|---------|
+| `verifier/models.py` | 2 classes (VerdictResult, UnverifiableError) | Dataclass + typed exception | DEEP (for its role) |
+| `verifier/substrate_error.py` | SubstrateErrorEngine (5 methods) | NumPy RNG, MC loop, bootstrap resampling | DEEP |
+| `verifier/location_resolver.py` | LocationResolver.resolve() + ResolvedRegion | measure_table lookup, np.interp, bar-dur inference, MC failsafe | DEEP |
+| `verifier/measurers/timing.py` | TimingMeasurer.measure() + Measurement | IOI→BPM, established_tempo, bootstrap+MC error bar | DEEP |
+| `verifier/measurers/pedaling.py` | PedalingMeasurer.measure() | CC64 threshold, pedal-bar fraction, self_density, MC threshold jitter | DEEP |
+| `verifier/measurers/dynamics.py` | DynamicsMeasurer.measure() | librosa.load, RMS, dB conversion, within-region frame extraction, bootstrap+MC | DEEP |
+| `verifier/orchestrator.py` | verify() | Registry, UNVERIFIABLE short-circuits, _measurement assembly, route_verdict dispatch | DEEP |
+| `verifier/cli.py` | 1 CLI subcommand | JSON I/O glue | SHALLOW (intentional, documented) |
+| `claim_measurement/extractor.py` | extract_bundle() | AMT transcription, alignment, pedal capture, bundle serialization | DEEP |
+
+All modules pass.
+
+#### 7. Code Quality
+
+**[RISK] (confidence: 9/10)** — `BundleExtractor` imports `_load_bach_json_score` from `chroma_dtw_eval.amt_regen`, but this function is named "bach" and enforces `len(tempos) == 1` (single tempo) and `4/4` time signature (raises `AmtRegenError` on anything else). The PercePiano evaluation corpus likely contains multi-tempo or non-4/4 pieces. For the initial scope of known-clean cached audio this is acceptable, but the constraint is invisible at the `extract_bundle` call site. Name the fallback: the plan already scopes to "clean cached audio only" — but the build agent should add a `score_format` parameter or a clear error message when `AmtRegenError` propagates from `_load_bach_json_score`.
+
+**[OBS]** — `_substrate_var` in `TimingMeasurer` computes the established_tempo from `region_onsets` (line 882) rather than from `all_onsets`. This means the MC perturbation reference is the region itself, not the piece-wide reference. The sign is correct (perturbation is relative to the same reference as d), but the resulting substrate_var is slightly underestimated for narrow regions. This is a known precision trade-off, not a bug, and the error_bar is still positive and reported correctly.
+
+**[OBS]** — `DynamicsMeasurer` uses `except Exception as exc` (line 1479) to catch librosa.load failures. CLAUDE.md mandates explicit exception handling over fallbacks. In this case the exception is re-raised as `UnverifiableError("substrate_failure", ...)` with context — it is not silenced — so the spirit of the rule is met. The `UnverifiableError` is the explicit typed outcome; `Exception` is only used to wrap foreign library errors with a typed code. This pattern is acceptable given the substrate-failure semantics, but the build agent should narrow the catch to `(OSError, Exception)` at minimum or at least document the catch scope.
+
+**[OBS]** — The `_bar_start_end_sec` helper in `PedalingMeasurer` does a linear scan over `all_bars` for each bar lookup (`[r for r in all_bars if int(r["bar_number"]) == bar_num + 1]`). For a piece with 200+ bars and N bars in the region this is O(N * bars). Not a correctness issue, just O(N²) scan that could be a dict lookup. Acceptable for eval-only tooling.
+
+**[RISK] (confidence: 7/10)** — The `test_cli_verify_outputs_json` test in Task 8 hardcodes `cwd="/Users/jdhiman/Documents/crescendai/apps/evals"` in a `subprocess.run` call. This is a machine-specific absolute path — it will fail on any other machine or CI environment. Should use `Path(__file__).resolve().parents[N]` anchoring (the same pattern MEMORY.md flags as a project-wide gotcha).
+
+#### 8. Test Philosophy Audit
+
+All tests exercise behavior through the module's public interface (`measure()`, `resolve()`, `verify()`). No private methods are called. No internal state is asserted. No mocking of internal collaborators — external boundaries (filesystem via `tmp_path`, bundle dicts) are passed in as data.
+
+The injection harness tests (mistake-injection in Tasks 4-6) are the strongest behavioral tests: they construct a known-anomaly input and assert the measurer detects it. These will fail before the implementation exists (ImportError) and will fail with a wrong implementation (wrong sign or magnitude of d).
+
+**[RISK] (confidence: 8/10)** — `test_timing_rush_claim_returns_supported` in Task 7's orchestrator test asserts only `result.verdict in ("SUPPORTED", "REFUTED", "UNVERIFIABLE")` — all three outcomes are acceptable. This is a shape test with no behavioral content. The comment says "the key invariant is that the orchestrator returns a VerdictResult without raising." That is true and useful for smoke-testing the wiring, but it is NOT a behavioral test for the SUPPORTED outcome. A real behavioral test would use a constructed bundle where the d value is analytically predictable (e.g., the injection harness from Task 4 reused here). The orchestrator smoke test is adequate as a wiring test but should be understood as ★ quality, not ★★★.
+
+**[OBS]** — `test_bundle_schema_if_exists` in Task 8's extractor test skips when no bundle file is present. This is correct and necessary for a cold-repo run. The skip is explicit (`pytest.skip`) rather than silent, which is the right pattern.
+
+#### 9. Vertical Slice Audit
+
+Every task has the structure: write test (Step 1) → verify FAIL (Step 2) → implement (Step 3) → verify PASS (Step 4) → commit (Step 5). Strict vertical slice throughout.
+
+Task 8 is the only deviation: it bundles CLI, BundleExtractor, and taxonomy test updates into one task. This is acceptable because:
+1. The CLI test is a single behavioral assertion (one test → one impl).
+2. The BundleExtractor test is a conditional smoke test (skips without data).
+3. The taxonomy test updates are modifications to existing files, not new behavior.
+
+No horizontal slicing found.
+
+**[RISK] (confidence: 6/10)** — Task 8's Step 7 commit command uses two separate `git add` calls (one in `apps/evals`, one from the repo root). In a worktree, `cd apps/evals` shifts the working directory for that shell command but the `git add` in the second line runs from `crescendai/` root — which is the PRIMARY checkout, not the worktree. The build agent should use absolute paths or ensure all `git add` and `git commit` calls are issued from the worktree root (`/Users/jdhiman/Documents/crescendai/.worktrees/issue-65-deterministic-claim-verifier`). This is a bash sequencing issue, not a logical flaw.
+
+#### 10. Test Coverage Gaps
+
+```
+[+] verifier/orchestrator.py
+    │
+    ├── verify() — dim not in registry
+    │   └── [TESTED] → out_of_scope_dim (test_scoped_out... covers scoped_out)
+    │
+    ├── verify() — dim.status == "gated_on_measurement"
+    │   └── [GAP] No test explicitly sets a gated dimension claim through verify().
+    │           test_dynamics_active_after_v01 skips if dynamics is not yet active.
+    │           After Task 9 bumps dynamics to active, the gated_dim path is no longer
+    │           exercisable with articulation (which stays gated). The orchestrator's
+    │           gated_dim short-circuit branch becomes a dead branch in tests.
+    │
+    ├── verify() — measurement_key not in measurer_registry
+    │   └── [GAP] No test covers an "active" dimension with a measurement key
+    │           that has no registered measurer. The substrate_failure fallback
+    │           at line 1859-1871 is untested.
+    │
+    ├── verify() — location resolution fails (UnverifiableError from LocationResolver)
+    │   └── [TESTED] test_unlocalizable_claim_returns_unverifiable ★★
+    │
+    ├── verify() — measurer raises UnverifiableError
+    │   └── [PARTIALLY TESTED] unlocalizable path only; region_too_short from
+    │           measurer itself is not directly tested via verify() (only via
+    │           measurer unit tests)
+    │
+    └── verify() — measurement.substrate_failure == True
+        └── [GAP] No test constructs a Measurement with substrate_failure=True.
+                The branch at line 1914-1926 is untested.
+
+[+] verifier/location_resolver.py
+    ├── resolve("whole_piece") — [TESTED] ★★
+    ├── resolve(bar_range) — happy path [TESTED] ★★★
+    ├── resolve() — bar not in measure_table [TESTED] ★★★
+    ├── resolve() — < 2 anchors [TESTED] ★★★
+    └── resolve() — uncertainty >= span [TESTED] ★★ (probabilistic; may not
+            always trigger with the exact synthetic fixture — see RISK below)
+
+[+] DynamicsMeasurer — whole_piece branch
+    └── [NOT TESTED] No test exercises DynamicsMeasurer.measure(location="whole_piece")
+```
+
+**[RISK] (confidence: 7/10)** — `test_failsafe_triggers_when_uncertainty_exceeds_span` in Task 3 uses sparse anchors (only 2 points) and a 50ms bar span to produce high alignment uncertainty. The SubstrateErrorEngine with seed=42, n_samples=500 produces Gaussian jitter with sigma=0.010s. With only 2 anchor points and 5s spacing, the MC interpolation std over the `bar_start_score_sec=0.0` endpoint will be dominated by the extrapolation regime — the uncertainty may or may not exceed 0.05s / 0.05s = 1.0 bar_unit depending on exact RNG behavior. The test may be flaky if the uncertainty calculation lands near the boundary. The build agent should verify this test actually fails before implementation and passes after, running it 3 times with different seeds.
+
+**[OBS]** — The gated_dim coverage gap (articulation dimension is still `gated_on_measurement` after Task 9) is low severity — the gated-dim branch in orchestrator.py is 4 lines and its behavior is fully tested in the existing `test_round_trip.py` via direct `route_verdict` call with a gated claim. The orchestrator's pre-routing short-circuit for `gated_on_measurement` is a redundant guard; if it were removed, `route_verdict` would catch it anyway. It is dead-but-harmless code, not a risk.
+
+#### 11. Failure Modes
+
+All measurer errors flow to `UnverifiableError` (typed reason code) or propagate to `verify()` which catches them and returns `VerdictResult(UNVERIFIABLE)`. No silent failures.
+
+Bundle serialization in `extract_bundle` uses a `.tmp` write-then-replace pattern — no partial-write corruption.
+
+The `alignment_uncertainty_sec` MC loop perturbs ALL anchors by the SAME scalar jitter per sample (`perf_audio_sec + j` where j is a scalar). This is conservative (overestimates correlated error) but mechanically wrong — AMT onset jitter is independent per-note, not a global shift. The result is that alignment_uncertainty is overestimated, which makes the unlocalizable failsafe more aggressive (good for safety) but may reject more single-bar claims than necessary. This is a known limitation and acceptable at tier-2 reliability, but should be noted in the signed-d doc.
+
+**[OBS]** — `_build_registry()` is called once and cached in `_MEASURER_REGISTRY`. DynamicsMeasurer imports librosa at module level inside `measure()` (deferred `import librosa` in the method body). This means librosa is not imported until the first dynamics measurement, which is fine for cold-start. However, if librosa is not installed (e.g., running without the `[inference]` extra), the error surfaces only at measure-time, not at import. This is acceptable behavior but should be documented.
+
+#### 12. Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|------------|---------|--------|
+| `chroma_dtw_eval.amt_regen` is importable from `model/src/claim_measurement/` (both in same `model/` env) | SAFE | Verified: both are under `model/src/`; model pyproject.toml confirms same env |
+| `_transcribe_clip`, `_dedup_amt_notes`, `_read_wav_16k_mono`, `_amt_to_perf_na`, `_load_bach_json_score`, `_match`, `_build_pairs`, `DEFAULT_AMT_URL`, `DEFAULT_AMT_VERSION_CONFIG` are all exported from `amt_regen.py` | SAFE | Verified by grep: all 9 symbols confirmed present at the expected line numbers |
+| `_load_bach_json_score` returns `(score_na, measure_table, score_sha256, beat_sec)` — 4-element tuple | SAFE | Verified: line 159 signature and return matches plan's usage |
+| `jsonschema` is available in `apps/evals` env for taxonomy tests | VALIDATE | jsonschema is in `teacher-model-stage0` optional extra, NOT in base deps or `inference` extra. Tests using `import jsonschema` (test_round_trip.py, test_schema_validates.py, test_taxonomy_v01.py) require `uv run --extra teacher-model-stage0 pytest` or the `all` extra. The existing tests already use it and presumably pass, so the extra is installed — but the plan's `uv run pytest` commands do not specify `--extra`, which may cause import failures in a fresh env |
+| `soundfile` is available in `apps/evals` for dynamics measurer tests | SAFE | Verified: `soundfile>=0.12.0` in `inference` optional extra |
+| `librosa` is available in `apps/evals` for dynamics measurer | SAFE | Verified: `librosa>=0.10.0` in `inference` optional extra |
+| `numpy` is available in `apps/evals` base env | VALIDATE | `numpy` is in `model` and `inference` optional extras, not base deps. SubstrateErrorEngine and LocationResolver both import numpy at module level. If tests run without `--extra model` or `--extra inference`, they will fail with ImportError at collection time |
+| `scipy` is not required (plan uses numpy only) | SAFE | No scipy import found in any plan code |
+| The `test_failsafe_triggers_when_uncertainty_exceeds_span` test deterministically triggers with seed=42, 500 samples, 2-anchor sparse bundle | VALIDATE | The uncertainty computation involves interpolating at the endpoint of a 2-point array with Gaussian jitter — endpoint extrapolation behavior with np.interp could produce very small std (np.interp clips to boundary values). This needs empirical verification |
+| `whole_piece` location in `LocationResolver.resolve()` always passes the failsafe (uncertainty < inf) | SAFE | Verified: code explicitly returns `location_span_bars=math.inf`; failsafe is `uncertainty_bars >= location_span_bars` which is never satisfied for inf |
+| `test_schema_validates.py` does not hardcode `"v0"` as the expected version | VALIDATE | Line 42 and 106 in test_schema_validates.py use `"v0"` in the skeleton fixture — these are skeleton instances passed to the schema validator (not assertions about the real taxonomy file), so bumping the real taxonomy to "v0.1" will not break them. Confirmed safe. |
+| The CLI test's `cwd="/Users/jdhiman/Documents/crescendai/apps/evals"` is machine-portable | RISKY | Hardcoded absolute path. Will fail on any other machine or CI. Must be replaced with `Path(__file__).resolve().parents[N]` anchoring |
+
+---
+
+### Summary
+
+**[BLOCKER]** count: 0
+**[RISK]** count: 5
+**[QUESTION]** count: 0
+**[OBS]** count: 6
+
+Risks to monitor during execution:
+
+1. **[RISK] (confidence: 9/10)** — CLI test hardcodes `cwd="/Users/jdhiman/Documents/crescendai/apps/evals"`. Will fail on CI or any other machine. Build agent must replace with `Path(__file__).resolve().parents[N]` anchoring per project-wide `Default Paths` gotcha in MEMORY.md.
+
+2. **[RISK] (confidence: 8/10)** — `numpy` and `jsonschema` are not in the base `apps/evals` env — they are in optional extras (`model`/`inference` and `teacher-model-stage0`). The plan's `uv run pytest` commands do not specify `--extra`. In a fresh install, test collection will fail with ImportError. Build agent should use `uv run --extra all pytest` or install the required extras explicitly.
+
+3. **[RISK] (confidence: 8/10)** — `test_timing_rush_claim_returns_supported` is a shape/wiring test with verdict `in ("SUPPORTED", "REFUTED", "UNVERIFIABLE")` — all outcomes are accepted. It will pass even with a broken measurer. Keep it as a wiring smoke test but do not treat it as behavioral coverage.
+
+4. **[RISK] (confidence: 7/10)** — `test_failsafe_triggers_when_uncertainty_exceeds_span` may not reliably trigger with np.interp endpoint behavior at a 2-point anchor boundary. Build agent must verify the test actually FAILS before implementation and PASSES after, not just that it passes.
+
+5. **[RISK] (confidence: 7/10)** — Task 8's two-step `git add` command crosses worktree/primary-checkout boundary. Build agent must issue all git commands from the worktree root using absolute paths.
+
+6. **[RISK] (confidence: 7/10)** — `_load_bach_json_score` enforces single-tempo and 4/4 time signature; `BundleExtractionError` will surface for non-4/4 or multi-tempo pieces. Acceptable for current scope (clean cached audio, known pieces), but the build agent should confirm the initial target pieces (bach_prelude_c_wtc1 etc.) are 4/4 single-tempo before running `extract_bundle` in the smoke test.
+
+VERDICT: PROCEED_WITH_CAUTION — monitor the 5 risks above, especially the hardcoded cwd path (fix before committing the CLI test) and the numpy/jsonschema extra requirement (add `--extra all` to all uv run pytest invocations in the plan).
