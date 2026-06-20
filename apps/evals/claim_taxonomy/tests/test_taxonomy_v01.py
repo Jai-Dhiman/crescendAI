@@ -42,3 +42,14 @@ def test_three_active_dimensions() -> None:
     taxonomy, _ = _load()
     active = [k for k, v in taxonomy["dimensions"].items() if v["status"] == "active"]
     assert set(active) == {"timing", "pedaling", "dynamics"}, f"Active dims: {active}"
+
+
+def test_signed_d_convention_doc_exists() -> None:
+    doc = Path(__file__).resolve().parents[4] / "docs/model/claim-verifier-signed-d-conventions.md"
+    assert doc.exists(), f"Signed-d convention doc not found at {doc}"
+    content = doc.read_text()
+    assert "timing" in content
+    assert "pedaling" in content
+    assert "dynamics" in content
+    assert "Sign convention" in content
+    assert "error_bar" in content
