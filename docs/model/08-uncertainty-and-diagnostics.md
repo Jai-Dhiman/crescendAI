@@ -101,6 +101,18 @@ Single scalar: `mean(|off_diag(per_dimension_correlation)|)`. Near 1.0 means
 the 6-vector is a scalar replicated 6x. Near 0.0 means fully independent dims.
 Published on every sweep leaderboard. Sortable metric for experiment picking.
 
+> **WS2 validation gates (#75/#76, wired 2026-06-19).** Collapse is now bundled
+> with two more gates into one `validation_gates` block per sweep config, built
+> by `evaluation.build_validation_gate_block` and printed by
+> `print_validation_gate_summary` (a1_max / ablation / autoresearch_loss_weights):
+> - **G2 MuQ↔Aria error-correlation** (`error_correlation_gate`): phi between
+>   the two streams' per-pair mistakes, with an explicit `<0.5` PASS/FAIL. It is
+>   fine-tune-agnostic (runs on any masks) and currently single-stream-SKIPPED
+>   until the WS3 #80 fine-tuned Aria masks are fed via `--aria-masks`.
+> - **per-piece pairwise + bootstrap CI** (`per_piece_pairwise_bootstrap`):
+>   surfaces single-piece regressions the 3-fold mean hides.
+> - **OOD gate** (`summarize_ood_folds`): see `docs/model/07`.
+
 ### skill_discrimination_report
 
 When skill tier labels are provided (e.g. from T5's 1–5 ordinal), per-dim
