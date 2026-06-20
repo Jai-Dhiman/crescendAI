@@ -131,10 +131,13 @@ Until OOD performance is demonstrably good:
 
 ## Measurement plan
 
-Every sweep emits:
+Every sweep emits (wired in #76: `run_ood_test` runs per fold in
+`a1_max_sweep` / `ablation_sweep`, aggregated by
+`evaluation.summarize_ood_folds` into the validation-gate block):
 - Fold pairwise (clean distribution baseline)
-- OOD pairwise (once Chunk B has data)
-- OOD-minus-fold gap (the number that matters)
+- OOD pairwise — reports `SKIPPED` until ~30 phone clips land in
+  `data/evals/ood_practice/` (capture protocol in that dir's README)
+- OOD-minus-fold gap (clean − OOD; the number that matters)
 - Per-dim collapse score on OOD (is the collapse structure domain-dependent?)
 
 Track the gap over time. The practice-augmentation plan's exit criterion is
