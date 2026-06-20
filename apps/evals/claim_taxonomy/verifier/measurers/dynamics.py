@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
 
@@ -69,6 +67,8 @@ class DynamicsMeasurer:
         sampling_var = float(np.var(bootstrapped - np.mean(rms_db)))
 
         jitters = engine.dynamics_rms_jitter_db()
+        # Per-sample dB jitter j is a scalar offset, so
+        # mean(region_db + j) - mean(whole_db) = d + j; var over samples reduces to var(jitters).
         substrate_var = float(np.var(jitters))
         error_bar = math.sqrt(sampling_var + substrate_var)
 
