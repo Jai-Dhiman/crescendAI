@@ -170,6 +170,17 @@ test-model:
 train-sweep:
     cd model && uv run python -m model_improvement.a1_max_sweep
 
+# --- HF Jobs cloud training (issue #74) ---
+
+# Cheap end-to-end validation that the cloud path works (cpu-basic ~$0.01/hr):
+# launches a tracked HF Job that writes a checkpoint + Trackio metrics.
+hf-smoke:
+    uv run model/jobs/hf_launch.py smoke
+
+# Launch the real Aria 650M LoRA fine-tune on an A100 (gated on #72 AMT MIDI in R2).
+hf-train-aria:
+    uv run model/jobs/hf_launch.py aria --timeout 6h --detach
+
 # Local overnight baseline diagnostic run (best config only, 4 prefetch workers, ~8h on MPS)
 train-sweep-local:
     cd model && uv run python -m model_improvement.a1_max_sweep --top-n-configs 1 --num-workers 4
