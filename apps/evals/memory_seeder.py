@@ -114,7 +114,7 @@ def seed_canary_facts(
     try:
         conn = psycopg2.connect(db_dsn)
     except Exception as exc:
-        raise RuntimeError(f"Cannot connect to DB at {db_dsn}: {exc}") from exc
+        raise RuntimeError(f"Cannot connect to DB ({type(exc).__name__}): {exc}") from exc
 
     try:
         with conn:
@@ -161,7 +161,7 @@ def cleanup_canary_facts(student_id: str, db_dsn: str) -> int:
     try:
         conn = psycopg2.connect(db_dsn)
     except Exception as exc:
-        raise RuntimeError(f"Cannot connect to DB at {db_dsn}: {exc}") from exc
+        raise RuntimeError(f"Cannot connect to DB ({type(exc).__name__}): {exc}") from exc
 
     try:
         with conn:

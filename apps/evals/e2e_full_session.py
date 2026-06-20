@@ -205,6 +205,7 @@ def run(
         except RuntimeError as exc:
             print(f"ERROR: canary seed failed: {exc}", file=sys.stderr)
             return 1
+        assert canary is not None  # always set in this branch; narrows CanarySeed | None
         print(f"[full-eval] Seeded {canary.rows_inserted} canary rows: {canary.tokens}")
     else:
         print("[full-eval] Skipping canary seed (--no-seed).")
@@ -217,7 +218,6 @@ def run(
 
         print(f"[full-eval] Driving recording: {recording.name} (piece={piece_slug})")
         try:
-            from e2e_ui_session import _lowest_dim
             cap = drive_persisted(
                 recording=recording,
                 piece_slug=piece_slug,
@@ -378,7 +378,6 @@ def run(
 
             # Criterion (f): tool action — non-fatal
             if len(chat_replies) >= 2:
-                tool_reply = chat_replies[1]
                 tool_shot = screenshot_dir / "03-tool.png"
                 _save_screenshot(page, tool_shot)
                 screenshot_paths.append(str(tool_shot))

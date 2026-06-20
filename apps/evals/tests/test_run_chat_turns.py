@@ -27,13 +27,13 @@ def _make_stub_page(reply_texts: list[str]):
     # State: tracks how many "turns" have been submitted via press()
     state = {"turns_submitted": 0, "call_index": 0}
 
-    def _press(selector: str, key: str):
+    def _press(_selector: str, key: str):
         if key == "Enter":
             state["turns_submitted"] += 1
 
     page.press = _press
 
-    def _query_all(selector: str):
+    def _query_all(_selector: str):
         state["call_index"] += 1
         # Return as many stable elements as turns submitted so far (capped by reply_texts)
         num = min(state["turns_submitted"], len(reply_texts))
