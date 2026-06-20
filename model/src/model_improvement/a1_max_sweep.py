@@ -31,7 +31,7 @@ import pytorch_lightning as pl
 from functools import partial
 from torch.utils.data import DataLoader
 
-from src.paths import Checkpoints, Embeddings, Labels, Results
+from src.paths import Checkpoints, Embeddings, Evals, Labels, Results
 
 from model_improvement.audio_encoders import MuQLoRAMaxModel
 from model_improvement.data import (
@@ -40,7 +40,14 @@ from model_improvement.data import (
     MixWeightedSampler,
     audio_pair_collate_fn,
 )
-from model_improvement.evaluation import evaluate_model
+from model_improvement.evaluation import (
+    evaluate_model,
+    per_piece_pairwise_bootstrap,
+    summarize_ood_folds,
+    build_validation_gate_block,
+    print_validation_gate_summary,
+)
+from model_improvement.ood_harness import OODDataset, run_ood_test
 from model_improvement.taxonomy import load_composite_labels, NUM_DIMS
 
 # Sweep grid
@@ -130,11 +137,31 @@ def _select_top_configs(
     return filtered
 
 
+def _load_aria_fold_masks(aria_masks_path: Path | None) -> list[dict] | None:
+    """Load per-fold Aria pairwise masks for the G2 gate, if provided.
+
+    Expected JSON: a list (one entry per fold) of
+    {"correct": [bool...], "non_ambiguous": [bool...]} over the SAME val-key
+    ordering the MuQ sweep produces. WS3 #80 emits these from the fine-tuned
+    Aria stream; without them the G2 gate is explicitly skipped (single stream).
+    """
+    if aria_masks_path is None:
+        return None
+    if not aria_masks_path.exists():
+        raise FileNotFoundError(
+            f"--aria-masks {aria_masks_path} not found; omit the flag to skip G2"
+        )
+    with open(aria_masks_path) as f:
+        return json.load(f)
+
+
 def run_sweep(
     checkpoint_dir: Path = Checkpoints.root / "a1_max_sweep",
     results_path: Path = Results.root / "a1_max_sweep_results.json",
     num_workers: int = 0,
     top_n_configs: int | None = None,
+    aria_masks_path: Path | None = None,
+    baseline_results_path: Path | None = None,
 ):
     """Run the A1-Max sweep (all 18 configs by default).
 
@@ -162,6 +189,26 @@ def run_sweep(
         folds = json.load(f)
     with open(Labels.percepiano / "piece_mapping.json") as f:
         piece_to_keys = json.load(f)
+
+    # key -> piece for per-piece pairwise (the 3-fold limit makes single-piece
+    # regressions invisible in the fold mean; per_piece surfaces them).
+    key_to_piece = {k: piece for piece, ks in piece_to_keys.items() for k in ks}
+
+    aria_fold_masks = _load_aria_fold_masks(aria_masks_path)
+
+    baseline_results = {}
+    if baseline_results_path is not None and baseline_results_path.exists():
+        with open(baseline_results_path) as f:
+            baseline_results = json.load(f)
+
+    # OOD practice set (held strictly outside the folds). Empty until ~30 phone
+    # clips are captured per data/evals/ood_practice/README.md; run_ood_test then
+    # returns {"skipped": "empty_ood_dataset"} and the gate reports SKIPPED.
+    ood_dataset = OODDataset(
+        cache_dir=Evals.ood_practice / "embeddings",
+        labels_path=Evals.ood_practice / "labels.json",
+    )
+    print(f"OOD practice set: {len(ood_dataset)} clips")
 
     print(f"Loaded {len(labels)} labels, {len(embeddings)} embeddings, {len(folds)} folds")
 
@@ -211,6 +258,10 @@ def run_sweep(
         )
 
         fold_metrics = []
+        muq_fold_masks: list[dict] = []
+        combined_preds: list[list[float]] = []
+        combined_keys: list[str] = []
+        ood_fold_results: list[dict] = []
         for fold_idx, fold in enumerate(folds):
             run_count += 1
             print(f"\n  Fold {fold_idx} (run {run_count}/{total_runs})")
@@ -267,8 +318,26 @@ def run_sweep(
                 encode_fn=lambda m, inp, mask: m.encode(inp, mask),
                 compare_fn=lambda m, z_a, z_b: m.compare(z_a, z_b),
                 predict_fn=lambda m, inp, mask: m.predict_scores(inp, mask),
+                return_pairwise_masks=True,
+                return_predictions=True,
             )
             fold_metrics.append(fold_res)
+            if "pairwise_masks" in fold_res:
+                muq_fold_masks.append({
+                    "correct": fold_res["pairwise_masks"]["correct"],
+                    "non_ambiguous": fold_res["pairwise_masks"]["non_ambiguous"],
+                })
+            if "predictions" in fold_res:
+                combined_preds.extend(fold_res["predictions"])
+                combined_keys.extend(fold_res["pred_keys"])
+
+            # Score this fold's model on the held-out OOD practice set (#76).
+            ood_fold_results.append(run_ood_test(
+                trained_model, ood_dataset,
+                encode_fn=lambda m, inp, mask: m.encode(inp, mask),
+                compare_fn=lambda m, z_a, z_b: m.compare(z_a, z_b),
+                predict_fn=lambda m, inp, mask: m.predict_scores(inp, mask),
+            ))
 
             elapsed = time.time() - start_time
             pw = fold_res.get("pairwise", 0)
@@ -319,10 +388,41 @@ def run_sweep(
             ],
         }
 
+        # WS2 validation gates (#75): per-piece pairwise + bootstrap CI, G2
+        # MuQ<->Aria error-correlation, dimension collapse. Single block so the
+        # leaderboard JSON and the printed summary stay in lockstep.
+        per_piece = None
+        if combined_preds:
+            preds_tensor = torch.tensor(combined_preds, dtype=torch.float32)
+            per_piece = per_piece_pairwise_bootstrap(
+                preds_tensor, combined_keys, labels, key_to_piece,
+                n_boot=1000, seed=42,
+            )
+        baseline_per_piece = (
+            baseline_results.get(config_name, {})
+            .get("validation_gates", {})
+            .get("per_piece_pairwise")
+        )
+        # OOD pairwise + OOD-minus-fold gap (#76).
+        ood_summary = summarize_ood_folds(
+            ood_fold_results,
+            fold_pairwise_mean=results[config_name]["pairwise_mean"],
+        )
+        validation_block = build_validation_gate_block(
+            fold_metrics,
+            muq_masks=(muq_fold_masks or None),
+            aria_masks=(aria_fold_masks or None),
+            per_piece=per_piece,
+            per_piece_baseline=baseline_per_piece,
+            ood_summary=ood_summary,
+        )
+        results[config_name]["validation_gates"] = validation_block
+
         with open(results_path, "w") as f:
             json.dump(results, f, indent=2)
 
         print(f"\n  {config_name}: pairwise={results[config_name]['pairwise_mean']:.4f}")
+        print_validation_gate_summary(validation_block)
 
     # Print leaderboard
     print(f"\n{'='*60}")
@@ -386,5 +486,32 @@ Examples:
             "Default 0 (synchronous, safest for cloud storage)."
         ),
     )
+    parser.add_argument(
+        "--aria-masks",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Per-fold Aria pairwise masks JSON to run the G2 MuQ<->Aria "
+            "error-correlation gate (post fine-tune). Omit to skip G2."
+        ),
+    )
+    parser.add_argument(
+        "--baseline-results",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Prior sweep results JSON; per-piece pairwise is compared against it "
+            "to flag single-piece regressions."
+        ),
+    )
     args = parser.parse_args()
-    run_sweep(num_workers=args.num_workers, top_n_configs=args.top_n_configs)
+    run_sweep(
+        num_workers=args.num_workers,
+        top_n_configs=args.top_n_configs,
+        aria_masks_path=Path(args.aria_masks) if args.aria_masks else None,
+        baseline_results_path=(
+            Path(args.baseline_results) if args.baseline_results else None
+        ),
+    )

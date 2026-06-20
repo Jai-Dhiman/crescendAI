@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from typing import Callable
 
 import numpy as np
 import torch
+from scipy.stats import pearsonr
 
 logger = logging.getLogger(__name__)
 
@@ -62,14 +64,20 @@ def conditional_independence(
     if preds_np.ndim != 2 or preds_np.shape[0] < 3:
         return np.full((NUM_DIMS, NUM_DIMS), np.nan)
 
-    anchor = labels_np.mean(axis=1)
-    if np.std(anchor) == 0.0:
+    # nanmean so uncovered dims (NaN labels, e.g. external sets with partial
+    # dim coverage) don't poison every row's anchor.
+    anchor = np.nanmean(labels_np, axis=1)
+    if not np.isfinite(anchor).any() or np.nanstd(anchor) == 0.0:
         return per_dimension_correlation(predictions)
 
-    residuals = np.zeros_like(preds_np)
+    residuals = np.full_like(preds_np, np.nan)
     for d in range(preds_np.shape[1]):
-        slope, intercept = np.polyfit(anchor, preds_np[:, d], 1)
-        residuals[:, d] = preds_np[:, d] - (slope * anchor + intercept)
+        col = preds_np[:, d]
+        finite = np.isfinite(anchor) & np.isfinite(col)
+        if finite.sum() < 2 or np.std(anchor[finite]) == 0.0:
+            continue
+        slope, intercept = np.polyfit(anchor[finite], col[finite], 1)
+        residuals[finite, d] = col[finite] - (slope * anchor[finite] + intercept)
 
     with np.errstate(invalid="ignore"):
         return np.corrcoef(residuals, rowvar=False)
@@ -189,6 +197,8 @@ def evaluate_model(
     predict_fn: Callable,
     num_dims: int = NUM_DIMS,
     skill_tiers: dict[str, int | float] | None = None,
+    return_pairwise_masks: bool = False,
+    return_predictions: bool = False,
 ) -> dict:
     """Assess a model on one fold's validation keys.
 
@@ -264,15 +274,32 @@ def evaluate_model(
                     continue
 
         if all_logits:
-            pw = suite.pairwise_accuracy(
-                torch.cat(all_logits), torch.cat(all_la), torch.cat(all_lb)
-            )
+            logits_cat = torch.cat(all_logits)
+            la_cat = torch.cat(all_la)
+            lb_cat = torch.cat(all_lb)
+            pw = suite.pairwise_accuracy(logits_cat, la_cat, lb_cat)
             results["pairwise"] = pw["overall"]
             results["pairwise_detail"] = pw
+
+            if return_pairwise_masks:
+                # Per-pair overall correct / non-ambiguous masks, aligned to the
+                # upper-triangular ordering of `encoded_keys`. Two model runs over
+                # the SAME val keys produce identically-ordered masks, so their
+                # error patterns can be correlated downstream (the G2 gate).
+                correct, non_amb = pairwise_overall_masks(
+                    logits_cat, la_cat, lb_cat,
+                    threshold=suite.ambiguous_threshold,
+                )
+                results["pairwise_masks"] = {
+                    "correct": correct.tolist(),
+                    "non_ambiguous": non_amb.tolist(),
+                    "keys": list(encoded_keys),
+                }
 
         # R2 regression using predict_fn (also benefits from being O(n))
         _r2_warned = False
         all_preds, all_sigmas, all_targets = [], [], []
+        pred_keys: list[str] = []
         for idx, key in enumerate(valid_keys):
             if idx % 100 == 0 and idx > 0:
                 print(f"  r2: {idx}/{len(valid_keys)} keys", flush=True)
@@ -291,6 +318,7 @@ def evaluate_model(
                 else:
                     all_preds.append(pred_out)
                 all_targets.append(target)
+                pred_keys.append(key)
             except Exception as exc:
                 if not _r2_warned:
                     logger.warning("evaluate_model r2: %s (suppressing further)", exc)
@@ -301,6 +329,12 @@ def evaluate_model(
             preds_cat = torch.cat(all_preds)
             targets_cat = torch.cat(all_targets)
             results["r2"] = suite.regression_r2(preds_cat, targets_cat)
+
+            if return_predictions:
+                # Per-key predictions (aligned to pred_keys) so callers can build
+                # per-piece pairwise without re-running inference.
+                results["predictions"] = preds_cat.detach().cpu().tolist()
+                results["pred_keys"] = pred_keys
 
             # Per-dimension independence + collapse diagnostics (Chunk A).
             # Computed from the same pre-encoded predictions so they add O(1)
@@ -456,3 +490,469 @@ def select_winner(
 
     candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
     return candidates[0][0]
+
+
+# ---------------------------------------------------------------------------
+# WS2 validation gates (issue #75)
+#
+# Three numbers every sweep must emit:
+#   1. dimension_collapse_score   (already computed in evaluate_model)
+#   2. MuQ<->Aria error-correlation (G2) with an explicit <0.5 pass/fail
+#   3. per-piece pairwise + bootstrap CI, flagging single-piece regressions
+#
+# The G2 gate is fine-tune-agnostic: it consumes correct/incorrect masks from
+# whatever model produced them, so it runs identically on fine-tuned models and
+# frozen probes. The decorrelation *verdict* across the two real streams is
+# WS3 #80; this module wires the mechanism into the eval path.
+# ---------------------------------------------------------------------------
+
+G2_DECORRELATION_THRESHOLD = 0.5
+
+
+def pairwise_overall_masks(
+    logits: torch.Tensor,
+    labels_a: torch.Tensor,
+    labels_b: torch.Tensor,
+    threshold: float = 0.05,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per-pair overall correct / non-ambiguous masks for a set of comparisons.
+
+    "Overall" collapses the per-dimension ranking to a single decision by
+    averaging across dims, matching how the error-correlation gate reasons about
+    whether two streams agree on which performance is better.
+
+    Args:
+        logits: [n_pairs, n_dims] ranking logits (positive => A > B).
+        labels_a: [n_pairs, n_dims] ground-truth scores for A.
+        labels_b: [n_pairs, n_dims] ground-truth scores for B.
+        threshold: |mean label diff| below this marks the pair ambiguous.
+
+    Returns:
+        (correct, non_ambiguous): two boolean arrays of shape [n_pairs].
+    """
+    logits_np = logits.detach().cpu().numpy()
+    diff = (labels_a.detach().cpu().numpy() - labels_b.detach().cpu().numpy())
+
+    pred_overall = logits_np.mean(axis=1) > 0
+    diff_overall = diff.mean(axis=1)
+    true_overall = diff_overall > 0
+
+    non_ambiguous = np.abs(diff_overall) >= threshold
+    correct = pred_overall == true_overall
+    return correct, non_ambiguous
+
+
+def _normalize_fold_masks(masks) -> list[dict]:
+    """Accept either a single {correct, non_ambiguous} dict or a list of them."""
+    if isinstance(masks, dict):
+        return [masks]
+    return list(masks)
+
+
+def _g2_verdict(phi_mean: float, threshold: float) -> str:
+    if np.isnan(phi_mean):
+        return "UNDEFINED: insufficient non-degenerate comparisons"
+    if phi_mean < threshold:
+        return "PASS: streams make different mistakes (decorrelated)"
+    return "FAIL: streams make the same mistakes (redundant)"
+
+
+def error_correlation_gate(
+    masks_a,
+    masks_b,
+    threshold: float = G2_DECORRELATION_THRESHOLD,
+) -> dict:
+    """G2 gate: phi correlation between two streams' per-pair error patterns.
+
+    For each fold, restrict to comparisons both streams treat as non-ambiguous,
+    then compute the phi coefficient (Pearson r on the binary correct vectors).
+    A fold whose shared correct vector is constant (all-correct or all-wrong for
+    a stream) yields an undefined phi and is excluded rather than silently
+    counted as zero.
+
+    Args:
+        masks_a / masks_b: a {correct, non_ambiguous} dict, or a per-fold list of
+            them. Both arguments must describe the same folds in the same order
+            over the same val-key ordering.
+        threshold: decorrelation pass cutoff (G2 is <0.5).
+
+    Returns:
+        Dict with phi_per_fold, phi_mean, phi_std, n_pairs_per_fold,
+        n_valid_folds, threshold, pass (bool), and a human-readable verdict.
+    """
+    folds_a = _normalize_fold_masks(masks_a)
+    folds_b = _normalize_fold_masks(masks_b)
+    if len(folds_a) != len(folds_b):
+        raise ValueError(
+            f"fold count mismatch: {len(folds_a)} streams_a vs {len(folds_b)} streams_b"
+        )
+
+    phi_per_fold: list[float] = []
+    n_pairs_per_fold: list[int] = []
+    for fa, fb in zip(folds_a, folds_b):
+        ca = np.asarray(fa["correct"], dtype=bool)
+        cb = np.asarray(fb["correct"], dtype=bool)
+        na = np.asarray(fa["non_ambiguous"], dtype=bool)
+        nb = np.asarray(fb["non_ambiguous"], dtype=bool)
+        if not (len(ca) == len(cb) == len(na) == len(nb)):
+            raise ValueError(
+                "mask length mismatch within a fold; streams must score the "
+                "same val keys in the same order"
+            )
+
+        shared = na & nb
+        n_shared = int(shared.sum())
+        n_pairs_per_fold.append(n_shared)
+        if n_shared < 3:
+            phi_per_fold.append(float("nan"))
+            continue
+
+        a = ca[shared].astype(float)
+        b = cb[shared].astype(float)
+        if a.std() == 0.0 or b.std() == 0.0:
+            # One stream is uniformly right (or wrong) on the shared set; phi is
+            # undefined. Surfacing nan keeps a degenerate fold from masquerading
+            # as a decorrelated (passing) result.
+            phi_per_fold.append(float("nan"))
+            continue
+
+        r, _ = pearsonr(a, b)
+        phi_per_fold.append(float(r))
+
+    valid = [p for p in phi_per_fold if not np.isnan(p)]
+    phi_mean = float(np.mean(valid)) if valid else float("nan")
+    phi_std = float(np.std(valid)) if valid else float("nan")
+    passed = (not np.isnan(phi_mean)) and phi_mean < threshold
+
+    return {
+        "phi_per_fold": phi_per_fold,
+        "phi_mean": phi_mean,
+        "phi_std": phi_std,
+        "n_pairs_per_fold": n_pairs_per_fold,
+        "n_valid_folds": len(valid),
+        "threshold": threshold,
+        "pass": bool(passed),
+        "verdict": _g2_verdict(phi_mean, threshold),
+    }
+
+
+def _overall_scores(
+    predictions: torch.Tensor,
+    keys: list[str],
+    labels: dict[str, list[float] | np.ndarray],
+    num_dims: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Mean-across-dims scalar pred + label per key (aligned to `keys`)."""
+    preds_np = predictions.detach().cpu().numpy()
+    op = preds_np[:, :num_dims].mean(axis=1)
+    ol = np.array(
+        [np.asarray(labels[k][:num_dims], dtype=np.float64).mean() for k in keys]
+    )
+    return op, ol
+
+
+def _pairwise_from_scalars(
+    op: np.ndarray, ol: np.ndarray, threshold: float
+) -> tuple[float, int]:
+    """Vectorized overall pairwise accuracy over all unordered pairs."""
+    n = len(op)
+    if n < 2:
+        return float("nan"), 0
+    dp = op[:, None] - op[None, :]
+    dl = ol[:, None] - ol[None, :]
+    iu = np.triu_indices(n, k=1)
+    dpu, dlu = dp[iu], dl[iu]
+    na = np.abs(dlu) >= threshold
+    if not na.any():
+        return float("nan"), 0
+    correct = (dpu[na] > 0) == (dlu[na] > 0)
+    return float(correct.mean()), int(na.sum())
+
+
+def per_piece_pairwise(
+    predictions: torch.Tensor,
+    keys: list[str],
+    labels: dict[str, list[float] | np.ndarray],
+    piece_of: dict[str, str],
+    threshold: float = 0.05,
+    num_dims: int = NUM_DIMS,
+) -> dict:
+    """Overall pairwise accuracy computed within each piece.
+
+    PercePiano has only 3 pieces => 3 CV folds, too few to trust an aggregate.
+    Reporting pairwise per piece exposes a single-piece regression that a flat
+    fold mean would hide.
+
+    Args:
+        predictions: [N, >=num_dims] aligned to `keys`.
+        keys: list of segment keys.
+        labels: key -> label vector.
+        piece_of: key -> piece id.
+
+    Returns:
+        piece_id -> {pairwise, n_pairs, n_keys}.
+    """
+    op, ol = _overall_scores(predictions, keys, labels, num_dims)
+    groups: dict[str, list[int]] = defaultdict(list)
+    for i, k in enumerate(keys):
+        piece = piece_of.get(k)
+        if piece is not None:
+            groups[piece].append(i)
+
+    out: dict = {}
+    for piece, idxs in groups.items():
+        pw, n_pairs = _pairwise_from_scalars(op[idxs], ol[idxs], threshold)
+        out[piece] = {"pairwise": pw, "n_pairs": n_pairs, "n_keys": len(idxs)}
+    return out
+
+
+def per_piece_pairwise_bootstrap(
+    predictions: torch.Tensor,
+    keys: list[str],
+    labels: dict[str, list[float] | np.ndarray],
+    piece_of: dict[str, str],
+    n_boot: int = 1000,
+    seed: int = 42,
+    threshold: float = 0.05,
+    num_dims: int = NUM_DIMS,
+    ci: float = 0.95,
+) -> dict:
+    """per_piece_pairwise plus a bootstrap CI over keys within each piece.
+
+    Returns piece_id -> {pairwise, n_pairs, n_keys, ci_low, ci_high}. The CI is
+    the (1-ci)/2 and 1-(1-ci)/2 percentiles of the bootstrap distribution; the
+    point estimate is the full-sample pairwise accuracy.
+    """
+    point = per_piece_pairwise(predictions, keys, labels, piece_of, threshold, num_dims)
+    op, ol = _overall_scores(predictions, keys, labels, num_dims)
+    groups: dict[str, list[int]] = defaultdict(list)
+    for i, k in enumerate(keys):
+        piece = piece_of.get(k)
+        if piece is not None:
+            groups[piece].append(i)
+
+    rng = np.random.RandomState(seed)
+    lo_q = (1.0 - ci) / 2.0 * 100.0
+    hi_q = (1.0 - (1.0 - ci) / 2.0) * 100.0
+
+    out: dict = {}
+    for piece, idxs in groups.items():
+        base = dict(point.get(piece, {}))
+        idx_arr = np.asarray(idxs)
+        n_keys = len(idx_arr)
+        if n_keys < 2:
+            out[piece] = {**base, "ci_low": float("nan"), "ci_high": float("nan")}
+            continue
+
+        boot_vals = []
+        for _ in range(n_boot):
+            sample = rng.choice(idx_arr, size=n_keys, replace=True)
+            pw, _ = _pairwise_from_scalars(op[sample], ol[sample], threshold)
+            if not np.isnan(pw):
+                boot_vals.append(pw)
+
+        if boot_vals:
+            out[piece] = {
+                **base,
+                "ci_low": float(np.percentile(boot_vals, lo_q)),
+                "ci_high": float(np.percentile(boot_vals, hi_q)),
+            }
+        else:
+            out[piece] = {**base, "ci_low": float("nan"), "ci_high": float("nan")}
+    return out
+
+
+def flag_single_piece_regressions(
+    current: dict,
+    baseline: dict,
+    tol: float = 0.02,
+) -> list[dict]:
+    """Flag pieces whose pairwise dropped more than `tol` below the baseline.
+
+    Args:
+        current / baseline: piece_id -> {"pairwise": float} (per_piece_pairwise
+            output shape).
+        tol: regression tolerance in absolute pairwise accuracy.
+
+    Returns:
+        List of {piece, current, baseline, delta} for regressed pieces.
+    """
+    flagged: list[dict] = []
+    for piece, cur in current.items():
+        if piece not in baseline:
+            continue
+        c = cur.get("pairwise")
+        b = baseline[piece].get("pairwise")
+        if c is None or b is None or np.isnan(c) or np.isnan(b):
+            continue
+        if c < b - tol:
+            flagged.append(
+                {"piece": piece, "current": c, "baseline": b, "delta": c - b}
+            )
+    return flagged
+
+
+def summarize_ood_folds(
+    ood_fold_results: list[dict],
+    fold_pairwise_mean: float | None = None,
+) -> dict:
+    """Aggregate per-fold OOD results into one OOD pairwise + gap summary.
+
+    The OOD set (phone-captured practice clips) is held strictly outside the
+    piece-stratified folds. Each fold's model is scored on it; we average the
+    OOD pairwise across folds and, given the clean-fold pairwise mean, report the
+    gap (clean - OOD), where a positive gap is degradation. The practice-
+    augmentation exit criterion is gap <= 0.10.
+
+    Args:
+        ood_fold_results: per-fold run_ood_test outputs (some may be
+            {"skipped": "empty_ood_dataset"} when no clips are present).
+        fold_pairwise_mean: the clean fold pairwise mean for this config.
+
+    Returns:
+        {"skipped": ...} when no fold scored OOD, else a dict with
+        ood_pairwise_mean, ood_pairwise_per_fold, n_folds_scored, n_samples, and
+        (when fold_pairwise_mean given) ood_minus_fold_gap.
+    """
+    scored = [
+        r for r in ood_fold_results
+        if r and not r.get("skipped") and r.get("pairwise") is not None
+    ]
+    if not scored:
+        return {"skipped": "empty_ood_dataset", "n_folds_scored": 0}
+
+    pw = float(np.mean([r["pairwise"] for r in scored]))
+    out: dict = {
+        "ood_pairwise_mean": pw,
+        "ood_pairwise_per_fold": [r["pairwise"] for r in scored],
+        "n_folds_scored": len(scored),
+        "n_samples": scored[0].get("n_samples"),
+    }
+    if fold_pairwise_mean is not None:
+        out["fold_pairwise_mean"] = fold_pairwise_mean
+        # clean - OOD: positive => OOD degradation. Exit criterion: <= 0.10.
+        out["ood_minus_fold_gap"] = fold_pairwise_mean - pw
+    return out
+
+
+def build_validation_gate_block(
+    fold_metrics: list[dict],
+    *,
+    muq_masks=None,
+    aria_masks=None,
+    per_piece: dict | None = None,
+    per_piece_baseline: dict | None = None,
+    ood_summary: dict | None = None,
+    g2_threshold: float = G2_DECORRELATION_THRESHOLD,
+) -> dict:
+    """Assemble the WS2 validation gates into one JSON-serializable block.
+
+    Args:
+        fold_metrics: per-fold evaluate_model results (for dimension_collapse).
+        muq_masks / aria_masks: per-fold pairwise masks from each stream. When
+            both are present the G2 gate runs; otherwise it is explicitly marked
+            skipped (single stream) rather than silently omitted.
+        per_piece: per_piece_pairwise output for this run.
+        per_piece_baseline: prior per_piece_pairwise to flag regressions against.
+        ood_summary: summarize_ood_folds output (OOD pairwise + gap). When None,
+            the OOD gate is explicitly marked not_run.
+    """
+    collapse_per_fold = [m.get("dimension_collapse_score") for m in fold_metrics]
+    collapse_vals = [
+        c for c in collapse_per_fold
+        if isinstance(c, (int, float)) and not np.isnan(c)
+    ]
+
+    block: dict = {
+        "dimension_collapse_per_fold": collapse_per_fold,
+        "dimension_collapse_mean": (
+            float(np.mean(collapse_vals)) if collapse_vals else None
+        ),
+    }
+
+    if muq_masks is not None and aria_masks is not None:
+        block["g2_error_correlation"] = error_correlation_gate(
+            muq_masks, aria_masks, threshold=g2_threshold
+        )
+    else:
+        block["g2_error_correlation"] = {
+            "skipped": "single_stream",
+            "note": (
+                "provide muq_masks and aria_masks (post fine-tune) to run the "
+                "G2 decorrelation gate"
+            ),
+        }
+
+    if per_piece is not None:
+        block["per_piece_pairwise"] = per_piece
+        if per_piece_baseline is not None:
+            block["single_piece_regressions"] = flag_single_piece_regressions(
+                per_piece, per_piece_baseline
+            )
+
+    block["ood"] = ood_summary if ood_summary is not None else {"skipped": "not_run"}
+
+    return block
+
+
+def print_validation_gate_summary(block: dict) -> None:
+    """Print the three gates, with an explicit G2 PASS/FAIL line."""
+    print("=== WS2 validation gates ===")
+
+    collapse = block.get("dimension_collapse_mean")
+    collapse_str = f"{collapse:.4f}" if isinstance(collapse, float) else "n/a"
+    print(f"  dimension_collapse_mean: {collapse_str}")
+
+    g2 = block.get("g2_error_correlation", {})
+    if g2.get("skipped"):
+        print(f"  G2 MuQ<->Aria error correlation: SKIPPED ({g2['skipped']})")
+    else:
+        phi = g2.get("phi_mean", float("nan"))
+        thr = g2.get("threshold", G2_DECORRELATION_THRESHOLD)
+        status = "PASS" if g2.get("pass") else "FAIL"
+        print(
+            f"  G2 MuQ<->Aria error correlation: phi={phi:.4f} "
+            f"(threshold {thr}) -> {status}"
+        )
+        print(f"      {g2.get('verdict', '')}")
+
+    per_piece = block.get("per_piece_pairwise")
+    if per_piece:
+        print("  per-piece pairwise:")
+        for piece, stats in sorted(per_piece.items()):
+            pw = stats.get("pairwise", float("nan"))
+            lo = stats.get("ci_low")
+            hi = stats.get("ci_high")
+            ci_str = (
+                f" [{lo:.3f}, {hi:.3f}]"
+                if isinstance(lo, float) and isinstance(hi, float) and not np.isnan(lo)
+                else ""
+            )
+            print(f"      {piece}: {pw:.4f}{ci_str} (n={stats.get('n_keys')})")
+
+    regressions = block.get("single_piece_regressions")
+    if regressions:
+        print("  SINGLE-PIECE REGRESSIONS:")
+        for r in regressions:
+            print(
+                f"      {r['piece']}: {r['current']:.4f} vs baseline "
+                f"{r['baseline']:.4f} (delta {r['delta']:+.4f})"
+            )
+
+    ood = block.get("ood", {})
+    if ood.get("skipped"):
+        print(f"  OOD practice gate: SKIPPED ({ood['skipped']})")
+    else:
+        pw = ood.get("ood_pairwise_mean", float("nan"))
+        gap = ood.get("ood_minus_fold_gap")
+        gap_str = f", gap (clean-OOD)={gap:+.4f}" if isinstance(gap, float) else ""
+        flag = (
+            " EXCEEDS 0.10 TARGET"
+            if isinstance(gap, float) and gap > 0.10
+            else ""
+        )
+        print(
+            f"  OOD practice gate: pairwise={pw:.4f}{gap_str} "
+            f"(n={ood.get('n_samples')} clips, {ood.get('n_folds_scored')} folds)"
+            f"{flag}"
+        )
