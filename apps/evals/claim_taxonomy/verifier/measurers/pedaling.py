@@ -87,7 +87,7 @@ class PedalingMeasurer:
                 (region_ev_j >= region.audio_start_sec)
                 & (region_ev_j < region.audio_end_sec)
             ]
-            frac_j = self._pedal_bar_fraction_from_times(region_bar_rows, region_ev_j, bars)
+            frac_j = self._pedal_bar_fraction(region_bar_rows, region_ev_j, bars)
             threshold_samples[i] = frac_j - self_density
 
         substrate_var = float(np.var(threshold_samples))
@@ -123,11 +123,6 @@ class PedalingMeasurer:
             return 0.0
         count = sum(1 for r in bar_rows if self._bar_has_pedal(r, sustain_times, all_bars))
         return count / len(bar_rows)
-
-    def _pedal_bar_fraction_from_times(
-        self, bar_rows: list[dict], sustain_times: np.ndarray, all_bars: list[dict]
-    ) -> float:
-        return self._pedal_bar_fraction(bar_rows, sustain_times, all_bars)
 
     def _measure_whole_piece(
         self,
