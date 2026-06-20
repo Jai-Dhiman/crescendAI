@@ -28,7 +28,12 @@ from model_improvement.data import (
     PairedPerformanceDataset,
     audio_pair_collate_fn,
 )
-from model_improvement.evaluation import evaluate_model
+from model_improvement.evaluation import (
+    evaluate_model,
+    per_piece_pairwise_bootstrap,
+    build_validation_gate_block,
+    print_validation_gate_summary,
+)
 from model_improvement.taxonomy import load_composite_labels, NUM_DIMS
 from model_improvement.training import train_model
 
@@ -203,6 +208,8 @@ def run_ablation_sweep(
     with open(Labels.percepiano / "piece_mapping.json") as f:
         piece_to_keys = json.load(f)
 
+    key_to_piece = {k: piece for piece, ks in piece_to_keys.items() for k in ks}
+
     print(f"Loaded {len(labels)} labels, {len(embeddings)} embeddings, {len(folds)} folds")
 
     # Resume from existing results
@@ -241,6 +248,9 @@ def run_ablation_sweep(
             fold_range = [fold_filter]
 
         fold_metrics = []
+        muq_fold_masks: list[dict] = []
+        combined_preds: list[list[float]] = []
+        combined_keys: list[str] = []
         for fold_idx in fold_range:
             fold = folds[fold_idx]
             print(f"\n  Fold {fold_idx}")
@@ -304,8 +314,18 @@ def run_ablation_sweep(
                 encode_fn=lambda m, inp, mask: m.encode(inp, mask),
                 compare_fn=lambda m, z_a, z_b: m.compare(z_a, z_b),
                 predict_fn=lambda m, inp, mask: m.predict_scores(inp, mask),
+                return_pairwise_masks=True,
+                return_predictions=True,
             )
             fold_metrics.append(fold_res)
+            if "pairwise_masks" in fold_res:
+                muq_fold_masks.append({
+                    "correct": fold_res["pairwise_masks"]["correct"],
+                    "non_ambiguous": fold_res["pairwise_masks"]["non_ambiguous"],
+                })
+            if "predictions" in fold_res:
+                combined_preds.extend(fold_res["predictions"])
+                combined_keys.extend(fold_res["pred_keys"])
 
             elapsed = time.time() - start_time
             pw = fold_res.get("pairwise", 0)
@@ -332,9 +352,26 @@ def run_ablation_sweep(
             "r2_per_fold": r2_values,
         }
 
+        # WS2 validation gates (#75): dimension collapse, per-piece pairwise +
+        # bootstrap CI, and the (single-stream-skipped) G2 error-correlation gate.
+        per_piece = None
+        if combined_preds:
+            preds_tensor = torch.tensor(combined_preds, dtype=torch.float32)
+            per_piece = per_piece_pairwise_bootstrap(
+                preds_tensor, combined_keys, labels, key_to_piece,
+                n_boot=1000, seed=42,
+            )
+        validation_block = build_validation_gate_block(
+            fold_metrics,
+            muq_masks=(muq_fold_masks or None),
+            per_piece=per_piece,
+        )
+        results[config_name]["validation_gates"] = validation_block
+
         with open(RESULTS_PATH, "w") as f:
             json.dump(results, f, indent=2)
         print(f"\n  {config_name}: pairwise={results[config_name]['pairwise_mean']:.4f}")
+        print_validation_gate_summary(validation_block)
 
     # Leaderboard
     if results:

@@ -32,7 +32,12 @@ from model_improvement.data import (
     PairedPerformanceDataset,
     audio_pair_collate_fn,
 )
-from model_improvement.evaluation import evaluate_model
+from model_improvement.evaluation import (
+    evaluate_model,
+    per_piece_pairwise_bootstrap,
+    build_validation_gate_block,
+    print_validation_gate_summary,
+)
 from model_improvement.taxonomy import load_composite_labels, NUM_DIMS
 from model_improvement.training import train_model
 
@@ -78,6 +83,8 @@ def run_single_fold(
         folds = json.load(f)
     with open(Labels.percepiano / "piece_mapping.json") as f:
         piece_to_keys = json.load(f)
+
+    key_to_piece = {k: piece for piece, ks in piece_to_keys.items() for k in ks}
 
     fold = folds[FOLD_IDX]
     collate_fn = partial(audio_pair_collate_fn, embeddings=embeddings)
@@ -163,9 +170,24 @@ def run_single_fold(
         encode_fn=lambda m, inp, mask: m.encode(inp, mask),
         compare_fn=lambda m, z_a, z_b: m.compare(z_a, z_b),
         predict_fn=lambda m, inp, mask: m.predict_scores(inp, mask),
+        return_predictions=True,
     )
 
     elapsed = time.time() - start_time
+
+    # WS2 validation gates (#75). Single fold => G2 is single-stream-skipped and
+    # per-piece covers whatever pieces fall in fold 0's val set.
+    per_piece = None
+    if "predictions" in fold_res:
+        preds_tensor = torch.tensor(fold_res["predictions"], dtype=torch.float32)
+        per_piece = per_piece_pairwise_bootstrap(
+            preds_tensor, fold_res["pred_keys"], labels, key_to_piece,
+            n_boot=1000, seed=42,
+        )
+    validation_block = build_validation_gate_block(
+        [fold_res], per_piece=per_piece
+    )
+    print_validation_gate_summary(validation_block)
 
     del model, trainer, best_model
     del train_ds, val_ds, train_loader, val_loader
@@ -174,6 +196,8 @@ def run_single_fold(
     return {
         "pairwise": fold_res.get("pairwise", 0.0),
         "r2": fold_res.get("r2", 0.0),
+        "dimension_collapse": fold_res.get("dimension_collapse_score"),
+        "validation_gates": validation_block,
         "elapsed_seconds": round(elapsed, 1),
     }
 
