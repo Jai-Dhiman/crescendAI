@@ -1,5 +1,5 @@
 {
-  "taxonomy_version": "v0",
+  "taxonomy_version": "v0.1",
   "extractor_judge_boundary": {
     "description": "An LLM may be used as the claim extractor (prose to structured claim). The verifier's truth label (SUPPORTED | REFUTED | UNVERIFIABLE) must never invoke an LLM. This boundary is the PROVE/ViCrit non-circularity defense: the checker's correctness is grounded in a programmatic oracle over a measured signal, not any model's opinion.",
     "llm_in_truth_label": false
@@ -92,11 +92,20 @@
       "notes": "Coarse on/off and density only. Half-pedal and flutter pedaling are out of scope. reference is self_density: fraction of bars with at least one pedal event in the same piece."
     },
     "dynamics": {
-      "status": "gated_on_measurement",
-      "gate_id": "rms_lufs_estimator",
+      "status": "active",
       "reference": "within_region_range",
-      "check": "dynamic_range_zscore_and_contour_slope_sign",
-      "rationale": "No audio-domain loudness estimator exists in the repo (only MIDI velocity, which is not perceived loudness). Gate: rms_lufs_estimator must be validated before this dimension is admissible. Relative within-region loudness only; absolute dB is inadmissible because recording gain is uncontrolled."
+      "check": "rms_contour_std_normalized",
+      "tolerance": {
+        "name": "rms_contour_deviation",
+        "provisional": 1.5,
+        "unit": "dB",
+        "calibration_source": "#65/M1 error-bar study",
+        "locked": false
+      },
+      "reliability_tier": 2,
+      "measurement": "librosa_rms_region_estimator",
+      "minimum_events": 20,
+      "notes": "RMS-based loudness proxy. Absolute dB inadmissible (uncontrolled recording gain). Within-region dynamic range only. minimum_events = RMS frames at hop_length=512, SR=16000 (~640ms minimum region)."
     },
     "articulation": {
       "status": "gated_on_measurement",
