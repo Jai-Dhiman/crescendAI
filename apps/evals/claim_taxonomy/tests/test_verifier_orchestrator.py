@@ -205,6 +205,35 @@ def test_verify_returns_verdict_result_type() -> None:
     assert result.substrate_versions == bundle["substrate_versions"]
 
 
+def test_unknown_measurement_key_returns_substrate_failure_unverifiable() -> None:
+    """Orchestrator hits the unknown-measurement-key branch (lines 75-80 of orchestrator.py).
+
+    An active dimension whose 'measurement' value is not registered in the measurer
+    registry must return UNVERIFIABLE with reason_code='substrate_failure'.
+    """
+    taxonomy = _load_taxonomy()
+    # Inject a fake active dimension with an unrecognized measurement key into a copy.
+    import copy
+    fake_taxonomy = copy.deepcopy(taxonomy)
+    fake_taxonomy["dimensions"]["fake_dim"] = {
+        "status": "active",
+        "measurement": "nonexistent_measurement_key",
+        "tolerance": {"provisional": 0.05, "unit": "fraction"},
+    }
+    bundle = _make_timing_bundle()
+    claim = {
+        "proposition": "Something unregistered",
+        "dimension": "fake_dim",
+        "location": {"bar_start": 1, "bar_end": 5},
+        "polarity": "-",
+        "magnitude": None,
+    }
+    engine = SubstrateErrorEngine(seed=42)
+    result = verify(claim, bundle, fake_taxonomy, engine=engine)
+    assert result.verdict == "UNVERIFIABLE"
+    assert result.reason_code == "substrate_failure"
+
+
 def test_cli_verify_outputs_json(tmp_path) -> None:
     """CLI writes valid JSON VerdictResult to stdout."""
     import subprocess, sys
