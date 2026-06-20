@@ -376,3 +376,10 @@ exercise-routing-eval-smoke:
 # Promote last_run.json -> baseline.json after a deliberate routing improvement.
 exercise-routing-ratchet:
     cd apps/evals && uv run python -m pipeline.exercise_routing.ratchet_baseline
+
+# Full visible-browser E2E eval: seed canary facts, drive a real session,
+# open headed Chrome, assert synthesis + memory recall via scripted chat.
+# Requires: just dev (API:8787, Web:3000, MuQ:8000), just seed-fingerprint.
+# Use --reply-timeout 180000 on a cold Workers AI stack (glm cold-start >90s).
+e2e-full-session *args:
+    cd apps/evals && uv run python e2e_full_session.py --reply-timeout 180000 {{args}}
