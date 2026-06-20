@@ -1,7 +1,8 @@
 """BundleExtractor: produce a unified per-clip measurement bundle from AMT + parangonar.
 
 Reuses chroma_dtw_eval.amt_regen internals for AMT transcription and parangonar alignment.
-Adds CC64 sustain-pedal capture (pedal_events: [] if AMT server does not expose CC data).
+Adds CC64 sustain-pedal capture: pedal_events are threaded from the AMT server
+response ({"time": sec, "value": 0|127}); empty only when the recording has no pedal.
 Output: bundle JSON at bundle_root/piece_id/video_id.json.
 """
 from __future__ import annotations
@@ -13,7 +14,7 @@ import numpy as np
 
 from chroma_dtw_eval.amt_regen import (
     _dedup_amt_notes,
-    _transcribe_clip,
+    _transcribe_clip_with_pedals,
     _read_wav_16k_mono,
     _amt_to_perf_na,
     _load_bach_json_score,
@@ -67,16 +68,15 @@ def extract_bundle(
     parangonar_version = config_body.get("parangonar_version", "unknown")
 
     audio_16k = _read_wav_16k_mono(audio_path)
-    amt_notes = _transcribe_clip(audio_16k, amt_url)
+    amt_notes, pedal_events = _transcribe_clip_with_pedals(audio_16k, amt_url)
     if not amt_notes:
         raise BundleExtractionError(f"AMT returned zero notes for {audio_path}")
 
     score_na, measure_table, score_sha256, beat_sec = _load_bach_json_score(score_path)
     deduped_notes = _dedup_amt_notes(amt_notes)
 
-    # CC64 pedal events: AMT server currently returns notes only.
-    # pedal_events is [] until the AMT endpoint exposes MIDI CC.
-    pedal_events: list[dict] = []
+    # CC64 sustain-pedal events come straight from the AMT server response
+    # ({"time": sec, "value": 0|127}); empty list when the recording has no pedal.
 
     amt_perf_na = _amt_to_perf_na(deduped_notes, beat_sec)
     matches = _match(score_na, amt_perf_na)
