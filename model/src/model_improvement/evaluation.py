@@ -64,14 +64,20 @@ def conditional_independence(
     if preds_np.ndim != 2 or preds_np.shape[0] < 3:
         return np.full((NUM_DIMS, NUM_DIMS), np.nan)
 
-    anchor = labels_np.mean(axis=1)
-    if np.std(anchor) == 0.0:
+    # nanmean so uncovered dims (NaN labels, e.g. external sets with partial
+    # dim coverage) don't poison every row's anchor.
+    anchor = np.nanmean(labels_np, axis=1)
+    if not np.isfinite(anchor).any() or np.nanstd(anchor) == 0.0:
         return per_dimension_correlation(predictions)
 
-    residuals = np.zeros_like(preds_np)
+    residuals = np.full_like(preds_np, np.nan)
     for d in range(preds_np.shape[1]):
-        slope, intercept = np.polyfit(anchor, preds_np[:, d], 1)
-        residuals[:, d] = preds_np[:, d] - (slope * anchor + intercept)
+        col = preds_np[:, d]
+        finite = np.isfinite(anchor) & np.isfinite(col)
+        if finite.sum() < 2 or np.std(anchor[finite]) == 0.0:
+            continue
+        slope, intercept = np.polyfit(anchor[finite], col[finite], 1)
+        residuals[finite, d] = col[finite] - (slope * anchor[finite] + intercept)
 
     with np.errstate(invalid="ignore"):
         return np.corrcoef(residuals, rowvar=False)
