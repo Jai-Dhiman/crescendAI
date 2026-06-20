@@ -1,8 +1,11 @@
 # Claim Verifier: Per-Dimension Signed-d Conventions and Error-Bar Table
 
-**Issue:** #65
+**Issue:** #65, #94 (first real-audio measurement)
 **Taxonomy version:** v0.1
-**Validation boundary:** This document covers substrate-level measurement. Real-claim faithfulness (#67), proxy-to-perception (#66), and error-rich localization (GATE 1) are NOT validated here.
+**Validation boundary:** This document covers substrate-level measurement. The error bars in
+"Measured Error Bars" below are now MEASURED on real cached audio (AMT held fixed, #94); the
+"Substrate Error Distributions" table remains the per-source design input. Real-claim faithfulness
+(#67), proxy-to-perception (#66), and error-rich localization (GATE 1) are still NOT validated here.
 
 ---
 
@@ -73,3 +76,46 @@ The mistake-injection harness (bundle-level signal perturbation) tests measurer 
 | timing | 8 | note onsets | ~4 bars at moderate tempo |
 | pedaling | 2 | sustain-on events (CC64 >= 64) | ~2 bars with any pedaling |
 | dynamics | 20 | RMS frames (hop=512, SR=16kHz) | ~640ms audio |
+
+---
+
+## Measured Error Bars (real cached audio, AMT fixed) -- #94
+
+The error bars below are **MEASURED**, not estimated. They come from running the shipped
+`verify()` over real measurement bundles extracted from cached practice-eval audio via real
+Aria-AMT transcription (`model/src/claim_measurement/extract_cli.py`), then re-run with the
+real-claim harness (`apps/evals/claim_taxonomy/run_real_verify.py`). The prior sections give
+the per-source design inputs; this section gives the realized end-to-end `error_bar` per
+dimension. **Caveat:** AMT is held fixed -- these bars capture sampling + substrate-model
+variance on *clean* transcription, NOT accuracy under AMT transcription error on error-rich
+audio (GATE 1, still deferred).
+
+**Substrate:** 3 bundles extracted (`bach_invention_1` x2, `bach_prelude_c_wtc1` x1; the other
+18 cached clips lack a `_load_bach_json_score`-compatible single-tempo 4/4 score and are
+reported `no_score`, not silently skipped). 12 `verify()` runs (4 real teacher-prose claims x
+3 bundles). Each run uses `SubstrateErrorEngine(seed=42)`, so the bars are deterministic.
+
+| Dimension | location kind | measured `error_bar` range | units | n (events) | notes |
+|-----------|---------------|----------------------------|-------|------------|-------|
+| timing | bar-range (bars 9-12) | 0.18 -- 0.34 | percent | 141 -- 237 | tight when onsets exist in the region; one bundle hit `UNVERIFIABLE(region_too_short)` at n=0 |
+| timing | whole_piece (CV%) | 2.38 -- 19.78 | percent | 557 -- 1807 | **large**: raw AMT onset IOI on fast Bach is noisy; the prelude's bar (19.78%) exceeds tau=8% |
+| pedaling | whole_piece (density) | 0.00 -- 0.11 | fraction | 178 -- 350 | measurable on real CC64 events; verdicts spanned d=0.09 (REFUTED) to d=1.0 (SUPPORTED) |
+| dynamics | whole_piece (dispersion) | 0.026 -- 0.035 | dB | 3095 -- 9111 | tightest and most stable dimension across bundles |
+
+### Pedaling decoded successfully -- dimension stays `active`
+
+The #65 extractor stubbed `pedal_events = []` on the false premise that "the AMT server returns
+notes only." That premise is wrong: Aria-AMT emits CC64 sustain events
+(`apps/inference/amt/server.py:485-487`). Measured pedal-event counts on the three real bundles:
+
+| bundle | clip ~dur | pedal_events | note: on/off split | bar density |
+|--------|-----------|--------------|--------------------|-------------|
+| bach_prelude_c_wtc1/mfN8ZEYWdqs | 152s | 354 | 178 on / 176 off | 1.00 |
+| bach_invention_1/2cbYFp9kNpg | 292s | 453 | -- | ~0.09 region |
+| bach_invention_1/7zVlDxBO5q4 | 97s | 1246 | 350 on / 896 off | 0.46 |
+
+Events are clean 0/127 on-off alternation and yield real density verdicts, so pedaling remains
+`status: active` (no re-gate). **Honest caveat:** the invention `7zVlDxBO5q4` decodes ~12.8
+events/s, which likely over-segments pedal on/off on busy passages; the coarse
+*presence-per-bar density* proxy is robust to this, but fine half-pedal/flutter remains out of
+scope as documented.
