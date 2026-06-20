@@ -63,7 +63,10 @@ class LocationResolver:
                 self._measure_table[bar_number]["start_sec"]
                 - self._measure_table[prev_bar]["start_sec"]
             )
-        return 2.0  # fallback: 2 seconds per bar
+        raise UnverifiableError(
+            "substrate_failure",
+            "single-bar measure_table; cannot infer bar duration",
+        )
 
     def resolve(self, location: dict | str) -> ResolvedRegion:
         """Map location to audio time range.

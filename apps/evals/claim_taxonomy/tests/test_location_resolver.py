@@ -52,7 +52,10 @@ def test_missing_bar_raises_unlocalizable() -> None:
 
 def test_too_few_anchors_raises_unlocalizable() -> None:
     bundle = {
-        "measure_table": [{"bar_number": 1, "start_sec": 0.0, "start_tick": 0}],
+        "measure_table": [
+            {"bar_number": 1, "start_sec": 0.0, "start_tick": 0},
+            {"bar_number": 2, "start_sec": 2.0, "start_tick": 480},
+        ],
         "anchors": {"perf_audio_sec": [0.0], "score_audio_sec": [0.0]},
     }
     engine = SubstrateErrorEngine(seed=0)
@@ -85,6 +88,38 @@ def test_failsafe_triggers_when_uncertainty_exceeds_span() -> None:
     with pytest.raises(UnverifiableError) as exc_info:
         resolver.resolve({"bar_start": 1, "bar_end": 1})
     assert exc_info.value.reason_code == "unlocalizable"
+
+
+def test_single_entry_measure_table_region_raises_substrate_failure() -> None:
+    """A single-bar measure_table cannot infer bar duration; must raise substrate_failure."""
+    bundle = {
+        "measure_table": [{"bar_number": 1, "start_sec": 0.0, "start_tick": 0}],
+        "anchors": {
+            "perf_audio_sec": [0.0, 5.0],
+            "score_audio_sec": [0.0, 5.0],
+        },
+    }
+    engine = SubstrateErrorEngine(seed=0)
+    resolver = LocationResolver(bundle, engine)
+    with pytest.raises(UnverifiableError) as exc_info:
+        resolver.resolve({"bar_start": 1, "bar_end": 1})
+    assert exc_info.value.reason_code == "substrate_failure"
+
+
+def test_whole_piece_single_entry_measure_table_does_not_call_bar_duration() -> None:
+    """whole_piece resolution must NOT route through _bar_duration_sec."""
+    bundle = {
+        "measure_table": [{"bar_number": 1, "start_sec": 0.0, "start_tick": 0}],
+        "anchors": {
+            "perf_audio_sec": [0.0, 5.0],
+            "score_audio_sec": [0.0, 5.0],
+        },
+    }
+    engine = SubstrateErrorEngine(seed=0)
+    resolver = LocationResolver(bundle, engine)
+    # Must NOT raise; whole_piece does not need bar duration
+    region = resolver.resolve("whole_piece")
+    assert region.location_span_bars == float("inf")
 
 
 def test_resolved_region_has_uncertainty_field() -> None:
