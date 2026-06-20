@@ -61,7 +61,7 @@ class TimingMeasurer:
         d, sampling_var = self._region_d_and_sampling_var(
             region_onsets, all_onsets, engine
         )
-        substrate_var = self._substrate_var(region_onsets, d, engine)
+        substrate_var = self._substrate_var(region_onsets, all_onsets, engine)
         error_bar = math.sqrt(sampling_var + substrate_var)
 
         return Measurement(d=d, error_bar=error_bar, event_count=event_count, substrate_failure=False)
@@ -102,16 +102,16 @@ class TimingMeasurer:
         return d, sampling_var
 
     def _substrate_var(
-        self, region_onsets: np.ndarray, d: float, engine: SubstrateErrorEngine
+        self, region_onsets: np.ndarray, all_onsets: np.ndarray, engine: SubstrateErrorEngine
     ) -> float:
         jitters = engine.timing_onset_jitter_sec()
-        established = self._established_tempo(region_onsets)
+        established = self._established_tempo(all_onsets)
         perturbed_ds = np.empty(len(jitters))
         for i, j in enumerate(jitters):
             perturbed = region_onsets + j
             bpm = self._region_median_bpm(perturbed)
             if established > 0:
-                perturbed_ds[i] = (bpm - established) / established * 100.0
+                perturbed_ds[i] = (established - bpm) / established * 100.0
             else:
                 perturbed_ds[i] = 0.0
         return float(np.var(perturbed_ds))

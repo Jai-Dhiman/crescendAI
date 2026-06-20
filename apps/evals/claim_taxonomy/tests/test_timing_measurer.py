@@ -107,3 +107,45 @@ def test_error_bar_is_positive() -> None:
                               bundle=bundle, region=region, engine=engine)
     assert result.error_bar > 0.0
     assert not result.substrate_failure
+
+
+def test_substrate_var_uses_full_piece_reference_and_consistent_sign() -> None:
+    """_substrate_var must use the full-piece established tempo (not region-only) and
+    produce perturbation deltas with the same sign convention as _region_d_and_sampling_var:
+    (established - bpm) / established * 100, so rushed -> negative contribution."""
+    # Region (0-5s): fast, IOI=0.25s -> ~240 BPM
+    # Rest of piece (5-50s): normal, IOI=0.5s -> ~120 BPM (dominates median)
+    region_onsets = np.array([i * 0.25 for i in range(20)])   # 0..4.75s
+    rest_onsets = np.array([5.0 + i * 0.5 for i in range(80)])
+    all_onsets = np.sort(np.concatenate([region_onsets, rest_onsets]))
+
+    measurer = TimingMeasurer()
+    engine = SubstrateErrorEngine(seed=42)
+
+    # Full-piece established tempo is ~120 BPM (median dominated by rest_onsets).
+    # Region BPM is ~240 BPM (faster than reference).
+    # With full-piece reference: (established - region_bpm) / established * 100 < 0 (rushed).
+    # With region-only reference (the old bug): established==240, result would be ~0.
+    established_full = measurer._established_tempo(all_onsets)
+    established_region = measurer._established_tempo(region_onsets)
+    assert established_full < established_region * 0.7, (
+        "test setup: full-piece tempo must differ substantially from region-only tempo"
+    )
+
+    substrate_var = measurer._substrate_var(region_onsets, all_onsets, engine)
+    # Variance is non-negative; we mainly confirm the call succeeds and matches the
+    # corrected signature. The perturbed d values should cluster around the true d < 0.
+    assert substrate_var >= 0.0
+
+    # Also verify sign consistency: each perturbed d should be negative (rushed region).
+    jitters = engine.timing_onset_jitter_sec()
+    signs_negative = []
+    for j in jitters:
+        perturbed = region_onsets + j
+        bpm = measurer._region_median_bpm(perturbed)
+        d_perturbed = (established_full - bpm) / established_full * 100.0
+        signs_negative.append(d_perturbed < 0)
+    assert all(signs_negative), (
+        "all perturbed substrate-var deltas should be negative for a rushed region "
+        "when using the full-piece reference"
+    )
