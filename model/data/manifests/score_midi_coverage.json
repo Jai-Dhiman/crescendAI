@@ -1,0 +1,205 @@
+{
+  "summary": {
+    "t1_works": 4,
+    "t5_pieces": 16,
+    "score_conditioning_eligible": 20,
+    "covered": 20,
+    "gaps": 0,
+    "t2": "excluded (ordinal-only; no per-segment work identity)"
+  },
+  "pieces": [
+    {
+      "tier": "T1",
+      "training_piece": "beethoven_woo80_32_variations",
+      "catalog_piece_id": null,
+      "score_midi_source": "percepiano_native_score_midi",
+      "score_midi_locator": "data/midi/percepiano/Beethoven_WoO80_*Score*.mid",
+      "n_score_segments": 34,
+      "status": "covered",
+      "partitura_parse_ok": true
+    },
+    {
+      "tier": "T1",
+      "training_piece": "schubert_d935_no3",
+      "catalog_piece_id": null,
+      "score_midi_source": "percepiano_native_score_midi",
+      "score_midi_locator": "data/midi/percepiano/Schubert_D935_no.3_*Score*.mid",
+      "n_score_segments": 26,
+      "status": "covered",
+      "partitura_parse_ok": true
+    },
+    {
+      "tier": "T1",
+      "training_piece": "schubert_d960_mvt2",
+      "catalog_piece_id": null,
+      "score_midi_source": "percepiano_native_score_midi",
+      "score_midi_locator": "data/midi/percepiano/Schubert_D960_mv2_*Score*.mid",
+      "n_score_segments": 26,
+      "status": "covered",
+      "partitura_parse_ok": true
+    },
+    {
+      "tier": "T1",
+      "training_piece": "schubert_d960_mvt3",
+      "catalog_piece_id": null,
+      "score_midi_source": "percepiano_native_score_midi",
+      "score_midi_locator": "data/midi/percepiano/Schubert_D960_mv3_*Score*.mid",
+      "n_score_segments": 43,
+      "status": "covered",
+      "partitura_parse_ok": true
+    },
+    {
+      "tier": "T5",
+      "training_piece": "bach_invention_1",
+      "catalog_piece_id": "bach.inventions.1",
+      "score_midi_source": "manual:https://www.mutopiaproject.org/ftp/BachJS/BWV772/bach-invention-01/bach-invention-01.mid",
+      "score_midi_locator": "data/scores/bach.inventions.1.json (-> manual:https://www.mutopiaproject.org/ftp/BachJS/BWV772/bach-invention-01/bach-invention-01.mid)",
+      "manifest_staged_locally": true,
+      "status": "covered"
+    },
+    {
+      "tier": "T5",
+      "training_piece": "bach_prelude_c_wtc1",
+      "catalog_piece_id": "bach.prelude.bwv_846",
+      "score_midi_source": "asap",
+      "score_midi_locator": "data/scores/bach.prelude.bwv_846.json (-> asap)",
+      "manifest_staged_locally": true,
+      "status": "covered"
+    },
+    {
+      "tier": "T5",
+      "training_piece": "chopin_ballade_1",
+      "catalog_piece_id": "chopin.ballades.1",
+      "score_midi_source": "asap",
+      "score_midi_locator": "data/scores/chopin.ballades.1.json (-> asap)",
+      "manifest_staged_locally": true,
+      "status": "covered"
+    },
+    {
+      "tier": "T5",
+      "training_piece": "chopin_etude_op10no4",
+      "catalog_piece_id": "chopin.etudes_op_10.4",
+      "score_midi_source": "asap",
+      "score_midi_locator": "data/scores/chopin.etudes_op_10.4.json (-> asap)",
+      "manifest_staged_locally": true,
+      "status": "covered"
+    },
+    {
+      "tier": "T5",
+      "training_piece": "chopin_waltz_csm",
+      "catalog_piece_id": "chopin.waltzes.64-2",
+      "score_midi_source": "manual:manual_midis/chopin.waltzes.64-2.mid",
+      "score_midi_locator": "data/scores/chopin.waltzes.64-2.json (-> manual:manual_midis/chopin.waltzes.64-2.mid)",
+      "manifest_staged_locally": true,
+      "status": "covered"
+    },
+    {
+      "tier": "T5",
+      "training_piece": "clair_de_lune",
+      "catalog_piece_id": "debussy.suite_bergamasque.3_clair_de_lune",
+      "score_midi_source": "manual:https://www.mutopiaproject.org/ftp/DebussyC/L75/debussy_Ste_Bergamesq_Clair/debussy_Ste_Bergamesq_Clair.mid",
+      "score_midi_locator": "data/scores/debussy.suite_bergamasque.3_clair_de_lune.json (-> manual:https://www.mutopiaproject.org/ftp/DebussyC/L75/debussy_Ste_Bergamesq_Clair/debussy_Ste_Bergamesq_Clair.mid)",
+      "manifest_staged_locally": true,
+      "status": "covered"
+    },
+    {
+      "tier": "T5",
+      "training_piece": "debussy_arabesque_1",
+      "catalog_piece_id": "debussy.deux_arabesques.1",
+      "score_midi_source": "manual:https://www.mutopiaproject.org/ftp/DebussyC/L66/debussy_Arabesque_1/debussy_Arabesque_1.mid",
+      "score_midi_locator": "data/scores/debussy.deux_arabesques.1.json (-> manual:https://www.mutopiaproject.org/ftp/DebussyC/L66/debussy_Arabesque_1/debussy_Arabesque_1.mid)",
+      "manifest_staged_locally": true,
+      "status": "covered"
+    },
+    {
+      "tier": "T5",
+      "training_piece": "fantaisie_impromptu",
+      "catalog_piece_id": "chopin.fantaisie_impromptu",
+      "score_midi_source": "manual:https://www.mutopiaproject.org/ftp/ChopinFF/O66/chopin_fantaisie-impromptu/chopin_fantaisie-impromptu.mid",
+      "score_midi_locator": "data/scores/chopin.fantaisie_impromptu.json (-> manual:https://www.mutopiaproject.org/ftp/ChopinFF/O66/chopin_fantaisie-impromptu/chopin_fantaisie-impromptu.mid)",
+      "manifest_staged_locally": true,
+      "status": "covered"
+    },
+    {
+      "tier": "T5",
+      "training_piece": "fur_elise",
+      "catalog_piece_id": "beethoven.fur_elise",
+      "score_midi_source": "manual:https://www.mutopiaproject.org/ftp/BeethovenLv/WoO59/fur_Elise_WoO59/fur_Elise_WoO59.mid",
+      "score_midi_locator": "data/scores/beethoven.fur_elise.json (-> manual:https://www.mutopiaproject.org/ftp/BeethovenLv/WoO59/fur_Elise_WoO59/fur_Elise_WoO59.mid)",
+      "manifest_staged_locally": true,
+      "status": "covered"
+    },
+    {
+      "tier": "T5",
+      "training_piece": "liszt_liebestraum_3",
+      "catalog_piece_id": "liszt.liebestraume.3",
+      "score_midi_source": "manual:manual_midis/liszt.liebestraume.3.mid",
+      "score_midi_locator": "data/scores/liszt.liebestraume.3.json (-> manual:manual_midis/liszt.liebestraume.3.mid)",
+      "manifest_staged_locally": true,
+      "status": "covered"
+    },
+    {
+      "tier": "T5",
+      "training_piece": "moonlight_sonata_mvt1",
+      "catalog_piece_id": "beethoven.piano_sonatas.14-1",
+      "score_midi_source": "manual:manual_midis/beethoven.piano_sonatas.14-1.mid",
+      "score_midi_locator": "data/scores/beethoven.piano_sonatas.14-1.json (-> manual:manual_midis/beethoven.piano_sonatas.14-1.mid)",
+      "manifest_staged_locally": true,
+      "status": "covered"
+    },
+    {
+      "tier": "T5",
+      "training_piece": "mozart_k545_mvt1",
+      "catalog_piece_id": "mozart.piano_sonatas.16-1",
+      "score_midi_source": "manual:https://www.mutopiaproject.org/ftp/MozartWA/KV545/K545-1/K545-1.mid",
+      "score_midi_locator": "data/scores/mozart.piano_sonatas.16-1.json (-> manual:https://www.mutopiaproject.org/ftp/MozartWA/KV545/K545-1/K545-1.mid)",
+      "manifest_staged_locally": true,
+      "status": "covered"
+    },
+    {
+      "tier": "T5",
+      "training_piece": "nocturne_op9no2",
+      "catalog_piece_id": "chopin.nocturnes.9-2",
+      "score_midi_source": "asap",
+      "score_midi_locator": "data/scores/chopin.nocturnes.9-2.json (-> asap)",
+      "manifest_staged_locally": true,
+      "status": "covered"
+    },
+    {
+      "tier": "T5",
+      "training_piece": "pathetique_mvt2",
+      "catalog_piece_id": "beethoven.piano_sonatas.8-2",
+      "score_midi_source": "asap",
+      "score_midi_locator": "data/scores/beethoven.piano_sonatas.8-2.json (-> asap)",
+      "manifest_staged_locally": true,
+      "status": "covered"
+    },
+    {
+      "tier": "T5",
+      "training_piece": "rachmaninoff_prelude_csm",
+      "catalog_piece_id": "rachmaninoff.preludes_op_3.2",
+      "score_midi_source": "manual:https://www.mutopiaproject.org/ftp/RachmaninoffS/O3/rach-prelude-op3-no2/rach-prelude-op3-no2.mid",
+      "score_midi_locator": "data/scores/rachmaninoff.preludes_op_3.2.json (-> manual:https://www.mutopiaproject.org/ftp/RachmaninoffS/O3/rach-prelude-op3-no2/rach-prelude-op3-no2.mid)",
+      "manifest_staged_locally": true,
+      "status": "covered"
+    },
+    {
+      "tier": "T5",
+      "training_piece": "schumann_traumerei",
+      "catalog_piece_id": "schumann.kinderszenen.7",
+      "score_midi_source": "manual:https://www.mutopiaproject.org/ftp/SchumannR/O15/SchumannOp15No07/SchumannOp15No07.mid",
+      "score_midi_locator": "data/scores/schumann.kinderszenen.7.json (-> manual:https://www.mutopiaproject.org/ftp/SchumannR/O15/SchumannOp15No07/SchumannOp15No07.mid)",
+      "manifest_staged_locally": true,
+      "status": "covered"
+    }
+  ],
+  "t2_exclusion": {
+    "tier": "T2",
+    "status": "excluded",
+    "reason": "Competition segments carry no per-segment work identity (the `piece` field is a round/recital/competition title, not a single work), so score-conditioning is infeasible without per-segment piece-ID (#26). T2 supplies ordinal ranking signal, which needs no score MIDI.",
+    "n_segments": 9104,
+    "distinct_piece_labels": 55,
+    "distinct_labels_naming_a_single_work": 0,
+    "follow_up": "If T2 score-conditioning becomes desired, run per-segment piece-ID (#26) then map identified works to catalog piece_ids."
+  }
+}
