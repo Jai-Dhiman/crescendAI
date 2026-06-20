@@ -1,6 +1,5 @@
 from __future__ import annotations
 import numpy as np
-import pytest
 from claim_taxonomy.verifier.substrate_error import SubstrateErrorEngine
 
 
@@ -55,23 +54,34 @@ def test_bootstrap_d_returns_n_samples_values() -> None:
     assert result.shape == (300,)
 
 
-def test_alignment_uncertainty_zero_jitter_near_zero() -> None:
-    """With zero-sigma jitter the MC uncertainty should be effectively zero."""
+def test_alignment_uncertainty_identity_equals_jitter_sigma() -> None:
+    """For an identity alignment, MC uncertainty equals the onset jitter sigma (~0.010s).
+
+    The engine perturbs all anchors by the same scalar per sample, so the interpolated
+    estimate at any query is query + jitter; its std is the jitter sigma.
+    """
     perf = np.array([0.0, 1.0, 2.0, 3.0])
     score = np.array([0.0, 1.0, 2.0, 3.0])
-    e_small = SubstrateErrorEngine(seed=0, n_samples=500)
-    u = e_small.alignment_uncertainty_sec(perf, score, bar_start_score_sec=1.0)
-    assert isinstance(u, float)
-    assert u >= 0.0
+    e = SubstrateErrorEngine(seed=0, n_samples=5000)
+    u = e.alignment_uncertainty_sec(perf, score, bar_start_score_sec=1.0)
+    assert abs(u - 0.010) < 0.002, f"identity-alignment uncertainty should be ~sigma=0.010s, got {u}"
 
 
-def test_alignment_uncertainty_monotone_with_anchor_spread() -> None:
-    """More spread-out anchors give lower uncertainty (more information)."""
+def test_alignment_uncertainty_independent_of_anchor_density_under_global_shift() -> None:
+    """Separate engines, same seed: dense and sparse identity alignments give equal
+    uncertainty, because the engine applies a global scalar shift (uncertainty == jitter
+    sigma) independent of anchor density. The original <= invariant holds for the right reason.
+    """
     perf_dense = np.linspace(0.0, 10.0, 100)
     score_dense = np.linspace(0.0, 10.0, 100)
     perf_sparse = np.array([0.0, 5.0, 10.0])
     score_sparse = np.array([0.0, 5.0, 10.0])
-    e = SubstrateErrorEngine(seed=0, n_samples=500)
-    u_dense = e.alignment_uncertainty_sec(perf_dense, score_dense, 5.0)
-    u_sparse = e.alignment_uncertainty_sec(perf_sparse, score_sparse, 5.0)
-    assert u_dense <= u_sparse + 0.005  # allow tiny float tolerance
+    e_dense = SubstrateErrorEngine(seed=0, n_samples=500)
+    e_sparse = SubstrateErrorEngine(seed=0, n_samples=500)
+    u_dense = e_dense.alignment_uncertainty_sec(perf_dense, score_dense, 5.0)
+    u_sparse = e_sparse.alignment_uncertainty_sec(perf_sparse, score_sparse, 5.0)
+    assert abs(u_dense - u_sparse) < 1e-9, (
+        f"global-shift engine: dense and sparse should give equal uncertainty, "
+        f"got dense={u_dense}, sparse={u_sparse}"
+    )
+    assert u_dense <= u_sparse + 0.005
