@@ -19,10 +19,19 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time as _time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
+
+
+@dataclass
+class ChatTurnResult:
+    """Result of a single scripted chat turn."""
+    turn_text: str
+    reply_text: str
+    elapsed_ms: int
 
 
 @dataclass
@@ -246,6 +255,90 @@ def _save_screenshot(page: Page, path: Path | None) -> Path | None:
     except Exception as exc:
         print(f"[warn] screenshot save failed: {exc}", file=sys.stderr)
         return None
+
+
+# ---------------------------------------------------------------------------
+# Scripted chat turn driver
+# ---------------------------------------------------------------------------
+
+_ASSISTANT_MSG_SELECTOR = "[data-testid='assistant-message']"
+_CHAT_TEXTAREA_SELECTOR = "textarea"
+_STABILITY_WAIT_MS = 600
+_POLL_INTERVAL_MS = 250
+
+
+def run_chat_turns(
+    page: "Page",
+    turns: list[str],
+    reply_timeout_ms: int = 90000,
+) -> list[ChatTurnResult]:
+    """Drive scripted chat turns through the web UI and collect reply texts.
+
+    For each turn:
+      1. Fill the chat textarea (placeholder "Message your teacher...").
+      2. Press Enter.
+      3. Poll (bounded by reply_timeout_ms) until a new assistant-message
+         element appears whose inner_text has been stable for _STABILITY_WAIT_MS.
+      4. Record the reply text and elapsed time.
+
+    All Playwright waits use explicit timeouts — no unbounded calls.
+
+    Args:
+        page: Playwright Page object, already on the conversation URL and authenticated.
+        turns: List of message texts to send in order.
+        reply_timeout_ms: Hard upper bound per turn.
+
+    Returns:
+        List of ChatTurnResult, one per turn, in input order.
+
+    Raises:
+        RuntimeError: If a reply does not stabilise within reply_timeout_ms.
+    """
+    results: list[ChatTurnResult] = []
+    baseline_count = len(page.query_selector_all(_ASSISTANT_MSG_SELECTOR))
+
+    for turn_text in turns:
+        page.fill(_CHAT_TEXTAREA_SELECTOR, turn_text)
+        page.press(_CHAT_TEXTAREA_SELECTOR, "Enter")
+
+        start_ms = int(_time.monotonic() * 1000)
+        deadline_ms = start_ms + reply_timeout_ms
+        expected_count = baseline_count + 1
+        last_text = ""
+        stable_since_ms: int | None = None
+
+        while True:
+            now_ms = int(_time.monotonic() * 1000)
+            if now_ms >= deadline_ms:
+                raise RuntimeError(
+                    f"Chat turn timed out after {reply_timeout_ms}ms "
+                    f"waiting for reply to: {turn_text!r}"
+                )
+
+            elements = page.query_selector_all(_ASSISTANT_MSG_SELECTOR)
+            if len(elements) >= expected_count:
+                latest = elements[-1]
+                current_text = (latest.inner_text() or "").strip()
+
+                if current_text and current_text == last_text:
+                    if stable_since_ms is None:
+                        stable_since_ms = now_ms
+                    elif now_ms - stable_since_ms >= _STABILITY_WAIT_MS:
+                        elapsed = now_ms - start_ms
+                        results.append(ChatTurnResult(
+                            turn_text=turn_text,
+                            reply_text=current_text,
+                            elapsed_ms=elapsed,
+                        ))
+                        baseline_count = len(elements)
+                        break
+                else:
+                    last_text = current_text
+                    stable_since_ms = None
+
+            _time.sleep(_POLL_INTERVAL_MS / 1000)
+
+    return results
 
 
 # ---------------------------------------------------------------------------
