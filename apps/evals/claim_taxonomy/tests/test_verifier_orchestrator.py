@@ -203,3 +203,39 @@ def test_verify_returns_verdict_result_type() -> None:
     assert result.dimension == "timing"
     assert result.location == {"bar_start": 1, "bar_end": 5}
     assert result.substrate_versions == bundle["substrate_versions"]
+
+
+def test_cli_verify_outputs_json(tmp_path) -> None:
+    """CLI writes valid JSON VerdictResult to stdout."""
+    import subprocess, sys
+    evals_root = Path(__file__).resolve().parents[2]  # .../apps/evals
+    claim = {
+        "proposition": "You rushed",
+        "dimension": "phrasing",  # scoped_out -> UNVERIFIABLE, no audio needed
+        "location": "whole_piece",
+        "polarity": "-",
+        "magnitude": None,
+    }
+    bundle = {
+        "notes": [],
+        "pedal_events": [],
+        "measure_table": [{"bar_number": 1, "start_sec": 0.0, "start_tick": 0}],
+        "anchors": {"perf_audio_sec": [0.0, 1.0], "score_audio_sec": [0.0, 1.0]},
+        "substrate_versions": {"bundle_schema": "v1"},
+        "audio_path": "",
+    }
+    claim_path = tmp_path / "claim.json"
+    bundle_path = tmp_path / "bundle.json"
+    claim_path.write_text(json.dumps(claim))
+    bundle_path.write_text(json.dumps(bundle))
+
+    result = subprocess.run(
+        [sys.executable, "-m", "claim_taxonomy.verifier.cli", "verify",
+         "--claim", str(claim_path), "--bundle", str(bundle_path)],
+        capture_output=True, text=True, cwd=str(evals_root),
+    )
+    assert result.returncode == 0, f"CLI failed: {result.stderr}"
+    out = json.loads(result.stdout)
+    assert out["verdict"] == "UNVERIFIABLE"
+    assert out["reason_code"] == "out_of_scope_dim"
+    assert out["dimension"] == "phrasing"

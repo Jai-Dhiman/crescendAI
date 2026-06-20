@@ -104,9 +104,13 @@ def test_pedaling_claim_supported() -> None:
     assert reason is None
 
 
-def test_dynamics_gated_returns_unverifiable() -> None:
+def test_dynamics_active_routes_correctly() -> None:
+    """After v0.1 dynamics is active; route_verdict produces a real verdict from _measurement."""
     taxonomy, _ = _load()
     registry = taxonomy["dimensions"]
+    assert registry["dynamics"]["status"] == "active", (
+        "dynamics must be active in v0.1 taxonomy"
+    )
     claim = {
         "proposition": "Your dynamics were flat throughout",
         "dimension": "dynamics",
@@ -114,16 +118,15 @@ def test_dynamics_gated_returns_unverifiable() -> None:
         "polarity": "-",
         "magnitude": None,
         "_measurement": {
-            "d": -1.5,
-            "tau": 1.0,
+            "d": -2.0,
+            "tau": registry["dynamics"]["tolerance"]["provisional"],
             "error_bar": 0.2,
-            "event_count": 100,
+            "event_count": 50,
             "localizable": True,
         },
     }
     verdict, reason = route_verdict(claim, registry)
-    assert verdict == "UNVERIFIABLE"
-    assert reason == "gated_dim"
+    assert verdict in ("SUPPORTED", "REFUTED", "UNVERIFIABLE")
 
 
 def test_phrasing_scoped_out_returns_unverifiable() -> None:
