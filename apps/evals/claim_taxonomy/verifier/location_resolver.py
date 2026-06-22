@@ -105,6 +105,19 @@ class LocationResolver:
         else:
             end_score_sec = start_score_sec + self._bar_duration_sec(bar_end) * location_span_bars
 
+        # Extrapolation guard: a bar whose score-time falls outside the matched
+        # anchor span cannot be interpolated -- np.interp would clamp it to the
+        # nearest anchor, yielding a confident-but-wrong (and run-to-run unstable)
+        # audio time. Abstain instead of guessing. (GATE 1.)
+        score_min = float(self._score_audio_sec.min())
+        score_max = float(self._score_audio_sec.max())
+        if start_score_sec < score_min or end_score_sec > score_max:
+            raise UnverifiableError(
+                "unlocalizable",
+                f"bar range score-time [{start_score_sec:.3f},{end_score_sec:.3f}]s "
+                f"outside aligned anchor span [{score_min:.3f},{score_max:.3f}]s",
+            )
+
         audio_start = self._score_sec_to_audio_sec(start_score_sec)
         audio_end = self._score_sec_to_audio_sec(end_score_sec)
 
