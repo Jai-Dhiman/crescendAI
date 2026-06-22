@@ -1,34 +1,66 @@
 # Exercise corpus source manifest.
-# Each entry points to a locally acquired MusicXML file.
-# The user must place the acquired MusicXML at musicxml_path before running the pipeline.
-# All sources are unambiguously public domain globally.
+# All sources are unambiguously public domain globally (composers pre-1928).
+#
+# Two acquisition shapes:
+#  - hanon: a single MusicXML book, split on Repeat barlines (boundary=repeat).
+#  - the rest: a DIRECTORY of per-piece .mid files acquired from the Mutopia
+#    Project (boundary=per_file). Mutopia ships LilyPond + MIDI; we ingest the
+#    MIDI directly (Aria embeds MIDI; there is no robust .ly -> MusicXML tool).
+#
+# Re-acquire the Mutopia MIDI with model/src/exercise_corpus/acquire.sh.
+# musicxml_path below is the directory each source's .mid files live in,
+# relative to model/.
 
 [[sources]]
 name = "hanon"
-title = "The Virtuoso Pianist (Hanon)"
+title = "The Virtuoso Pianist, premiere partie (Hanon)"
 composer = "Charles-Louis Hanon"
 opus = ""
 license = "public_domain"
-# Acquire from IMSLP: https://imslp.org/wiki/The_Virtuoso_Pianist_(Hanon,_Charles-Louis)
-# Acquired: exercises 1-20 only (premiere partie) from MuseScore.
+# Exercises 1-20 (premiere partie). Single MusicXML, repeat-barline split.
 musicxml_path = "data/scores/exercise_primitives/raw/hanon_virtuoso_no1-20.mxl"
 
 [[sources]]
-name = "czerny"
-title = "The School of Velocity op.299 (Czerny)"
-composer = "Carl Czerny"
-opus = "299"
+name = "bach"
+title = "Two-Part Inventions, BWV 772-786 (J.S. Bach)"
+composer = "Johann Sebastian Bach"
+opus = "BWV 772-786"
 license = "public_domain"
-# Acquire from IMSLP: https://imslp.org/wiki/School_of_Velocity%2C_Op.299_(Czerny%2C_Carl)
-# Acquired: no.1 only from MuseScore (rest not available for download yet).
-musicxml_path = "data/scores/exercise_primitives/raw/czerny_op299_no1.mxl"
+# 15 inventions, per-piece MIDI from Mutopia (BachJS).
+musicxml_path = "data/scores/exercise_primitives/raw/bach_inventions"
+
+[[sources]]
+name = "czerny"
+title = "50 melodische Uebungsstuecke, Op.840 (Czerny)"
+composer = "Carl Czerny"
+opus = "840"
+license = "public_domain"
+# Nos.1-10 (all Mutopia carries of Op.840), per-piece MIDI (CzernyC).
+musicxml_path = "data/scores/exercise_primitives/raw/czerny_op840"
 
 [[sources]]
 name = "burgmuller"
-title = "25 Progressive Studies op.100 (Burgmuller)"
+title = "25 Progressive Studies, Op.100 (Burgmuller)"
 composer = "Johann Friedrich Burgmuller"
 opus = "100"
 license = "public_domain"
-# Acquire from IMSLP: https://imslp.org/wiki/25_Progressive_Studies%2C_Op.100_(Burgm%C3%BCller%2C_Johann_Friedrich)
-# Acquired: no.1 only from MuseScore (rest not available for download yet).
-musicxml_path = "data/scores/exercise_primitives/raw/burgmuller_op100_no1.mxl"
+# Nos.1-18 (all Mutopia carries of Op.100), per-piece MIDI (BurgmullerJFF).
+musicxml_path = "data/scores/exercise_primitives/raw/burgmuller_op100"
+
+[[sources]]
+name = "chopin"
+title = "Preludes, Op.28 (Chopin)"
+composer = "Frederic Chopin"
+opus = "28"
+license = "public_domain"
+# All 24 preludes (No.4 Suffocation edition), per-piece MIDI (ChopinFF).
+musicxml_path = "data/scores/exercise_primitives/raw/chopin_op28"
+
+[[sources]]
+name = "satie"
+title = "Gymnopedies & Gnossiennes (Satie)"
+composer = "Erik Satie"
+opus = ""
+license = "public_domain"
+# 3 Gymnopedies + Gnossiennes 1-3 (6 pieces), per-piece MIDI (SatieE).
+musicxml_path = "data/scores/exercise_primitives/raw/satie"

@@ -169,8 +169,12 @@ def test_match_by_dimension_raises_for_untagged_dimension(tmp_path: Path):
 _PKG_DIR = Path(exercise_corpus.__file__).resolve().parent
 SHIPPED_TAGS = _PKG_DIR / "technique_tags.toml"
 
-# The 22 real primitive_ids (Hanon 1-20 + Czerny no.1 + Burgmuller no.1).
-_REAL_IDS = [f"hanon_{i:03d}" for i in range(1, 21)] + ["czerny_001", "burgmuller_001"]
+import tomllib
+
+# Derive the real primitive_ids from the shipped tags file so this stays in sync
+# with the corpus (6 sources / 93 primitives after issue #17 data sourcing).
+with open(SHIPPED_TAGS, "rb") as _f:
+    _REAL_IDS = list(tomllib.load(_f).keys())
 
 
 def test_shipped_tags_yield_expected_dimension_buckets(tmp_path: Path):
@@ -180,20 +184,31 @@ def test_shipped_tags_yield_expected_dimension_buckets(tmp_path: Path):
 
     timing = {
         m.primitive_id
-        for m in match_by_dimension("timing", tags, db_path=db, top_k=50)
+        for m in match_by_dimension("timing", tags, db_path=db, top_k=99)
     }
     assert "hanon_001" in timing
     assert "czerny_001" in timing
-    assert "burgmuller_001" not in timing  # Hanon/Czerny are not phrasing studies
+    assert "burgmuller_001" not in timing  # Burgmuller is a phrasing/dynamics study
 
     phrasing = {
         m.primitive_id
-        for m in match_by_dimension("phrasing", tags, db_path=db, top_k=50)
+        for m in match_by_dimension("phrasing", tags, db_path=db, top_k=99)
     }
-    assert phrasing == {"burgmuller_001"}
+    # Phrasing now spans bach (counterpoint lines), burgmuller, and chopin.
+    assert {"bach_001", "burgmuller_001", "chopin_001"} <= phrasing
+    assert "hanon_001" not in phrasing
 
-    # Conservative authoring: nothing in this corpus teaches pedaling or dynamics.
-    with pytest.raises(NoPrimitiveForDimensionError):
-        match_by_dimension("pedaling", tags, db_path=db, top_k=50)
-    with pytest.raises(NoPrimitiveForDimensionError):
-        match_by_dimension("dynamics", tags, db_path=db, top_k=50)
+    # Issue #17 filled the pedaling + dynamics gap (chopin, satie; + burgmuller
+    # for dynamics) -- these buckets are no longer empty.
+    pedaling = {
+        m.primitive_id
+        for m in match_by_dimension("pedaling", tags, db_path=db, top_k=99)
+    }
+    assert {"chopin_001", "satie_001"} <= pedaling
+    assert "hanon_001" not in pedaling
+
+    dynamics = {
+        m.primitive_id
+        for m in match_by_dimension("dynamics", tags, db_path=db, top_k=99)
+    }
+    assert {"burgmuller_001", "chopin_001", "satie_001"} <= dynamics

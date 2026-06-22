@@ -10,11 +10,11 @@ def test_sources_toml_exists():
     assert SOURCES_PATH.exists(), f"sources.toml not found at {SOURCES_PATH}"
 
 
-def test_sources_has_three_entries():
+def test_sources_has_six_entries():
     with open(SOURCES_PATH, "rb") as f:
         data = tomllib.load(f)
     assert "sources" in data
-    assert len(data["sources"]) == 3
+    assert len(data["sources"]) == 6
 
 
 def test_each_source_has_required_keys():
@@ -30,4 +30,4 @@ def test_source_names_match_expected():
     with open(SOURCES_PATH, "rb") as f:
         data = tomllib.load(f)
     names = {s["name"] for s in data["sources"]}
-    assert names == {"hanon", "czerny", "burgmuller"}
+    assert names == {"hanon", "bach", "czerny", "burgmuller", "chopin", "satie"}
