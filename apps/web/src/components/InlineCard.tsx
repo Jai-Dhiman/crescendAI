@@ -1,9 +1,11 @@
 import type { InlineComponent } from "../lib/types";
 import { ExerciseSetCard } from "./cards/ExerciseSetCard";
+import { KeyboardGuideCard } from "./cards/KeyboardGuideCard";
 import { PlaceholderCard } from "./cards/PlaceholderCard";
 import { PlayPassageCard } from "./cards/PlayPassageCard";
 import { ScoreHighlightCard } from "./cards/ScoreHighlightCard";
 import { SegmentLoopArtifactCard } from "./cards/SegmentLoopArtifact";
+import { SessionDataCard } from "./cards/SessionDataCard";
 
 interface InlineCardProps {
 	component: InlineComponent;
@@ -33,6 +35,10 @@ export function InlineCard({
 					artifactId={artifactId}
 				/>
 			);
+		case "keyboard_guide":
+			return <KeyboardGuideCard config={component.config} />;
+		case "session_data":
+			return <SessionDataCard config={component.config} />;
 		case "segment_loop":
 			return <SegmentLoopArtifactCard config={component.config} />;
 		case "play_passage":
