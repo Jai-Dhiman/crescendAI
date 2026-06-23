@@ -4,7 +4,6 @@
 
 **Not in scope:**
 - articulation-clarity-check molecule (requires score-articulation capability not yet available)
-- phrasing-arc-analysis grounding (not in the 6 required molecules)
 - eval routing, full-artifact judge, legacy synthesize() / HARNESS_V6_ENABLED deletion (all remain in #28)
 - Baseline lock in #28 (locked after this ships)
 - Molecule calling score-derived dynamics range when score lacks dynamics text
@@ -56,12 +55,12 @@ A pure synthesis-time adapter. Takes the full `SynthesisInput` (which has `Enric
 
 The `deps` parameter carries the DB handle and student ID needed for the session-history query. `buildGroundedDigest` is called inside `synthesizeV6` before constructing the `HookContext`.
 
-**`resolveMoleculeContext(digest: GroundedDigest, bar_range: [number, number] | null, scopeHint: 'stop_moment' | 'passage' | 'session'): ResolvedMoleculeContext`**
+**`resolveMoleculeContext(digest: GroundedDigest, bar_range: [number, number] | null): Promise<ResolvedMoleculeContext>`**
 
-Called by each molecule's `invoke` after it extracts selectors from `ctx.digest`. Returns a `ResolvedMoleculeContext` containing:
+Called by each molecule's `invoke` after it extracts selectors (`bar_range`, `scope`, `evidence_refs`) from `input`. The molecule supplies `scope` directly to `DiagnosisArtifact` — `resolveMoleculeContext` does not compute or return `scope`. Returns a `ResolvedMoleculeContext` containing:
 
 - `bundle`: `SignalBundle` from `extractBarRangeSignals` (bar-range filtered; full-session if `bar_range` null)
-- `baseline`: tiered — `Baseline` from `fetchStudentBaseline` if session_means length >= 3, otherwise synthesised from `within_session_means` so molecules never get null
+- `baseline`: tiered — `Baseline` from `fetchStudentBaseline` if `session_means[dim].length >= 3`, otherwise synthesised from `within_session_means` so molecules never get null
 - `cohort`: per-dimension `{mean, stddev}` from the grounded digest
 - `past_diagnoses`: the grounded past-diagnosis records
 - `piece_id`: from digest
@@ -97,13 +96,14 @@ The `SESSION_SYNTHESIS_PROCEDURE` prompt is updated to remove the instruction "s
 
 ### `ALL_MOLECULES` cleanup
 
-`articulationClarityCheck` is removed from `ALL_MOLECULES`. `phrasingArcAnalysis` remains (it uses cohort_table_phrasing which is available in the grounded digest). The 6 grounded molecules are:
+`articulationClarityCheck` is removed from `ALL_MOLECULES`. `phrasingArcAnalysis` is refactored and grounded like the other molecules — it needs only `midi_notes` (with `bar`), `alignment`, `muq_scores`, `cohort_table_phrasing`, `piece_id`, and `now_ms`, all of which are available in the grounded digest; there is no score-articulation dependency. The 7 grounded molecules are:
 1. pedal-triage
 2. tempo-stability-triage
 3. rubato-coaching
 4. voicing-diagnosis
 5. dynamic-range-audit
-6. cross-modal-contradiction-check (3 score-independent arms only: timing-drift, pedal-ratio, dynamics-range; articulation arm is removed)
+6. phrasing-arc-analysis
+7. cross-modal-contradiction-check (3 score-independent arms only: timing-drift, pedal-ratio, dynamics-range; articulation arm is removed)
 
 ### Cross-modal articulation arm removal
 
@@ -145,7 +145,7 @@ Molecules receive a non-null `Baseline` in all cases and never throw on thin his
 
 ### `resolveMoleculeContext`
 
-**Interface:** `resolveMoleculeContext(digest: GroundedDigest, bar_range: [number, number] | null): Promise<ResolvedMoleculeContext>`
+**Interface:** `resolveMoleculeContext(digest: GroundedDigest, bar_range: [number, number] | null): Promise<ResolvedMoleculeContext>` (scope is a selector; molecules read it from `input`, not from this return value)
 
 **Hides:**
 - Calling `extractBarRangeSignals` to produce the bar-range `SignalBundle`
@@ -160,7 +160,7 @@ Molecules receive a non-null `Baseline` in all cases and never throw on thin his
 
 ## Verification Architecture
 
-- **Canonical success state:** A 10-chunk synthetic session's Phase-1 prompt string has serialized JSON length under 500K characters (well under 131K tokens). Each of the 6 molecules invoked with `(selectors, ctx-with-grounded-digest)` returns a valid `DiagnosisArtifact`. Insufficient-history path returns a neutral artifact, not a throw. Empty `bar_range` path returns a neutral artifact.
+- **Canonical success state:** A 10-chunk synthetic session's Phase-1 prompt string has serialized length under 10000 characters (a few hundred tokens). Each of the 7 molecules invoked with `(selectors, ctx-with-grounded-digest)` returns a valid `DiagnosisArtifact`. Insufficient-history path returns a neutral artifact, not a throw. Empty `bar_range` (null) path returns a neutral artifact.
 - **Automated check:** `bun run test --run apps/api/src` — all new unit tests pass, all pre-existing tests stay green. Typecheck net-new errors = 0 (baseline = 20 pre-existing errors).
 - **Harness:** Unit tests are buildable. Overflow regression is a string-length assertion on the rendered prompt. Live integration (real glm run with no 413) is a `/review`-stage manual check.
 
@@ -184,6 +184,8 @@ Molecules receive a non-null `Baseline` in all cases and never throw on thin his
 | `apps/api/src/harness/skills/molecules/voicing-diagnosis.test.ts` | Rewrite tests for new contract | Modify |
 | `apps/api/src/harness/skills/molecules/dynamic-range-audit.ts` | Refactor: selectors-only input_schema, self-fetch | Modify |
 | `apps/api/src/harness/skills/molecules/dynamic-range-audit.test.ts` | Rewrite tests for new contract | Modify |
+| `apps/api/src/harness/skills/molecules/phrasing-arc-analysis.ts` | Refactor: selectors-only input_schema, self-fetch via `resolveMoleculeContext` | Modify |
+| `apps/api/src/harness/skills/molecules/phrasing-arc-analysis.test.ts` | Rewrite tests for new (selectors, ctx) contract | Modify |
 | `apps/api/src/harness/skills/molecules/cross-modal-contradiction-check.ts` | Refactor: selectors-only input_schema, remove articulation arm, self-fetch | Modify |
 | `apps/api/src/harness/skills/molecules/cross-modal-contradiction-check.test.ts` | Rewrite tests for new contract | Modify |
 | `apps/api/src/harness/skills/molecules/index.ts` | Remove `articulationClarityCheck` from `ALL_MOLECULES` | Modify |
