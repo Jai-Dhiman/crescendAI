@@ -20,6 +20,7 @@ from chroma_dtw_eval.amt_regen import (
     _load_bach_json_score,
     _match,
     _build_pairs,
+    AmtRegenError,
     DEFAULT_AMT_URL,
     DEFAULT_AMT_VERSION_CONFIG,
 )
@@ -68,19 +69,25 @@ def extract_bundle(
     parangonar_version = config_body.get("parangonar_version", "unknown")
 
     audio_16k = _read_wav_16k_mono(audio_path)
-    amt_notes, pedal_events = _transcribe_clip_with_pedals(audio_16k, amt_url)
-    if not amt_notes:
-        raise BundleExtractionError(f"AMT returned zero notes for {audio_path}")
+    # AMT transcription and parangonar alignment raise AmtRegenError (server down,
+    # zero matches, etc.). Convert to BundleExtractionError so a batch runner treats
+    # this clip as a recoverable per-clip failure instead of crashing the whole run.
+    try:
+        amt_notes, pedal_events = _transcribe_clip_with_pedals(audio_16k, amt_url)
+        if not amt_notes:
+            raise BundleExtractionError(f"AMT returned zero notes for {audio_path}")
 
-    score_na, measure_table, score_sha256, beat_sec = _load_bach_json_score(score_path)
-    deduped_notes = _dedup_amt_notes(amt_notes)
+        score_na, measure_table, score_sha256, beat_sec = _load_bach_json_score(score_path)
+        deduped_notes = _dedup_amt_notes(amt_notes)
 
-    # CC64 sustain-pedal events come straight from the AMT server response
-    # ({"time": sec, "value": 0|127}); empty list when the recording has no pedal.
+        # CC64 sustain-pedal events come straight from the AMT server response
+        # ({"time": sec, "value": 0|127}); empty list when the recording has no pedal.
 
-    amt_perf_na = _amt_to_perf_na(deduped_notes, beat_sec)
-    matches = _match(score_na, amt_perf_na)
-    perf_arr, score_arr = _build_pairs(score_na, amt_perf_na, matches)
+        amt_perf_na = _amt_to_perf_na(deduped_notes, beat_sec)
+        matches = _match(score_na, amt_perf_na)
+        perf_arr, score_arr = _build_pairs(score_na, amt_perf_na, matches)
+    except AmtRegenError as e:
+        raise BundleExtractionError(f"AMT/alignment failed for {audio_path}: {e}") from e
 
     bundle = {
         "piece_id": piece_id,
