@@ -160,7 +160,12 @@ export function ExerciseSetCard({
 	useEffect(() => {
 		if (!config.scoreClip) return;
 		let cancelled = false;
-		const { pieceId, bars } = config.scoreClip;
+		const { pieceId, bars, transpose } = config.scoreClip;
+		// own_passage clips carry no transpose; corpus drills carry the semitone
+		// shift into the student's key. Pass a literal 0 (never undefined) so the
+		// renderer's composite cache key ("pieceId:transpose") matches own_passage's
+		// transpose-0 load byte-for-byte.
+		const transposeSemitones = transpose ?? 0;
 		// getClip/getClipPlayback require the piece bytes to have been sent to the
 		// worker via load() first (the worker errors "bytes required on first
 		// request" otherwise). Production preloads via ScorePanel, but an exercise
@@ -168,7 +173,7 @@ export function ExerciseSetCard({
 		// self-sufficient. load() is idempotent (cached), so it's a no-op when the
 		// piece was already loaded upstream.
 		(async () => {
-			const loaded = await scoreRenderer.load(pieceId);
+			const loaded = await scoreRenderer.load(pieceId, transposeSemitones);
 			if (cancelled) return;
 			if (loaded === "failed") {
 				console.error("ExerciseSetCard: failed to load score for clip", pieceId);
@@ -177,14 +182,24 @@ export function ExerciseSetCard({
 			}
 			try {
 				if (hasTempoFactor) {
-					const r = await scoreRenderer.getClipPlayback(pieceId, bars[0], bars[1]);
+					const r = await scoreRenderer.getClipPlayback(
+						pieceId,
+						bars[0],
+						bars[1],
+						transposeSemitones,
+					);
 					if (!cancelled) {
 						setScoreClipSvg(r.svg);
 						setClipIR(r.ir);
 						setClipNotes(r.notes);
 					}
 				} else {
-					const svg = await scoreRenderer.getClip(pieceId, bars[0], bars[1]);
+					const svg = await scoreRenderer.getClip(
+						pieceId,
+						bars[0],
+						bars[1],
+						transposeSemitones,
+					);
 					if (!cancelled) setScoreClipSvg(svg);
 				}
 			} catch (err) {
