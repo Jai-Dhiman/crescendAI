@@ -125,6 +125,16 @@ seed-score-json filter="":
 build-exercise-assets:
     cd model && uv run python -c "from exercise_corpus.build_render_assets import build; print(f'built {len(build())} assets')"
 
+# Build local renderable .mxl assets for all catalog pieces that have an ASAP
+# xml_score.musicxml (ASAP is CC-BY-NC -- LOCAL prototype use ONLY, do NOT
+# deploy to production R2 or any commercial build).
+# Requires: model/data/raw/asap (clone with `git clone --depth 1 https://github.com/CPJKU/asap-dataset.git model/data/raw/asap`)
+# Output: model/scores/v1/<piece_id>.mxl (gitignored, regenerable)
+# Runs the Verovio render gate; broken assets are reported but NOT written.
+# Idempotent: pieces whose inner XML is unchanged are skipped.
+build-catalog-mxl:
+    cd model && uv run python -m score_library.render_assets
+
 # Seed the committed exercise-primitive .mxl assets into LOCAL wrangler R2 at
 # scores/v1/{primitive_id}.mxl so the UNCHANGED GET /api/scores/:pieceId/data
 # endpoint serves them for corpus_drill rendering. Flat keyspace: primitive ids
@@ -159,6 +169,15 @@ catalog-verify:
 # then run this. See docs/model/10-score-library-catalog.md for the full workflow.
 catalog-add:
     cd model && uv run python -m score_library.cli parse-manual --manifest data/manifests/manual_scores.json
+    just fingerprint
+    cd model && echo "Catalog size: $(find data/scores -maxdepth 1 -name '*.json' ! -name titles.json | wc -l | tr -d ' ') score JSONs"
+
+# Bulk-ingest KernScores MIDI collections (Joplin, Scarlatti, Chopin mazurkas)
+# via the self-consistency gate, then regenerate fingerprints.
+# Source MIDIs are read from ~/crescendai_corpus_staging/kernscores_midi/.
+# Fails loudly if any entire collection yields zero passes.
+catalog-add-kernscores:
+    cd model && uv run python -m score_library.kernscores_bulk
     just fingerprint
     cd model && echo "Catalog size: $(find data/scores -maxdepth 1 -name '*.json' ! -name titles.json | wc -l | tr -d ' ') score JSONs"
 
