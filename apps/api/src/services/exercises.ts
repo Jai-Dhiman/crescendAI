@@ -12,7 +12,7 @@ import type { ServiceContext } from "../lib/types";
 export type ExerciseSetPayload = {
 	sourcePassage: string;
 	targetSkill: string;
-	scoreClip?: { pieceId: string; bars: [number, number]; tempoFactor?: number };
+	scoreClip?: { pieceId: string; bars: [number, number]; tempoFactor?: number; transpose?: number };
 	exercises: Array<{
 		title: string;
 		instruction: string;
