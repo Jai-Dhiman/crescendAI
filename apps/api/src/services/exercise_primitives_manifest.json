@@ -1,0 +1,179 @@
+{
+  "burgmuller_001": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "C",
+    "totalBars": 23
+  },
+  "czerny_001": {
+    "dimensions": [
+      "timing",
+      "articulation"
+    ],
+    "key": "c",
+    "totalBars": 22
+  },
+  "hanon_001": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 29
+  },
+  "hanon_002": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 29
+  },
+  "hanon_003": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 29
+  },
+  "hanon_004": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 29
+  },
+  "hanon_005": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 29
+  },
+  "hanon_006": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 29
+  },
+  "hanon_007": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 29
+  },
+  "hanon_008": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 29
+  },
+  "hanon_009": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 29
+  },
+  "hanon_010": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 29
+  },
+  "hanon_011": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 29
+  },
+  "hanon_012": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 30
+  },
+  "hanon_013": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 29
+  },
+  "hanon_014": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 29
+  },
+  "hanon_015": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 29
+  },
+  "hanon_016": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 29
+  },
+  "hanon_017": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 28
+  },
+  "hanon_018": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 29
+  },
+  "hanon_019": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 29
+  },
+  "hanon_020": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 31
+  }
+}

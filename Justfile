@@ -123,7 +123,7 @@ seed-score-json filter="":
 # .xml (model/data/scores/exercise_primitives/*.xml -> model/data/exercise_primitives/mxl/*.mxl).
 # Deterministic + idempotent; raises naming any .xml that fails partitura load.
 build-exercise-assets:
-    cd model && uv run python -c "from exercise_corpus.build_render_assets import build; print(f'built {len(build())} assets')"
+    cd model && uv run python -c "from pathlib import Path; from exercise_corpus.build_render_assets import build; mp = Path('..') / 'apps' / 'api' / 'src' / 'services' / 'exercise_primitives_manifest.json'; print(f'built {len(build(manifest_path=mp))} assets + manifest at {mp}')"
 
 # Seed the committed exercise-primitive .mxl assets into LOCAL wrangler R2 at
 # scores/v1/{primitive_id}.mxl so the UNCHANGED GET /api/scores/:pieceId/data
