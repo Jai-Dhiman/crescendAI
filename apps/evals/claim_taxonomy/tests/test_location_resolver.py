@@ -122,6 +122,31 @@ def test_whole_piece_single_entry_measure_table_does_not_call_bar_duration() -> 
     assert region.location_span_bars == float("inf")
 
 
+def test_bar_outside_anchor_span_raises_unlocalizable() -> None:
+    """A bar whose score-time lies beyond the matched-anchor span must abstain,
+    not silently extrapolate (np.interp clamps to the last anchor -> a confident,
+    wrong, and run-to-run-unstable audio time). Surfaced by GATE 1."""
+    bundle = {
+        "measure_table": [
+            {"bar_number": i + 1, "start_sec": i * 2.0, "start_tick": i * 480}
+            for i in range(12)  # bars 1..12, score starts 0..22s
+        ],
+        "anchors": {  # matched anchors only cover score-time 0..12s
+            "perf_audio_sec": np.linspace(0.0, 12.0, 50).tolist(),
+            "score_audio_sec": np.linspace(0.0, 12.0, 50).tolist(),
+        },
+    }
+    engine = SubstrateErrorEngine(seed=0)
+    resolver = LocationResolver(bundle, engine)
+    # bar 9 starts at 16s, past the 12s anchor span -> extrapolation -> abstain.
+    with pytest.raises(UnverifiableError) as exc_info:
+        resolver.resolve({"bar_start": 9, "bar_end": 9})
+    assert exc_info.value.reason_code == "unlocalizable"
+    # A bar within the anchor span still resolves.
+    region = resolver.resolve({"bar_start": 3, "bar_end": 3})
+    assert region.audio_start_sec == pytest.approx(4.0, abs=0.1)
+
+
 def test_resolved_region_has_uncertainty_field() -> None:
     bundle = _make_bundle()
     engine = SubstrateErrorEngine(seed=0)

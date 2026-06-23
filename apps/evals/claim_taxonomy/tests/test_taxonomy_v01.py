@@ -11,11 +11,23 @@ def _load():
     return taxonomy, schema
 
 
-def test_taxonomy_version_is_v01() -> None:
+def test_taxonomy_version_is_v02() -> None:
     taxonomy, _ = _load()
-    assert taxonomy["taxonomy_version"] == "v0.1", (
-        f"Expected v0.1, got {taxonomy['taxonomy_version']}"
+    assert taxonomy["taxonomy_version"] == "v0.2", (
+        f"Expected v0.2, got {taxonomy['taxonomy_version']}"
     )
+
+
+def test_localization_granularity_restriction_recorded() -> None:
+    """GATE 1 (#95): bar-level localization failed -> the taxonomy records the
+    restriction (single-bar inadmissible, region degraded, whole_piece reliable)."""
+    taxonomy, _ = _load()
+    lg = taxonomy["localization_granularity"]
+    assert lg["gate_1_verdict"] == "FAIL_BAR_LEVEL"
+    assert lg["tiers"]["single_bar"]["admissible"] is False
+    assert lg["tiers"]["whole_piece"]["admissible"] is True
+    assert lg["tiers"]["region"]["reliability"] == "degraded"
+    assert lg["tiers"]["region"]["min_region_bars"] >= 2
 
 
 def test_dynamics_is_active() -> None:

@@ -119,3 +119,84 @@ Events are clean 0/127 on-off alternation and yield real density verdicts, so pe
 events/s, which likely over-segments pedal on/off on busy passages; the coarse
 *presence-per-bar density* proxy is robust to this, but fine half-pedal/flutter remains out of
 scope as documented.
+
+---
+
+## GATE 1: Localization Robustness on Error-Rich Audio (#95)
+
+**Verdict: bar-level localization FAILS the ~90% bar. Taxonomy restricted to v0.2
+(single-bar inadmissible; region degraded; whole_piece reliable).**
+
+GATE 1 is the localization-in-errors attack the plan §3.4/§7 names as the dominant
+reviewer risk. Since `ood_practice/` is empty, error-rich audio was *manufactured* by
+degrading the real cached Bach clips with **construction-known** corruptions and measuring
+whether the shipped `LocationResolver` moves each bar's resolved time the way the known
+transform predicts.
+
+### Method (truth by construction, no hand annotation)
+
+`delta(bar) = M_corrupt(bar) - W(M_clean(bar))`, where `M_*` is the shipped resolver's
+resolved bar-start audio time and `W` is the known corruption warp (a piecewise time-warp's
+exact `WarpMap` for tempo, identity for noise/dropout). `W` is the ground truth; the clean
+alignment is not assumed correct. Harness: `model/src/claim_measurement/gate1/`
+(`corruption.py`, `build_corrupt_bundles.py`) + `apps/evals/claim_taxonomy/gate1/`
+(`localization.py`, `analyze.py`). Corpus: 2 real Bach Invention clips
+(`7zVlDxBO5q4`, `2cbYFp9kNpg`), sweep `{clean, tempo rush 1.3x/1.6x, dropout, noise SNR10}`.
+The C-major prelude is **excluded**: its arpeggiated transcription made parangonar's matcher
+blow up combinatorially (>1 h, never converged) -- itself a substrate-fragility finding.
+
+### Measured bar-level localization (over the bars the resolver attempts)
+
+| corruption | resolvable rate | within ±0.5 s | within ±1.5 s | median \|delta\| | p90 \|delta\| |
+|------------|-----------------|---------------|---------------|------------------|---------------|
+| clean (noise floor, identical audio) | 0.45 | 0.80* | 0.87* | 0.000 s | 1.93 s |
+| tempo (rush 1.3x/1.6x) | 0.45 | 0.57* | 0.63* | 0.57 s | 6.58 s |
+| dropout (missing notes) | 0.41 | 0.46* | 0.54* | 0.53 s | 15.1 s |
+| noise (SNR 10 dB) | 0.41 | 0.23* | 0.31* | 3.17 s | 17.3 s |
+
+`*` = over **resolvable** bars (single-clip 7zVlDxBO5q4 figures). The 2-clip pooled
+`within_over_total` is lower still (≤0.25 at ±1.5 s) because out-of-anchor-span bars cap the
+resolvable pool at 0.44.
+
+### Three substrate causes, none fixable at the verifier layer
+
+1. **Partial alignment** -- ~32-56% of bars fall outside the matched parangonar anchor span and
+   are now **abstained** (UNVERIFIABLE), not extrapolated. This is the `LocationResolver`
+   extrapolation guard added under #95: previously `np.interp` clamped out-of-span bars to the
+   last anchor, yielding confident, wrong, run-to-run-unstable times.
+2. **AMT nondeterminism** -- decoding is greedy (`torch.argmax`) yet re-transcribing
+   *bit-identical* audio yields different onsets run-to-run (GPU float ties flip tokens),
+   **amplified by parangonar match-set churn** (one flipped onset reshuffles the anchor set,
+   swinging nearby bars by seconds). This sets the clean noise floor BELOW 90%.
+3. **Corruption fragility** -- SNR-10 noise collapses localization to ~31%; the −14 to −20 F1
+   distribution-shift degradation the plan predicted, realized.
+
+### Region-width sweep (does widening recover it?)
+
+Widening the claim from a single bar to a W-bar region (boundary error judged relative to the
+region's duration) helps but does **not** robustly clear 90% under corruption (over-resolvable):
+
+| kind | W=1 | W=2 | W=4 | W=8 |
+|------|-----|-----|-----|-----|
+| clean | 0.75 | 0.78 | 0.86 | 1.00 |
+| tempo | 0.53 | 0.38 | 0.35 | 0.46 |
+| dropout | 0.56 | 0.78 | 0.86 | 0.67 |
+| noise | 0.28 | 0.22 | 0.14 | 0.33 |
+
+Only `clean` reaches ~0.86-1.0; tempo/noise never do, and `over_total` stays ≤0.34 (the
+out-of-span cap). W=16 collapses to 0 because no 16-bar all-resolvable window exists on a
+22-bar clip with this resolvable rate.
+
+### Decision (taxonomy v0.2, `localization_granularity` block)
+
+- **whole_piece** -> RELIABLE tier (no bar indexing; always resolvable with >=2 anchors). This
+  is where dynamics dispersion / pedaling density / timing CV% live -- the stable checks.
+- **region** (bar-range, width >= `min_region_bars` = 4) -> DEGRADED, admissible but low-yield;
+  safety comes from abstention, not accuracy.
+- **single_bar** -> INADMISSIBLE.
+
+The verifier is **safe-by-abstention**: on partially-aligned or error-rich clips it returns
+UNVERIFIABLE rather than committing a mislocalized verdict. The headline for M3 therefore
+shifts toward faithfulness *among committed claims* plus an abstention-rate, with whole_piece as
+the dependable substrate. **Caveat:** GATE 1 measures degradation under corruption on only 2
+clips (1 piece family); broadening the corpus past the 2 Bach pieces remains open.
