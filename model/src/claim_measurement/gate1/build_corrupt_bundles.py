@@ -46,7 +46,6 @@ from claim_measurement.gate1.corruption import (
 _MODULE_DIR = Path(__file__).resolve()
 DEFAULT_DATA_ROOT = _MODULE_DIR.parents[3] / "data" / "evals"
 DEFAULT_CLEAN_BUNDLE_ROOT = DEFAULT_DATA_ROOT / "claim_bundles"
-DEFAULT_PRACTICE_EVAL_ROOT = DEFAULT_DATA_ROOT / "practice_eval"
 DEFAULT_OUT_ROOT = DEFAULT_DATA_ROOT / "gate1"
 
 
@@ -127,14 +126,25 @@ class ClipSpec:
     score_path: Path
 
 
-def _resolve_clips(practice_eval_root: Path, score_by_piece: dict[str, Path]) -> list[ClipSpec]:
+def _resolve_clips(clean_bundle_root: Path, score_by_piece: dict[str, Path]) -> list[ClipSpec]:
+    """Enumerate clips from the existing clean bundles (the authoritative pairing).
+
+    Each clean bundle carries the real audio_path; deriving clips from the bundles
+    (rather than globbing practice_eval audio) avoids spurious/duplicate WAVs and
+    guarantees every clip has a clean bundle to compare against.
+    """
     clips: list[ClipSpec] = []
     for piece_id, score_path in score_by_piece.items():
-        audio_dir = practice_eval_root / piece_id / "audio"
-        if not audio_dir.exists():
+        piece_dir = clean_bundle_root / piece_id
+        if not piece_dir.is_dir():
             continue
-        for wav in sorted(audio_dir.glob("*.wav")):
-            clips.append(ClipSpec(piece_id, wav.stem, wav, score_path))
+        for bundle_path in sorted(piece_dir.glob("*.json")):
+            if bundle_path.name == "_index.json":
+                continue
+            bundle = json.loads(bundle_path.read_text())
+            clips.append(
+                ClipSpec(piece_id, bundle_path.stem, Path(bundle["audio_path"]), score_path)
+            )
     return clips
 
 
@@ -187,17 +197,22 @@ def run_clip(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="claim_measurement.gate1.build_corrupt_bundles")
-    parser.add_argument("--practice-eval-root", type=Path, default=DEFAULT_PRACTICE_EVAL_ROOT)
     parser.add_argument("--clean-bundle-root", type=Path, default=DEFAULT_CLEAN_BUNDLE_ROOT)
     parser.add_argument("--out-root", type=Path, default=DEFAULT_OUT_ROOT)
     parser.add_argument("--amt-url", default=DEFAULT_AMT_URL)
     parser.add_argument("--limit-piece", default=None)
+    parser.add_argument("--limit-video", default=None,
+                        help="If set, only extract this clip's video_id.")
+    parser.add_argument("--only-specs", nargs="+", default=None,
+                        help="If set, keep only these spec_ids (e.g. clean tempo_rush_1.3x noise_snr10).")
     parser.add_argument("--seed", type=int, default=1234)
     args = parser.parse_args(argv)
 
-    clips = _resolve_clips(args.practice_eval_root, dict(DEFAULT_SCORE_BY_PIECE))
+    clips = _resolve_clips(args.clean_bundle_root, dict(DEFAULT_SCORE_BY_PIECE))
     if args.limit_piece:
         clips = [c for c in clips if c.piece_id == args.limit_piece]
+    if args.limit_video:
+        clips = [c for c in clips if c.video_id == args.limit_video]
     if not clips:
         raise FileNotFoundError("no scored clips with audio found")
 
@@ -206,6 +221,9 @@ def main(argv: list[str] | None = None) -> int:
     for clip in clips:
         audio = _read_wav_16k_mono(clip.audio_path)
         specs = default_sweep(len(audio) / TARGET_SR)
+        if args.only_specs:
+            wanted = set(args.only_specs)
+            specs = [s for s in specs if s.spec_id in wanted]
         rows = run_clip(
             clip, specs,
             clean_bundle_root=args.clean_bundle_root, out_root=args.out_root,

@@ -10,8 +10,10 @@ from __future__ import annotations
 import numpy as np
 
 from claim_taxonomy.gate1.localization import (
+    BarDelta,
     accuracy_at_tolerances,
     bar_localization_deltas,
+    region_localization_accuracy,
 )
 
 
@@ -80,6 +82,34 @@ def test_injected_constant_mislocalization_fails_tight_passes_loose():
     acc = accuracy_at_tolerances(deltas, [0.1, 1.0])
     assert acc["tolerances"]["0.1"]["within_over_total"] == 0.0
     assert acc["tolerances"]["1.0"]["within_over_total"] == 1.0
+
+
+def _delta(bar, delta_sec, bar_dur=2.0, resolvable=True):
+    return BarDelta(
+        bar=bar, clean_sec=float(bar), corrupt_sec=float(bar),
+        predicted_sec=float(bar), delta_sec=delta_sec, bar_dur_sec=bar_dur,
+        resolvable=resolvable,
+    )
+
+
+def test_region_accuracy_improves_with_width():
+    # Every bar mislocalized by a constant 1.0s; bar_dur 2.0s. A width-1 region
+    # (span 2s, tol max(0.5, 0.25*2)=0.5s) fails; a width-4 region (span 8s,
+    # tol max(0.5, 0.25*8)=2.0s) passes. Relative error shrinks with width.
+    deltas = [_delta(b, 1.0) for b in range(1, 13)]
+    narrow = region_localization_accuracy(deltas, width_bars=1, frac_tol=0.25, abs_floor_sec=0.5)
+    wide = region_localization_accuracy(deltas, width_bars=4, frac_tol=0.25, abs_floor_sec=0.5)
+    assert narrow.accuracy_over_resolvable == 0.0
+    assert wide.accuracy_over_resolvable == 1.0
+    assert wide.n_resolvable > 0
+
+
+def test_region_with_unresolvable_boundary_is_not_counted_resolvable():
+    deltas = [_delta(1, 0.0), _delta(2, 0.0, resolvable=False), _delta(3, 0.0), _delta(4, 0.0)]
+    acc = region_localization_accuracy(deltas, width_bars=2, frac_tol=0.25, abs_floor_sec=0.5)
+    # Windows [1,2] and [2,3] touch the unresolvable bar 2 -> not resolvable.
+    # Only window [3,4] is fully resolvable.
+    assert acc.n_resolvable == 1
 
 
 def test_unresolvable_bars_count_against_total_not_resolvable():

@@ -101,6 +101,58 @@ def bar_localization_deltas(
     return out
 
 
+@dataclass(frozen=True)
+class RegionAccuracy:
+    width_bars: int
+    n_regions: int
+    n_resolvable: int
+    n_accurate: int
+    accuracy_over_total: float
+    accuracy_over_resolvable: float
+
+
+def region_localization_accuracy(
+    deltas: list[BarDelta],
+    width_bars: int,
+    frac_tol: float = 0.25,
+    abs_floor_sec: float = 0.5,
+) -> RegionAccuracy:
+    """How reliably a width_bars-wide region localizes, sliding over all bars.
+
+    A region's boundary error is judged *relative to its own duration*: it is
+    accurate iff max(|delta| at its first and last bar) <= max(abs_floor_sec,
+    frac_tol * region_duration). This captures why widening a region recovers
+    localization -- a fixed per-bar substrate error becomes a small fraction of a
+    wide region. A region is resolvable only if every bar it spans is resolvable.
+    """
+    ordered = sorted(deltas, key=lambda d: d.bar)
+    n = len(ordered)
+    n_regions = max(0, n - width_bars + 1)
+    n_resolvable = 0
+    n_accurate = 0
+    for i in range(n_regions):
+        window = ordered[i:i + width_bars]
+        if not all(d.resolvable for d in window):
+            continue
+        n_resolvable += 1
+        region_dur = sum(
+            d.bar_dur_sec for d in window
+            if d.bar_dur_sec is not None and d.bar_dur_sec == d.bar_dur_sec  # not NaN
+        )
+        tol = max(abs_floor_sec, frac_tol * region_dur)
+        boundary_err = max(abs(window[0].delta_sec), abs(window[-1].delta_sec))
+        if boundary_err <= tol:
+            n_accurate += 1
+    return RegionAccuracy(
+        width_bars=width_bars,
+        n_regions=n_regions,
+        n_resolvable=n_resolvable,
+        n_accurate=n_accurate,
+        accuracy_over_total=(n_accurate / n_regions) if n_regions else 0.0,
+        accuracy_over_resolvable=(n_accurate / n_resolvable) if n_resolvable else 0.0,
+    )
+
+
 def accuracy_at_tolerances(
     deltas: list[BarDelta], tolerances_sec: list[float]
 ) -> dict:
