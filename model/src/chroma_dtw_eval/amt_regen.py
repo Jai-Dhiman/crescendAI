@@ -58,9 +58,25 @@ DEFAULT_AMT_VERSION_CONFIG = _MODULE_DIR.parents[2] / "config/amt_version.json"
 DEFAULT_PRACTICE_ROOT = _MODULE_DIR.parents[2] / "data/evals/practice_eval"
 DEFAULT_CACHE_ROOT = _MODULE_DIR.parents[2] / "data/evals/pseudo_truth"
 DEFAULT_SCORE_ROOT = _MODULE_DIR.parents[2] / "data/scores"
+# piece slug -> score JSON. Verified 2026-06-22 against ls model/data/scores/ and
+# load-tested through _load_bach_json_score (variable-tempo / non-4/4 now supported, #98).
 DEFAULT_SCORE_BY_PIECE = {
     "bach_prelude_c_wtc1": DEFAULT_SCORE_ROOT / "bach.prelude.bwv_846.json",
     "bach_invention_1": DEFAULT_SCORE_ROOT / "bach.inventions.1.json",
+    "chopin_ballade_1": DEFAULT_SCORE_ROOT / "chopin.ballades.1.json",
+    "chopin_etude_op10no4": DEFAULT_SCORE_ROOT / "chopin.etudes_op_10.4.json",
+    "chopin_waltz_csm": DEFAULT_SCORE_ROOT / "chopin.waltzes.64-2.json",
+    "clair_de_lune": DEFAULT_SCORE_ROOT / "debussy.suite_bergamasque.3_clair_de_lune.json",
+    "debussy_arabesque_1": DEFAULT_SCORE_ROOT / "debussy.deux_arabesques.1.json",
+    "fantaisie_impromptu": DEFAULT_SCORE_ROOT / "chopin.fantaisie_impromptu.json",
+    "fur_elise": DEFAULT_SCORE_ROOT / "beethoven.fur_elise.json",
+    "liszt_liebestraum_3": DEFAULT_SCORE_ROOT / "liszt.liebestraume.3.json",
+    "moonlight_sonata_mvt1": DEFAULT_SCORE_ROOT / "beethoven.piano_sonatas.14-1.json",
+    "mozart_k545_mvt1": DEFAULT_SCORE_ROOT / "mozart.piano_sonatas.16-1.json",
+    "nocturne_op9no2": DEFAULT_SCORE_ROOT / "chopin.nocturnes.9-2.json",
+    "pathetique_mvt2": DEFAULT_SCORE_ROOT / "beethoven.piano_sonatas.8-2.json",
+    "rachmaninoff_prelude_csm": DEFAULT_SCORE_ROOT / "rachmaninoff.preludes_op_3.2.json",
+    "schumann_traumerei": DEFAULT_SCORE_ROOT / "schumann.kinderszenen.7.json",
 }
 
 

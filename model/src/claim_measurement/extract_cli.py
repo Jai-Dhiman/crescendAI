@@ -12,7 +12,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
+import signal
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +22,27 @@ from pathlib import Path
 from chroma_dtw_eval.amt_regen import DEFAULT_AMT_URL, DEFAULT_SCORE_BY_PIECE
 
 from claim_measurement.extractor import BundleExtractionError, extract_bundle
+
+
+@contextlib.contextmanager
+def _time_limit(seconds: int):
+    """Wall-clock limit via SIGALRM. seconds <= 0 disables the guard. Unix, main
+    thread only. Guards parangonar alignment, which can blow up combinatorially on
+    some real transcriptions (a piece hung >1h in #95)."""
+    if seconds <= 0:
+        yield
+        return
+
+    def _handler(signum, frame):
+        raise TimeoutError(f"exceeded {seconds}s time limit")
+
+    old = signal.signal(signal.SIGALRM, _handler)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
 
 _MODULE_DIR = Path(__file__).resolve()
 DEFAULT_DATA_ROOT = _MODULE_DIR.parents[2] / "data" / "evals"
@@ -69,11 +92,14 @@ def run(
     bundle_root: Path,
     amt_url: str,
     force: bool,
+    timeout_sec: int = 0,
 ) -> list[dict]:
     """Extract a bundle per scored clip. Returns one result dict per clip.
 
     Raises BundleExtractionError immediately if a scored clip's audio is missing.
     Clips without a compatible score are recorded as 'no_score' (explicit, not silent).
+    A clip exceeding timeout_sec (e.g. parangonar combinatorial blow-up) is recorded
+    as 'timeout' rather than blocking the run. timeout_sec <= 0 disables the guard.
     """
     results: list[dict] = []
     for clip in clips:
@@ -87,12 +113,16 @@ def run(
                 f"audio missing for {clip.piece_id}/{clip.video_id}: {clip.audio_path}"
             )
         try:
-            out = extract_bundle(
-                clip.piece_id, clip.video_id,
-                audio_path=clip.audio_path, score_path=clip.score_path,
-                cache_root=bundle_root, bundle_root=bundle_root,
-                amt_url=amt_url, force=force,
-            )
+            with _time_limit(timeout_sec):
+                out = extract_bundle(
+                    clip.piece_id, clip.video_id,
+                    audio_path=clip.audio_path, score_path=clip.score_path,
+                    cache_root=bundle_root, bundle_root=bundle_root,
+                    amt_url=amt_url, force=force,
+                )
+        except TimeoutError as e:
+            results.append({**base, "status": "timeout", "reason": str(e)})
+            continue
         except BundleExtractionError as e:
             results.append({**base, "status": "failed", "reason": str(e)})
             continue
@@ -114,6 +144,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--limit-piece", default=None,
                         help="If set, only extract clips for this piece_id.")
+    parser.add_argument("--timeout-sec", type=int, default=0,
+                        help="Per-clip wall-clock limit (parangonar hang guard); 0 disables.")
     args = parser.parse_args(argv)
 
     if not args.pseudo_root.exists():
@@ -123,7 +155,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.limit_piece:
         clips = [c for c in clips if c.piece_id == args.limit_piece]
 
-    results = run(clips, bundle_root=args.bundle_root, amt_url=args.amt_url, force=args.force)
+    results = run(clips, bundle_root=args.bundle_root, amt_url=args.amt_url,
+                  force=args.force, timeout_sec=args.timeout_sec)
 
     args.bundle_root.mkdir(parents=True, exist_ok=True)
     index_path = args.bundle_root / "_index.json"
@@ -132,16 +165,18 @@ def main(argv: list[str] | None = None) -> int:
     ok = [r for r in results if r["status"] == "ok"]
     no_score = [r for r in results if r["status"] == "no_score"]
     failed = [r for r in results if r["status"] == "failed"]
+    timed_out = [r for r in results if r["status"] == "timeout"]
     total_pedals = sum(r["n_pedal_events"] for r in ok)
     print(json.dumps({
-        "extracted": len(ok), "no_score": len(no_score), "failed": len(failed),
+        "extracted": len(ok), "no_score": len(no_score),
+        "failed": len(failed), "timeout": len(timed_out),
         "total_pedal_events_over_extracted": total_pedals,
         "index": str(index_path),
     }, indent=2))
     for r in ok:
         print(f"  OK   {r['piece']}/{r['video']}: notes={r['n_notes']} pedals={r['n_pedal_events']}")
-    for r in failed:
-        print(f"  FAIL {r['piece']}/{r['video']}: {r['reason']}", file=sys.stderr)
+    for r in failed + timed_out:
+        print(f"  {r['status'].upper()} {r['piece']}/{r['video']}: {r['reason']}", file=sys.stderr)
     return 0
 
 
