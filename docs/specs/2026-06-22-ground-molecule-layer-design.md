@@ -199,3 +199,9 @@ Molecules receive a non-null `Baseline` in all cases and never throw on thin his
 ## Open Questions
 
 - Q: Should `buildGroundedDigest` keep `chunks` in the digest for use as the `extract-bar-range-signals` read-tool input?  Default: Yes — the adapted `chunks_adapted` array is in `GroundedDigest` and is passed through `ctx.digest` so the tool can use it directly.
+
+---
+
+## Not in scope / Follow-up
+
+- **Per-note bar from WASM BarMap:** `barMapAlignments` is declared `[]` at lines 745 and 1220 of `session-brain.ts` and is never populated. Consequently, `EnrichedChunk.alignment` is always `[]` in production. Populating real per-note alignment entries from the WASM BarMap result that already exists in the `chunk_ready` path is a separate follow-up (gated on that WASM path being enabled). In this plan, bar precision is **chunk-level**: each note in a chunk is assigned the chunk's `bar_coverage[0]` value, and `extractBarRangeSignals` selects chunks whose `bar_coverage` overlaps the requested `bar_range`. Timing/IOI-dependent molecule arms (tempo-stability-triage, rubato-coaching, cross-modal timing arm) are data-limited until real alignment is populated; they degrade gracefully to neutral rather than throwing.

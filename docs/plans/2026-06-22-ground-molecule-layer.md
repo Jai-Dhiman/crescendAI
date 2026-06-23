@@ -57,13 +57,15 @@ import { test, expect } from 'vitest'
 import { buildGroundedDigest } from './grounded-digest'
 import type { SynthesisInput } from '../../services/teacher'
 
+// NOTE: fixture matches production COHORT_TABLES shape exactly — p25/p50/p75/p90 only.
+// p84 is NOT present in production; stddev uses (p75 - p50) per Blocker 2 resolution.
 const COHORT_TABLES: Record<string, { p: number; value: number }[]> = {
-  dynamics:       [{ p: 25, value: 0.38 }, { p: 50, value: 0.55 }, { p: 75, value: 0.70 }, { p: 84, value: 0.67 }, { p: 90, value: 0.82 }],
-  timing:         [{ p: 25, value: 0.34 }, { p: 50, value: 0.48 }, { p: 75, value: 0.63 }, { p: 84, value: 0.60 }, { p: 90, value: 0.77 }],
-  pedaling:       [{ p: 25, value: 0.32 }, { p: 50, value: 0.46 }, { p: 75, value: 0.61 }, { p: 84, value: 0.58 }, { p: 90, value: 0.75 }],
-  articulation:   [{ p: 25, value: 0.37 }, { p: 50, value: 0.54 }, { p: 75, value: 0.68 }, { p: 84, value: 0.65 }, { p: 90, value: 0.80 }],
-  phrasing:       [{ p: 25, value: 0.36 }, { p: 50, value: 0.52 }, { p: 75, value: 0.66 }, { p: 84, value: 0.63 }, { p: 90, value: 0.79 }],
-  interpretation: [{ p: 25, value: 0.35 }, { p: 50, value: 0.51 }, { p: 75, value: 0.65 }, { p: 84, value: 0.62 }, { p: 90, value: 0.78 }],
+  dynamics:       [{ p: 25, value: 0.38 }, { p: 50, value: 0.55 }, { p: 75, value: 0.70 }, { p: 90, value: 0.82 }],
+  timing:         [{ p: 25, value: 0.34 }, { p: 50, value: 0.48 }, { p: 75, value: 0.63 }, { p: 90, value: 0.77 }],
+  pedaling:       [{ p: 25, value: 0.32 }, { p: 50, value: 0.46 }, { p: 75, value: 0.61 }, { p: 90, value: 0.75 }],
+  articulation:   [{ p: 25, value: 0.37 }, { p: 50, value: 0.54 }, { p: 75, value: 0.68 }, { p: 90, value: 0.80 }],
+  phrasing:       [{ p: 25, value: 0.36 }, { p: 50, value: 0.52 }, { p: 75, value: 0.66 }, { p: 90, value: 0.79 }],
+  interpretation: [{ p: 25, value: 0.35 }, { p: 50, value: 0.51 }, { p: 75, value: 0.65 }, { p: 90, value: 0.78 }],
 }
 
 function makeInput(): SynthesisInput {
@@ -84,10 +86,9 @@ function makeInput(): SynthesisInput {
           { pitch: 62, onset_ms: 500,  duration_ms: 500, velocity: 70 },
         ],
         pedal_cc: [{ time_ms: 100, value: 127 }],
-        alignment: [
-          { perf_index: 0, score_index: 0, expected_onset_ms: 0,   bar: 1 },
-          { perf_index: 1, score_index: 1, expected_onset_ms: 500, bar: 2 },
-        ],
+        // alignment is always [] in production (barMapAlignments never populated).
+        // bar injection uses bar_coverage[0] as a chunk-level approximation.
+        alignment: [],
         bar_coverage: [1, 4],
       },
     ],
@@ -109,37 +110,42 @@ function makeInput(): SynthesisInput {
   }
 }
 
-test('buildGroundedDigest: bar injected onto midi_notes via alignment perf_index join', async () => {
+test('buildGroundedDigest: bar assigned from chunk bar_coverage[0] (chunk-level approximation)', async () => {
+  // alignment is always [] in production; bar is derived from the chunk's bar_coverage.
+  // Every note in a chunk gets bar = bar_coverage[0].
   const mockDb = {
-    select: () => ({ from: () => ({ where: () => ({ groupBy: () => Promise.resolve([]) }) }) }),
+    select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: () => ({ groupBy: () => Promise.resolve([]) }) }) }) }) }),
   } as unknown as import('../../db').Db
   const digest = await buildGroundedDigest(makeInput(), { db: mockDb, studentId: 'stu-1' }, COHORT_TABLES)
   const note = digest.chunks_adapted[0].midi_notes[0]
+  // bar_coverage = [1, 4] → every note in this chunk gets bar = 1
   expect(note.bar).toBe(1)
   const note2 = digest.chunks_adapted[0].midi_notes[1]
-  expect(note2.bar).toBe(2)
+  expect(note2.bar).toBe(1)
 })
 
 test('buildGroundedDigest: chunk_id is chunk:0 for chunkIndex 0', async () => {
   const mockDb = {
-    select: () => ({ from: () => ({ where: () => ({ groupBy: () => Promise.resolve([]) }) }) }),
+    select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: () => ({ groupBy: () => Promise.resolve([]) }) }) }) }) }),
   } as unknown as import('../../db').Db
   const digest = await buildGroundedDigest(makeInput(), { db: mockDb, studentId: 'stu-1' }, COHORT_TABLES)
   expect(digest.chunks_adapted[0].chunk_id).toBe('chunk:0')
 })
 
-test('buildGroundedDigest: cohort mean=p50, stddev=max(0.01,p84-p50)', async () => {
+test('buildGroundedDigest: cohort mean=p50, stddev=max(0.01,p75-p50)', async () => {
+  // Production COHORT_TABLES has p25/p50/p75/p90 only — no p84.
+  // stddev proxy = max(0.01, p75 - p50). For dynamics: p75=0.70, p50=0.55 => 0.15.
   const mockDb = {
-    select: () => ({ from: () => ({ where: () => ({ groupBy: () => Promise.resolve([]) }) }) }),
+    select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: () => ({ groupBy: () => Promise.resolve([]) }) }) }) }) }),
   } as unknown as import('../../db').Db
   const digest = await buildGroundedDigest(makeInput(), { db: mockDb, studentId: 'stu-1' }, COHORT_TABLES)
   expect(digest.cohort.dynamics.mean).toBeCloseTo(0.55)
-  expect(digest.cohort.dynamics.stddev).toBeCloseTo(0.12) // p84=0.67, p50=0.55 => 0.12
+  expect(digest.cohort.dynamics.stddev).toBeCloseTo(0.15) // p75=0.70, p50=0.55 => 0.15
 })
 
 test('buildGroundedDigest: within_session_means computed from chunk muq_scores', async () => {
   const mockDb = {
-    select: () => ({ from: () => ({ where: () => ({ groupBy: () => Promise.resolve([]) }) }) }),
+    select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: () => ({ groupBy: () => Promise.resolve([]) }) }) }) }) }),
   } as unknown as import('../../db').Db
   const digest = await buildGroundedDigest(makeInput(), { db: mockDb, studentId: 'stu-1' }, COHORT_TABLES)
   // single chunk, dim 0 (dynamics) = 0.55
@@ -148,7 +154,7 @@ test('buildGroundedDigest: within_session_means computed from chunk muq_scores',
 
 test('buildGroundedDigest: past_diagnoses_grounded reshapes id+pieceId', async () => {
   const mockDb = {
-    select: () => ({ from: () => ({ where: () => ({ groupBy: () => Promise.resolve([]) }) }) }),
+    select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: () => ({ groupBy: () => Promise.resolve([]) }) }) }) }) }),
   } as unknown as import('../../db').Db
   const digest = await buildGroundedDigest(makeInput(), { db: mockDb, studentId: 'stu-1' }, COHORT_TABLES)
   expect(digest.past_diagnoses_grounded[0].artifact_id).toBe('diag-uuid-1')
@@ -157,7 +163,7 @@ test('buildGroundedDigest: past_diagnoses_grounded reshapes id+pieceId', async (
 
 test('buildGroundedDigest: compact_signal_summary is a short non-empty string', async () => {
   const mockDb = {
-    select: () => ({ from: () => ({ where: () => ({ groupBy: () => Promise.resolve([]) }) }) }),
+    select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: () => ({ groupBy: () => Promise.resolve([]) }) }) }) }) }),
   } as unknown as import('../../db').Db
   const digest = await buildGroundedDigest(makeInput(), { db: mockDb, studentId: 'stu-1' }, COHORT_TABLES)
   expect(typeof digest.compact_signal_summary).toBe('string')
@@ -226,12 +232,16 @@ export async function buildGroundedDigest(
 ): Promise<GroundedDigest> {
   const now_ms = Date.now()
 
-  // Adapt chunks: inject bar onto midi_notes via alignment perf_index join
+  // Adapt chunks: assign bar to midi_notes from chunk's bar_coverage (chunk-level approximation).
+  // NOTE: alignment is always [] in production (barMapAlignments never populated in session-brain.ts).
+  // Per-note bar from the WASM BarMap is a follow-up; for now every note in a chunk gets
+  // bar = bar_coverage[0]. When bar_coverage is null/missing, notes contribute bar = 0 and
+  // are effectively excluded from bar-range filtering.
   const chunks_adapted: AdaptedChunk[] = input.enrichedChunks.map((chunk) => {
-    const perfToBar = new Map(chunk.alignment.map((a) => [a.perf_index, a.bar]))
-    const grounded_notes: GroundedNote[] = chunk.midi_notes.map((note, idx) => ({
+    const chunkBar = chunk.bar_coverage != null ? chunk.bar_coverage[0] : 0
+    const grounded_notes: GroundedNote[] = chunk.midi_notes.map((note) => ({
       ...note,
-      bar: perfToBar.get(idx) ?? 0,
+      bar: chunkBar,
     }))
     return {
       chunk_id: `chunk:${chunk.chunkIndex}`,
@@ -256,13 +266,15 @@ export async function buildGroundedDigest(
     .sort(([a], [b]) => a - b)
     .map(([bar, notes]) => ({ bar, notes }))
 
-  // cohort stats: mean=p50, stddev=max(0.01, p84-p50)
+  // cohort stats: mean=p50, stddev=max(0.01, p75-p50).
+  // Production COHORT_TABLES has p25/p50/p75/p90 only — p84 is absent.
+  // p75 is the standard one-sigma proxy available in the production table.
   const cohort = {} as CohortStats
   for (const dim of DIMENSIONS_6) {
     const table = cohortTables[dim] ?? []
     const p50 = table.find((e) => e.p === 50)?.value ?? 0.5
-    const p84 = table.find((e) => e.p === 84)?.value ?? (p50 + 0.1)
-    cohort[dim] = { mean: p50, stddev: Math.max(0.01, p84 - p50) }
+    const p75 = table.find((e) => e.p === 75)?.value ?? (p50 + 0.1)
+    cohort[dim] = { mean: p50, stddev: Math.max(0.01, p75 - p50) }
   }
 
   // within_session_means: mean muq_scores[dimIdx] across all chunks
@@ -273,8 +285,8 @@ export async function buildGroundedDigest(
     within_session_means[dim] = vals.length > 0 ? vals.reduce((s, v) => s + v, 0) / vals.length : 0.5
   }
 
-  // session_means: per-session AVG(dimension_score) GROUP BY session_id from observations
-  // Throws if DB query fails — explicit, not silently caught.
+  // session_means: per-session AVG(dimension_score) from last 10 sessions ordered by recency.
+  // LIMIT caps the scan: at 6 dims × 10 sessions = 60 rows max. Throws if DB fails.
   const rows = await deps.db
     .select({
       sessionId: observations.sessionId,
@@ -283,6 +295,8 @@ export async function buildGroundedDigest(
     })
     .from(observations)
     .where(and(eq(observations.studentId, deps.studentId)))
+    .orderBy(sql`MAX(${observations.createdAt}) DESC`)
+    .limit(10 * 6)
     .groupBy(observations.sessionId, observations.dimension)
 
   const sessionDimMap = new Map<string, Map<Dim6, number>>()
@@ -461,21 +475,26 @@ export async function resolveMoleculeContext(
     chunks: digest.chunks_adapted,
   }) as SignalBundle
 
-  const baseline = {} as TieredBaseline
-  for (const dim of DIMENSIONS_6) {
-    const session_means = digest.session_means[dim]
-    if (session_means.length >= 3) {
-      const result = await fetchStudentBaseline.invoke({ dimension: dim, session_means }) as Baseline | null
-      if (result === null) {
-        throw new Error(`resolveMoleculeContext: fetchStudentBaseline returned null despite n=${session_means.length} sessions for dim=${dim}`)
+  // NOTE: the 6 per-dimension baseline computations may be awaited together via Promise.all
+  // rather than 6 sequential awaits. fetchStudentBaseline is a pure computation (no I/O),
+  // so parallelising is straightforward and avoids 6 sequential microtask round-trips.
+  const baselineEntries = await Promise.all(
+    DIMENSIONS_6.map(async (dim) => {
+      const session_means = digest.session_means[dim]
+      if (session_means.length >= 3) {
+        const result = await fetchStudentBaseline.invoke({ dimension: dim, session_means }) as Baseline | null
+        if (result === null) {
+          throw new Error(`resolveMoleculeContext: fetchStudentBaseline returned null despite n=${session_means.length} sessions for dim=${dim}`)
+        }
+        return [dim, result] as const
+      } else {
+        // Thin-history tier: synthesise from within_session_means
+        const mean = digest.within_session_means[dim]
+        return [dim, { dimension: dim, mean, stddev: Math.max(0.1, digest.cohort[dim].stddev), n_sessions: session_means.length }] as const
       }
-      baseline[dim] = result
-    } else {
-      // Thin-history tier: synthesise from within_session_means
-      const mean = digest.within_session_means[dim]
-      baseline[dim] = { dimension: dim, mean, stddev: Math.max(0.1, digest.cohort[dim].stddev), n_sessions: session_means.length }
-    }
-  }
+    })
+  )
+  const baseline = Object.fromEntries(baselineEntries) as TieredBaseline
 
   return {
     bundle,
@@ -760,7 +779,7 @@ type TempoSelectors = { bar_range: [number,number]|null; scope: 'stop_moment'|'p
 ```
 **Key impl delta from recipe:**
 - `muq_timing` = mean of `bundle.muq_scores[][1]`
-- Alignment/note pairing: use `bundle.alignment` and `bundle.midi_notes` directly; `midi_notes.length` must equal `alignment.length` (throw if not)
+- REMOVE the `midi_notes.length !== alignment.length` throw (line 47 of current file). After bar-range filtering both arrays are independently filtered and are not guaranteed co-length. When `bundle.alignment` is empty or insufficient for IOI computation, return a NEUTRAL `DiagnosisArtifact` (grounded, no fabrication). Timing/IOI arms are data-limited until real alignment is populated (follow-up to the bar-precision follow-up in the spec).
 - No `fetchSimilarPastObservation` call (tempo-stability-triage does not use it)
 - No `past_diagnoses` consumption
 
@@ -775,6 +794,18 @@ test('tempoStabilityTriage: monotonic positive drift returns issue/significant/s
 
 test('tempoStabilityTriage: z above neutral threshold returns neutral', async () => {
   // digest with muq_timing equal to baseline => z > -1.0 => neutral
+})
+
+test('tempoStabilityTriage: empty/sparse alignment returns neutral (not throw)', async () => {
+  // chunk has midi_notes but alignment = [] (production reality)
+  // selectors: { bar_range: [1,4], scope: 'session', evidence_refs: ['cache:muq:s1:c0'] }
+  // assert: does NOT throw; returns DiagnosisArtifact with finding_type 'neutral'
+  const ctx = makeCtx(3, 0.48)
+  ;(ctx.digest as unknown as GroundedDigest).chunks_adapted[0].alignment = []
+  const selectors = { bar_range: [1, 4] as [number, number], scope: 'session' as const, evidence_refs: ['cache:muq:s1:c0'] }
+  const result = await tempoStabilityTriage.invoke(selectors, ctx) as DiagnosisArtifact
+  expect(result.finding_type).toBe('neutral')
+  expect(result.primary_dimension).toBe('timing')
 })
 
 test('tempoStabilityTriage: insufficient history uses within-session baseline and returns artifact (not throw)', async () => {
@@ -799,12 +830,21 @@ test('tempoStabilityTriage: missing ctx throws', async () => {})
 - `muq_timing` = mean of `bundle.muq_scores[][1]`
 - Uses `bundle.alignment` and `bundle.midi_notes`; no `fetchSimilarPastObservation`
 - IOI correlation on alignment-mapped notes; onset-drift on aligned pairs
+- REMOVE any `midi_notes.length !== alignment.length` throw guard. When `bundle.alignment` is empty or insufficient (< 4 correlated pairs), return a NEUTRAL `DiagnosisArtifact` — not a throw. Timing/IOI arms are data-limited until real alignment is populated (follow-up in spec).
 
 **Test deltas from recipe:**
 
 ```ts
 test('rubatoCoaching: monotonic drift without return returns issue/significant/dragged', ...)
 test('rubatoCoaching: fewer than 4 aligned notes returns neutral', ...)
+test('rubatoCoaching: empty/sparse alignment returns neutral (not throw)', async () => {
+  // alignment = [] => IOI computation impossible => neutral result, no throw
+  const ctx = makeCtx(3, 0.48)
+  ;(ctx.digest as unknown as GroundedDigest).chunks_adapted[0].alignment = []
+  const selectors = { bar_range: [1, 4] as [number, number], scope: 'session' as const, evidence_refs: ['cache:muq:s1:c0'] }
+  const result = await rubatoCoaching.invoke(selectors, ctx) as DiagnosisArtifact
+  expect(result.finding_type).toBe('neutral')
+})
 test('rubatoCoaching: insufficient history uses within-session baseline (not throw)', ...)
 test('rubatoCoaching: bar_range=null returns artifact', ...)
 test('rubatoCoaching: missing ctx throws', ...)
@@ -901,6 +941,7 @@ test('phrasingArcAnalysis: missing ctx throws', ...)
 - `cohort_baselines[dim]` replaced by `ctx_r.cohort[dim]`
 - `mono_notes_per_bar` sourced from `(ctx.digest as unknown as GroundedDigest).mono_notes_per_bar`
 - No `fetchSimilarPastObservation` call in this molecule
+- REMOVE any `midi_notes.length !== alignment.length` throw guard in the timing arm. When `bundle.alignment` is empty or insufficient for onset drift computation, the timing arm returns no contradiction (skips silently) — overall molecule still returns a valid `DiagnosisArtifact` (neutral if no other arms fire).
 
 **Test deltas from recipe:**
 
@@ -909,6 +950,15 @@ test('crossModalContradictionCheck: timing z>=0.5 but drift>80ms returns issue/t
 test('crossModalContradictionCheck: no contradictions returns neutral', ...)
 // Confirm articulation arm is gone: pass notes with articulation mismatch and assert NOT flagged
 test('crossModalContradictionCheck: articulation mismatch does not produce articulation contradiction', ...)
+test('crossModalContradictionCheck: empty/sparse alignment does not throw — timing arm skipped, returns artifact', async () => {
+  // alignment = [] => timing arm has no data => skips; pedal and dynamics arms can still run
+  const ctx = makeCtx(3, [0.85, 0.35, 0.46, 0.54, 0.52, 0.51])
+  ;(ctx.digest as unknown as GroundedDigest).chunks_adapted[0].alignment = []
+  const selectors = { bar_range: [1, 4] as [number, number], scope: 'session' as const, evidence_refs: ['cache:muq:s1:c0'] }
+  const result = await crossModalContradictionCheck.invoke(selectors, ctx) as DiagnosisArtifact
+  // No throw; result is a valid DiagnosisArtifact
+  expect(['neutral', 'issue', 'strength']).toContain(result.finding_type)
+})
 test('crossModalContradictionCheck: insufficient history uses within-session baseline (not throw)', ...)
 test('crossModalContradictionCheck: bar_range=null returns artifact', ...)
 test('crossModalContradictionCheck: missing ctx throws', ...)
@@ -924,19 +974,42 @@ test('crossModalContradictionCheck: missing ctx throws', ...)
 
 **Files:** `apps/api/src/harness/loop/phase1.ts`, `apps/api/src/harness/loop/phase1.test.ts`
 
+**Implementation change to `phase1.ts` first:**
+
+Extract the Phase-1 user message construction into an exported helper so the test can call it directly:
+
+```ts
+// In phase1.ts — add this exported helper alongside the existing runPhase1 function:
+import type { GroundedDigest } from './grounded-digest'
+
+export function buildPhase1UserMessage(digest: GroundedDigest, procedurePrompt: string): string {
+  return `Session summary:\n${digest.compact_signal_summary}\n\n${procedurePrompt}`
+}
+```
+
+Then in `runPhase1`, replace the raw digest dump:
+```ts
+// Before (line ~41):
+// `Session digest:\n${JSON.stringify(ctx.digest, null, 2)}\n\n` + binding.procedurePrompt
+// After:
+buildPhase1UserMessage(ctx.digest as unknown as GroundedDigest, binding.procedurePrompt)
+```
+
 **Failing test first** (add to `phase1.test.ts`):
 
 ```ts
-test('phase1 overflow regression: 10-chunk grounded digest prompt is < 10000 chars', async () => {
-  // Build a GroundedDigest with 10 chunks, each having 200 notes.
-  // The compact_signal_summary for 10 chunks is ~10 lines × ~50 chars = ~500 chars.
-  // Build a CompoundBinding and a fake PhaseContext whose digest has compact_signal_summary.
-  // Extract the first message content string that would be sent to the model.
-  // Assert its length < 10000.
-  const { buildCompact10ChunkDigest } = await import('./__test-fixtures__/grounded-digest-fixtures')
+import { buildPhase1UserMessage } from './phase1'
+import { buildCompact10ChunkDigest } from './__test-fixtures__/grounded-digest-fixtures'
+
+test('phase1 overflow regression: buildPhase1UserMessage with 10-chunk digest produces < 10000 chars', () => {
+  // Uses the ACTUAL buildPhase1UserMessage from phase1.ts — not a hand-built string.
+  // A 10-chunk compact_signal_summary is ~10 lines × ~50 chars = ~500 chars.
+  // Asserts the path phase1.ts uses for the LLM user message stays well under context limits.
   const digest = buildCompact10ChunkDigest()
-  const promptString = `Session summary:\n${digest.compact_signal_summary}\n\n` + 'procedure prompt here'
-  expect(promptString.length).toBeLessThan(10000)
+  const result = buildPhase1UserMessage(digest, 'procedure prompt here')
+  expect(result.length).toBeLessThan(10000)
+  // Also assert the old raw midi_notes JSON is NOT present:
+  expect(result).not.toContain('"midi_notes"')
 })
 ```
 
@@ -1028,6 +1101,20 @@ In `compound-registry.ts`:
 In `index.ts`:
 - Remove the `articulationClarityCheck` import and entry from `ALL_MOLECULES`.
 
+**Also update these catalog test files** (removing `articulationClarityCheck` from `ALL_MOLECULES` breaks them without these changes):
+
+In `apps/api/src/harness/skills/molecules/index.test.ts`:
+- Change `expect(ALL_MOLECULES).toHaveLength(8)` → `expect(ALL_MOLECULES).toHaveLength(7)`
+- Change `expect(new Set(names).size).toBe(8)` → `expect(new Set(names).size).toBe(7)`
+- In the second test, remove `'articulation-clarity-check'` from the `expected` array (7 names remain)
+
+In `apps/api/src/harness/skills/__catalog__/readme-molecules.test.ts`:
+- Remove `"articulation-clarity-check"` from the `FINAL_MOLECULES` array (7 entries remain)
+
+In `docs/harness/skills/molecules/README.md`:
+- Change `**Final size:** 8 molecules.` → `**Final size:** 7 molecules.`
+- Remove the `- \`articulation-clarity-check\`` bullet from the Diagnosis molecules list
+
 **Commit:** `feat(#99): compound-registry — updated procedure prompt, add extractBarRangeSignals; remove articulationClarityCheck`
 
 ---
@@ -1036,15 +1123,24 @@ In `index.ts`:
 
 **Files:** `apps/api/src/services/teacher.ts`
 
-**Failing test first** (add to an existing or new `teacher.synthesizeV6.test.ts` or inline in the service test):
+**Failing test first** (add to `compound-registry.test.ts` — these are behavior tests on the registry, not internal-state spying):
 
 ```ts
-test('synthesizeV6 digest contains compact_signal_summary key', async () => {
-  // Spy on runHook to capture the hookCtx.digest
-  // Build a minimal SynthesisInput with 1 chunk
-  // Call synthesizeV6 and drain events
-  // Assert hookCtx.digest.compact_signal_summary is a string
-  // (This test verifies buildGroundedDigest was called and wired in)
+import { test, expect } from 'vitest'
+
+test('OnSessionEnd procedurePrompt instructs supply of bar_range/scope/evidence_refs only (not signal data)', async () => {
+  const { getCompoundBinding } = await import('./compound-registry')
+  const binding = getCompoundBinding('OnSessionEnd')!
+  // Confirm the new instruction is present
+  expect(binding.procedurePrompt).toContain('bar_range, scope, and evidence_refs')
+  // Confirm the old instruction to supply signal data is gone
+  expect(binding.procedurePrompt).not.toContain('signal data from the digest')
+})
+
+test('OnSessionEnd tool list includes extract-bar-range-signals', async () => {
+  const { getCompoundBinding } = await import('./compound-registry')
+  const binding = getCompoundBinding('OnSessionEnd')!
+  expect(binding.tools.some((t) => t.name === 'extract-bar-range-signals')).toBe(true)
 })
 ```
 
@@ -1075,58 +1171,97 @@ test('synthesizeV6 digest contains compact_signal_summary key', async () => {
 
 ### Task C4 — `session-brain.ts`
 
-**Files:** `apps/api/src/do/session-brain.ts`
+**Files:** `apps/api/src/do/session-brain.ts`, `apps/api/src/do/session-brain.test.ts` (new or existing)
 
-**Failing test first** (conceptual — verify at the type level via TypeScript compile, and via the existing `session-brain.concurrency.test.ts` or a new integration test that asserts the pastDiagnoses array has `id` populated):
+**Implementation change first** — extract the reshape into an exported pure function so it is directly testable:
 
 ```ts
-test('session-brain pastDiagnoses mapping includes id and pieceId fields', () => {
-  // Construct a diagRows array as the DB would return
-  // (id, sessionId, primaryDimension, barRangeStart, barRangeEnd, artifactJson, createdAt, pieceId)
-  // Map it using the same logic as session-brain.ts ~1680
-  // Assert r.id is present and maps to the record's id field
-  const diagRow = {
-    id: 'uuid-diag',
-    sessionId: 'uuid-sess',
-    primaryDimension: 'pedaling',
-    barRangeStart: 1,
-    barRangeEnd: 4,
-    artifactJson: {},
-    createdAt: new Date(0),
-    studentId: 'stu-1',
-    pieceId: 'piece-abc',
+// In session-brain.ts — add this exported helper near the pastDiagnoses mapping (~line 1675):
+import type { PastDiagnosisRecord } from '../services/teacher'
+
+export function toPastDiagnosisRecord(row: {
+  id: string
+  sessionId: string
+  primaryDimension: string
+  barRangeStart: number | null
+  barRangeEnd: number | null
+  artifactJson: unknown
+  createdAt: Date
+  pieceId: string | null | undefined
+}): PastDiagnosisRecord {
+  return {
+    id: row.id,
+    sessionId: row.sessionId,
+    primaryDimension: row.primaryDimension,
+    barRangeStart: row.barRangeStart ?? null,
+    barRangeEnd: row.barRangeEnd ?? null,
+    artifactJson: row.artifactJson as Record<string, unknown>,
+    createdAt: row.createdAt.toISOString(),
+    pieceId: row.pieceId ?? null,
   }
-  const record = {
-    id: diagRow.id,
-    sessionId: diagRow.sessionId,
-    primaryDimension: diagRow.primaryDimension,
-    barRangeStart: diagRow.barRangeStart ?? null,
-    barRangeEnd: diagRow.barRangeEnd ?? null,
-    artifactJson: diagRow.artifactJson,
-    createdAt: diagRow.createdAt.toISOString(),
-    pieceId: diagRow.pieceId ?? null,
-  }
-  expect(record.id).toBe('uuid-diag')
-  expect(record.pieceId).toBe('piece-abc')
-})
+}
 ```
 
-**Implementation change** at `session-brain.ts ~1680-1687`:
-
+Then at `session-brain.ts ~1680-1687`, replace the inline mapping:
 ```ts
+// Before:
 pastDiagnoses = diagRows.map((r) => ({
-  id: r.id,                             // ADD
   sessionId: r.sessionId,
   primaryDimension: r.primaryDimension,
   barRangeStart: r.barRangeStart ?? null,
   barRangeEnd: r.barRangeEnd ?? null,
   artifactJson: r.artifactJson,
   createdAt: r.createdAt.toISOString(),
-  pieceId: r.pieceId ?? null,           // ADD
 }));
+// After:
+pastDiagnoses = diagRows.map(toPastDiagnosisRecord);
 ```
 
-**Commit:** `feat(#99): session-brain — include id and pieceId in past-diagnoses SELECT mapping`
+**Failing test first** (import and call the extracted function — not a shape copy):
+
+```ts
+// session-brain.test.ts (new file or add to existing)
+import { test, expect } from 'vitest'
+import { toPastDiagnosisRecord } from './session-brain'
+
+test('toPastDiagnosisRecord: maps id, pieceId, and createdAt ISO string from DB row', () => {
+  const row = {
+    id: 'uuid-diag',
+    sessionId: 'uuid-sess',
+    primaryDimension: 'pedaling',
+    barRangeStart: 1,
+    barRangeEnd: 4,
+    artifactJson: { severity: 'moderate' },
+    createdAt: new Date(0),
+    pieceId: 'piece-abc',
+  }
+  const record = toPastDiagnosisRecord(row)
+  expect(record.id).toBe('uuid-diag')
+  expect(record.pieceId).toBe('piece-abc')
+  expect(record.createdAt).toBe(new Date(0).toISOString())
+  expect(record.barRangeStart).toBe(1)
+  expect(record.barRangeEnd).toBe(4)
+})
+
+test('toPastDiagnosisRecord: null pieceId and null barRange pass through as null', () => {
+  const row = {
+    id: 'uuid-diag-2',
+    sessionId: 'uuid-sess-2',
+    primaryDimension: 'dynamics',
+    barRangeStart: null,
+    barRangeEnd: null,
+    artifactJson: {},
+    createdAt: new Date(1000),
+    pieceId: null,
+  }
+  const record = toPastDiagnosisRecord(row)
+  expect(record.pieceId).toBeNull()
+  expect(record.barRangeStart).toBeNull()
+  expect(record.barRangeEnd).toBeNull()
+})
+```
+
+**Commit:** `feat(#99): session-brain — extract toPastDiagnosisRecord with id+pieceId; wire into pastDiagnoses mapping`
 
 ---
 
@@ -1141,3 +1276,126 @@ cd apps/api && bun run test --run src/harness
 All new tests pass. No pre-existing tests regress (baseline: 20 pre-existing TS errors; net-new errors = 0).
 
 Manual smoke: `just dev-light` → POST a synthesis session → confirm no HTTP 413; confirm Phase-1 prompt string < 10000 chars in local logs.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise:** Correct and urgent. `phase1.ts:41` is confirmed to `JSON.stringify(ctx.digest, null, 2)` the full digest including raw `midi_notes`, `pedal_cc`, and `alignment` arrays for every chunk. The 136K-token overflow is real and reproducible at 10 chunks. The root problem (LLM receiving fabricated inputs because molecules had fat input_schemas the LLM was expected to populate) is also verified in the current molecule code. This is exactly the right thing to fix.
+
+**Direct path:** Yes. The two new deep modules (`buildGroundedDigest`, `resolveMoleculeContext`) are the minimum surface to fix all three breakages cleanly. Simpler alternatives (e.g. truncating the JSON, or passing data via tool results instead of the digest) would leave molecules fabricating inputs. The spec chose the correct path.
+
+**Alternatives:** Spec documents the design choice implicitly (compact summary vs. raw dump, server-side fetch vs. LLM-supplied data) but does not write down rejected alternatives. Not blocking for a pre-beta codebase.
+
+**Twelve-month alignment:**
+```
+CURRENT STATE                          THIS PLAN                         12-MONTH IDEAL
+Molecules get LLM-fabricated           Molecules self-fetch via           Molecules are fully
+inputs; digest is 136K raw             resolveMoleculeContext;            autonomous units with
+JSON; thin-history throws;             compact summary in prompt;         real baselines, bar-level
+bar field missing on notes.            7 molecules grounded.              signal, and instrument
+                                                                         adaptation.
+```
+This plan moves cleanly toward the ideal. No tech debt is introduced.
+
+---
+
+### Engineering Pass
+
+**Architecture — data flow:**
+```
+SynthesisInput
+  → buildGroundedDigest(input, {db, studentId}, COHORT_TABLES)
+      ├── bar inject (alignment.perf_index join)  ← [BLOCKER B1 below]
+      ├── DB query: AVG(dimensionScore) GROUP BY (sessionId, dimension)
+      ├── cohort stats (p50/p84 arithmetic)       ← [BLOCKER B2 below]
+      └── compact_signal_summary string
+  → hookCtx.digest = groundedDigest
+  → phase1.ts: compact_signal_summary in prompt
+  → LLM calls molecule.invoke({bar_range, scope, evidence_refs}, ctx)
+  → resolveMoleculeContext(ctx.digest, bar_range)
+      ├── extractBarRangeSignals.invoke({bar_range, chunks})  ← [BLOCKER B3 below]
+      └── tiered baseline (n>=3 → fetchStudentBaseline, else within-session)
+  → molecule logic on ctx_r.bundle.*
+```
+
+---
+
+### Blockers
+
+**[BLOCKER] (confidence: 10/10) — Bar injection join is always a no-op: `alignment` is always `[]` in `EnrichedChunk`.**
+
+Verified in `session-brain.ts`: `barMapAlignments` is declared at lines 745 and 1220 as an empty array `[]` and is never pushed to. There is no code path that populates it before it is passed to `toEnrichedChunk`. The `alignment` field in every stored `EnrichedChunk` is therefore always `[]`. Consequently, `buildGroundedDigest`'s `perfToBar = new Map(chunk.alignment.map(...))` builds an empty map, and every `midi_notes[idx]` gets `bar = perfToBar.get(idx) ?? 0` — i.e. `bar = 0` for every note. The spec's core promise ("bar injected onto midi_notes via alignment perf_index join") is structurally impossible with the current data. The plan must either (a) populate `barMapAlignments` from the WASM BarMap result that already exists in the chunk_ready path, or (b) derive bar from `bar_coverage` as a chunk-level approximation. The plan cannot proceed as written because the grounding is a no-op.
+
+**[BLOCKER] (confidence: 9/10) — `p84` percentile does not exist in production `COHORT_TABLES`; the stddev formula silently falls back to `p50 + 0.1` in production.**
+
+Verified: `COHORT_TABLES` in `teacher.ts` (lines 976–982) has percentile entries for `p: 25`, `p: 50`, `p: 75`, and `p: 90` only — no `p: 84`. The plan's `buildGroundedDigest` implementation looks up `table.find((e) => e.p === 84)`, which returns `undefined`, and then falls back to `p50 + 0.1`. The test fixture *does* include `p84` entries so the tests will pass, but in production `cohort[dim].stddev = 0.10` for all dimensions regardless of actual spread. The `p75` percentile is present and is the standard one-sigma proxy (p84 ≈ mean+1σ for normal distributions is approximate anyway). The plan should either add `p: 84` entries to `COHORT_TABLES` in `teacher.ts`, or change the formula to use `p75` (which exists). As written: tests green, production silently wrong.
+
+**[BLOCKER] (confidence: 9/10) — `tempo-stability-triage` (B2) will throw on real bar-filtered data because `bundle.midi_notes.length !== bundle.alignment.length` after `extractBarRangeSignals` filtering.**
+
+Verified: the current `tempo-stability-triage.ts` line 47 already throws if `midi_notes.length !== alignment.length`. After the refactor, `resolveMoleculeContext` calls `extractBarRangeSignals` which independently bar-filters `midi_notes` (by `n.bar >= lo && n.bar <= hi`) and `alignment` (by `a.bar >= lo && a.bar <= hi`). These two filtered arrays are not guaranteed to be the same length — a note with `bar = 0` (the fallback from BLOCKER B1) would be excluded from midi_notes but alignment entries for that note would also be excluded, which happens to make lengths equal only if the no-op bar=0 case hits uniformly. More importantly, if BLOCKER B1 is fixed and real bar values are present, notes outside the bar_range are excluded from midi_notes but alignment entries for those same notes are also excluded independently — they coincide only when every note in the chunk has a matching alignment entry. The plan's instruction "midi_notes.length must equal alignment.length (throw if not)" creates a guaranteed production throw whenever the filtered lists differ. The plan must specify that the length guard is removed, or that the note-alignment join uses `perf_index` from `bundle.alignment` rather than positional indexing.
+
+**[BLOCKER] (confidence: 8/10) — Task C4's test is a shape test that would pass without the implementation.**
+
+The C4 test (plan lines 1082–1111) manually constructs a `diagRow` object and a `record` object inline in the test body, asserting `record.id === 'uuid-diag'`. This does not call any function from `session-brain.ts`. It does not import `session-brain.ts`. It would pass identically whether or not the `session-brain.ts` mapping at line 1680 is changed. This is a copying-the-code-into-the-test pattern, not a behavior test. Required fix: test must call a function exported from `session-brain.ts` (or the DO itself via a stub harness) with a mock DB row and assert the `PastDiagnosisRecord` returned by the actual mapping logic includes `id` and `pieceId`. Alternatively, verify at TypeScript compile time only (no runtime test needed for a 2-line field addition), but then delete the test rather than keep a vacuous one.
+
+**[BLOCKER] (confidence: 8/10) — Two existing catalog tests assert `ALL_MOLECULES` has 8 entries and specifically names `articulation-clarity-check`. Removing it in C2 will break both.**
+
+Verified: `molecules/index.test.ts` asserts `ALL_MOLECULES.toHaveLength(8)` and explicitly lists `articulation-clarity-check` as one of the 8 expected names. `readme-molecules.test.ts` asserts that `docs/harness/skills/molecules/README.md` lists all 8 final molecules by name, including `articulation-clarity-check`. The plan's C2 task removes `articulationClarityCheck` from `ALL_MOLECULES` and from `index.ts` but does not update these two tests or the README. Both will fail at the verification gate. The plan must include: (1) update `molecules/index.test.ts` to expect 7 molecules and drop the name; (2) update `readme-molecules.test.ts` `FINAL_MOLECULES` list; (3) update `docs/harness/skills/molecules/README.md`.
+
+---
+
+### Risks
+
+**[RISK] (confidence: 8/10) — The `session_means` DB query has no LIMIT and no time-window filter; it will scan all observations for the student across all time.**
+
+The spec says "last-10-session means" but the plan's SQL implementation (`AVG(dimensionScore) GROUP BY (sessionId, dimension)` with only a `studentId` WHERE clause) returns averages for every session the student has ever had. For pre-beta this is negligible, but the session count grows unboundedly and the `idx_observations_student` index is on `(studentId, createdAt)` — the query has no `createdAt` bound, so it can't use the index efficiently as data grows. Consider adding `.orderBy(observations.createdAt, 'desc').limit(10 * 6)` or a subquery to cap the scan to the last 10 sessions.
+
+**[RISK] (confidence: 8/10) — `cross-modal-contradiction-check` (B7) carries the existing perf-index-vs-array-index bug into the refactored version.**
+
+The current `cross-modal-contradiction-check.ts` line 62 builds `alignMap` from `alignment.perf_index` but then looks up entries with array-position `idx` from `midi_notes.map((n, idx) => ...)`. After bar-range filtering, `idx` (position in filtered array) no longer equals `perf_index`. The plan says to use `bundle.alignment` and `bundle.midi_notes` directly without specifying a fix to this join. The refactored B7 molecule will silently fail to match most notes (getting `undefined` from `alignMap.get(idx)`) and the `filter` for `expected_onset_ms !== null` will drop them. The timing contradiction arm will almost never fire. Fix: join on `note.bar` (which is now present) or build the note map by `perf_index` from the grounded notes.
+
+**[RISK] (confidence: 7/10) — `rubato-coaching` (B3) carries the same index-vs-perf_index mismatch for its alignment join.**
+
+`rubato-coaching.ts` line 50: `perfNoteMap = new Map(i.midi_notes.map((n, idx) => [idx, n.onset_ms]))`. After the refactor, `i.midi_notes` becomes `bundle.midi_notes` (bar-filtered), so positional `idx` no longer corresponds to `perf_index`. The `correlationNotes` built from `i.alignment.map(a => ({ onset_ms: perfNoteMap.get(a.perf_index) ?? ... }))` will miss most entries and fall back to `a.expected_onset_ms` for almost all notes, making the IOI correlation measure the score timing, not the performance. Fallback to neutral is the result rather than a throw, so this degrades silently. Fix: use `perf_index` in both maps consistently.
+
+**[RISK] (confidence: 7/10) — Task C1's overflow test does not test `phase1.ts`; it is a vacuous string-length check.**
+
+The test (plan lines 929–940) manually constructs a `promptString` from a fixture and asserts its length. It never calls `runPhase1`, never exercises `phase1.ts` line 41, and would pass regardless of whether `phase1.ts` is changed. It catches nothing about the actual runtime behavior of `phase1.ts` with a grounded digest. This is a shape/proxy test. Consider: import `runPhase1`, stub the `callModel` call (Cloudflare Workers test infra already supports this pattern), and assert that the first message's content does not include `midi_notes` as a substring.
+
+**[RISK] (confidence: 7/10) — `resolveMoleculeContext` calls `fetchStudentBaseline.invoke(...)` once per dimension (6 calls) inside `buildGroundedDigest` via the tiered baseline loop. Each `invoke` is `async`. For a new student (n < 3 for all 6 dims), all 6 calls short-circuit immediately. But for a returning student with n >= 3, this is 6 sequential async calls per synthesis. Given `fetchStudentBaseline` is a pure computation (no I/O — it just does arithmetic on the `session_means` array), wrapping it in sequential `await` is unnecessary overhead. Not a correctness issue, but flag for the builder to run the 6 calls in `Promise.all` or, preferably, inline the computation directly rather than calling through `ToolDefinition.invoke`.**
+
+**[RISK] (confidence: 6/10) — Task C3's test is described as conceptual ("Spy on runHook...") with no concrete implementation provided.**
+
+The plan's C3 test sketch says "Spy on runHook to capture the hookCtx.digest" but provides no actual test code — only a comment describing what to verify. The builder will have to invent the test from scratch, which means it may end up being a mock-heavy internal-state test rather than a behavior test. Recommend: make the test concrete in the plan, or accept that C3's only coverage is the TypeScript compile check on `PastDiagnosisRecord` extension.
+
+---
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `alignment` in `EnrichedChunk` contains populated `bar` entries | RISKY | Verified: `barMapAlignments` is always `[]`; bar injection is a no-op |
+| `COHORT_TABLES` contains `p: 84` entries | RISKY | Verified: only `p25, p50, p75, p90` present; no `p84` |
+| `bundle.midi_notes.length === bundle.alignment.length` after bar-range filtering | RISKY | Not guaranteed; both are independently filtered |
+| `fetchStudentBaseline` returns non-null when `session_means.length >= 3` | SAFE | Verified in `fetch-student-baseline.ts` line 37 |
+| `extractBarRangeSignals.invoke({bar_range, chunks})` is safe to call directly (not just as LLM tool) | SAFE | Verified: `invoke` is a plain async function, no LLM-context dependency |
+| Removing `articulationClarityCheck` from `ALL_MOLECULES` requires no catalog test updates | RISKY | Verified: two catalog tests hard-code the count 8 and the name |
+| The `observations` table has columns `studentId`, `sessionId`, `dimension`, `dimensionScore` | SAFE | Verified in `observations.ts` schema |
+| `ctx.digest` in `PhaseContext` accepts `GroundedDigest` at runtime | SAFE | `digest: Record<string, unknown>` — structural typing permits it |
+| The existing `session-brain.ts` past-diagnoses query selects `diagnosisArtifacts.id` | SAFE | Verified: `diagnosisArtifacts.id` column exists (uuid, primaryKey) |
+| `diagnosisArtifacts` table has `pieceId` column | SAFE | Verified in `diagnosis-artifacts.ts` schema |
+| `tempo-stability-triage` length guard survives bar-range filtering | RISKY | After filtering, `midi_notes.length !== alignment.length` is likely |
+| Production `p84` fallback `= p50 + 0.1` is close enough to actual `p84 - p50` | VALIDATE | For a normal-ish distribution `p84 ≈ p50 + σ` — depends on actual score spread |
+
+---
+
+### Summary
+
+[BLOCKER] count: 5
+[RISK]    count: 6
+[QUESTION] count: 0
+
+VERDICT: NEEDS_REWORK — Five blockers must be resolved before execution: (1) `alignment` is always `[]` making bar injection a structural no-op; (2) `p84` is absent from production `COHORT_TABLES` making stddev silently wrong; (3) `tempo-stability-triage` will throw on real bar-filtered data due to length mismatch; (4) Task C4's test is a shape test with zero coupling to the implementation; (5) two catalog tests hard-code `articulation-clarity-check` and count=8, which C2 breaks without updating them.
