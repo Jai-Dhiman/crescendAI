@@ -125,6 +125,22 @@ seed-score-json filter="":
 build-exercise-assets:
     cd model && uv run python -c "from exercise_corpus.build_render_assets import build; print(f'built {len(build())} assets')"
 
+# #49 exercise-corpus expansion: acquire the public-domain KernScores MIDIs
+# (clone craigsapp humdrum repos + verovio kern->MIDI). Writes gitignored raw
+# MIDI into model/data/scores/exercise_primitives/raw/. Run the #17 Mutopia
+# `acquire.sh` too for the original 6 sources before a full embed rebuild.
+corpus-acquire-kernscores:
+    bash model/src/exercise_corpus/acquire_kernscores.sh
+
+# #49: segment ALL exercise sources (#17 + KernScores) and write the
+# embed-ready manifest (model/data/embed_ready_manifest.json), STOPPING before
+# the Aria embed. The GPU embed -> catalog -> validate pass is scheduled
+# separately (run on the staged manifest). Requires the raw MIDI on disk
+# (`just corpus-acquire-kernscores` + the #17 acquire.sh first).
+corpus-segment-manifest:
+    cd model && uv run python -m exercise_corpus.run \
+        --sources src/exercise_corpus/sources.toml --output-dir data --segment-only
+
 # Build local renderable .mxl assets for all catalog pieces that have an ASAP
 # xml_score.musicxml (ASAP is CC-BY-NC -- LOCAL prototype use ONLY, do NOT
 # deploy to production R2 or any commercial build).
