@@ -3,8 +3,10 @@ import { z } from "zod";
 import { pieces } from "../db/schema/catalog";
 import { observations } from "../db/schema/observations";
 import { sessions } from "../db/schema/sessions";
+import { CorpusDrillSchema } from "../harness/artifacts/exercise-routing";
 import { DIMS_6 } from "../lib/dims";
 import type { ServiceContext } from "../lib/types";
+import { buildCorpusDrillClip } from "./corpus-drill";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -82,7 +84,7 @@ const prescribeExerciseSchema = z.discriminatedUnion("kind", [
 ]);
 
 async function processPrescribeExercise(
-	_ctx: ServiceContext,
+	ctx: ServiceContext,
 	_studentId: string,
 	rawInput: unknown,
 ): Promise<InlineComponent[]> {
@@ -113,25 +115,23 @@ async function processPrescribeExercise(
 		];
 	}
 
-	// corpus_drill — text stub
-	const stubInstruction =
-		`${input.target_dimension} drill coming soon` +
-		(input.primitive_id ? ` (drill: ${input.primitive_id})` : "") +
-		`. Practice bars ${input.bar_range[0]}-${input.bar_range[1]} at ${Math.round(input.tempo_factor * 100)}% tempo focusing on ${input.target_dimension}.`;
-
+	// corpus_drill — render a matched primitive clip via the shared helper.
+	const decision = CorpusDrillSchema.parse({
+		kind: "corpus_drill",
+		target_dimension: input.target_dimension,
+		bar_range: input.bar_range,
+		tempo_factor: input.tempo_factor,
+		primitive_id: input.primitive_id,
+	});
+	const payload = await buildCorpusDrillClip(ctx, decision, input.piece_id);
 	return [
 		{
 			type: "exercise_set",
 			config: {
-				sourcePassage: `bars ${input.bar_range[0]}-${input.bar_range[1]}`,
-				targetSkill: `${input.target_dimension} focus`,
-				exercises: [
-					{
-						title: `${input.target_dimension} corpus drill`,
-						instruction: stubInstruction,
-						focusDimension: input.target_dimension,
-					},
-				],
+				sourcePassage: payload.sourcePassage,
+				targetSkill: payload.targetSkill,
+				scoreClip: payload.scoreClip,
+				exercises: payload.exercises,
 			},
 		},
 	];

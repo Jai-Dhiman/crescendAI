@@ -759,7 +759,9 @@ describe("processToolUse — prescribe_exercise own_passage_loop", () => {
 		expect(config.scoreClip?.tempoFactor).toBe(0.75);
 	});
 
-	it("returns exercise_set without scoreClip for corpus_drill", async () => {
+	it("returns exercise_set with a primitive scoreClip for corpus_drill", async () => {
+		// No env.SCORES on this ctx -> resolveTranspose catches the read failure and
+		// degrades to transpose=0 (explicit exception handling, not a crash).
 		const ctx = { db: {} } as unknown as import("../lib/types").ServiceContext;
 		const result = await processToolUse(ctx, "stu-1", "prescribe_exercise", {
 			kind: "corpus_drill",
@@ -772,9 +774,14 @@ describe("processToolUse — prescribe_exercise own_passage_loop", () => {
 		expect(result.isError).toBe(false);
 		const comp = result.componentsJson[0];
 		expect(comp?.type).toBe("exercise_set");
-		const config = comp?.config as { scoreClip?: unknown; exercises: { instruction: string }[] };
-		expect(config.scoreClip).toBeUndefined();
-		expect(config.exercises[0].instruction).toContain("coming soon");
+		const config = comp?.config as {
+			scoreClip?: { pieceId: string; bars: [number, number]; transpose?: number };
+			exercises: { instruction: string }[];
+		};
+		// timing stable-first under (suffixNum, id) is czerny_001 (czerny < hanon).
+		expect(config.scoreClip?.pieceId).toBe("czerny_001");
+		expect(config.scoreClip?.bars).toEqual([1, 22]);
+		expect(config.scoreClip).toHaveProperty("transpose");
 	});
 });
 
