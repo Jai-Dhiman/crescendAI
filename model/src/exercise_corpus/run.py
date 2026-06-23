@@ -11,10 +11,12 @@ Usage (validate only -- reads existing catalog):
 """
 
 import argparse
+import json
 import logging
 import tomllib
 from pathlib import Path
 
+from exercise_corpus import Primitive
 from exercise_corpus.catalog import write_primitives
 from exercise_corpus.embed import embed_primitives
 from exercise_corpus.segment import segment_source
@@ -23,11 +25,62 @@ from exercise_corpus.validate import ValidationResult, run_validation
 logger = logging.getLogger(__name__)
 
 
+def _write_embed_ready_manifest(
+    primitives: list[Primitive],
+    sources: list[dict],
+    manifest_path: Path,
+) -> None:
+    """Write the embed-ready manifest: one row per segmented primitive plus the
+    source-level coarse tags, ready for a scheduled Aria embed + catalog pass.
+
+    This is the deliberate STOP point of `segment_only` mode -- everything an Aria
+    embedding job needs (the per-primitive MIDI path) without running the GPU
+    embed here. The post-embed catalog step consumes this manifest.
+
+    Raises:
+        ValueError: if a primitive references a source absent from sources.toml.
+    """
+    by_name = {s["name"]: s for s in sources}
+    rows = []
+    for p in primitives:
+        src = by_name.get(p.source)
+        if src is None:
+            raise ValueError(
+                f"primitive {p.primitive_id!r} has source {p.source!r} "
+                f"not present in sources.toml"
+            )
+        rows.append(
+            {
+                "primitive_id": p.primitive_id,
+                "source": p.source,
+                "source_exercise_number": p.source_exercise_number,
+                "title": p.title,
+                "midi_path": str(p.midi_path),
+                "n_notes": p.n_notes,
+                # Coarse source-level tags (#49). Per-primitive technique_tags
+                # expansion happens after embed+catalog (tags validate against
+                # the catalog). Empty for the #17 sources, which already carry
+                # per-primitive technique_tags.toml entries.
+                "source_dimensions": list(src.get("dimensions", [])),
+                "source_techniques": list(src.get("techniques", [])),
+            }
+        )
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "exercise_corpus.embed_ready.v1",
+        "n_primitives": len(rows),
+        "primitives": rows,
+    }
+    with open(manifest_path, "w") as f:
+        json.dump(payload, f, indent=2, sort_keys=True)
+
+
 def run_pipeline(
     sources_path: Path | None = None,
     output_dir: Path | None = None,
     dry_run: bool = False,
     validate_only: bool = False,
+    segment_only: bool = False,
     db_path: Path | None = None,
 ) -> ValidationResult | None:
     """Run the full exercise corpus pipeline or a subset.
@@ -41,6 +94,10 @@ def run_pipeline(
             (no segmentation or embedding). Raises FileNotFoundError for any missing file.
         validate_only: if True, skip segment/embed and run only validate against
             an existing db_path.
+        segment_only: if True, segment all sources and write the embed-ready
+            manifest (output_dir/embed_ready_manifest.json), then STOP before the
+            Aria embed/catalog/validate steps. The #49 corpus-expansion boundary:
+            stages per-primitive MIDI + the manifest for a scheduled embed pass.
         db_path: required when validate_only=True.
 
     Returns:
@@ -96,6 +153,23 @@ def run_pipeline(
         all_primitives.extend(primitives)
         logger.info("  -> %d primitives", len(primitives))
 
+    if segment_only:
+        manifest_path = output_dir / "embed_ready_manifest.json"
+        _write_embed_ready_manifest(all_primitives, sources, manifest_path)
+        logger.info(
+            "segment_only=True: %d primitives segmented + staged; wrote %s. "
+            "STOP before Aria embed.",
+            len(all_primitives),
+            manifest_path,
+        )
+        print(
+            f"\nsegment_only: {len(all_primitives)} primitives segmented + "
+            f"staged to {midi_dir}.\n"
+            f"Embed-ready manifest: {manifest_path}\n"
+            f"NEXT (scheduled, GPU): Aria embed -> catalog -> validate.\n"
+        )
+        return None
+
     logger.info("Total primitives: %d. Extracting embeddings...", len(all_primitives))
     embeddings = embed_primitives(midi_dir)
 
@@ -145,6 +219,12 @@ def main() -> None:
         action="store_true",
         help="Check that all source MusicXML files exist and exit cleanly (no segmentation or embedding).",
     )
+    parser.add_argument(
+        "--segment-only",
+        action="store_true",
+        help="Segment all sources + write the embed-ready manifest, then STOP "
+        "before the Aria embed (#49 corpus-expansion staging boundary).",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -157,6 +237,7 @@ def main() -> None:
         output_dir=args.output_dir,
         dry_run=args.dry_run,
         validate_only=args.validate_only,
+        segment_only=args.segment_only,
         db_path=args.db,
     )
 

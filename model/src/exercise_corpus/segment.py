@@ -19,7 +19,10 @@ verbatim into the MIDI output dir and `musicxml_path` is set to that MIDI path.
 The MIDI is what feeds Aria embedding; nothing downstream of slice A reads
 `musicxml_path` yet.
 
-Supported source names: "hanon", "bach", "czerny", "burgmuller", "chopin", "satie"
+Supported source names: "hanon", "bach", "czerny", "burgmuller", "chopin",
+"satie" (#17 Mutopia core) and "beethoven_sonatas", "mozart_sonatas",
+"scarlatti_sonatas", "haydn_sonatas", "joplin_rags", "chopin_mazurkas"
+(#49 KernScores expansion -- all per_file).
 """
 
 import logging
@@ -72,6 +75,41 @@ _SOURCE_CONFIGS: dict[str, dict] = {
     "satie": {
         "title_prefix": "Satie",
         "id_prefix": "satie",
+        "boundary": "per_file",
+    },
+    # --- #49 corpus expansion: KernScores craigsapp repos (kern -> MIDI via
+    # verovio; all public domain, pre-1928 composers). Per-piece MIDI, so the
+    # same boundary='per_file' shape as the Mutopia sources above. id_prefix is
+    # source-distinct so ids never collide with the #17 sources (e.g.
+    # chopin_mazurka_NNN vs the existing chopin_NNN Op.28 preludes).
+    "beethoven_sonatas": {
+        "title_prefix": "Beethoven Sonata Movement",
+        "id_prefix": "beethoven_sonata",
+        "boundary": "per_file",
+    },
+    "mozart_sonatas": {
+        "title_prefix": "Mozart Sonata Movement",
+        "id_prefix": "mozart_sonata",
+        "boundary": "per_file",
+    },
+    "scarlatti_sonatas": {
+        "title_prefix": "Scarlatti Sonata",
+        "id_prefix": "scarlatti",
+        "boundary": "per_file",
+    },
+    "haydn_sonatas": {
+        "title_prefix": "Haydn Sonata Movement",
+        "id_prefix": "haydn_sonata",
+        "boundary": "per_file",
+    },
+    "joplin_rags": {
+        "title_prefix": "Joplin Rag",
+        "id_prefix": "joplin",
+        "boundary": "per_file",
+    },
+    "chopin_mazurkas": {
+        "title_prefix": "Chopin Mazurka",
+        "id_prefix": "chopin_mazurka",
         "boundary": "per_file",
     },
 }

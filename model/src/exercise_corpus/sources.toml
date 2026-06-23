@@ -64,3 +64,89 @@ opus = ""
 license = "public_domain"
 # 3 Gymnopedies + Gnossiennes 1-3 (6 pieces), per-piece MIDI (SatieE).
 musicxml_path = "data/scores/exercise_primitives/raw/satie"
+
+# =====================================================================
+# #49 corpus expansion -- KernScores craigsapp humdrum repos (350 pieces).
+#
+# Provenance: each source below is a public-domain craigsapp GitHub repo of
+# **kern scores; .krn -> .mid via the verovio python module. Re-acquire with
+# model/src/exercise_corpus/acquire_kernscores.sh (clone + convert). All
+# composers pre-1928 -> globally public domain.
+#
+# Cross-source dedup already applied: craigsapp `chopin-preludes` (Op.28) is
+# EXCLUDED -- it duplicates the #17 `chopin` (Mutopia Op.28) source. No other
+# craigsapp repo overlaps the #17 six.
+#
+# `dimensions` / `techniques` are COARSE SOURCE-LEVEL tags (the #49 design:
+# "source/opus-level tags for the curated core"). Per-primitive technique_tags
+# entries cannot be authored until after the Aria embed + catalog write (tags
+# validate against catalog primitive_ids), so they are expanded in the post-embed
+# catalog step. Until then the bulk is still embedding-similarity retrievable.
+
+[[sources]]
+name = "beethoven_sonatas"
+title = "Piano Sonatas (Beethoven, complete movements)"
+composer = "Ludwig van Beethoven"
+opus = "various"
+license = "public_domain"
+# 103 sonata movements, per-piece MIDI (craigsapp beethoven-piano-sonatas).
+musicxml_path = "data/scores/exercise_primitives/raw/beethoven_sonatas"
+dimensions = ["dynamics", "phrasing", "articulation", "interpretation"]
+techniques = ["sonata-form", "dramatic-contrast", "classical-articulation", "scalar-passagework"]
+
+[[sources]]
+name = "mozart_sonatas"
+title = "Piano Sonatas (Mozart, complete movements)"
+composer = "Wolfgang Amadeus Mozart"
+opus = "various"
+license = "public_domain"
+# 69 sonata movements, per-piece MIDI (craigsapp mozart-piano-sonatas).
+musicxml_path = "data/scores/exercise_primitives/raw/mozart_sonatas"
+dimensions = ["articulation", "phrasing", "dynamics", "timing"]
+techniques = ["alberti-bass", "classical-articulation", "ornamentation", "scalar-passagework"]
+
+[[sources]]
+name = "scarlatti_sonatas"
+title = "Keyboard Sonatas (D. Scarlatti)"
+composer = "Domenico Scarlatti"
+opus = ""
+license = "public_domain"
+# 65 sonatas, per-piece MIDI (craigsapp scarlatti-keyboard-sonatas).
+musicxml_path = "data/scores/exercise_primitives/raw/scarlatti_sonatas"
+dimensions = ["articulation", "timing"]
+techniques = ["hand-crossing", "repeated-notes", "ornamentation", "baroque-articulation"]
+
+[[sources]]
+name = "haydn_sonatas"
+title = "Keyboard Sonatas (Haydn)"
+composer = "Joseph Haydn"
+opus = ""
+license = "public_domain"
+# 14 sonata movements, per-piece MIDI (craigsapp haydn-keyboard-sonatas; the
+# repo carries 25 .krn but the prior verovio pass yielded 14 clean MIDIs).
+musicxml_path = "data/scores/exercise_primitives/raw/haydn_sonatas"
+dimensions = ["articulation", "phrasing", "dynamics", "timing"]
+techniques = ["classical-articulation", "wit-rhetoric", "scalar-passagework"]
+
+[[sources]]
+name = "joplin_rags"
+title = "Ragtime (Scott Joplin)"
+composer = "Scott Joplin"
+opus = ""
+license = "public_domain"
+# 47 rags, per-piece MIDI (craigsapp joplin).
+musicxml_path = "data/scores/exercise_primitives/raw/joplin_rags"
+dimensions = ["timing", "articulation"]
+techniques = ["stride-bass", "syncopation", "steady-tempo"]
+
+[[sources]]
+name = "chopin_mazurkas"
+title = "Mazurkas (Chopin)"
+composer = "Frederic Chopin"
+opus = "various"
+license = "public_domain"
+# 52 mazurkas, per-piece MIDI (craigsapp chopin-mazurkas). Distinct repertoire
+# from the #17 `chopin` Op.28 preludes; id_prefix chopin_mazurka avoids collision.
+musicxml_path = "data/scores/exercise_primitives/raw/chopin_mazurkas"
+dimensions = ["timing", "phrasing", "dynamics", "pedaling", "interpretation"]
+techniques = ["rubato", "mazurka-rhythm", "romantic-phrasing", "rubato-pedaling"]

@@ -10,11 +10,23 @@ def test_sources_toml_exists():
     assert SOURCES_PATH.exists(), f"sources.toml not found at {SOURCES_PATH}"
 
 
-def test_sources_has_six_entries():
+# The #17 Mutopia core (6) + the #49 KernScores expansion (6) = 12 sources.
+_CORE_SOURCES = {"hanon", "bach", "czerny", "burgmuller", "chopin", "satie"}
+_KERNSCORES_SOURCES = {
+    "beethoven_sonatas",
+    "mozart_sonatas",
+    "scarlatti_sonatas",
+    "haydn_sonatas",
+    "joplin_rags",
+    "chopin_mazurkas",
+}
+
+
+def test_sources_has_all_entries():
     with open(SOURCES_PATH, "rb") as f:
         data = tomllib.load(f)
     assert "sources" in data
-    assert len(data["sources"]) == 6
+    assert len(data["sources"]) == len(_CORE_SOURCES) + len(_KERNSCORES_SOURCES)
 
 
 def test_each_source_has_required_keys():
@@ -30,4 +42,21 @@ def test_source_names_match_expected():
     with open(SOURCES_PATH, "rb") as f:
         data = tomllib.load(f)
     names = {s["name"] for s in data["sources"]}
-    assert names == {"hanon", "bach", "czerny", "burgmuller", "chopin", "satie"}
+    assert names == _CORE_SOURCES | _KERNSCORES_SOURCES
+
+
+def test_kernscores_sources_carry_coarse_tags():
+    # The #49 KernScores sources declare coarse source-level dimension tags
+    # (per-primitive technique_tags are expanded post-embed). Every declared
+    # dimension must be one of the canonical 6.
+    from exercise_corpus.tags import DIMENSIONS
+
+    with open(SOURCES_PATH, "rb") as f:
+        data = tomllib.load(f)
+    for source in data["sources"]:
+        if source["name"] not in _KERNSCORES_SOURCES:
+            continue
+        dims = source.get("dimensions", [])
+        assert dims, f"KernScores source {source['name']} missing source-level dimensions"
+        for d in dims:
+            assert d in DIMENSIONS, f"{source['name']}: unknown dimension {d!r}"
