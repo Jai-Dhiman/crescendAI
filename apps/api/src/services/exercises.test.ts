@@ -96,7 +96,10 @@ function makeCtx({
 		},
 	};
 
-	return { db: db as never, env: {} as never };
+	return {
+		db: db as never,
+		env: { SCORES: { get: async () => null } } as never,
+	};
 }
 
 const PENDING_ROW_ID = "00000000-0000-0000-0000-000000000020";
@@ -219,9 +222,9 @@ describe("assignPendingExercise — routing_json path", () => {
 		expect(payload.exercises[0].instruction).toContain("16");
 	});
 
-	test("corpus_drill produces text stub, no scoreClip", async () => {
+	test("corpus_drill now produces a scoreClip of a matched primitive (no longer a text stub)", async () => {
 		const mockCtx = buildMockCtxWithPendingRow({
-			routingJson: CORPUS_DRILL_ROUTING,
+			routingJson: CORPUS_DRILL_ROUTING, // target_dimension: "timing"
 			focusDimension: "timing",
 			previewTitle: "Timing drill",
 			title: "Timing corpus drill",
@@ -233,8 +236,15 @@ describe("assignPendingExercise — routing_json path", () => {
 			sessionId: "sess-1",
 			exerciseId: "pending-row-id",
 		});
-		expect(payload.scoreClip).toBeUndefined();
-		expect(payload.exercises[0].instruction).toContain("coming soon");
+		// timing matches hanon_001..020 + czerny_001. Under the FAITHFUL sort
+		// (source_exercise_number, primitive_id) == (suffixNum(id), id), all sources
+		// have a suffix-1 member so the id tiebreak decides: "czerny_001" < "hanon_001".
+		// Stable-first for timing is therefore czerny_001, NOT hanon_001.
+		// czerny_001.totalBars == 22.
+		expect(payload.scoreClip?.pieceId).toBe("czerny_001");
+		expect(payload.scoreClip?.bars).toEqual([1, 22]);
+		expect(payload.scoreClip).toHaveProperty("transpose");
+		expect(typeof payload.scoreClip?.transpose).toBe("number");
 	});
 
 	test("own_passage_loop scoreClip carries tempoFactor from routing", async () => {
