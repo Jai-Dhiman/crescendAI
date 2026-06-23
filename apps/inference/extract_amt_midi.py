@@ -40,6 +40,7 @@ from __future__ import annotations
 import argparse
 import base64
 import collections
+import gc
 import json
 import math
 import os
@@ -94,6 +95,19 @@ def notes_pedals_to_midi(notes: list[dict], pedals: list[dict], out_path: Path) 
     tmp_path = out_path.with_suffix(".mid.tmp")
     pm.write(str(tmp_path))
     tmp_path.replace(out_path)
+
+
+def release_accelerator_memory() -> None:
+    """Free cached GPU allocations between segments. Aria-AMT reuses one model +
+    KV cache, but the MPS/CUDA caching allocator otherwise grows monotonically over
+    thousands of dense segments, eventually exhausting memory. Called periodically."""
+    import torch
+
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        torch.mps.empty_cache()
 
 
 def pitch_class_entropy(notes: list[dict]) -> float:
@@ -200,6 +214,7 @@ def main() -> None:
                 )
 
         if (i + 1) % 25 == 0 or (i + 1) == len(seg_ids):
+            release_accelerator_memory()  # bound MPS/CUDA cache growth over long runs
             rate = n_done / max(1e-9, time.time() - t_start)
             log(
                 f"{i + 1}/{len(seg_ids)}  done={n_done} skip={n_skip} fail={n_fail}  "
