@@ -114,7 +114,7 @@ test('buildGroundedDigest: bar assigned from chunk bar_coverage[0] (chunk-level 
   // alignment is always [] in production; bar is derived from the chunk's bar_coverage.
   // Every note in a chunk gets bar = bar_coverage[0].
   const mockDb = {
-    select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: () => ({ groupBy: () => Promise.resolve([]) }) }) }) }) }),
+    select: () => ({ from: () => ({ where: () => ({ groupBy: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }) }) }) }) }),
   } as unknown as import('../../db').Db
   const digest = await buildGroundedDigest(makeInput(), { db: mockDb, studentId: 'stu-1' }, COHORT_TABLES)
   const note = digest.chunks_adapted[0].midi_notes[0]
@@ -126,7 +126,7 @@ test('buildGroundedDigest: bar assigned from chunk bar_coverage[0] (chunk-level 
 
 test('buildGroundedDigest: chunk_id is chunk:0 for chunkIndex 0', async () => {
   const mockDb = {
-    select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: () => ({ groupBy: () => Promise.resolve([]) }) }) }) }) }),
+    select: () => ({ from: () => ({ where: () => ({ groupBy: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }) }) }) }) }),
   } as unknown as import('../../db').Db
   const digest = await buildGroundedDigest(makeInput(), { db: mockDb, studentId: 'stu-1' }, COHORT_TABLES)
   expect(digest.chunks_adapted[0].chunk_id).toBe('chunk:0')
@@ -136,7 +136,7 @@ test('buildGroundedDigest: cohort mean=p50, stddev=max(0.01,p75-p50)', async () 
   // Production COHORT_TABLES has p25/p50/p75/p90 only — no p84.
   // stddev proxy = max(0.01, p75 - p50). For dynamics: p75=0.70, p50=0.55 => 0.15.
   const mockDb = {
-    select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: () => ({ groupBy: () => Promise.resolve([]) }) }) }) }) }),
+    select: () => ({ from: () => ({ where: () => ({ groupBy: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }) }) }) }) }),
   } as unknown as import('../../db').Db
   const digest = await buildGroundedDigest(makeInput(), { db: mockDb, studentId: 'stu-1' }, COHORT_TABLES)
   expect(digest.cohort.dynamics.mean).toBeCloseTo(0.55)
@@ -145,7 +145,7 @@ test('buildGroundedDigest: cohort mean=p50, stddev=max(0.01,p75-p50)', async () 
 
 test('buildGroundedDigest: within_session_means computed from chunk muq_scores', async () => {
   const mockDb = {
-    select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: () => ({ groupBy: () => Promise.resolve([]) }) }) }) }) }),
+    select: () => ({ from: () => ({ where: () => ({ groupBy: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }) }) }) }) }),
   } as unknown as import('../../db').Db
   const digest = await buildGroundedDigest(makeInput(), { db: mockDb, studentId: 'stu-1' }, COHORT_TABLES)
   // single chunk, dim 0 (dynamics) = 0.55
@@ -154,7 +154,7 @@ test('buildGroundedDigest: within_session_means computed from chunk muq_scores',
 
 test('buildGroundedDigest: past_diagnoses_grounded reshapes id+pieceId', async () => {
   const mockDb = {
-    select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: () => ({ groupBy: () => Promise.resolve([]) }) }) }) }) }),
+    select: () => ({ from: () => ({ where: () => ({ groupBy: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }) }) }) }) }),
   } as unknown as import('../../db').Db
   const digest = await buildGroundedDigest(makeInput(), { db: mockDb, studentId: 'stu-1' }, COHORT_TABLES)
   expect(digest.past_diagnoses_grounded[0].artifact_id).toBe('diag-uuid-1')
@@ -163,7 +163,7 @@ test('buildGroundedDigest: past_diagnoses_grounded reshapes id+pieceId', async (
 
 test('buildGroundedDigest: compact_signal_summary is a short non-empty string', async () => {
   const mockDb = {
-    select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: () => ({ groupBy: () => Promise.resolve([]) }) }) }) }) }),
+    select: () => ({ from: () => ({ where: () => ({ groupBy: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }) }) }) }) }),
   } as unknown as import('../../db').Db
   const digest = await buildGroundedDigest(makeInput(), { db: mockDb, studentId: 'stu-1' }, COHORT_TABLES)
   expect(typeof digest.compact_signal_summary).toBe('string')
@@ -295,9 +295,9 @@ export async function buildGroundedDigest(
     })
     .from(observations)
     .where(and(eq(observations.studentId, deps.studentId)))
+    .groupBy(observations.sessionId, observations.dimension)
     .orderBy(sql`MAX(${observations.createdAt}) DESC`)
     .limit(10 * 6)
-    .groupBy(observations.sessionId, observations.dimension)
 
   const sessionDimMap = new Map<string, Map<Dim6, number>>()
   for (const row of rows) {
@@ -1399,3 +1399,90 @@ The plan's C3 test sketch says "Spy on runHook to capture the hookCtx.digest" bu
 [QUESTION] count: 0
 
 VERDICT: NEEDS_REWORK — Five blockers must be resolved before execution: (1) `alignment` is always `[]` making bar injection a structural no-op; (2) `p84` is absent from production `COHORT_TABLES` making stddev silently wrong; (3) `tempo-stability-triage` will throw on real bar-filtered data due to length mismatch; (4) Task C4's test is a shape test with zero coupling to the implementation; (5) two catalog tests hard-code `articulation-clarity-check` and count=8, which C2 breaks without updating them.
+
+---
+
+## Challenge Review — Loop 2 (post-commit f7dd15a2)
+
+**Scope:** Re-review after fix pass that resolved 5 prior blockers in the plan document. All source files verified against actual code. No source files were modified by f7dd15a2 — all fixes are plan-text changes only (test fixtures, implementation snippets, task descriptions). The build agent will implement from this updated plan.
+
+### Blocker Re-Verification
+
+**Prior Blocker 1 — Bar injection always no-op: RESOLVED in plan.**
+
+Verified: `session-brain.ts` still initializes `barMapAlignments = []` at lines 745 and 1220 and never pushes to it — `alignment` in every `EnrichedChunk` is still always `[]` in production. The plan now correctly documents this and the A1 implementation uses `chunk.bar_coverage[0]` for all notes in a chunk (chunk-level approximation). The A1 test fixture has `alignment: []` with assertion `note.bar === bar_coverage[0]`. The spec adds a follow-up note. This is an accurate and complete fix.
+
+**Prior Blocker 2 — `p84` absent from production COHORT_TABLES: RESOLVED in plan.**
+
+Verified: `COHORT_TABLES` in `teacher.ts` still has only `p25/p50/p75/p90` entries. The updated A1 plan now uses `p75` (not `p84`) for stddev: `stddev = max(0.01, p75 - p50)`. The test fixture is updated to `p25/p50/p75/p90` shape and the expected value is `0.15` (not `0.12`). Correct.
+
+**Prior Blocker 3 — length-guard throws in B2/B3/B7: RESOLVED in plan.**
+
+Verified: `tempo-stability-triage.ts` still has the throw at line 47 in source. The plan now explicitly instructs removing this guard in tasks B2, B3, and B7, and provides explicit "empty alignment → neutral, not throw" tests for all three. This is the correct fix; the build agent will implement it.
+
+**Prior Blocker 4 — C4 test is a vacuous shape test: RESOLVED in plan.**
+
+The updated C4 task now extracts `toPastDiagnosisRecord()` as an exported pure function from `session-brain.ts` and the test calls it directly (`import { toPastDiagnosisRecord } from './session-brain'`). Verified: `session-brain.ts` currently has exports at lines 71, 128, 178, 198, 210 — all are pure exported functions, confirming the pattern is established. The test now exercises real implementation code. Correct.
+
+**Prior Blocker 5 — Two catalog tests break when articulationClarityCheck removed: RESOLVED in plan.**
+
+Verified: `molecules/index.test.ts` still asserts `toHaveLength(8)` and names `articulation-clarity-check`. `readme-molecules.test.ts` still lists 8 molecules in `FINAL_MOLECULES`. The updated C2 task now explicitly instructs updating both tests (8→7, removing the name) and the README. Correct.
+
+**Prior Concern (C1 overflow test vacuous): RESOLVED in plan.**
+
+The updated C1 task extracts `buildPhase1UserMessage()` as an exported helper from `phase1.ts` and the test calls it with the 10-chunk fixture, asserting `length < 10000` and absence of `"midi_notes"`. Verified: `phase1.ts` does not currently export `buildPhase1UserMessage` — the build agent will add it. The test now exercises a real exported function from `phase1.ts`. Correct.
+
+**Prior Concern (sequential fetchStudentBaseline calls): RESOLVED in plan.**
+
+The updated A2 `resolveMoleculeContext` uses `Promise.all` for the 6 per-dimension baseline calls. Correct.
+
+**Prior Concern (session_means query unbounded): RESOLVED in plan.**
+
+The updated A1 `buildGroundedDigest` query adds `.orderBy(sql\`MAX(${observations.createdAt}) DESC\`).limit(10 * 6).groupBy(...)`. See new risk below.
+
+---
+
+### Remaining Issues
+
+**[BLOCKER] (confidence: 9/10) — Drizzle 0.38 query chain in `buildGroundedDigest` has invalid method order: `.orderBy().limit().groupBy()` is not permitted.**
+
+Verified: Drizzle 0.38's builder enforces a strict chaining order; `.groupBy()` must precede `.orderBy()` and `.limit()`. After `.limit()` the builder's TypeScript type excludes `.groupBy()`, so this will be a compile error when the builder writes the code. The correct order is `.where(...).groupBy(observations.sessionId, observations.dimension).orderBy(sql\`MAX(${observations.createdAt}) DESC\`).limit(10 * 6)`. Additionally, using `MAX(createdAt)` in an `ORDER BY` without it appearing in the `SELECT` list may produce a database error depending on the Postgres mode (strict `GROUP BY` conformance). The fix: move `.groupBy()` before `.orderBy()` and `.limit()`. This is a new issue introduced by the Concern 1 fix.
+
+**[RISK] (confidence: 8/10) — `buildGroundedDigest`'s `past_diagnoses_grounded` uses unsafe type casts for `id` and `pieceId` that produce `undefined` until C3+C4 complete.**
+
+The A1 implementation accesses `(r as PastDiagnosisRecord & { id: string }).id` and `(r as ... & { pieceId?: string | null }).pieceId`. The current `PastDiagnosisRecord` interface (`teacher.ts` lines 73–80) has neither field. The current `session-brain.ts` pastDiagnoses mapping (lines 1679–1686) omits both fields. So during any intermediate commit (A1 done, C3/C4 not yet done), production calls will produce `artifact_id: undefined` and `piece_id: null` for every past diagnosis. This is acceptable only if the build agent completes all tasks in one atomic session and doesn't ship partial commits to production — which matches the plan's pre-beta, local-first model. Flag for the builder: do not verify the past-diagnoses path until after C3+C4 are committed.
+
+**[RISK] (confidence: 7/10) — `cross-modal-contradiction-check` (B7) perf_index vs array-index mismatch is still unaddressed in the plan.**
+
+The existing `cross-modal-contradiction-check.ts` builds `alignMap` from `alignment.perf_index` but looks up by array position from `midi_notes.map((n, idx) => ...)`. After the refactor, `bundle.midi_notes` is bar-filtered, so positional `idx` no longer equals `perf_index`. The plan says "use `bundle.alignment` and `bundle.midi_notes` directly" but does not specify fixing this join. The timing contradiction arm will silently miss most notes. Non-blocking because the fallback is neutral (no throw), but the timing arm will be functionally dead. The builder should join on `note.bar` or carry `perf_index` through `GroundedNote`.
+
+**[RISK] (confidence: 7/10) — `rubato-coaching` (B3) same perf_index vs positional-index mismatch.**
+
+`rubato-coaching.ts` line 50 builds `perfNoteMap = new Map(i.midi_notes.map((n, idx) => [idx, n.onset_ms]))`. After the refactor, `i.midi_notes` = `bundle.midi_notes` (bar-filtered), so positional `idx` doesn't correspond to `perf_index`. Most `alignment.map(a => perfNoteMap.get(a.perf_index))` lookups return `undefined`, falling back to `a.expected_onset_ms` — which measures score timing, not performance. Degrades silently to neutral. Unaddressed in the plan. Non-blocking because alignment is always `[]` in production currently anyway.
+
+**[OBS] — The A1 test mock for the DB query is `select().from().where().orderBy().limit().groupBy()` — consistent with the plan's implementation chain order. Once the Drizzle chain order is fixed (groupBy before orderBy+limit), the mock chain must also be updated to match. The mock is a stub and will work regardless of chain order, but keep them consistent to avoid confusion.**
+
+**[OBS] — `fetchStudentBaseline.invoke()` returns `null` (not throws) when `n < 3`. The `resolveMoleculeContext` plan already handles this via the `if (session_means.length >= 3)` guard before calling it, with `throw` if it unexpectedly returns null despite n >= 3. This is correct: the null return path is guarded before invocation.**
+
+---
+
+### Presumption Inventory — Loop 2
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| Drizzle 0.38 permits `.orderBy().limit().groupBy()` chain | RISKY | Drizzle enforces strict builder order; `groupBy` must precede `orderBy`+`limit` |
+| `toPastDiagnosisRecord` can be exported from `session-brain.ts` (a DO class file) | SAFE | Verified: existing exports at lines 71, 128, 178, 198, 210 confirm the pattern |
+| `buildPhase1UserMessage` export from `phase1.ts` won't create a circular import | SAFE | `phase1.ts` imports `gateway-client`, `middleware`, `route-model`, `types` — no digest module yet |
+| All 5 prior blockers are fully resolved by the plan text changes | SAFE | Each verified above against actual source; plan text corrections are accurate |
+| `PastDiagnosisRecord` type cast `(r as ... & { id: string }).id` is safe once C3+C4 complete | SAFE | C3 adds `id`+`pieceId` to the interface; C4 adds them to the mapping; sequencing is correct |
+| `extractBarRangeSignals` is in the atoms `index.ts` and can be imported from there | SAFE | Verified: exported at atoms/index.ts line 38 |
+
+---
+
+### Summary — Loop 2
+
+[BLOCKER] count: 1
+[RISK]    count: 4
+[QUESTION] count: 0
+
+VERDICT: PROCEED_WITH_CAUTION — One remaining blocker: fix the Drizzle chain order in A1's `buildGroundedDigest` DB query from `.where().orderBy().limit().groupBy()` to `.where().groupBy().orderBy().limit()`. All 5 prior blockers are correctly resolved in the plan. Risks to monitor during build: (1) Drizzle chain fix must not re-break the mock; (2) B7 and B3 perf_index/positional-index mismatch will leave timing arms functionally dead but non-crashing; (3) intermediate commits leave `past_diagnoses_grounded.artifact_id = undefined` until C3+C4 complete — do not test this path until after C4 commit.
