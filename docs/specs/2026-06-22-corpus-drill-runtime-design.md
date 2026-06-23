@@ -23,7 +23,7 @@ The primitive-selection and transpose logic exists in Python (`model/src/exercis
 
 ## Solution (from the user's perspective)
 
-When the teacher prescribes a corpus drill (in post-session synthesis via `assignPendingExercise`, or mid-chat via `processPrescribeExercise`), the pianist sees an `ExerciseSetCard` with a real engraved score of a matched practice primitive (e.g. a Hanon or Czerny figure), already transposed into the key of the piece they were just playing, with the existing play / stop / tempo-slider transport and moving cursor. The drill plays the transposed pitches that match the displayed notation. When no dimension-specific drill exists yet, they get an honest general warm-up drill (hanon_001) with wording that says so, rather than a silent or misleading match.
+When the teacher prescribes a corpus drill (in post-session synthesis via `assignPendingExercise`, or mid-chat via `processPrescribeExercise`), the pianist sees an `ExerciseSetCard` with a real engraved score of a matched practice primitive (e.g. a Hanon or Czerny figure), already transposed into the key of the piece they were just playing, with the existing play / stop / tempo-slider transport and moving cursor. The drill plays the transposed pitches that match the displayed notation. When no dimension-specific drill exists yet, they get an honest general warm-up drill (the explicit hanon_001 default) with wording that says so, rather than a silent or misleading match.
 
 ## Design
 
@@ -31,7 +31,7 @@ A single deep module `apps/api/src/services/corpus-drill.ts` owns the entire run
 
 The module hides three substantial sub-decisions behind that one interface:
 
-1. **Primitive selection** (`selectPrimitive`, internal): Given the routing decision, pick a primitive id from the committed manifest. Priority: explicit `primitive_id` if present and in the manifest; else the stable-sorted first primitive whose `dimensions` include `target_dimension`; else WIDEN to the global stable-first renderable (hanon_001) flagged `widened: true`. Stable sort key is `(numeric suffix of primitive_id, primitive_id)`.
+1. **Primitive selection** (`selectPrimitive`, internal): Given the routing decision, pick a primitive id from the committed manifest. Priority: explicit `primitive_id` if present and in the manifest; else the stable-sorted first primitive whose `dimensions` include `target_dimension`; else WIDEN to an explicit `hanon_001` constant (the neutral warm-up default) flagged `widened: true`. The dimension-match stable sort key is `(numeric suffix of primitive_id, primitive_id)` — FAITHFUL to the model's `match_by_dimension` ordering (`(source_exercise_number, primitive_id)` ascending), no invented source-priority tiebreak. (Consequence: for `target_dimension: "timing"`, where hanon_001..020 and czerny_001 all match, the cross-source id tiebreak makes czerny_001 — not hanon_001 — the stable-first.) The WIDEN fallback is a NAMED constant `WIDEN_DEFAULT_PRIMITIVE = "hanon_001"`, a deliberate product choice (a Hanon finger warm-up), NOT whatever sorts first globally — the global stable-first is actually burgmuller_001, which would wrongly surface a Romantic character piece as a "general warm-up". If `hanon_001` is ever absent from the manifest, that is a build error: raise, do not silently fall back to sort-first.
 
 2. **Transpose resolution** (`resolveTranspose`, internal): A best-effort TS port of `keys.py`. Loads the student passage's `key_signature` from R2 (`scores/v1/{pieceId}.json`), parses both the primitive key and passage key to pitch classes, and computes the nearest-octave interval FROM primitive TO passage. Genuinely-unresolvable inputs (no pieceId, 404, null/unparseable key) degrade to `transpose = 0` with a structured `console.log` warn — explicit, not a swallowed `catch {}`.
 
@@ -69,7 +69,7 @@ CRITICAL CORRECTNESS: `getClipPlayback` must extract the playback notes AFTER th
 
 ### `corpus-drill.ts` (deep, NEW)
 - **Interface:** `export async function buildCorpusDrillClip(ctx: ServiceContext, decision: CorpusDrillDecision, pieceId: string | null): Promise<ExerciseSetPayload>`
-- **Hides:** manifest lookup; the three-tier primitive selection (explicit -> dimension-matched -> widened) and its stable sort; loading + parsing the passage key from R2; the `keys.py` superset port (`parse_key_to_pc` + `transpose_interval`); best-effort failure handling with structured warns; honest instruction-text construction.
+- **Hides:** manifest lookup; the three-tier primitive selection (explicit -> dimension-matched stable-first -> widened to the explicit hanon_001 default) and its FAITHFUL `(suffixNum, id)` sort; loading + parsing the passage key from R2; the `keys.py` superset port (`parse_key_to_pc` + `transpose_interval`); best-effort failure handling with structured warns; honest instruction-text construction.
 - **Tested through:** the public `buildCorpusDrillClip` only (selection, transpose, widening, and assembly are all observable in the returned `ExerciseSetPayload`). The R2 read is exercised through a fake `ctx.env.SCORES` (an `R2Bucket`-shaped object), not a mocked internal collaborator.
 - **Depth verdict:** DEEP — one async function hides selection + key-resolution + transpose-math + assembly.
 
@@ -113,4 +113,5 @@ CRITICAL CORRECTNESS: `getClipPlayback` must extract the playback notes AFTER th
 ## Open Questions
 
 - Q: Does the web `ExerciseSetCard` clip-loading call site already destructure `scoreClip`, or does it read fields individually? Default: the build agent reads the actual component file first (named in its task) and threads `transpose` through whatever call shape exists, without restructuring unrelated code.
-- Q: Does `model/tests/exercise_corpus/` already exist as a pytest dir? Default: if not, the build agent creates it alongside the new test file; the test is anchored to `__file__`, not CWD.
+
+(Resolved at plan time: `model/tests/exercise_corpus/` already exists as a pytest dir, with `__init__.py` and `test_build_render_assets.py` holding 3 passing regression tests. Task 1 APPENDS the manifest test to that file; it does not recreate the dir, the `__init__.py`, or the file.)
