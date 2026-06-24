@@ -78,3 +78,20 @@ test('resolveMoleculeContext: cohort, past_diagnoses, piece_id, now_ms forwarded
   expect(ctx.piece_id).toBe('test-piece')
   expect(ctx.now_ms).toBe(5000)
 })
+
+// FIX 1: GroundedDigest with null-origin [0,0] chunk + bar_range=null must not throw
+test('resolveMoleculeContext: null-origin [0,0] chunk + bar_range=null does not throw', async () => {
+  const digest = makeDigest({})
+  // Replace chunk with [0,0] sentinel (simulates null bar_coverage after FIX 1 in grounded-digest)
+  digest.chunks_adapted = [
+    {
+      ...digest.chunks_adapted[0],
+      bar_coverage: [0, 0] as [number, number],
+    },
+  ]
+  digest.compact_signal_summary = 'chunk:0 bars 0-0 muq=[0.55,0.48,0.46,0.54,0.52,0.51]'
+  const ctx = await resolveMoleculeContext(digest, null)
+  // Must not throw and must return a bundle (even if empty)
+  expect(ctx).toBeDefined()
+  expect(ctx.bundle).toBeDefined()
+})

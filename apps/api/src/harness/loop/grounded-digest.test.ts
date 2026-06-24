@@ -124,3 +124,48 @@ test('buildGroundedDigest: DB query failure throws (not silently ignored)', asyn
   await expect(buildGroundedDigest(makeInput(), { db: badDb, studentId: 'stu-1' }, COHORT_TABLES))
     .rejects.toThrow('db connection refused')
 })
+
+// FIX 1: null bar_coverage does not crash compact_signal_summary
+test('buildGroundedDigest: null bar_coverage does not throw, adapted chunk gets [0,0] sentinel', async () => {
+  const input = makeInput()
+  // Inject a chunk with null bar_coverage (unidentified piece / eval mode)
+  ;(input.enrichedChunks[0] as any).bar_coverage = null
+  const mockDb = {
+    select: () => ({ from: () => ({ where: () => ({ groupBy: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }) }) }) }) }),
+  } as unknown as import('../../db').Db
+  const digest = await buildGroundedDigest(input, { db: mockDb, studentId: 'stu-1' }, COHORT_TABLES)
+  // Must not throw; compact_signal_summary must be non-empty
+  expect(typeof digest.compact_signal_summary).toBe('string')
+  expect(digest.compact_signal_summary.length).toBeGreaterThan(0)
+  // Adapted chunk must have sentinel [0,0]
+  expect(digest.chunks_adapted[0].bar_coverage).toEqual([0, 0])
+})
+
+// FIX 2: SQL AVG null does not produce NaN in session_means
+test('buildGroundedDigest: SQL-null avgScore excluded from session_means (no NaN)', async () => {
+  const mockDb = {
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          groupBy: () => ({
+            orderBy: () => ({
+              limit: () => Promise.resolve([
+                // dynamics has a null avgScore (simulates SQL AVG returning null)
+                { sessionId: 'sess-a', dimension: 'dynamics', avgScore: null },
+                // timing has a real value
+                { sessionId: 'sess-a', dimension: 'timing', avgScore: 0.55 },
+              ]),
+            }),
+          }),
+        }),
+      }),
+    }),
+  } as unknown as import('../../db').Db
+  const digest = await buildGroundedDigest(makeInput(), { db: mockDb, studentId: 'stu-1' }, COHORT_TABLES)
+  // dynamics avgScore was null -> must be excluded, length 0 (not length 1 with NaN)
+  expect(digest.session_means.dynamics.length).toBe(0)
+  expect(digest.session_means.dynamics.every(Number.isFinite)).toBe(true)
+  // timing avgScore was 0.55 -> included
+  expect(digest.session_means.timing.length).toBe(1)
+  expect(digest.session_means.timing[0]).toBeCloseTo(0.55)
+})

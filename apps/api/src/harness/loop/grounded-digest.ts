@@ -61,7 +61,7 @@ export async function buildGroundedDigest(
     }))
     return {
       chunk_id: `chunk:${chunk.chunkIndex}`,
-      bar_coverage: chunk.bar_coverage as [number, number],
+      bar_coverage: (chunk.bar_coverage ?? [0, 0]) as [number, number],
       muq_scores: chunk.muq_scores,
       midi_notes: grounded_notes,
       pedal_cc: chunk.pedal_cc,
