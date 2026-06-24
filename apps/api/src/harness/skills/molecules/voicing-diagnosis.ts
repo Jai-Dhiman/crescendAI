@@ -1,27 +1,22 @@
-import type { ToolDefinition } from '../../loop/types'
+// voicing-diagnosis.ts (after refactor — selectors-only + self-fetch via resolveMoleculeContext)
+import type { ToolDefinition, PhaseContext } from '../../loop/types'
 import { DiagnosisArtifactSchema } from '../../artifacts/diagnosis'
 import type { DiagnosisArtifact } from '../../artifacts/diagnosis'
 import { computeDimensionDelta } from '../atoms/compute-dimension-delta'
-import { fetchStudentBaseline } from '../atoms/fetch-student-baseline'
-import type { Baseline } from '../atoms/fetch-student-baseline'
 import { fetchSimilarPastObservation } from '../atoms/fetch-similar-past-observation'
 import type { PastObservation } from '../atoms/fetch-similar-past-observation'
-
-const DIM = { dynamics: 0, timing: 1, pedaling: 2, articulation: 3, phrasing: 4, interpretation: 5 } as const
+import { resolveMoleculeContext } from '../../loop/resolve-molecule-context'
+import type { GroundedDigest } from '../../loop/grounded-digest'
 
 function severityFromZ(z: number): 'minor' | 'moderate' | 'significant' {
   const a = Math.abs(z)
   return a >= 2.0 ? 'significant' : a >= 1.5 ? 'moderate' : 'minor'
 }
 
-type VoicingInput = {
-  bar_range: [number, number]; scope: 'stop_moment' | 'passage' | 'session'
-  evidence_refs: string[]; muq_scores: number[]
-  midi_notes: { pitch: number; onset_ms: number; duration_ms: number; velocity: number; bar: number }[]
-  session_means_dynamics: number[]
-  cohort_table_dynamics: { p: number; value: number }[]
-  past_diagnoses: { artifact_id: string; session_id: string; created_at: number; primary_dimension: string; bar_range: [number,number]|null; piece_id: string }[]
-  piece_id: string; now_ms: number
+type VoicingSelectors = {
+  bar_range: [number, number] | null
+  scope: 'stop_moment' | 'passage' | 'session'
+  evidence_refs: string[]
 }
 
 function projectVoices(notes: { pitch: number; velocity: number; bar: number }[], bar: number) {
@@ -43,40 +38,53 @@ export const voicingDiagnosis: ToolDefinition = {
       bar_range: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 },
       scope: { type: 'string', enum: ['stop_moment', 'passage', 'session'] },
       evidence_refs: { type: 'array', items: { type: 'string' } },
-      muq_scores: { type: 'array', items: { type: 'number' }, minItems: 6, maxItems: 6 },
-      midi_notes: { type: 'array', items: { type: 'object' } },
-      session_means_dynamics: { type: 'array', items: { type: 'number' } },
-      cohort_table_dynamics: { type: 'array', items: { type: 'object' } },
-      past_diagnoses: { type: 'array', items: { type: 'object' } },
-      piece_id: { type: 'string' },
-      now_ms: { type: 'number' },
     },
-    required: ['bar_range', 'scope', 'evidence_refs', 'muq_scores', 'midi_notes', 'session_means_dynamics', 'cohort_table_dynamics', 'past_diagnoses', 'piece_id', 'now_ms'],
+    required: ['scope', 'evidence_refs'],
   },
-  invoke: async (input: unknown): Promise<DiagnosisArtifact> => {
-    const i = input as VoicingInput
-    const baseline = await fetchStudentBaseline.invoke({ dimension: 'dynamics', session_means: i.session_means_dynamics }) as Baseline | null
-    if (!baseline) throw new Error('voicing-diagnosis: insufficient session history for dynamics baseline (need >= 3 sessions)')
-    const z = await computeDimensionDelta.invoke({ dimension: 'dynamics', current: i.muq_scores[DIM.dynamics], baseline }) as number
+  invoke: async (input: unknown, ctx?: PhaseContext): Promise<DiagnosisArtifact> => {
+    if (!ctx) throw new Error('voicing-diagnosis: ctx (PhaseContext with digest) is required')
+    const i = input as VoicingSelectors
+    const ctx_r = await resolveMoleculeContext(ctx.digest as unknown as GroundedDigest, i.bar_range ?? null)
+
+    const muq_dynamics = ctx_r.bundle.muq_scores.length > 0
+      ? ctx_r.bundle.muq_scores.reduce((s, row) => s + row[0], 0) / ctx_r.bundle.muq_scores.length
+      : ctx_r.baseline.dynamics.mean
+
+    const z = await computeDimensionDelta.invoke({
+      dimension: 'dynamics',
+      current: muq_dynamics,
+      baseline: ctx_r.baseline.dynamics,
+    }) as number
+
     const neutral = DiagnosisArtifactSchema.parse({
       primary_dimension: 'dynamics', dimensions: ['dynamics', 'phrasing'],
-      severity: 'minor', scope: i.scope, bar_range: i.bar_range,
+      severity: 'minor', scope: i.scope, bar_range: i.bar_range ?? null,
       evidence_refs: i.evidence_refs,
       one_sentence_finding: 'Voicing balance is within student baseline.',
       confidence: 'low', finding_type: 'neutral',
     })
+
     if (z > -1.0) return neutral
-    const bars = [...new Set(i.midi_notes.map(n => n.bar))].sort((a, b) => a - b)
+
+    const bars = [...new Set(ctx_r.bundle.midi_notes.map(n => n.bar))].sort((a, b) => (a ?? 0) - (b ?? 0))
     let flatCount = 0
     for (const bar of bars) {
-      const p = projectVoices(i.midi_notes, bar)
+      const p = projectVoices(ctx_r.bundle.midi_notes as { pitch: number; velocity: number; bar: number }[], bar as number)
       if (p && Math.abs(p.topMean - p.bassMean) < 5) flatCount++
     }
     if (bars.length === 0 || flatCount / bars.length < 0.6) return neutral
-    const past = await fetchSimilarPastObservation.invoke({ dimension: 'dynamics', piece_id: i.piece_id, bar_range: i.bar_range, past_diagnoses: i.past_diagnoses, now_ms: i.now_ms }) as PastObservation | null
+
+    const past = await fetchSimilarPastObservation.invoke({
+      dimension: 'dynamics',
+      piece_id: ctx_r.piece_id ?? '',
+      bar_range: i.bar_range ?? null,
+      past_diagnoses: ctx_r.past_diagnoses,
+      now_ms: ctx_r.now_ms,
+    }) as PastObservation | null
+
     return DiagnosisArtifactSchema.parse({
       primary_dimension: 'dynamics', dimensions: ['dynamics', 'phrasing'],
-      severity: severityFromZ(z), scope: i.scope, bar_range: i.bar_range,
+      severity: severityFromZ(z), scope: i.scope, bar_range: i.bar_range ?? null,
       evidence_refs: i.evidence_refs,
       one_sentence_finding: 'Melody and accompaniment are voiced almost equally; the top line is not coming through.',
       confidence: past ? 'high' : 'medium',
