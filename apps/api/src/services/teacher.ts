@@ -71,12 +71,14 @@ export interface SessionHistoryRecord {
 }
 
 export interface PastDiagnosisRecord {
+	id: string
 	sessionId: string
 	primaryDimension: string
 	barRangeStart: number | null
 	barRangeEnd: number | null
 	artifactJson: unknown
 	createdAt: string
+	pieceId: string | null
 }
 
 export interface SynthesisInput {
