@@ -235,3 +235,35 @@ rather than a blanket bar-level ban. **Operational note:** the local AMT server 
 throughput-bound (~64 s/chunk) and unstable under sustained batch load (it died once mid-run);
 the full 16-piece sweep is regenerable but multi-hour. The score loader, 16-piece map, and a
 per-clip `--timeout-sec` extraction guard shipped under #98.
+
+### Coverage gate (#100): the bar-level FAIL was coverage-dependent
+
+The #95 corruption sweep ran on the two low-coverage Bach invention clips. Re-running it on
+the two highest-coverage clips (pathetique 0.99 / 379 anchors, moonlight 0.99) overturns the
+blanket bar-level FAIL: on well-aligned clips, **clean bar localization is essentially
+perfect** and even noise is tolerable. Pooled over the two high-coverage clips (n=2):
+
+| corruption | within ±0.1 s | within ±1.0 s | within ±1.5 s | median \|delta\| | p90 \|delta\| |
+|------------|---------------|---------------|---------------|------------------|---------------|
+| clean      | **0.96**      | **0.99**      | 0.99          | 0.000 s          | 0.003 s |
+| noise SNR10| 0.49          | 0.70          | 0.73          | 0.111 s          | 2.50 s |
+| dropout    | 0.44          | 0.55          | 0.56          | 0.649 s          | 10.2 s |
+| tempo      | 0.27          | 0.44          | 0.46          | 0.814 s          | 11.2 s |
+
+Compare clean on the Bach clips (~0.55 within ±0.1 s): the "AMT-nondeterminism noise floor"
+of #95 was largely **coverage-induced parangonar churn**, not irreducible model noise -- with
+dense full-coverage anchors, clean re-extraction is deterministic to p90 0.003 s. Tempo
+corruption stays the lone hard mode (~0.45) even at high coverage (a strong artificial warp
+genuinely outruns the aligner), and is the documented residual limitation; region-level *timing*
+measures (percent deviation over the region) tolerate the resulting window jitter.
+
+**Decision (taxonomy v0.3):** the v0.2 blanket `single_bar: inadmissible` is replaced by a
+**per-clip coverage gate**. `LocationResolver(min_coverage=...)` computes
+`anchor_span / measure_table_span`; bar/region claims on clips below the threshold abstain as
+`UNVERIFIABLE(low_coverage)`; whole_piece is exempt. The orchestrator threads
+`coverage_gate.threshold` (provisional **0.9**) from the taxonomy. The threshold is calibrated
+on the extremes (high-coverage 0.99 -> 0.96-0.99 clean; low-coverage 0.23-0.68 -> 0.34-0.55);
+the 0.68-0.99 gap is unsampled, so 0.9 is conservative pending mid-coverage clips. Default
+`min_coverage=0.0` leaves raw-localization measurement and prior tests unchanged; the gate is
+active only through the orchestrator. `verdict_dispatch.py` is untouched (the gate is a resolver
+abstention flowing through the orchestrator's UnverifiableError path).
