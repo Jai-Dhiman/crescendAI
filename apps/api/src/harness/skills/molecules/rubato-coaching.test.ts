@@ -1,40 +1,81 @@
+// rubato-coaching.test.ts (after refactor — selectors-only contract)
 import { test, expect } from 'vitest'
 import { rubatoCoaching } from './rubato-coaching'
 import type { DiagnosisArtifact } from '../../artifacts/diagnosis'
+import type { GroundedDigest } from '../../loop/grounded-digest'
+import type { PhaseContext } from '../../loop/types'
 
-test('rubatoCoaching: constant score IOIs vs stretching perf IOIs with large drift returns issue/significant/dragged', async () => {
-  const midi_notes = [
-    { pitch: 60, onset_ms: 0,    duration_ms: 400, velocity: 70, bar: 40 },
-    { pitch: 62, onset_ms: 700,  duration_ms: 400, velocity: 70, bar: 40 },
-    { pitch: 64, onset_ms: 1600, duration_ms: 400, velocity: 70, bar: 41 },
-    { pitch: 65, onset_ms: 2700, duration_ms: 400, velocity: 70, bar: 42 },
-    { pitch: 67, onset_ms: 4000, duration_ms: 400, velocity: 70, bar: 43 },
-    { pitch: 69, onset_ms: 5500, duration_ms: 400, velocity: 70, bar: 44 },
-    { pitch: 71, onset_ms: 7200, duration_ms: 400, velocity: 70, bar: 45 },
-    { pitch: 72, onset_ms: 9100, duration_ms: 400, velocity: 70, bar: 46 },
-  ]
-  const alignment = [
-    { perf_index: 0, score_index: 0, expected_onset_ms: 0,    bar: 40 },
-    { perf_index: 1, score_index: 1, expected_onset_ms: 500,  bar: 40 },
-    { perf_index: 2, score_index: 2, expected_onset_ms: 1000, bar: 41 },
-    { perf_index: 3, score_index: 3, expected_onset_ms: 1500, bar: 42 },
-    { perf_index: 4, score_index: 4, expected_onset_ms: 2000, bar: 43 },
-    { perf_index: 5, score_index: 5, expected_onset_ms: 2500, bar: 44 },
-    { perf_index: 6, score_index: 6, expected_onset_ms: 3000, bar: 45 },
-    { perf_index: 7, score_index: 7, expected_onset_ms: 3500, bar: 46 },
-  ]
-  const input = {
+function makeCtx(
+  sessionMeansN: number,
+  muqTiming: number,
+  opts?: { monotonicDrift?: boolean; emptyAlignment?: boolean }
+): PhaseContext {
+  const dims = ['dynamics','timing','pedaling','articulation','phrasing','interpretation'] as const
+  const session_means: Record<string, number[]> = {}
+  const within_session_means: Record<string, number> = {}
+  for (const d of dims) {
+    session_means[d] = Array.from({ length: sessionMeansN }, () => 0.5)
+    within_session_means[d] = 0.52
+  }
+  const N = 8
+  // Each note spaced 500ms; if monotonicDrift, each is progressively later
+  const midi_notes = Array.from({ length: N }, (_, k) => ({
+    pitch: 60 + (k % 5),
+    onset_ms: k * 500 + (opts?.monotonicDrift ? k * 200 : 0),
+    duration_ms: 400,
+    velocity: 70,
+    bar: 40 + Math.floor(k / 2),
+  }))
+  const alignment = opts?.emptyAlignment
+    ? []
+    : Array.from({ length: N }, (_, k) => ({
+        perf_index: k, score_index: k, expected_onset_ms: k * 500, bar: 40 + Math.floor(k / 2),
+      }))
+  const digest: GroundedDigest = {
+    chunks_adapted: [{
+      chunk_id: 'chunk:0',
+      bar_coverage: [40, 48] as [number, number],
+      muq_scores: [0.54, muqTiming, 0.46, 0.54, 0.52, 0.51],
+      midi_notes,
+      pedal_cc: [],
+      alignment,
+    }],
+    mono_notes_per_bar: [],
+    now_ms: 1000,
+    cohort: {
+      dynamics:       { mean: 0.55, stddev: 0.10 },
+      timing:         { mean: 0.48, stddev: 0.12 },
+      pedaling:       { mean: 0.46, stddev: 0.12 },
+      articulation:   { mean: 0.54, stddev: 0.11 },
+      phrasing:       { mean: 0.52, stddev: 0.11 },
+      interpretation: { mean: 0.51, stddev: 0.13 },
+    },
+    past_diagnoses_grounded: [],
+    session_means: session_means as GroundedDigest['session_means'],
+    within_session_means: within_session_means as GroundedDigest['within_session_means'],
+    compact_signal_summary: 'chunk:0 bars 40-48',
+    piece_id: 'test-piece',
+  }
+  return {
+    env: {} as unknown as import('../../../lib/types').Bindings,
+    studentId: 'stu-1', sessionId: 'sess-1', conversationId: null,
+    digest: digest as unknown as Record<string, unknown>,
+    waitUntil: () => {},
+    pieceId: 'test-piece',
+    trigger: 'synthesis',
+    turnCap: 10,
+  }
+}
+
+test('rubatoCoaching: monotonic drift (large, uncompensated) returns issue/significant', async () => {
+  const ctx = makeCtx(3, 0.30, { monotonicDrift: true })
+  ;(ctx.digest as unknown as GroundedDigest).session_means.timing = [0.50, 0.60, 0.70]
+  const selectors = {
     bar_range: [40, 48] as [number, number],
     scope: 'session' as const,
     evidence_refs: ['cache:muq:s1:c14', 'cache:amt:s1:c14'],
-    muq_scores: [0.54, 0.38, 0.46, 0.54, 0.52, 0.51],
-    midi_notes,
-    alignment,
-    session_means_timing: [0.48, 0.54, 0.60],
-    piece_id: 'test-piece',
-    now_ms: 1000,
   }
-  const result = await rubatoCoaching.invoke(input) as DiagnosisArtifact
+  const result = await rubatoCoaching.invoke(selectors, ctx) as DiagnosisArtifact
   expect(result.primary_dimension).toBe('timing')
   expect(result.finding_type).toBe('issue')
   expect(result.severity).toBe('significant')
@@ -42,41 +83,45 @@ test('rubatoCoaching: constant score IOIs vs stretching perf IOIs with large dri
   expect(result.dimensions).toContain('interpretation')
 })
 
-test('rubatoCoaching: fewer than 4 aligned notes returns neutral (IOI correlation unavailable)', async () => {
-  const input = {
-    bar_range: [40, 42] as [number, number],
-    scope: 'session' as const,
-    evidence_refs: ['cache:muq:s1:c14'],
-    muq_scores: [0.54, 0.38, 0.46, 0.54, 0.52, 0.51],
-    midi_notes: [
-      { pitch: 60, onset_ms: 0,    duration_ms: 400, velocity: 70, bar: 40 },
-      { pitch: 62, onset_ms: 500,  duration_ms: 400, velocity: 70, bar: 41 },
-      { pitch: 64, onset_ms: 1000, duration_ms: 400, velocity: 70, bar: 42 },
-    ],
-    alignment: [
-      { perf_index: 0, score_index: 0, expected_onset_ms: 0,    bar: 40 },
-      { perf_index: 1, score_index: 1, expected_onset_ms: 500,  bar: 41 },
-      { perf_index: 2, score_index: 2, expected_onset_ms: 1000, bar: 42 },
-    ],
-    session_means_timing: [0.48, 0.54, 0.60],
-    piece_id: 'test-piece',
-    now_ms: 1000,
-  }
-  const result = await rubatoCoaching.invoke(input) as DiagnosisArtifact
+test('rubatoCoaching: z above neutral threshold returns neutral', async () => {
+  const ctx = makeCtx(3, 0.48)
+  ;(ctx.digest as unknown as GroundedDigest).session_means.timing = [0.48, 0.48, 0.48]
+  const selectors = { bar_range: [40, 48] as [number, number], scope: 'session' as const, evidence_refs: ['cache:muq:s1:c14'] }
+  const result = await rubatoCoaching.invoke(selectors, ctx) as DiagnosisArtifact
   expect(result.finding_type).toBe('neutral')
 })
 
-test('rubatoCoaching: insufficient session history throws', async () => {
-  const input = {
-    bar_range: [40, 48] as [number, number],
-    scope: 'session' as const,
-    evidence_refs: ['cache:muq:s1:c14'],
-    muq_scores: [0.54, 0.38, 0.46, 0.54, 0.52, 0.51],
-    midi_notes: [{ pitch: 60, onset_ms: 0, duration_ms: 400, velocity: 70, bar: 40 }],
-    alignment: [{ perf_index: 0, score_index: 0, expected_onset_ms: 0, bar: 40 }],
-    session_means_timing: [0.48, 0.54],
-    piece_id: 'test-piece',
-    now_ms: 1000,
-  }
-  await expect(rubatoCoaching.invoke(input)).rejects.toThrow('insufficient session history')
+test('rubatoCoaching: empty/sparse alignment returns neutral (not throw)', async () => {
+  const ctx = makeCtx(3, 0.30, { emptyAlignment: true })
+  ;(ctx.digest as unknown as GroundedDigest).session_means.timing = [0.50, 0.60, 0.70]
+  const selectors = { bar_range: [40, 48] as [number, number], scope: 'session' as const, evidence_refs: ['cache:muq:s1:c14'] }
+  const result = await rubatoCoaching.invoke(selectors, ctx) as DiagnosisArtifact
+  expect(result.finding_type).toBe('neutral')
+  expect(result.primary_dimension).toBe('timing')
+  // Verify neutral artifact has all required schema fields
+  expect(result.dimensions.length).toBeGreaterThanOrEqual(1)
+  expect(result.evidence_refs.length).toBeGreaterThanOrEqual(1)
+  expect(result.one_sentence_finding.length).toBeGreaterThanOrEqual(1)
+})
+
+test('rubatoCoaching: insufficient history uses within-session baseline and returns artifact (not throw)', async () => {
+  const ctx = makeCtx(0, 0.30, { monotonicDrift: true })
+  ;(ctx.digest as unknown as GroundedDigest).session_means.timing = []
+  ;(ctx.digest as unknown as GroundedDigest).within_session_means.timing = 0.60
+  const selectors = { bar_range: [40, 48] as [number, number], scope: 'session' as const, evidence_refs: ['cache:muq:s1:c14'] }
+  const result = await rubatoCoaching.invoke(selectors, ctx) as DiagnosisArtifact
+  expect(result.primary_dimension).toBe('timing')
+})
+
+test('rubatoCoaching: bar_range=null resolves full session and returns artifact', async () => {
+  const ctx = makeCtx(3, 0.48)
+  ;(ctx.digest as unknown as GroundedDigest).session_means.timing = [0.48, 0.48, 0.48]
+  const selectors = { bar_range: null, scope: 'session' as const, evidence_refs: ['cache:muq:s1:c14'] }
+  const result = await rubatoCoaching.invoke(selectors, ctx) as DiagnosisArtifact
+  expect(['neutral','issue','strength']).toContain(result.finding_type)
+})
+
+test('rubatoCoaching: missing ctx throws', async () => {
+  const selectors = { bar_range: null, scope: 'session' as const, evidence_refs: [] }
+  await expect(rubatoCoaching.invoke(selectors, undefined)).rejects.toThrow('ctx')
 })

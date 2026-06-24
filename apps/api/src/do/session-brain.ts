@@ -38,6 +38,28 @@ import type {
 	PastDiagnosisRecord,
 	SessionHistoryRecord,
 } from "../services/teacher";
+
+export function toPastDiagnosisRecord(row: {
+	id: string
+	sessionId: string
+	primaryDimension: string
+	barRangeStart: number | null
+	barRangeEnd: number | null
+	artifactJson: unknown
+	createdAt: Date
+	pieceId: string | null | undefined
+}): PastDiagnosisRecord {
+	return {
+		id: row.id,
+		sessionId: row.sessionId,
+		primaryDimension: row.primaryDimension,
+		barRangeStart: row.barRangeStart ?? null,
+		barRangeEnd: row.barRangeEnd ?? null,
+		artifactJson: row.artifactJson as Record<string, unknown>,
+		createdAt: row.createdAt.toISOString(),
+		pieceId: row.pieceId ?? null,
+	}
+}
 import {
 	type SynthesisInput,
 	synthesizeV6,
@@ -1672,19 +1694,21 @@ export class SessionBrain extends DurableObject<Bindings> {
 		let pastDiagnoses: PastDiagnosisRecord[] = [];
 		try {
 			const diagRows = await db
-				.select()
+				.select({
+					id: diagnosisArtifacts.id,
+					sessionId: diagnosisArtifacts.sessionId,
+					primaryDimension: diagnosisArtifacts.primaryDimension,
+					barRangeStart: diagnosisArtifacts.barRangeStart,
+					barRangeEnd: diagnosisArtifacts.barRangeEnd,
+					artifactJson: diagnosisArtifacts.artifactJson,
+					createdAt: diagnosisArtifacts.createdAt,
+					pieceId: diagnosisArtifacts.pieceId,
+				})
 				.from(diagnosisArtifacts)
 				.where(sql`${diagnosisArtifacts.studentId} = ${state.studentId}`)
 				.orderBy(sql`${diagnosisArtifacts.createdAt} DESC`)
 				.limit(20);
-			pastDiagnoses = diagRows.map((r) => ({
-				sessionId: r.sessionId,
-				primaryDimension: r.primaryDimension,
-				barRangeStart: r.barRangeStart ?? null,
-				barRangeEnd: r.barRangeEnd ?? null,
-				artifactJson: r.artifactJson,
-				createdAt: r.createdAt.toISOString(),
-			}));
+			pastDiagnoses = diagRows.map(toPastDiagnosisRecord);
 		} catch (err) {
 			const error = err as Error;
 			console.log(

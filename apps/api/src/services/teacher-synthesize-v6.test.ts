@@ -45,7 +45,7 @@ describe('synthesizeV6 digest shape', () => {
     vi.unstubAllGlobals()
   })
 
-  it('passes chunks, baselines, cohort_tables, session_history, past_diagnoses into digest', async () => {
+  it('renders the compact signal summary into the phase1 prompt (not the raw digest)', async () => {
     let capturedBody: string | null = null
 
     // Call 1: Phase 1 — capture body, return end_turn immediately
@@ -67,7 +67,7 @@ describe('synthesizeV6 digest shape', () => {
       )
     )
 
-    const ctx: ServiceContext = { db: {} as never, env: MOCK_BINDINGS }
+    const ctx: ServiceContext = { db: { select: () => ({ from: () => ({ where: () => ({ groupBy: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }) }) }) }) }) } as never, env: MOCK_BINDINGS }
     const events = []
     for await (const ev of synthesizeV6(ctx, {
       studentId: 'stu-1',
@@ -90,14 +90,14 @@ describe('synthesizeV6 digest shape', () => {
     const userMsg = parsed.messages?.find((m: { role: string }) => m.role === 'user')
     expect(userMsg).toBeDefined()
     const digestText = typeof userMsg?.content === 'string' ? userMsg.content : JSON.stringify(userMsg?.content)
-    expect(digestText).toContain('chunks')
-    expect(digestText).toContain('baselines')
-    expect(digestText).toContain('cohort_tables')
-    expect(digestText).toContain('session_history')
-    expect(digestText).toContain('past_diagnoses')
+    // Post-grounding: phase1 sees the compact signal summary, not the raw digest dump.
+    // The chunk's signal (chunk id + bar coverage + muq scores) reaches the prompt;
+    // full chunk/baseline/cohort data flows to molecules via ctx server-side instead.
+    expect(digestText).toContain('chunk:0')
+    expect(digestText).toContain('muq=')
   })
 
-  it('passes null baselines through to digest when baselines is null', async () => {
+  it('handles null baselines without error (tiered baseline fallback, server-side)', async () => {
     let capturedBody: string | null = null
 
     // Call 1: Phase 1 — capture body, return end_turn
@@ -113,19 +113,20 @@ describe('synthesizeV6 digest shape', () => {
       )
     )
 
-    const ctx: ServiceContext = { db: {} as never, env: MOCK_BINDINGS }
+    const ctx: ServiceContext = { db: { select: () => ({ from: () => ({ where: () => ({ groupBy: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }) }) }) }) }) } as never, env: MOCK_BINDINGS }
     for await (const _ of synthesizeV6(ctx, {
       studentId: 'stu-1', conversationId: null, sessionDurationMs: 0, practicePattern: '{}',
       topMoments: [], drillingRecords: [], pieceMetadata: null,
       enrichedChunks: [], baselines: null, sessionHistory: [], pastDiagnoses: [],
     }, 'sess-1')) { /* drain */ }
 
+    // Post-grounding: null baselines flow through without crashing (the tiered baseline
+    // falls back to a within-session reference server-side; nothing baseline-shaped is
+    // dumped into the prompt). The phase1 call still happens.
     expect(capturedBody).not.toBeNull()
-    // Parse the request body and extract the digest text from the user message content.
     const parsedBody = JSON.parse(capturedBody!)
-    const userContent = parsedBody.messages?.find((m: { role: string }) => m.role === 'user')?.content as string
-    expect(userContent).toBeDefined()
-    expect(userContent).toMatch(/"baselines":\s*null/)
+    const userMsg = parsedBody.messages?.find((m: { role: string }) => m.role === 'user')
+    expect(userMsg).toBeDefined()
   })
 })
 
@@ -169,7 +170,7 @@ describe('synthesizeV6 first-session guardrail', () => {
       )
     })
 
-    const ctx: ServiceContext = { db: {} as never, env: MOCK_BINDINGS }
+    const ctx: ServiceContext = { db: { select: () => ({ from: () => ({ where: () => ({ groupBy: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }) }) }) }) }) } as never, env: MOCK_BINDINGS }
     for await (const _ of synthesizeV6(ctx, {
       studentId: 'stu-1', conversationId: null, sessionDurationMs: 60000, practicePattern: '{}',
       topMoments: [], drillingRecords: [], pieceMetadata: null,
@@ -192,20 +193,16 @@ describe('synthesizeV6 first-session guardrail', () => {
 
     expect(phase1Body).not.toBeNull()
     expect(phase2Body).not.toBeNull()
-    const phase1User = userContentOf(phase1Body!)
     const phase2User = userContentOf(phase2Body!)
-    // reference_mode flag reaches both phases via the serialized digest.
-    expect(phase1User).toContain('"reference_mode": "within_session"')
-    expect(phase2User).toContain('"reference_mode": "within_session"')
-    // Explicit guardrail instruction reaches the prose-writing (phase2) prompt.
+    // reference_mode reaches phase2 via ctx.digest (GroundedDigest.reference_mode),
+    // gating the first-session guardrail in the prose-writing (phase2) prompt.
     expect(phase2User).toContain(GUARDRAIL)
   })
 
   it('omits the guardrail when referenceMode is null (returning student)', async () => {
-    const { phase1Body, phase2Body } = await runWith(null)
+    const { phase2Body } = await runWith(null)
 
     expect(phase2Body).not.toBeNull()
-    expect(userContentOf(phase1Body!)).toContain('"reference_mode": null')
     expect(userContentOf(phase2Body!)).not.toContain(GUARDRAIL)
   })
 })

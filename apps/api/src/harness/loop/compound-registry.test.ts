@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import { getCompoundBinding } from "./compound-registry";
 import { SynthesisArtifactSchema } from "../artifacts/synthesis";
 import { ALL_MOLECULES } from "../skills/molecules";
@@ -11,7 +11,7 @@ describe("compound-registry", () => {
 		expect(binding?.compoundName).toBe("session-synthesis");
 		expect(binding?.artifactSchema).toBe(SynthesisArtifactSchema);
 		expect(binding?.artifactToolName).toBe("write_synthesis_artifact");
-		expect(binding?.tools).toHaveLength(ALL_MOLECULES.length + 1);
+		expect(binding?.tools).toHaveLength(ALL_MOLECULES.length + 2);
 		const names = binding!.tools.map((t) => t.name);
 		expect(new Set(names).size).toBe(names.length);
 		expect(names).toContain("assign_segment_loop");
@@ -39,3 +39,23 @@ describe("compound-registry", () => {
 		expect(getCompoundBinding("OnWeeklyReview")).toBeUndefined();
 	});
 });
+
+test('SESSION_SYNTHESIS_PROCEDURE contains "bar_range, scope, and evidence_refs" instruction', () => {
+	const binding = getCompoundBinding('OnSessionEnd')!
+	expect(binding.procedurePrompt).toContain('bar_range, scope, and evidence_refs')
+})
+
+test('OnSessionEnd procedurePrompt does not contain old "signal data from the digest" instruction', () => {
+	const binding = getCompoundBinding('OnSessionEnd')!
+	expect(binding.procedurePrompt).not.toContain('signal data from the digest')
+})
+
+test('OnSessionEnd tool list includes extract-bar-range-signals', () => {
+	const binding = getCompoundBinding('OnSessionEnd')!
+	expect(binding.tools.some(t => t.name === 'extract-bar-range-signals')).toBe(true)
+})
+
+test('OnSessionEnd tool list does NOT include articulation-clarity-check', () => {
+	const binding = getCompoundBinding('OnSessionEnd')!
+	expect(binding.tools.some(t => t.name === 'articulation-clarity-check')).toBe(false)
+})
