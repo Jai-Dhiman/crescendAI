@@ -11,6 +11,11 @@ export function buildPhase2Prompt(
 	diagnoses: unknown[],
 	guardrail: string,
 ): string {
+	const scopeInstruction =
+		'Scope: this is an end-of-session synthesis. Set synthesis_scope to "session" and ' +
+		'recurring_pattern to null. Do not use "weekly" or "piece_onboarding" here — those ' +
+		"belong to other review types.\n\n";
+
 	const reflectionInstruction =
 		"Headline instructions: write a light reflection in 2-4 sentences about what happened " +
 		"in this session, ending in exactly one directional question about the dominant_dimension " +
@@ -29,6 +34,7 @@ export function buildPhase2Prompt(
 		`Session summary:\n${digest.compact_signal_summary}\n\n` +
 		`Collected diagnoses (${diagnoses.length}):\n${JSON.stringify(diagnoses, null, 2)}\n\n` +
 		guardrail +
+		scopeInstruction +
 		reflectionInstruction +
 		exerciseInstruction +
 		`Write the SynthesisArtifact now using the write_synthesis_artifact tool.`

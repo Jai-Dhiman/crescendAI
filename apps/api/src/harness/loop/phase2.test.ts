@@ -174,6 +174,12 @@ describe("buildPhase2Prompt — reflection+prescribe instructions", () => {
 		expect(prompt).not.toContain("proposed_exercises");
 	});
 
+	it("pins synthesis_scope to session for an end-of-session synthesis", () => {
+		const prompt = buildPhase2Prompt(digest as never, diagnoses, "");
+		expect(prompt).toContain('synthesis_scope to "session"');
+		expect(prompt).toContain("recurring_pattern to null");
+	});
+
 	it("still passes all Task 1 invariants after the new instructions", () => {
 		const guardrail =
 			"This is the student's first session -- describe only what happened within this session; do not reference past sessions or claim improvement over time.";
