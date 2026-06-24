@@ -2,7 +2,7 @@
 import { sql, eq, and } from 'drizzle-orm'
 import type { Db } from '../../db'
 import { observations } from '../../db/schema/observations'
-import type { SynthesisInput, PastDiagnosisRecord } from '../../services/teacher'
+import type { SynthesisInput } from '../../services/teacher'
 
 export const DIMENSIONS_6 = ['dynamics', 'timing', 'pedaling', 'articulation', 'phrasing', 'interpretation'] as const
 type Dim6 = (typeof DIMENSIONS_6)[number]
@@ -39,6 +39,10 @@ export type GroundedDigest = {
   within_session_means: Record<Dim6, number>
   compact_signal_summary: string
   piece_id: string | null
+  // Optional: buildGroundedDigest always populates it (from input.referenceMode) so the
+  // phase2 cold-start guardrail gates correctly in production; optional only so test
+  // fixtures may omit it (absent === not within_session === no guardrail, the safe default).
+  reference_mode?: 'within_session' | null
 }
 
 export async function buildGroundedDigest(
@@ -131,17 +135,15 @@ export async function buildGroundedDigest(
   }
 
   // past_diagnoses_grounded: reshape PastDiagnosisRecord → GroundedPastDiagnosis
-  // NOTE: PastDiagnosisRecord does not yet have `id` or `pieceId` fields (added in C3/C4).
-  // Cast to access them — they will be present at runtime once session-brain.ts is updated.
   const past_diagnoses_grounded: GroundedPastDiagnosis[] = input.pastDiagnoses.map((r) => ({
-    artifact_id: (r as PastDiagnosisRecord & { id?: string }).id ?? '',
+    artifact_id: r.id,
     session_id: r.sessionId,
     created_at: new Date(r.createdAt).getTime(),
     primary_dimension: r.primaryDimension,
     bar_range: r.barRangeStart !== null && r.barRangeEnd !== null
       ? [r.barRangeStart, r.barRangeEnd]
       : null,
-    piece_id: (r as PastDiagnosisRecord & { pieceId?: string | null }).pieceId ?? null,
+    piece_id: r.pieceId,
   }))
 
   // compact_signal_summary: one line per chunk
@@ -161,5 +163,6 @@ export async function buildGroundedDigest(
     within_session_means,
     compact_signal_summary,
     piece_id: input.pieceId ?? null,
+    reference_mode: input.referenceMode ?? null,
   }
 }

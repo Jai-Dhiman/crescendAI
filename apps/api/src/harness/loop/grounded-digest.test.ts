@@ -141,6 +141,16 @@ test('buildGroundedDigest: null bar_coverage does not throw, adapted chunk gets 
   expect(digest.chunks_adapted[0].bar_coverage).toEqual([0, 0])
 })
 
+test('buildGroundedDigest: carries reference_mode from input (cold-start guardrail gate)', async () => {
+  const mockDb = {
+    select: () => ({ from: () => ({ where: () => ({ groupBy: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }) }) }) }) }),
+  } as unknown as import('../../db').Db
+  const within = await buildGroundedDigest({ ...makeInput(), referenceMode: 'within_session' }, { db: mockDb, studentId: 'stu-1' }, COHORT_TABLES)
+  expect(within.reference_mode).toBe('within_session')
+  const returning = await buildGroundedDigest({ ...makeInput(), referenceMode: null }, { db: mockDb, studentId: 'stu-1' }, COHORT_TABLES)
+  expect(returning.reference_mode).toBeNull()
+})
+
 // FIX 2: SQL AVG null does not produce NaN in session_means
 test('buildGroundedDigest: SQL-null avgScore excluded from session_means (no NaN)', async () => {
   const mockDb = {
