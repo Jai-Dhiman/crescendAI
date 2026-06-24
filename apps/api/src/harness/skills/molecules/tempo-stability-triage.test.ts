@@ -42,7 +42,7 @@ function makeCtx(sessionMeansN: number, muqTiming: number, opts?: { monotonicDri
     piece_id: 'test-piece',
   }
   return {
-    env: {} as unknown as import('../../../../lib/types').Bindings,
+    env: {} as unknown as import('../../../lib/types').Bindings,
     studentId: 'stu-1', sessionId: 'sess-1', conversationId: null,
     digest: digest as unknown as Record<string, unknown>,
     waitUntil: () => {}, pieceId: 'test-piece', trigger: 'synthesis', turnCap: 10,
