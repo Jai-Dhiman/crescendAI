@@ -127,7 +127,7 @@ export async function buildGroundedDigest(
   for (const dim of DIMENSIONS_6) {
     session_means[dim] = Array.from(sessionDimMap.values())
       .map((m) => m.get(dim))
-      .filter((v): v is number => v !== undefined)
+      .filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
   }
 
   // past_diagnoses_grounded: reshape PastDiagnosisRecord → GroundedPastDiagnosis
