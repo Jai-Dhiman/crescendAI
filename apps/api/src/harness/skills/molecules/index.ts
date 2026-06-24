@@ -5,7 +5,6 @@ import { rubatoCoaching } from './rubato-coaching'
 import { phrasingArcAnalysis } from './phrasing-arc-analysis'
 import { tempoStabilityTriage } from './tempo-stability-triage'
 import { dynamicRangeAudit } from './dynamic-range-audit'
-import { articulationClarityCheck } from './articulation-clarity-check'
 import { crossModalContradictionCheck } from './cross-modal-contradiction-check'
 export const ALL_MOLECULES: ToolDefinition[] = [
   voicingDiagnosis,
@@ -14,6 +13,5 @@ export const ALL_MOLECULES: ToolDefinition[] = [
   phrasingArcAnalysis,
   tempoStabilityTriage,
   dynamicRangeAudit,
-  articulationClarityCheck,
   crossModalContradictionCheck,
 ]
