@@ -200,3 +200,38 @@ UNVERIFIABLE rather than committing a mislocalized verdict. The headline for M3 
 shifts toward faithfulness *among committed claims* plus an abstention-rate, with whole_piece as
 the dependable substrate. **Caveat:** GATE 1 measures degradation under corruption on only 2
 clips (1 piece family); broadening the corpus past the 2 Bach pieces remains open.
+
+### Corpus breadth (#98): resolvable-rate is piece-dependent (0.13-0.99)
+
+The score loader was generalized to variable-tempo / non-4/4 (#98), unlocking the full
+ASAP-derived catalog. Clean bundles were extracted for 10 clips across 6 composers. The
+per-clip **resolvable-rate** (fraction of bars whose score-time falls inside the matched
+parangonar anchor span -- the dominant cap on bar localization) is **not uniformly low; it
+ranges 0.13-0.99 and tracks anchor coverage almost exactly**:
+
+| clip | bars | resolvable rate | anchors | span coverage |
+|------|-----:|----------------:|--------:|--------------:|
+| pathetique_mvt2           |  73 | 0.99 | 379 | 1.01 |
+| moonlight_sonata_mvt1     |  69 | 0.99 |  96 | 1.00 |
+| schumann_traumerei        |  25 | 0.92 | 330 | 0.98 |
+| fur_elise                 | 105 | 0.89 | 140 | 0.89 |
+| bach_invention_1 (clip B) |  22 | 0.68 | 158 | 0.75 |
+| bach_prelude_c_wtc1       |  35 | 0.54 | 114 | 0.57 |
+| chopin_waltz_csm          | 193 | 0.46 | 611 | 0.48 |
+| chopin_etude_op10no4      |  83 | 0.35 | 686 | 0.36 |
+| bach_invention_1 (clip A) |  22 | 0.23 | 125 | 0.24 |
+| liszt_liebestraum_3       | 131 | 0.13 | 152 | 0.13 |
+
+**Methodological caveat on the GATE 1 verdict above:** the bar-level corruption sweep was run
+on the two Bach *invention* clips, which sit at resolvable 0.23 and 0.68 -- among the
+WORST-coverage clips in the corpus. Four clips (pathetique, moonlight, schumann, fur_elise)
+have 0.89-0.99 coverage, where the out-of-anchor-span abstention would not dominate. So the
+bar-level FAIL is partly a worst-case artifact of the test clips. Whether it holds on a
+high-coverage clip is being measured directly (corruption sweep on pathetique, `gate1_hicov/`):
+the AMT-nondeterminism noise floor and corruption fragility still apply regardless of coverage,
+so a FAIL there would be the stronger substrate-level result, while a PASS would mean bar-level
+viability is recording-dependent (gated on coverage) -- arguing for a per-clip coverage gate
+rather than a blanket bar-level ban. **Operational note:** the local AMT server is
+throughput-bound (~64 s/chunk) and unstable under sustained batch load (it died once mid-run);
+the full 16-piece sweep is regenerable but multi-hour. The score loader, 16-piece map, and a
+per-clip `--timeout-sec` extraction guard shipped under #98.
