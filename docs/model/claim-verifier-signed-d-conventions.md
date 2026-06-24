@@ -1,11 +1,15 @@
 # Claim Verifier: Per-Dimension Signed-d Conventions and Error-Bar Table
 
-**Issue:** #65, #94 (first real-audio measurement)
-**Taxonomy version:** v0.1
+**Issue:** #65, #94 (first real-audio measurement), #101 (GATE 3 ground-truth baseline + hard gates)
+**Taxonomy version:** v0.3
 **Validation boundary:** This document covers substrate-level measurement. The error bars in
-"Measured Error Bars" below are now MEASURED on real cached audio (AMT held fixed, #94); the
-"Substrate Error Distributions" table remains the per-source design input. Real-claim faithfulness
-(#67), proxy-to-perception (#66), and error-rich localization (GATE 1) are still NOT validated here.
+"Measured Error Bars" below are MEASURED on real cached audio (AMT held fixed, #94); the
+"Substrate Error Distributions" table remains the per-source design input. Proxy-to-perception is
+validated for dynamics+pedaling (GATE 2 / #66); error-rich localization is coverage-gated (GATE 1).
+**GATE 3 (#101) is the current frontier and the honest baseline: at whole_piece — where 99.6% of
+real generator claims land — the verdict is measurement-driven for pedaling ONLY; dynamics and
+timing are degenerate (verdict determined by polarity, not performance). See the GATE 3 section
+and the Path #1 hard gates at the end of this document.**
 
 ---
 
@@ -310,3 +314,117 @@ worth revisiting the verifier's dynamics statistic.
 Path #2 (RLVR) is greenlightable on the **dynamics+pedaling** subset (a narrower but real basis);
 timing-based verifiable rewards are not yet justified. Report JSON (regenerable):
 `model/data/results/gate2_expert_anchor.json`.
+
+---
+
+## GATE 3 (#101): the whole_piece verdict is degenerate for 2 of 3 dimensions — the honest baseline
+
+GATE 3 is the M3 feasibility checkpoint (can we report a measured per-dimension faithfulness rate
+for an LLM feedback generator?). Two findings reframe everything downstream. Both are code-grounded
+(`verdict_dispatch.py`, the three measurers) and empirically confirmed (`verify()` run directly).
+
+### Finding 1 — claim yield: generators almost never localize
+
+LLM-extractor (Sonnet 4.6, truth labels NOT involved) exhaustive decomposition of 48
+deterministically-sampled `baseline_v1.jsonl` prose records (6 bundle-overlapping pieces), 250 atomic
+claims:
+
+| Metric | Value | Read |
+|---|---|---|
+| claims / record | 5.21 mean | prose IS decomposable into atomic claims |
+| validated-scope (dyn+ped) / record | 2.40 mean, **100% of records ≥1** | supply is sufficient for a stable whole_piece rate |
+| **bar-localizable claims** | **1 / 250 (0.4%)** | **a *localized* faithfulness headline is dead; the headline is whole_piece** |
+| whole_piece | 249 / 250 (99.6%) | the rate lives at whole_piece |
+| vague-region language (no bar #s) | 15% | generators gesture at regions but never index bars |
+
+Artifact: `scratchpad/m3_yield_feasibility.json` (regenerable). Implication: the GATE-1 localization
+machinery characterizes the *benchmark's capability*, not the measured generator; "LLM piano teachers
+essentially never localize their claims (0.4%)" is itself a publishable measured finding.
+
+### Finding 2 — the whole_piece verdict is polarity-determined, not measurement-driven (the BLOCKER)
+
+The frozen `route_verdict` is a SIGNED-anomaly test: `+` SUPPORTED iff `d>0 and |d|>tau`; `-` iff
+`d<0 and |d|>tau`; `neutral` iff `|d|≤tau`. But each measurer computes a DIFFERENT quantity at
+whole_piece than at a region — a **non-negative dispersion/presence statistic** with no signed
+reference. Plugging a non-negative `d` into a signed test produces pathologies. Empirically confirmed
+(fur_elise bundle, all three polarities):
+
+| dim | whole_piece statistic | tau (unit) | behavior | status |
+|---|---|---|---|---|
+| dynamics | `std/range` (unitless, ≤0.5) | 1.5 **dB** | `+`/`-` UNREACHABLE (`d>1.5` impossible); `neutral` ALWAYS SUPPORTED | **DEGENERATE (unit mismatch)** |
+| timing | IOI-BPM CV% (≥0, 100–260% on real polyphony) | 8.0 percent | `+` auto-SUPPORTED; `neutral`/`-` auto-REFUTED | **DEGENERATE (CV floor ≫ tau; noisy statistic)** |
+| pedaling | pedal-bar fraction ∈[0,1] | 0.25 fraction | verdict tracks the performance (fraction vs 0.25) | **REAL SIGNAL** |
+
+Pedaling is the only dimension whose whole_piece statistic is (a) in units matching its tau and
+(b) the exact quantity GATE 2 validated against perception (CC64 on-fraction, partial ρ 0.478).
+Residual pedaling caveats: `-` polarity is still structurally auto-REFUTED (no signed under-pedal
+test), and virtue ("luminous resonance," `+`) is conflated with excess ("over-pedaled," also `+`).
+
+**Bottom line:** a faithfulness rate computed today would mostly measure the generator's *polarity
+distribution*, not its truthfulness (dynamics `±` → 0% by construction; timing `+` → 100% by
+construction; only pedaling is real). Two compounding weaknesses underneath: every `tau` is
+`locked:false` (hand-set, uncalibrated), and error bars propagate *assumed* noise (onset 10ms / RMS
+0.3dB / pedal CC ±10), which GATE 1 shows understates true AMT match-churn (13–20% bar loss on
+bit-identical audio). The localization/coverage gate, the typed-abstention machinery, and
+pedaling-presence are the parts that ARE solid.
+
+---
+
+## Path #1 operating mode and hard gates (#101)
+
+**Operating mode (re-scoped 2026-06-24).** Open-ended, no time limit. The fixed M0–M3 timeline in the
+plan §6 is SUPERSEDED. We treat the GATE-3 baseline above as ground truth and iterate each measurement
+FRONT — rebuild statistics, recalibrate thresholds, expand corpus, measure error empirically, acquire
+error-rich audio — until the per-dimension faithfulness numbers are publishable-proud. The original
+paper thesis is unchanged: *non-circular, deterministic faithfulness ground truth in a soft perceptual
+domain* (music as the existence proof). **No paper is drafted until every hard gate below passes.**
+
+**Hard gates (ALL must pass before drafting the paper).** Thresholds are proposed defaults
+(adjustable); the gate STRUCTURE is the commitment.
+
+- **G-A — Non-degeneracy / measurement-drivenness.** For every reported (dimension, location-tier),
+  the verdict must depend on the performance. Proven by two controls on a construction-known set:
+  (i) *polarity-shuffle* — permuting claim polarity must collapse the faithfulness signal toward
+  chance (proposal: shifts |rate−0.5| by ≥0.20); (ii) *performance-flip sensitivity* — on
+  corruption-harness clean-vs-corrupted pairs, the verdict flips in the expected direction in ≥0.80
+  of construction-known cases. A dimension whose verdict is unmoved by either control FAILS.
+  *Status: pedaling provisional-pass; dynamics + timing FAIL (degenerate).*
+- **G-B — Perceptual validity of the EXACT statistic.** The specific statistic the verifier checks
+  (not a cousin) clears halo-controlled partial-Spearman ≥ the measured PercePiano inter-rater
+  ceiling (~0.5) on its perceptual dimension, p<1e-6. *Status: pedaling-presence PASS (0.478);
+  dynamics FAILS as written (verifier checks dispersion; GATE 2 validated level) → switch statistic
+  then re-test; timing FAILS (0.25) → out unless a new proxy passes.*
+- **G-C — Empirical (not assumed) error bars.** Substrate error per dimension MEASURED by
+  re-transcribe→re-measure variance over ≥10 clips; the near-threshold dead-band set to ≥ the
+  measured 1σ. No assumed-noise error bars in the headline. *Status: not started.*
+- **G-D — Claim supply for a stable rate.** Per reported dimension: ≥30 distinct performances and a
+  bootstrap 95% CI half-width ≤0.05 on the faithfulness rate; report yield + the abstention
+  histogram (`out_of_scope_dim`, `gated_dim`, `unlocalizable`, `low_coverage`, `region_too_short`,
+  `near_threshold`). *Status: pairing unresolved — existing prose has ZERO same-clip overlap with
+  the 10 bundles; needs generate-on-bundles or extract-on-baseline-audio (see issue #101).*
+- **G-E — Reproducibility.** The per-dimension rate reproduces within CI across (a) a generator
+  re-run and (b) two disjoint clip halves; a second independent decomposition (different LLM or a
+  human-checked slice) agrees on (dim, polarity, location) at Cohen's κ ≥0.6. *Status: not started.*
+- **G-F — Generalization honesty (the §7 dominant risk).** EITHER localization + ≥1 dimension
+  validated on error-rich/student audio, OR the paper scope is explicitly limited to
+  clean/professional audio with the limitation stated and the localized-claim contribution demoted.
+  All in-repo audio is currently clean/pro (`ood_practice/` empty). *Status: not started.*
+
+**Improvement fronts (the backlog — work in any order, one at a time, measure-keep-or-revert).**
+1. Redesign whole_piece **dynamics** statistic → signed loudness *level* vs a reference (GATE-2-
+   validated), dB-matched tau. (unblocks G-A, G-B for dynamics)
+2. Redesign / scope whole_piece **timing** → real beat-tracked tempo-stability statistic, or formally
+   scope whole_piece timing OUT until a beat tracker exists. (G-A, G-B)
+3. Add a **signed whole_piece test per dimension** so `-` claims (54% of validated-scope) are
+   adjudicable instead of auto-REFUTED.
+4. **Calibrate the three tau** against human-labeled anomaly/no-anomaly slices; flip `locked:true`. (G-B)
+5. **Measure substrate error** empirically; widen the dead-band. (G-C)
+6. **Resolve pairing + scale corpus** for claim supply and CI width. (G-D)
+7. **Acquire/simulate error-rich student audio.** (G-F)
+8. Disambiguate pedaling **virtue vs excess** (cleanliness/density bands).
+
+**The improvement loop (per front).** Goal: move a named gate from FAIL→PASS (or tighten a passing
+margin). Scope: one front; never modify `verdict_dispatch.py` or its tests (frozen). Metric: the
+gate's measurable criterion above. Verify: `cd apps/evals && uv run --extra all pytest claim_taxonomy/ -q`
+(113 passing) green AND the gate metric improved on a held-out construction-known set. Guard: extractor
+is LLM-OK but the truth label is NEVER an LLM; TDD; revert any change that does not move its gate.
