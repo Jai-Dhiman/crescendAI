@@ -73,6 +73,46 @@ def _make_rush_bundle() -> dict:
     }
 
 
+def test_low_coverage_clip_bar_claim_is_low_coverage() -> None:
+    """#100 coverage gate: a clip whose anchors cover only a fraction of the score
+    span abstains on bar/region claims with reason_code 'low_coverage' (driven by the
+    taxonomy's coverage_gate.threshold through the orchestrator)."""
+    taxonomy = _load_taxonomy()
+    bundle = _make_rush_bundle()
+    # Shrink anchor coverage well below threshold while keeping the measure_table span.
+    span = max(m["start_sec"] for m in bundle["measure_table"])
+    low = np.linspace(0.0, 0.2 * span, 100)  # ~0.2 coverage
+    bundle["anchors"] = {"perf_audio_sec": low.tolist(), "score_audio_sec": low.tolist()}
+    claim = {
+        "proposition": "You rushed in bars 1-10",
+        "dimension": "timing",
+        "location": {"bar_start": 1, "bar_end": 10},
+        "polarity": "-",
+        "magnitude": None,
+    }
+    result = verify(claim, bundle, taxonomy, engine=SubstrateErrorEngine(seed=42))
+    assert result.verdict == "UNVERIFIABLE"
+    assert result.reason_code == "low_coverage"
+
+
+def test_whole_piece_claim_exempt_from_coverage_gate() -> None:
+    """whole_piece never trips the coverage gate, even on a low-coverage clip."""
+    taxonomy = _load_taxonomy()
+    bundle = _make_rush_bundle()
+    span = max(m["start_sec"] for m in bundle["measure_table"])
+    low = np.linspace(0.0, 0.2 * span, 100)
+    bundle["anchors"] = {"perf_audio_sec": low.tolist(), "score_audio_sec": low.tolist()}
+    claim = {
+        "proposition": "Your timing was uneven overall",
+        "dimension": "timing",
+        "location": "whole_piece",
+        "polarity": "-",
+        "magnitude": None,
+    }
+    result = verify(claim, bundle, taxonomy, engine=SubstrateErrorEngine(seed=42))
+    assert result.reason_code != "low_coverage"
+
+
 def test_timing_rush_claim_returns_verdict_result_wiring() -> None:
     """WIRING SMOKE TEST: orchestrator returns a VerdictResult without raising. Accepts all verdicts."""
     taxonomy = _load_taxonomy()

@@ -11,23 +11,26 @@ def _load():
     return taxonomy, schema
 
 
-def test_taxonomy_version_is_v02() -> None:
+def test_taxonomy_version_is_v03() -> None:
     taxonomy, _ = _load()
-    assert taxonomy["taxonomy_version"] == "v0.2", (
-        f"Expected v0.2, got {taxonomy['taxonomy_version']}"
+    assert taxonomy["taxonomy_version"] == "v0.3", (
+        f"Expected v0.3, got {taxonomy['taxonomy_version']}"
     )
 
 
-def test_localization_granularity_restriction_recorded() -> None:
-    """GATE 1 (#95): bar-level localization failed -> the taxonomy records the
-    restriction (single-bar inadmissible, region degraded, whole_piece reliable)."""
+def test_localization_coverage_gate_recorded() -> None:
+    """GATE 1 refinement (#100): bar-level localization is coverage-dependent, so
+    localized claims are gated per-clip on alignment coverage; whole_piece is exempt."""
     taxonomy, _ = _load()
     lg = taxonomy["localization_granularity"]
-    assert lg["gate_1_verdict"] == "FAIL_BAR_LEVEL"
-    assert lg["tiers"]["single_bar"]["admissible"] is False
+    assert lg["gate_1_verdict"] == "BAR_LEVEL_COVERAGE_DEPENDENT"
     assert lg["tiers"]["whole_piece"]["admissible"] is True
-    assert lg["tiers"]["region"]["reliability"] == "degraded"
-    assert lg["tiers"]["region"]["min_region_bars"] >= 2
+    assert lg["tiers"]["single_bar"]["admissible"] == "conditional_on_coverage"
+    assert lg["tiers"]["region"]["admissible"] == "conditional_on_coverage"
+    gate = lg["coverage_gate"]
+    assert 0.0 < gate["threshold"] <= 1.0
+    assert gate["reason_code"] == "low_coverage"
+    assert "low_coverage" in taxonomy["verdict_spec"]["unverifiable_reason_codes"]
 
 
 def test_dynamics_is_active() -> None:

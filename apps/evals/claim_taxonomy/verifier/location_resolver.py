@@ -20,7 +20,9 @@ class ResolvedRegion:
 class LocationResolver:
     """Maps claim location to audio time range with MC alignment uncertainty."""
 
-    def __init__(self, bundle: dict, engine: SubstrateErrorEngine) -> None:
+    def __init__(
+        self, bundle: dict, engine: SubstrateErrorEngine, min_coverage: float = 0.0
+    ) -> None:
         self._measure_table: dict[int, dict] = {
             int(row["bar_number"]): row
             for row in bundle["measure_table"]
@@ -31,6 +33,23 @@ class LocationResolver:
         self._perf_audio_sec = np.asarray(perf, dtype=np.float64)
         self._score_audio_sec = np.asarray(score, dtype=np.float64)
         self._engine = engine
+        self._min_coverage = min_coverage
+        self._coverage = self._compute_coverage()
+
+    def _compute_coverage(self) -> float:
+        """Fraction of the score-time span covered by the matched anchor range.
+
+        GATE 1 (#100) showed bar localization is reliable only on well-aligned clips;
+        this is the gating statistic (anchor span / measure-table span). Degenerate
+        cases (no span, <2 anchors) return 0.0 so the gate fails closed."""
+        if self._score_audio_sec.size < 2:
+            return 0.0
+        starts = [float(r["start_sec"]) for r in self._measure_table.values()]
+        measure_span = max(starts) - min(starts)
+        if measure_span <= 0:
+            return 1.0  # single-bar / degenerate: other guards handle it
+        anchor_span = float(self._score_audio_sec.max() - self._score_audio_sec.min())
+        return anchor_span / measure_span
 
     def _score_sec_to_audio_sec(self, score_sec: float) -> float:
         if self._perf_audio_sec.size < 2:
@@ -97,6 +116,16 @@ class LocationResolver:
         bar_start = int(location["bar_start"])
         bar_end = int(location["bar_end"])
         location_span_bars = bar_end - bar_start + 1
+
+        # Coverage gate (#100): bar/region localization is only reliable on
+        # well-aligned clips. If the clip's anchor-span coverage is below threshold,
+        # abstain on ALL localized claims (whole_piece is exempt -- handled above).
+        if self._coverage < self._min_coverage:
+            raise UnverifiableError(
+                "low_coverage",
+                f"clip anchor-span coverage {self._coverage:.2f} < threshold "
+                f"{self._min_coverage:.2f}; bar/region localization not admissible",
+            )
 
         start_score_sec = self._bar_start_score_sec(bar_start)
         end_bar = bar_end + 1

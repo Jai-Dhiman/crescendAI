@@ -79,8 +79,13 @@ def verify(
             substrate_versions=substrate_versions, dimension=dimension_name, location=location,
         )
 
+    min_coverage = float(
+        taxonomy.get("localization_granularity", {})
+        .get("coverage_gate", {})
+        .get("threshold", 0.0)
+    )
     try:
-        resolver = LocationResolver(bundle, engine)
+        resolver = LocationResolver(bundle, engine, min_coverage=min_coverage)
         region = resolver.resolve(location)
     except UnverifiableError as e:
         return VerdictResult(
