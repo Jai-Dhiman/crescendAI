@@ -47,7 +47,7 @@ A pure synthesis-time adapter. Takes the full `SynthesisInput` (which has `Enric
 - `chunks_adapted`: each `EnrichedChunk` annotated with `chunk_id = 'chunk:' + chunkIndex` and midi_notes with per-note `bar` injected via the `alignment.perf_index` join
 - `mono_notes_per_bar`: derived from aligned notes, grouped by bar for cross-modal check
 - `now_ms`: `Date.now()` at digest build time
-- `cohort`: cohort mean and stddev per dimension, derived from `COHORT_TABLES` percentiles as `mean = p50`, `stddev = max(0.01, p84 - p50)`
+- `cohort`: cohort mean and stddev per dimension, derived from `COHORT_TABLES` percentiles as `mean = p50`, `stddev = max(0.01, p75 - p50)`
 - `past_diagnoses_grounded`: reshaped from the DO query to include `artifact_id` and `piece_id`
 - `session_means`: per-dimension last-10-session means from a NEW DB query (`AVG(dimension_score) GROUP BY session_id` over `observations` table), or within-session fallback
 - `within_session_means`: per-dimension means computed from this session's chunk scores (always present)
@@ -132,7 +132,7 @@ Molecules receive a non-null `Baseline` in all cases and never throw on thin his
 **Hides:**
 - The `alignment.perf_index` join to annotate each MIDI note with its `bar`
 - The DB query for per-session dimension means (`AVG(dimension_score) GROUP BY session_id`)
-- COHORT_TABLES percentile arithmetic (`p50` as mean, `p84-p50` as stddev)
+- COHORT_TABLES percentile arithmetic (`p50` as mean, `p75-p50` as stddev)
 - `PastDiagnosisRecord` → `GroundedPastDiagnosis` reshaping (adds `artifact_id`, `piece_id`)
 - `within_session_means` computation from chunk MuQ scores
 - `compact_signal_summary` rendering (per-chunk one-liner: bar coverage + 6-vector)
