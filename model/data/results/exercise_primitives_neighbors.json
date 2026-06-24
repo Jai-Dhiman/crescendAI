@@ -35,6 +35,41 @@
     "cosine_distance": 0.025390446186065674
   },
   {
+    "query_id": "beethoven_sonata_001",
+    "neighbor_id": "beethoven_sonata_036",
+    "source_a": "beethoven_sonatas",
+    "source_b": "beethoven_sonatas",
+    "cosine_distance": 0.044312357902526855
+  },
+  {
+    "query_id": "beethoven_sonata_002",
+    "neighbor_id": "beethoven_sonata_070",
+    "source_a": "beethoven_sonatas",
+    "source_b": "beethoven_sonatas",
+    "cosine_distance": 0.04374587535858154
+  },
+  {
+    "query_id": "beethoven_sonata_003",
+    "neighbor_id": "beethoven_sonata_031",
+    "source_a": "beethoven_sonatas",
+    "source_b": "beethoven_sonatas",
+    "cosine_distance": 0.07361513376235962
+  },
+  {
+    "query_id": "beethoven_sonata_004",
+    "neighbor_id": "beethoven_sonata_008",
+    "source_a": "beethoven_sonatas",
+    "source_b": "beethoven_sonatas",
+    "cosine_distance": 0.03507637977600098
+  },
+  {
+    "query_id": "beethoven_sonata_005",
+    "neighbor_id": "beethoven_sonata_036",
+    "source_a": "beethoven_sonatas",
+    "source_b": "beethoven_sonatas",
+    "cosine_distance": 0.0261802077293396
+  },
+  {
     "query_id": "burgmuller_001",
     "neighbor_id": "burgmuller_010",
     "source_a": "burgmuller",
@@ -103,6 +138,41 @@
     "source_a": "chopin",
     "source_b": "chopin",
     "cosine_distance": 0.11277925968170166
+  },
+  {
+    "query_id": "chopin_mazurka_001",
+    "neighbor_id": "chopin_mazurka_038",
+    "source_a": "chopin_mazurkas",
+    "source_b": "chopin_mazurkas",
+    "cosine_distance": 0.06257683038711548
+  },
+  {
+    "query_id": "chopin_mazurka_002",
+    "neighbor_id": "chopin_mazurka_038",
+    "source_a": "chopin_mazurkas",
+    "source_b": "chopin_mazurkas",
+    "cosine_distance": 0.08824914693832397
+  },
+  {
+    "query_id": "chopin_mazurka_003",
+    "neighbor_id": "chopin_mazurka_029",
+    "source_a": "chopin_mazurkas",
+    "source_b": "chopin_mazurkas",
+    "cosine_distance": 0.03199070692062378
+  },
+  {
+    "query_id": "chopin_mazurka_004",
+    "neighbor_id": "chopin_mazurka_021",
+    "source_a": "chopin_mazurkas",
+    "source_b": "chopin_mazurkas",
+    "cosine_distance": 0.030054152011871338
+  },
+  {
+    "query_id": "chopin_mazurka_005",
+    "neighbor_id": "chopin_mazurka_013",
+    "source_a": "chopin_mazurkas",
+    "source_b": "chopin_mazurkas",
+    "cosine_distance": 0.01672351360321045
   },
   {
     "query_id": "czerny_001",
@@ -175,6 +245,111 @@
     "cosine_distance": 0.012023687362670898
   },
   {
+    "query_id": "haydn_sonata_001",
+    "neighbor_id": "haydn_sonata_004",
+    "source_a": "haydn_sonatas",
+    "source_b": "haydn_sonatas",
+    "cosine_distance": 0.04064363241195679
+  },
+  {
+    "query_id": "haydn_sonata_002",
+    "neighbor_id": "haydn_sonata_007",
+    "source_a": "haydn_sonatas",
+    "source_b": "haydn_sonatas",
+    "cosine_distance": 0.0496525764465332
+  },
+  {
+    "query_id": "haydn_sonata_003",
+    "neighbor_id": "haydn_sonata_001",
+    "source_a": "haydn_sonatas",
+    "source_b": "haydn_sonatas",
+    "cosine_distance": 0.08918744325637817
+  },
+  {
+    "query_id": "haydn_sonata_004",
+    "neighbor_id": "haydn_sonata_001",
+    "source_a": "haydn_sonatas",
+    "source_b": "haydn_sonatas",
+    "cosine_distance": 0.04064363241195679
+  },
+  {
+    "query_id": "haydn_sonata_005",
+    "neighbor_id": "haydn_sonata_004",
+    "source_a": "haydn_sonatas",
+    "source_b": "haydn_sonatas",
+    "cosine_distance": 0.04659450054168701
+  },
+  {
+    "query_id": "joplin_001",
+    "neighbor_id": "joplin_036",
+    "source_a": "joplin_rags",
+    "source_b": "joplin_rags",
+    "cosine_distance": 0.07614916563034058
+  },
+  {
+    "query_id": "joplin_002",
+    "neighbor_id": "joplin_004",
+    "source_a": "joplin_rags",
+    "source_b": "joplin_rags",
+    "cosine_distance": 0.04083913564682007
+  },
+  {
+    "query_id": "joplin_003",
+    "neighbor_id": "joplin_034",
+    "source_a": "joplin_rags",
+    "source_b": "joplin_rags",
+    "cosine_distance": 0.055298447608947754
+  },
+  {
+    "query_id": "joplin_004",
+    "neighbor_id": "joplin_002",
+    "source_a": "joplin_rags",
+    "source_b": "joplin_rags",
+    "cosine_distance": 0.04083913564682007
+  },
+  {
+    "query_id": "joplin_005",
+    "neighbor_id": "joplin_029",
+    "source_a": "joplin_rags",
+    "source_b": "joplin_rags",
+    "cosine_distance": 0.016401350498199463
+  },
+  {
+    "query_id": "mozart_sonata_001",
+    "neighbor_id": "mozart_sonata_028",
+    "source_a": "mozart_sonatas",
+    "source_b": "mozart_sonatas",
+    "cosine_distance": 0.023722529411315918
+  },
+  {
+    "query_id": "mozart_sonata_002",
+    "neighbor_id": "mozart_sonata_015",
+    "source_a": "mozart_sonatas",
+    "source_b": "mozart_sonatas",
+    "cosine_distance": 0.06536287069320679
+  },
+  {
+    "query_id": "mozart_sonata_003",
+    "neighbor_id": "mozart_sonata_001",
+    "source_a": "mozart_sonatas",
+    "source_b": "mozart_sonatas",
+    "cosine_distance": 0.029785752296447754
+  },
+  {
+    "query_id": "mozart_sonata_004",
+    "neighbor_id": "mozart_sonata_008",
+    "source_a": "mozart_sonatas",
+    "source_b": "mozart_sonatas",
+    "cosine_distance": 0.031698763370513916
+  },
+  {
+    "query_id": "mozart_sonata_005",
+    "neighbor_id": "mozart_sonata_008",
+    "source_a": "mozart_sonatas",
+    "source_b": "mozart_sonatas",
+    "cosine_distance": 0.05778396129608154
+  },
+  {
     "query_id": "satie_001",
     "neighbor_id": "satie_003",
     "source_a": "satie",
@@ -208,5 +383,40 @@
     "source_a": "satie",
     "source_b": "satie",
     "cosine_distance": 0.05770468711853027
+  },
+  {
+    "query_id": "scarlatti_001",
+    "neighbor_id": "scarlatti_034",
+    "source_a": "scarlatti_sonatas",
+    "source_b": "scarlatti_sonatas",
+    "cosine_distance": 0.053335607051849365
+  },
+  {
+    "query_id": "scarlatti_002",
+    "neighbor_id": "scarlatti_035",
+    "source_a": "scarlatti_sonatas",
+    "source_b": "scarlatti_sonatas",
+    "cosine_distance": 0.0693163275718689
+  },
+  {
+    "query_id": "scarlatti_003",
+    "neighbor_id": "scarlatti_051",
+    "source_a": "scarlatti_sonatas",
+    "source_b": "scarlatti_sonatas",
+    "cosine_distance": 0.04317694902420044
+  },
+  {
+    "query_id": "scarlatti_004",
+    "neighbor_id": "scarlatti_008",
+    "source_a": "scarlatti_sonatas",
+    "source_b": "scarlatti_sonatas",
+    "cosine_distance": 0.0330510139465332
+  },
+  {
+    "query_id": "scarlatti_005",
+    "neighbor_id": "scarlatti_020",
+    "source_a": "scarlatti_sonatas",
+    "source_b": "scarlatti_sonatas",
+    "cosine_distance": 0.03912782669067383
   }
 ]
