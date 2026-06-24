@@ -4,6 +4,7 @@ import {
 	type SynthesisArtifact,
 	SynthesisArtifactSchema,
 } from "../artifacts/synthesis";
+import { buildCompact10ChunkDigest } from "./__test-fixtures__/grounded-digest-fixtures";
 import { buildPhase2Prompt, runPhase2 } from "./phase2";
 import type { CompoundBinding, HookEvent, PhaseContext } from "./types";
 
@@ -157,14 +158,14 @@ describe("buildPhase2Prompt — reflection+prescribe instructions", () => {
 	const diagnoses = [{ id: "d1" }];
 
 	it("instructs headline to be 2-4 sentences ending in one directional question", () => {
-		const prompt = buildPhase2Prompt(digest, diagnoses, "");
+		const prompt = buildPhase2Prompt(digest as never, diagnoses, "");
 		expect(prompt).toContain("2-4 sentences");
 		expect(prompt).toContain("directional question");
 		expect(prompt).toContain("dominant_dimension");
 	});
 
 	it("instructs prescribed_exercise to target dominant_dimension as own_passage_loop or corpus_drill", () => {
-		const prompt = buildPhase2Prompt(digest, diagnoses, "");
+		const prompt = buildPhase2Prompt(digest as never, diagnoses, "");
 		expect(prompt).toContain("prescribed_exercise");
 		expect(prompt).toContain("own_passage_loop");
 		expect(prompt).toContain("corpus_drill");
@@ -176,8 +177,9 @@ describe("buildPhase2Prompt — reflection+prescribe instructions", () => {
 	it("still passes all Task 1 invariants after the new instructions", () => {
 		const guardrail =
 			"This is the student's first session -- describe only what happened within this session; do not reference past sessions or claim improvement over time.";
-		const prompt = buildPhase2Prompt(digest, diagnoses, guardrail);
-		expect(prompt).toContain(JSON.stringify(digest, null, 2));
+		const groundedDigest = buildCompact10ChunkDigest();
+		const prompt = buildPhase2Prompt(groundedDigest, diagnoses, guardrail);
+		expect(prompt).toContain(groundedDigest.compact_signal_summary);
 		expect(prompt).toContain(`(${diagnoses.length})`);
 		expect(prompt).toContain(guardrail);
 		expect(prompt).toContain("write_synthesis_artifact");
@@ -190,28 +192,36 @@ describe("buildPhase2Prompt — current text invariants", () => {
 	const guardrail =
 		"This is the student's first session -- describe only what happened within this session; do not reference past sessions or claim improvement over time.";
 
-	it("contains the digest JSON", () => {
-		const prompt = buildPhase2Prompt(digest, diagnoses, guardrail);
-		expect(prompt).toContain(JSON.stringify(digest, null, 2));
-	});
-
 	it("contains the diagnoses count", () => {
-		const prompt = buildPhase2Prompt(digest, diagnoses, guardrail);
+		const prompt = buildPhase2Prompt(digest as never, diagnoses, guardrail);
 		expect(prompt).toContain(`(${diagnoses.length})`);
 	});
 
 	it("contains the guardrail when provided", () => {
-		const prompt = buildPhase2Prompt(digest, diagnoses, guardrail);
+		const prompt = buildPhase2Prompt(digest as never, diagnoses, guardrail);
 		expect(prompt).toContain(guardrail);
 	});
 
 	it("omits the guardrail when empty string", () => {
-		const prompt = buildPhase2Prompt(digest, diagnoses, "");
+		const prompt = buildPhase2Prompt(digest as never, diagnoses, "");
 		expect(prompt).not.toContain("first session");
 	});
 
 	it("contains the write_synthesis_artifact tool name", () => {
-		const prompt = buildPhase2Prompt(digest, diagnoses, guardrail);
+		const prompt = buildPhase2Prompt(digest as never, diagnoses, guardrail);
 		expect(prompt).toContain("write_synthesis_artifact");
+	});
+});
+
+describe("buildPhase2Prompt — overflow regression (compact_signal_summary)", () => {
+	it("does not contain midi_notes and stays under 15000 chars for a 10-chunk GroundedDigest", () => {
+		const digest = buildCompact10ChunkDigest();
+		const diagnoses = [
+			{ id: "d1", dimension: "dynamics", bar_range: [1, 8] },
+			{ id: "d2", dimension: "phrasing", bar_range: [9, 16] },
+		];
+		const prompt = buildPhase2Prompt(digest, diagnoses, "");
+		expect(prompt).not.toContain("midi_notes");
+		expect(prompt.length).toBeLessThan(15000);
 	});
 });

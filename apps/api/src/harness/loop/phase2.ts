@@ -1,12 +1,13 @@
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { FIRST_SESSION_GUARDRAIL } from "../../services/prompts";
 import { callModel } from "./gateway-client";
+import type { GroundedDigest } from "./grounded-digest";
 import { withRetries } from "./middleware";
 import { routeModel } from "./route-model";
 import type { HookEvent, Phase2Binding, PhaseContext } from "./types";
 
 export function buildPhase2Prompt(
-	digest: Record<string, unknown>,
+	digest: GroundedDigest,
 	diagnoses: unknown[],
 	guardrail: string,
 ): string {
@@ -25,7 +26,7 @@ export function buildPhase2Prompt(
 		"Do NOT put a pieceId in prescribed_exercise — that is bound at the serving layer.\n\n";
 
 	return (
-		`Session digest:\n${JSON.stringify(digest, null, 2)}\n\n` +
+		`Session summary:\n${digest.compact_signal_summary}\n\n` +
 		`Collected diagnoses (${diagnoses.length}):\n${JSON.stringify(diagnoses, null, 2)}\n\n` +
 		guardrail +
 		reflectionInstruction +
@@ -61,7 +62,7 @@ export async function* runPhase2(
 			? `${FIRST_SESSION_GUARDRAIL}\n\n`
 			: "";
 
-	const userPrompt = buildPhase2Prompt(ctx.digest, diagnoses, guardrail);
+	const userPrompt = buildPhase2Prompt(ctx.digest as GroundedDigest, diagnoses, guardrail);
 	const client = routeModel("phase2_voice", ctx.env);
 	const messages: Array<{ role: "user" | "assistant"; content: unknown }> = [
 		{ role: "user", content: userPrompt },
