@@ -45,7 +45,7 @@ def test_dynamics_has_all_active_fields() -> None:
     for field in ("reference", "check", "tolerance", "reliability_tier", "measurement", "minimum_events"):
         assert field in dyn, f"dynamics missing field: {field}"
     assert dyn["tolerance"]["locked"] is False
-    assert dyn["tolerance"]["calibration_source"] == "#65/M1 error-bar study"
+    assert "#101 G-B" in dyn["tolerance"]["calibration_source"]
 
 
 def test_v01_taxonomy_validates_against_schema() -> None:

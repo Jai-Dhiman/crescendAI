@@ -135,19 +135,19 @@
     },
     "dynamics": {
       "status": "active",
-      "reference": "within_region_range",
-      "check": "rms_contour_std_normalized",
+      "reference": "corpus_median_velocity@whole_piece / within_clip_mean@region",
+      "check": "mean_amt_note_velocity_vs_reference",
       "tolerance": {
-        "name": "rms_contour_deviation",
-        "provisional": 1.5,
-        "unit": "dB",
-        "calibration_source": "#65/M1 error-bar study",
+        "name": "velocity_deviation",
+        "provisional": 8.0,
+        "unit": "midi_velocity",
+        "calibration_source": "#101 G-B (AMT velocity, n=180, partial-rho 0.544, ref=51.5); provisional, locked pending front-4 anomaly calibration",
         "locked": false
       },
-      "reliability_tier": 2,
-      "measurement": "librosa_rms_region_estimator",
+      "reliability_tier": 1,
+      "measurement": "amt_note_velocity_estimator",
       "minimum_events": 20,
-      "notes": "RMS-based loudness proxy. Absolute dB inadmissible (uncontrolled recording gain). Within-region dynamic range only. minimum_events = RMS frames at hop_length=512, SR=16000 (~640ms minimum region)."
+      "notes": "Mean AMT note-velocity = perceived-loudness proxy, validated vs PercePiano perceived dynamics at partial-rho 0.544 (n=180, #101 G-B), gain-robust and onset-level. Replaces the perceptually-null, gain-bound librosa-RMS std/range statistic (partial-rho ~0.04). Units: MIDI velocity for BOTH location tiers (one tau). minimum_events = AMT notes. whole_piece reference = corpus-median AMT velocity (51.5, controlled-gain piano-render calibration); region reference = within-clip mean velocity. Scope: controlled-gain audio; AMT velocity calibration on heterogeneous real recordings is a separate G-F question."
     },
     "articulation": {
       "status": "gated_on_measurement",

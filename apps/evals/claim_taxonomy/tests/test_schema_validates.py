@@ -187,8 +187,9 @@ def test_all_tolerances_are_provisional() -> None:
             assert tol["locked"] is False, (
                 f"Dimension '{dim_name}': tolerance must be locked=false (provisional)"
             )
-            assert tol["calibration_source"] == "#65/M1 error-bar study", (
-                f"Dimension '{dim_name}': calibration_source must point to #65/M1"
+            assert isinstance(tol["calibration_source"], str) and "#" in tol["calibration_source"], (
+                f"Dimension '{dim_name}': calibration_source must cite an issue "
+                f"(provisional tolerances stay documented)"
             )
 
 

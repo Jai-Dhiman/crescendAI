@@ -1,19 +1,20 @@
 from __future__ import annotations
-import math
 import numpy as np
 import pytest
-from claim_taxonomy.verifier.measurers.dynamics import DynamicsMeasurer, Measurement
+from claim_taxonomy.verifier.measurers.dynamics import (
+    DynamicsMeasurer,
+    REFERENCE_VELOCITY,
+)
 from claim_taxonomy.verifier.models import UnverifiableError
 from claim_taxonomy.verifier.location_resolver import ResolvedRegion
 from claim_taxonomy.verifier.substrate_error import SubstrateErrorEngine
 
 SR = 16000
-HOP = 512
 
-
-def _sine_audio(freq: float, duration: float, amplitude: float = 0.5) -> np.ndarray:
-    t = np.linspace(0.0, duration, int(SR * duration), endpoint=False)
-    return (np.sin(2 * np.pi * freq * t) * amplitude).astype(np.float32)
+# Dynamics measures mean AMT note-velocity (perceived-loudness proxy), validated
+# against PercePiano perceived dynamics at partial-rho 0.544 (n=180, #101 G-B).
+# Units are MIDI velocity; the signed d feeds the frozen router. These tests pin the
+# sign convention and the substrate (bundle `notes`, NOT librosa RMS).
 
 
 def _make_region(start: float, end: float) -> ResolvedRegion:
@@ -25,102 +26,109 @@ def _make_region(start: float, end: float) -> ResolvedRegion:
     )
 
 
-def _make_bundle(audio: np.ndarray, audio_path: str = "/tmp/test.wav") -> dict:
+def _bundle(velocities, onsets=None) -> dict:
+    """Bundle whose AMT `notes` carry the given per-note velocities (and onsets)."""
+    if onsets is None:
+        onsets = [0.1 * i for i in range(len(velocities))]
+    notes = [
+        {"onset": float(o), "offset": float(o) + 0.2, "pitch": 60, "velocity": int(v)}
+        for o, v in zip(onsets, velocities)
+    ]
     return {
-        "notes": [{"onset": 0.1, "offset": 0.2, "pitch": 60, "velocity": 80}],
+        "notes": notes,
         "pedal_events": [],
         "measure_table": [{"bar_number": 1, "start_sec": 0.0, "start_tick": 0}],
-        "anchors": {"perf_audio_sec": [0.0, len(audio) / SR],
-                    "score_audio_sec": [0.0, len(audio) / SR]},
         "substrate_versions": {"bundle_schema": "v1"},
-        "audio_path": audio_path,
     }
 
 
-def test_flat_audio_region_negative_d(tmp_path) -> None:
-    import soundfile as sf
-    n_total = SR * 20
-    t = np.linspace(0, 20, n_total)
-    amplitude_envelope = 0.1 + 0.8 * (t / 20.0)
-    whole = (np.sin(2 * np.pi * 440 * t) * amplitude_envelope).astype(np.float32)
-    audio_path = tmp_path / "test.wav"
-    sf.write(str(audio_path), whole, SR)
-    bundle = _make_bundle(whole, str(audio_path))
-    engine = SubstrateErrorEngine(seed=42)
-    measurer = DynamicsMeasurer()
-    region = _make_region(start=0.0, end=5.0)
-    result = measurer.measure(location={"bar_start": 1, "bar_end": 3},
-                              bundle=bundle, region=region, engine=engine)
-    assert result.d < 0, f"Flat region should have negative d, got {result.d}"
-
-
-def test_wide_dynamic_region_positive_or_zero_d(tmp_path) -> None:
-    import soundfile as sf
-    n_total = SR * 20
-    whole = (np.sin(2 * np.pi * 440 * np.linspace(0, 20, n_total)) * 0.2).astype(np.float32)
-    n_region = SR * 5
-    t_r = np.linspace(0, 5, n_region)
-    amp_swing = 0.1 + 0.8 * np.abs(np.sin(2 * np.pi * 0.2 * t_r))
-    whole[:n_region] = (np.sin(2 * np.pi * 440 * t_r) * amp_swing).astype(np.float32)
-    audio_path = tmp_path / "test_wide.wav"
-    sf.write(str(audio_path), whole, SR)
-    bundle = _make_bundle(whole, str(audio_path))
-    engine = SubstrateErrorEngine(seed=42)
-    measurer = DynamicsMeasurer()
-    region = _make_region(start=0.0, end=5.0)
-    result = measurer.measure(location={"bar_start": 1, "bar_end": 3},
-                              bundle=bundle, region=region, engine=engine)
-    assert result.d > 0, f"Wide-dynamic region should have positive d, got {result.d}"
-
-
-def test_rms_envelope_injection_recovers_anomaly(tmp_path) -> None:
-    import soundfile as sf
-    n_total = SR * 30
-    audio = np.zeros(n_total, dtype=np.float32)
-    t_all = np.linspace(0, 30, n_total)
-    audio = (np.sin(2 * np.pi * 440 * t_all) * 0.05).astype(np.float32)
-    n_region = SR * 10
-    audio[:n_region] = (np.sin(2 * np.pi * 440 * np.linspace(0, 10, n_region)) * 0.3).astype(np.float32)
-    audio_path = tmp_path / "test_inject.wav"
-    sf.write(str(audio_path), audio, SR)
-    bundle = _make_bundle(audio, str(audio_path))
-    engine = SubstrateErrorEngine(seed=42)
-    measurer = DynamicsMeasurer()
-    region = _make_region(start=0.0, end=10.0)
-    result = measurer.measure(location={"bar_start": 1, "bar_end": 5},
-                              bundle=bundle, region=region, engine=engine)
-    tau = 1.5
-    assert abs(result.d) > tau, (
-        f"RMS injection (6x louder region) should produce |d|>{tau} dB, got d={result.d}"
+def test_whole_piece_loud_positive_d() -> None:
+    # mean velocity well above the neutral reference -> d > 0 (loud/projected)
+    bundle = _bundle([90] * 40)
+    result = DynamicsMeasurer().measure(
+        location="whole_piece", bundle=bundle,
+        region=_make_region(0.0, 10.0), engine=SubstrateErrorEngine(seed=42),
     )
+    assert result.d > 0, f"loud piece should have d>0, got {result.d}"
+    assert result.d == pytest.approx(90.0 - REFERENCE_VELOCITY, abs=1e-6)
 
 
-def test_region_too_short_raises(tmp_path) -> None:
-    import soundfile as sf
-    audio = np.zeros(SR * 10, dtype=np.float32)
-    audio_path = tmp_path / "test_short.wav"
-    sf.write(str(audio_path), audio, SR)
-    bundle = _make_bundle(audio, str(audio_path))
-    engine = SubstrateErrorEngine(seed=42)
-    measurer = DynamicsMeasurer()
-    region = _make_region(start=0.0, end=0.3)
-    with pytest.raises(UnverifiableError) as exc_info:
-        measurer.measure(location={"bar_start": 1, "bar_end": 1},
-                         bundle=bundle, region=region, engine=engine)
-    assert exc_info.value.reason_code == "region_too_short"
+def test_whole_piece_soft_negative_d() -> None:
+    # mean velocity well below the neutral reference -> d < 0 (soft/flat)
+    bundle = _bundle([28] * 40)
+    result = DynamicsMeasurer().measure(
+        location="whole_piece", bundle=bundle,
+        region=_make_region(0.0, 10.0), engine=SubstrateErrorEngine(seed=42),
+    )
+    assert result.d < 0, f"soft piece should have d<0, got {result.d}"
 
 
-def test_error_bar_positive(tmp_path) -> None:
-    import soundfile as sf
-    n_total = SR * 20
-    audio = (np.sin(2 * np.pi * 440 * np.linspace(0, 20, n_total)) * 0.3).astype(np.float32)
-    audio_path = tmp_path / "test_eb.wav"
-    sf.write(str(audio_path), audio, SR)
-    bundle = _make_bundle(audio, str(audio_path))
-    engine = SubstrateErrorEngine(seed=42)
-    measurer = DynamicsMeasurer()
-    region = _make_region(start=0.0, end=10.0)
-    result = measurer.measure(location={"bar_start": 1, "bar_end": 5},
-                              bundle=bundle, region=region, engine=engine)
+def test_whole_piece_signed_anomaly_is_reachable() -> None:
+    # the OLD std/range statistic could never exceed tau=1.5dB; the velocity statistic
+    # must be able to clear a velocity-unit tau in BOTH directions (non-degeneracy).
+    tau = 8.0
+    loud = DynamicsMeasurer().measure(
+        location="whole_piece", bundle=_bundle([95] * 40),
+        region=_make_region(0.0, 10.0), engine=SubstrateErrorEngine(seed=42),
+    )
+    soft = DynamicsMeasurer().measure(
+        location="whole_piece", bundle=_bundle([25] * 40),
+        region=_make_region(0.0, 10.0), engine=SubstrateErrorEngine(seed=42),
+    )
+    assert loud.d > tau, f"loud d should exceed +tau, got {loud.d}"
+    assert soft.d < -tau, f"soft d should fall below -tau, got {soft.d}"
+
+
+def test_region_louder_than_piece_positive_d() -> None:
+    # first 20 notes (region) loud, rest soft -> region mean > piece mean -> d>0
+    vel = [95] * 20 + [40] * 30
+    onsets = [0.1 * i for i in range(20)] + [10.0 + 0.1 * i for i in range(30)]
+    bundle = _bundle(vel, onsets)
+    result = DynamicsMeasurer().measure(
+        location={"bar_start": 1, "bar_end": 3}, bundle=bundle,
+        region=_make_region(0.0, 5.0), engine=SubstrateErrorEngine(seed=42),
+    )
+    assert result.d > 0, f"loud region should have d>0, got {result.d}"
+
+
+def test_region_softer_than_piece_negative_d() -> None:
+    vel = [35] * 20 + [90] * 30
+    onsets = [0.1 * i for i in range(20)] + [10.0 + 0.1 * i for i in range(30)]
+    bundle = _bundle(vel, onsets)
+    result = DynamicsMeasurer().measure(
+        location={"bar_start": 1, "bar_end": 3}, bundle=bundle,
+        region=_make_region(0.0, 5.0), engine=SubstrateErrorEngine(seed=42),
+    )
+    assert result.d < 0, f"soft region should have d<0, got {result.d}"
+
+
+def test_whole_piece_too_few_notes_raises() -> None:
+    with pytest.raises(UnverifiableError) as exc:
+        DynamicsMeasurer().measure(
+            location="whole_piece", bundle=_bundle([60] * 5),
+            region=_make_region(0.0, 10.0), engine=SubstrateErrorEngine(seed=42),
+        )
+    assert exc.value.reason_code == "region_too_short"
+
+
+def test_region_too_few_notes_raises() -> None:
+    # 40 notes total but only a handful land in the region window
+    vel = [60] * 40
+    onsets = [0.05 * i for i in range(40)]  # all within first 2s
+    bundle = _bundle(vel, onsets)
+    with pytest.raises(UnverifiableError) as exc:
+        DynamicsMeasurer().measure(
+            location={"bar_start": 1, "bar_end": 3}, bundle=bundle,
+            region=_make_region(5.0, 10.0), engine=SubstrateErrorEngine(seed=42),
+        )
+    assert exc.value.reason_code == "region_too_short"
+
+
+def test_error_bar_positive_and_event_count() -> None:
+    bundle = _bundle([70] * 40)
+    result = DynamicsMeasurer().measure(
+        location="whole_piece", bundle=bundle,
+        region=_make_region(0.0, 10.0), engine=SubstrateErrorEngine(seed=42),
+    )
     assert result.error_bar >= 0.0
-    assert result.event_count >= 20
+    assert result.event_count == 40
