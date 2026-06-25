@@ -197,6 +197,20 @@ catalog-add-kernscores:
     just fingerprint
     cd model && echo "Catalog size: $(find data/scores -maxdepth 1 -name '*.json' ! -name titles.json | wc -l | tr -d ' ') score JSONs"
 
+# Acquire the Mutopia second-wave keyboard corpus (clone sources + polite download).
+catalog-acquire-mutopia:
+    bash model/src/score_library/acquire_mutopia.sh
+
+# Add net-new Mutopia keyboard pieces to the catalog: instrument-filter ->
+# content semantic dedup vs existing catalog -> self-consistency ingest ->
+# re-fingerprint. Run `just catalog-acquire-mutopia` first.
+catalog-add-mutopia:
+    cd model && uv run python -m score_library.mutopia_filter
+    cd model && uv run python -m score_library.mutopia_dedup
+    cd model && uv run python -m score_library.mutopia_ingest
+    just fingerprint
+    cd model && echo "Catalog size: $(find data/scores -maxdepth 1 -name '*.json' ! -name titles.json | wc -l | tr -d ' ') score JSONs"
+
 # Run model tests
 test-model:
     cd model && uv run python -m pytest tests/ -v
