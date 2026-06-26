@@ -159,6 +159,23 @@ build-catalog-mxl:
 render-kern-mei:
     cd model && uv run python -m score_library.render_kern_assets
 
+# Stage net-new KernScores canon collections (Hummel preludes, Bach Art of the
+# Fugue, Scriabin solo piano) as per-piece MIDI under
+# ~/crescendai_corpus_staging/kernscores_midi/<repo>/ for catalog ingest. The
+# until-loop is segfault-resume: Verovio's Humdrum importer SIGSEGVs on a few
+# pathological **kern files, so each crash promotes that file to a permanent
+# `.segfault` skip-marker and the next iteration resumes past it. Clone the
+# repos first (the module aborts loudly if a clone is missing).
+catalog-stage-kernscores:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    cd model
+    n=0
+    until uv run python -m score_library.kernscores_stage; do
+        n=$((n+1)); echo "  [restart $n] Verovio SIGSEGV -- resuming past marked file"
+        [ "$n" -ge 60 ] && { echo "ABORT: too many segfault restarts ($n)" >&2; exit 1; }
+    done
+
 # Expand the piece-ID catalog with the on-disk KernScores sonata/prelude
 # collections (Beethoven/Mozart/Haydn/Chopin-preludes): content-dedup vs the
 # existing catalog (chroma->elastic-DTW, threshold 0.2885) -> self-consistency

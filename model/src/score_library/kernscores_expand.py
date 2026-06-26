@@ -75,6 +75,22 @@ def _chopin_prelude_piece_id(stem: str) -> str:
     return f"chopin.preludes.{_sanitize(stem)}"
 
 
+def _hummel_prelude_piece_id(stem: str) -> str:
+    """e.g. 'prelude67-07' -> 'hummel.preludes.prelude67_07'."""
+    return f"hummel.preludes.{_sanitize(stem)}"
+
+
+def _artfugue_piece_id(stem: str) -> str:
+    """e.g. 'artfugue-014' -> 'bach.art_of_fugue.artfugue_014'."""
+    return f"bach.art_of_fugue.{_sanitize(stem)}"
+
+
+def _scriabin_piece_id(stem: str) -> str:
+    """e.g. 'scriabin-op14_no02' -> 'scriabin.op14_no02'."""
+    body = re.sub(r"^scriabin[-_]", "", stem, flags=re.IGNORECASE)
+    return f"scriabin.{_sanitize(body)}"
+
+
 # ---------------------------------------------------------------------------
 # Shared internals
 # ---------------------------------------------------------------------------
@@ -249,6 +265,9 @@ _COLLECTIONS = [
     ("mozart-piano-sonatas", "Mozart", _mozart_sonata_piece_id),
     ("haydn-keyboard-sonatas", "Haydn", _haydn_sonata_piece_id),
     ("chopin-preludes", "Chopin", _chopin_prelude_piece_id),
+    ("hummel-preludes", "Hummel", _hummel_prelude_piece_id),
+    ("art-of-the-fugue", "Bach", _artfugue_piece_id),
+    ("scriabin", "Scriabin", _scriabin_piece_id),
 ]
 
 

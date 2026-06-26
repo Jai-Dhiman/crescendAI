@@ -31,10 +31,13 @@ from score_library.kernscores_bulk import (
     _scarlatti_piece_id,
 )
 from score_library.kernscores_expand import (
+    _artfugue_piece_id,
     _beethoven_sonata_piece_id,
     _chopin_prelude_piece_id,
     _haydn_sonata_piece_id,
+    _hummel_prelude_piece_id,
     _mozart_sonata_piece_id,
+    _scriabin_piece_id,
 )
 
 _MODEL_ROOT = Path(__file__).resolve().parents[2]
@@ -42,14 +45,19 @@ _SCORES_DIR = _MODEL_ROOT / "data" / "scores"
 _MEI_OUT = _MODEL_ROOT / "scores" / "v1"
 _KERN_CLONE = Path(os.environ.get("KERNSCORES_CLONE_DIR", str(Path.home() / "crescendai_corpus_staging" / "kernscores")))
 
+# (repo, piece_id_fn, kern_glob) -- kern_glob is relative to the repo root and
+# defaults to "kern/*.krn"; scriabin nests its **kern by opus instead.
 _COLLECTIONS = [
-    ("joplin", _joplin_piece_id),
-    ("scarlatti-keyboard-sonatas", _scarlatti_piece_id),
-    ("chopin-mazurkas", _chopin_mazurka_piece_id),
-    ("beethoven-piano-sonatas", _beethoven_sonata_piece_id),
-    ("mozart-piano-sonatas", _mozart_sonata_piece_id),
-    ("haydn-keyboard-sonatas", _haydn_sonata_piece_id),
-    ("chopin-preludes", _chopin_prelude_piece_id),
+    ("joplin", _joplin_piece_id, "kern/*.krn"),
+    ("scarlatti-keyboard-sonatas", _scarlatti_piece_id, "kern/*.krn"),
+    ("chopin-mazurkas", _chopin_mazurka_piece_id, "kern/*.krn"),
+    ("beethoven-piano-sonatas", _beethoven_sonata_piece_id, "kern/*.krn"),
+    ("mozart-piano-sonatas", _mozart_sonata_piece_id, "kern/*.krn"),
+    ("haydn-keyboard-sonatas", _haydn_sonata_piece_id, "kern/*.krn"),
+    ("chopin-preludes", _chopin_prelude_piece_id, "kern/*.krn"),
+    ("hummel-preludes", _hummel_prelude_piece_id, "kern/*.krn"),
+    ("art-of-the-fugue", _artfugue_piece_id, "kern/*.krn"),
+    ("scriabin", _scriabin_piece_id, "op*/*.krn"),
 ]
 
 
@@ -78,11 +86,10 @@ def main() -> None:
 
     rendered = resumed = no_catalog = 0
     failures: list[tuple[str, str]] = []
-    for repo, pid_fn in _COLLECTIONS:
-        kern_dir = _KERN_CLONE / repo / "kern"
-        krns = sorted(kern_dir.glob("*.krn"))
+    for repo, pid_fn, kern_glob in _COLLECTIONS:
+        krns = sorted((_KERN_CLONE / repo).glob(kern_glob))
         if not krns:
-            raise SystemExit(f"ABORT: no .krn in {kern_dir}")
+            raise SystemExit(f"ABORT: no .krn matched {repo}/{kern_glob}")
         repo_ok = repo_pieces = 0
         for krn in krns:
             try:
@@ -95,7 +102,21 @@ def main() -> None:
             dest = _MEI_OUT / f"{pid}.mei"
             if dest.exists():
                 resumed += 1; repo_ok += 1; continue
+            # Segfault-resume: Verovio's getMEI() SIGSEGVs on a few pathological
+            # **kern. A try/except cannot catch a SIGSEGV, so an `.inprogress`
+            # sentinel left over from the prior run identifies the crasher and
+            # promotes it to a permanent `.segfault` skip-marker (surfaced as a
+            # failure). Drive to completion with an until-loop (the recipe does).
+            segfault_marker = _MEI_OUT / f"{pid}.mei.segfault"
+            inprogress = _MEI_OUT / f"{pid}.mei.inprogress"
+            if segfault_marker.exists():
+                failures.append((pid, "SIGSEGV (skipped)")); continue
+            if inprogress.exists():
+                inprogress.rename(segfault_marker)
+                failures.append((pid, "SIGSEGV (skipped)")); continue
+            inprogress.write_bytes(b"")
             ok, err = _kern_to_mei(krn, dest)
+            inprogress.unlink(missing_ok=True)
             if ok:
                 repo_ok += 1; rendered += 1
             else:
