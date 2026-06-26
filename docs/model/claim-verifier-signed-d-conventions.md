@@ -370,6 +370,53 @@ pedaling-presence are the parts that ARE solid.
 
 ---
 
+## GATE 3 UPDATE (#101, 2026-06-26): dynamics rescued — degeneracy was the statistic, not the dimension
+
+The "dynamics ± → 0% by construction" degeneracy above is **superseded**. It was an artifact of the
+*chosen statistic* (`std/range`, a non-negative unitless dispersion measure against a dB tau), not a
+property of the dimension. Replacing it closed both hard gates for dynamics@whole_piece.
+
+**The empirical chain (all measured, not assumed):**
+1. *Statistic sweep* (PercePiano, n=1202, halo-controlled partial-ρ vs perceived dynamics): every
+   **gain-invariant** statistic fails the ~0.5 ceiling (std +0.04, range −0.01, IQR −0.05, crest
+   −0.09, dB-range −0.34 wrong-signed); every **passing** statistic is gain-bound *level*
+   (mean-velocity +0.562, median +0.533, soft-floor +0.523, mean-dB +0.558). The old `std/range`
+   sits at perceptual-null (+0.042). **Perceived "dynamics" is a loudness-LEVEL judgment, not a
+   contrast/spread one** (a publishable sub-finding).
+2. *Substrate trap*: absolute audio level is recording-gain-bound (the headline corpus is heterogeneous
+   YouTube audio → gain = mastering artifact, not the pianist), and frame-RMS conflates strike velocity
+   with note density (rendered-audio mean-RMS partial-ρ only +0.16). Neither is usable.
+3. *The bridge*: the verifier bundle already carries AMT-transcribed `notes` with per-note **velocity**
+   — an onset-level, density-free, gain-robust analog of the GATE-2-validated mean velocity. **The
+   transcription model's auxiliary velocity head is itself a non-LLM perceptual measurement** (stays
+   inside the non-circularity rule).
+
+**G-B (perceptual validity, end-to-end on rendered audio).** Fixed-gain piano render (fluidsynth +
+MuseScore_General.sf3) → aria-amt → mean note-velocity, correlated vs PercePiano perceived dynamics:
+**partial-ρ 0.544, n=180, 95% CI [0.417, 0.655]** — at the inter-rater ceiling and *statistically
+indistinguishable from ground-truth MIDI velocity* (0.525). AMT↔GT velocity 0.965 (loudness order
+preserved; the RMS density/normalize failure mode is dead). AMT transcription noise costs only ~0.05
+partial-ρ. Report: `model/data/results/gb_amt_velocity_gate.json`.
+
+**G-A (non-degeneracy, construction-known).** Velocity-scaling corruption ×{0.55, 1.0, 1.45} → render
+→ AMT → the *real* `DynamicsMeasurer` + *frozen* `route_verdict` (n=30): monotonicity 30/30 (median d
+−23.8 / −0.9 / +17.9), performance-flip **0.85** (≥0.80), polarity-shuffle collapse **0.22** (≥0.20,
+aligned 0.85 → shuffled 0.37). Report: `model/data/results/ga_dynamics_velocities.json`.
+
+**Production change** (commit on `issue-101-dynamics-signed-level`): `measurers/dynamics.py`
+whole_piece `d = mean(bundle note velocities) − 51.5` (corpus-median ref); region
+`d = mean(region vel) − mean(all vel)`. **Velocity units for BOTH tiers** (one tau — fixed a latent
+unit-mismatch where region was dB and whole_piece unitless). librosa/RMS removed. `verdict_dispatch.py`
+untouched (frozen). Taxonomy tolerance → `provisional 8.0, unit midi_velocity, locked:false`.
+
+**Net GATE-3 reality now:** pedaling-presence (solid) **+ dynamics-level (G-A+G-B pass)** are real
+signals; only **timing@whole_piece remains degenerate**. Residual dynamics caveats: tau=8 is provisional
+(front 4 calibrates — drives the flip⁺ 22/30 < flip⁻ 29/30 asymmetry), error bar uses an *assumed*
+velocity-quantization jitter (front 5 / G-C measures the real AMT churn), and the scope is controlled-gain
+audio (AMT velocity calibration on heterogeneous real recordings is a separate G-F question).
+
+---
+
 ## Path #1 operating mode and hard gates (#101)
 
 **Operating mode (re-scoped 2026-06-24).** Open-ended, no time limit. The fixed M0–M3 timeline in the
@@ -388,12 +435,14 @@ domain* (music as the existence proof). **No paper is drafted until every hard g
   chance (proposal: shifts |rate−0.5| by ≥0.20); (ii) *performance-flip sensitivity* — on
   corruption-harness clean-vs-corrupted pairs, the verdict flips in the expected direction in ≥0.80
   of construction-known cases. A dimension whose verdict is unmoved by either control FAILS.
-  *Status: pedaling provisional-pass; dynamics + timing FAIL (degenerate).*
+  *Status: pedaling provisional-pass; **dynamics PASS** (#101: performance-flip 0.85, polarity-shuffle
+  collapse 0.22, monotonicity 30/30 — see GATE 3 UPDATE below); timing FAIL (degenerate).*
 - **G-B — Perceptual validity of the EXACT statistic.** The specific statistic the verifier checks
   (not a cousin) clears halo-controlled partial-Spearman ≥ the measured PercePiano inter-rater
   ceiling (~0.5) on its perceptual dimension, p<1e-6. *Status: pedaling-presence PASS (0.478);
-  dynamics FAILS as written (verifier checks dispersion; GATE 2 validated level) → switch statistic
-  then re-test; timing FAILS (0.25) → out unless a new proxy passes.*
+  **dynamics PASS** (#101: switched the statistic to mean AMT note-velocity → partial-Spearman 0.544,
+  n=180, 95% CI [0.417, 0.655], indistinguishable from ground-truth MIDI velocity 0.525 — see GATE 3
+  UPDATE below); timing FAILS (0.25) → out unless a new proxy passes.*
 - **G-C — Empirical (not assumed) error bars.** Substrate error per dimension MEASURED by
   re-transcribe→re-measure variance over ≥10 clips; the near-threshold dead-band set to ≥ the
   measured 1σ. No assumed-noise error bars in the headline. *Status: not started.*
