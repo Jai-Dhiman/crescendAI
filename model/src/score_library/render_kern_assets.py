@@ -30,6 +30,12 @@ from score_library.kernscores_bulk import (
     _joplin_piece_id,
     _scarlatti_piece_id,
 )
+from score_library.kernscores_expand import (
+    _beethoven_sonata_piece_id,
+    _chopin_prelude_piece_id,
+    _haydn_sonata_piece_id,
+    _mozart_sonata_piece_id,
+)
 
 _MODEL_ROOT = Path(__file__).resolve().parents[2]
 _SCORES_DIR = _MODEL_ROOT / "data" / "scores"
@@ -40,6 +46,10 @@ _COLLECTIONS = [
     ("joplin", _joplin_piece_id),
     ("scarlatti-keyboard-sonatas", _scarlatti_piece_id),
     ("chopin-mazurkas", _chopin_mazurka_piece_id),
+    ("beethoven-piano-sonatas", _beethoven_sonata_piece_id),
+    ("mozart-piano-sonatas", _mozart_sonata_piece_id),
+    ("haydn-keyboard-sonatas", _haydn_sonata_piece_id),
+    ("chopin-preludes", _chopin_prelude_piece_id),
 ]
 
 

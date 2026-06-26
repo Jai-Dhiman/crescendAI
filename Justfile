@@ -159,6 +159,17 @@ build-catalog-mxl:
 render-kern-mei:
     cd model && uv run python -m score_library.render_kern_assets
 
+# Expand the piece-ID catalog with the on-disk KernScores sonata/prelude
+# collections (Beethoven/Mozart/Haydn/Chopin-preludes): content-dedup vs the
+# existing catalog (chroma->elastic-DTW, threshold 0.2885) -> self-consistency
+# ingest of net-new works -> MEI render -> re-fingerprint. Run
+# `just corpus-acquire-kernscores` first to populate the .krn + MIDI staging.
+catalog-expand-kernscores:
+    cd model && uv run python -m score_library.kernscores_expand
+    just render-kern-mei
+    just fingerprint
+    cd model && echo "Catalog size: $(find data/scores -maxdepth 1 -name '*.json' ! -name titles.json | wc -l | tr -d ' ') score JSONs"
+
 # Seed the committed exercise-primitive .mxl assets into LOCAL wrangler R2 at
 # scores/v1/{primitive_id}.mxl so the UNCHANGED GET /api/scores/:pieceId/data
 # endpoint serves them for corpus_drill rendering. Flat keyspace: primitive ids
