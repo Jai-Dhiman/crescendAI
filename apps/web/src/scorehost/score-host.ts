@@ -122,14 +122,23 @@ function getContainer(): HTMLElement {
 
 async function fetchScoreBytes(pieceId: string): Promise<ArrayBuffer> {
   const apiBase = (window as unknown as { __SCOREHOST_API_BASE?: string }).__SCOREHOST_API_BASE;
-  const url = apiBase
-    ? `${apiBase}/api/scores/${pieceId}/data`
-    : `./scores/${pieceId}.mxl`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch score for ${pieceId}: HTTP ${res.status}`);
+  // The API endpoint resolves the format itself (MEI preferred, MusicXML
+  // fallback). For the bundled path we try the PD-clean .mei first, then the
+  // legacy .mxl; Verovio's loadData auto-detects either.
+  if (apiBase) {
+    const res = await fetch(`${apiBase}/api/scores/${pieceId}/data`);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch score for ${pieceId}: HTTP ${res.status}`);
+    }
+    return res.arrayBuffer();
   }
-  return res.arrayBuffer();
+  for (const ext of ["mei", "mxl"]) {
+    const res = await fetch(`./scores/${pieceId}.${ext}`);
+    if (res.ok) {
+      return res.arrayBuffer();
+    }
+  }
+  throw new Error(`Failed to fetch score for ${pieceId}: no .mei or .mxl asset`);
 }
 
 async function ensureLoaded(pieceId: string): Promise<void> {

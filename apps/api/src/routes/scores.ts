@@ -24,10 +24,10 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 		validate("param", z.object({ pieceId: z.string().min(1) })),
 		async (c) => {
 			const { pieceId } = c.req.valid("param");
-			const object = await getPieceData(c.env, pieceId);
+			const { object, contentType } = await getPieceData(c.env, pieceId);
 			return new Response(object.body, {
 				headers: {
-					"Content-Type": "application/vnd.recordare.musicxml+zip",
+					"Content-Type": contentType,
 					"Cache-Control": "public, max-age=31536000, immutable",
 				},
 			});

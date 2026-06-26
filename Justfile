@@ -151,6 +151,14 @@ corpus-segment-manifest:
 build-catalog-mxl:
     cd model && uv run python -m score_library.render_assets
 
+# Render PD-clean MEI for the catalog's KernScores pieces (Joplin/Scarlatti/
+# Chopin-mazurkas) via Verovio's native Humdrum importer (~100% yield vs ~46%
+# through partitura->MusicXML). Output: model/scores/v1/<piece_id>.mei
+# (gitignored, regenerable). The API serves .mei in preference to .mxl. Run
+# `just corpus-acquire-kernscores` first to populate the .krn clone.
+render-kern-mei:
+    cd model && uv run python -m score_library.render_kern_assets
+
 # Seed the committed exercise-primitive .mxl assets into LOCAL wrangler R2 at
 # scores/v1/{primitive_id}.mxl so the UNCHANGED GET /api/scores/:pieceId/data
 # endpoint serves them for corpus_drill rendering. Flat keyspace: primitive ids

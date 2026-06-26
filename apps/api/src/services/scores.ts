@@ -27,12 +27,21 @@ export async function getPiece(ctx: ServiceContext, pieceId: string) {
 	return row[0];
 }
 
-export async function getPieceData(env: Bindings, pieceId: string) {
-	const object = await env.SCORES.get(`scores/v1/${pieceId}.mxl`);
+// Render assets live under scores/v1/ in two formats: PD-clean Verovio MEI
+// (.mei, preferred) and legacy ASAP MusicXML (.mxl). Verovio renders both, so
+// we prefer the clean MEI and fall back to the MusicXML zip.
+const SCORE_FORMATS = [
+	{ ext: "mei", contentType: "application/mei+xml" },
+	{ ext: "mxl", contentType: "application/vnd.recordare.musicxml+zip" },
+] as const;
 
-	if (object === null) {
-		throw new NotFoundError("piece data", pieceId);
+export async function getPieceData(env: Bindings, pieceId: string) {
+	for (const { ext, contentType } of SCORE_FORMATS) {
+		const object = await env.SCORES.get(`scores/v1/${pieceId}.${ext}`);
+		if (object !== null) {
+			return { object, contentType };
+		}
 	}
 
-	return object;
+	throw new NotFoundError("piece data", pieceId);
 }
