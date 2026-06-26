@@ -13,7 +13,7 @@ def _build_registry():
     return {
         "amt_onsets_region_tempo_fit": TimingMeasurer(),
         "amt_sustain_pedal_events": PedalingMeasurer(),
-        "librosa_rms_region_estimator": DynamicsMeasurer(),
+        "amt_note_velocity_estimator": DynamicsMeasurer(),
     }
 
 

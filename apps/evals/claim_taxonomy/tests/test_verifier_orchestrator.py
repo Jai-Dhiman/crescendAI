@@ -211,6 +211,44 @@ def test_dynamics_active_after_v01_returns_non_gated(tmp_path) -> None:
     assert result.reason_code != "gated_dim", "dynamics should not return gated_dim after v0.1"
 
 
+def test_all_active_measurement_keys_registered() -> None:
+    """Every active dimension's taxonomy 'measurement' key must exist in the orchestrator
+    measurer registry. Otherwise verify() silently returns substrate_failure for that whole
+    dimension. Regression guard for the dynamics measurement-key rename (#101)."""
+    from claim_taxonomy.verifier.orchestrator import _build_registry
+    taxonomy = _load_taxonomy()
+    registry = _build_registry()
+    for name, dim in taxonomy["dimensions"].items():
+        if dim.get("status") == "active":
+            assert dim["measurement"] in registry, (
+                f"active dimension '{name}' measurement '{dim['measurement']}' "
+                f"is not in the measurer registry {sorted(registry)}"
+            )
+
+
+def test_dynamics_measures_velocity_end_to_end() -> None:
+    """Full pipeline: a loud bundle (mean velocity 80 >> ref 51.5) with a '+' dynamics claim
+    must be adjudicated ON THE MEASUREMENT (SUPPORTED), not fall through to
+    substrate_failure/region_too_short. Exercises the taxonomy->registry->measurer->router
+    path that the DynamicsMeasurer unit tests bypass (#101)."""
+    taxonomy = _load_taxonomy()
+    if taxonomy["dimensions"]["dynamics"]["status"] != "active":
+        pytest.skip("dynamics not active")
+    bundle = _make_timing_bundle(n_notes=100)  # 100 notes @ velocity 80
+    claim = {
+        "proposition": "Your dynamics were strong and projected",
+        "dimension": "dynamics",
+        "location": "whole_piece",
+        "polarity": "+",
+        "magnitude": None,
+    }
+    result = verify(claim, bundle, taxonomy, engine=SubstrateErrorEngine(seed=42))
+    assert result.reason_code not in ("substrate_failure", "gated_dim", "out_of_scope_dim"), \
+        f"dynamics dispatch broken: {result.reason_code}"
+    assert result.verdict == "SUPPORTED", f"{result.verdict} / {result.reason_code}"
+    assert result.units == "midi_velocity"
+
+
 def test_unlocalizable_claim_returns_unverifiable() -> None:
     taxonomy = _load_taxonomy()
     bundle = _make_timing_bundle(n_notes=100)
