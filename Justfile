@@ -82,6 +82,26 @@ seed-scores:
         cd apps/api && wrangler r2 object put "crescendai-bucket/$key" --file="../../$f" --local && cd ../..
     done
 
+# Seed PD-clean Verovio MEI render assets (model/scores/v1/*.mei) into R2 at
+# scores/v1/<piece_id>.mei (the format getPieceData prefers). `mode` is "local"
+# (wrangler dev) or "remote" (PROD R2 -- authorized for PD-clean MEI only;
+# never seed the CC-BY-NC ASAP .mxl to prod). Optional `filter` seeds only
+# piece_ids with that prefix (e.g. `just seed-mei remote scriabin.`) so a
+# catalog increment can push just its new assets instead of all 472.
+seed-mei mode="local" filter="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    flag="--local"; [ "{{mode}}" = "remote" ] && flag="--remote"
+    count=0
+    for f in model/scores/v1/*.mei; do
+        base="$(basename "$f")"
+        if [ -n "{{filter}}" ] && [[ "$base" != "{{filter}}"* ]]; then continue; fi
+        cd apps/api && wrangler r2 object put "crescendai-bucket/scores/v1/$base" \
+            --file="../../$f" --content-type "application/mei+xml" $flag >/dev/null && cd ../..
+        count=$((count+1))
+    done
+    echo "Seeded $count .mei into $flag R2 (filter='{{filter}}')."
+
 # Generate the v2 piece-ID index (chroma + chord-events) from the score library
 fingerprint:
     cd model && uv run python -m score_library.cli fingerprint --scores-dir data/scores --output-dir data/fingerprints
