@@ -120,16 +120,23 @@ def build_catalog(note_cap: int, scores_dir: Path = _SCORES_DIR,
     return catalog
 
 
-def load_dedup_manifest(path: Path) -> tuple[set[str], dict[str, str]]:
-    """Return (drop_ids, remap drop_id -> cluster keep) from a dedup_scan manifest."""
+def load_dedup_manifest(path: Path, high_confidence_only: bool = True) -> tuple[set[str], dict[str, str]]:
+    """Return (drop_ids, remap drop_id -> cluster keep) from a dedup_scan manifest.
+
+    By default masks only the HIGH-confidence drops (tight cost <=0.2885), the set
+    safe to auto-apply; the medium AMT-near-dup tier (0.2885-0.40) is a review pool,
+    not masked, to avoid corrupting the re-measure by dropping genuinely distinct pieces.
+    """
     body = json.loads(path.read_text())
-    drop: set[str] = set()
     remap: dict[str, str] = {}
     for cl in body.get("clusters", []):
-        keep = cl["keep"]
         for d in cl.get("drop", []):
-            drop.add(d)
-            remap[d] = keep
+            remap[d] = cl["keep"]
+    if high_confidence_only and "high_confidence_drops" in body:
+        drop = set(body["high_confidence_drops"])
+        remap = {d: k for d, k in remap.items() if d in drop}
+    else:
+        drop = set(remap)
     return drop, remap
 
 

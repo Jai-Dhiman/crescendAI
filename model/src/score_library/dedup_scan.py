@@ -72,23 +72,6 @@ def _keep_rank(pid: str, n_notes: int) -> tuple[int, int]:
     return (_SOURCE_RANK.get(_source(pid), 2), n_notes)
 
 
-class _UnionFind:
-    def __init__(self) -> None:
-        self.parent: dict[str, str] = {}
-
-    def find(self, x: str) -> str:
-        self.parent.setdefault(x, x)
-        while self.parent[x] != x:
-            self.parent[x] = self.parent[self.parent[x]]
-            x = self.parent[x]
-        return x
-
-    def union(self, a: str, b: str) -> None:
-        ra, rb = self.find(a), self.find(b)
-        if ra != rb:
-            self.parent[ra] = rb
-
-
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--note-cap", type=int, default=600)
@@ -107,79 +90,81 @@ def main() -> None:
             catalog[p.stem] = notes
     _log(f"catalog: {len(catalog)} pieces [{time.time()-t0:.1f}s]")
 
-    chroma = _RunningChromaIndex(catalog)
     gate = ElasticGate(catalog)
     qvecs = {pid: chroma_vector(notes) for pid, notes in catalog.items()}
     events = {pid: _notes_to_events(notes) for pid, notes in catalog.items()}
     n_notes = {pid: len(notes) for pid, notes in catalog.items()}
     _log(f"indexed [{time.time()-t0:.1f}s]")
 
-    uf = _UnionFind()
-    edges: list[tuple[str, str, float]] = []
-    seen_pairs: set[tuple[str, str]] = set()
-    ids = list(catalog)
+    # GREEDY NEAREST-KEEP (no transitive chaining -> no bogus mega-clusters).
+    # Process pieces in keep-priority order (engraved > pdmx > giantmidi, then most
+    # notes). A piece is DROPPED iff it DIRECTLY matches an already-kept piece within
+    # the (source-aware) pair threshold; the matched keep is its single parent. Each
+    # drop therefore has one concrete, auditable reason -- not a chain of weak links.
+    order = sorted(catalog, key=lambda p: _keep_rank(p, n_notes[p]), reverse=True)
+    kept_index = _RunningChromaIndex({})  # grows as we keep pieces
+    drop_parent: dict[str, tuple[str, float]] = {}  # drop_id -> (keep_id, cost)
+    children: dict[str, list[list]] = collections.defaultdict(list)  # keep -> [[drop,cost],...]
+    n_kept = 0
     t1 = time.time()
-    for i, pid in enumerate(ids):
+    for i, pid in enumerate(order):
         q_pc, q_li = events[pid]
         if q_pc.shape[0] < 2:
+            kept_index.add(pid, qvecs[pid]); n_kept += 1
             continue
-        for cid in chroma.top_k(qvecs[pid], args.top_k + 1):
-            if cid == pid:
-                continue
-            key = (pid, cid) if pid < cid else (cid, pid)
-            if key in seen_pairs:
-                continue
-            seen_pairs.add(key)
+        best_keep, best_cost = "", float("inf")
+        for cid in kept_index.top_k(qvecs[pid], args.top_k):
             c = gate.cost(q_pc, q_li, cid, W_PITCH, W_TIME)
             if c is None or not np.isfinite(c):
                 continue
-            if c <= _pair_threshold(pid, cid):
-                edges.append((key[0], key[1], round(float(c), 4)))
-                uf.union(pid, cid)
+            if c <= _pair_threshold(pid, cid) and c < best_cost:
+                best_cost, best_keep = float(c), cid
+        if best_keep:
+            drop_parent[pid] = (best_keep, round(best_cost, 4))
+            children[best_keep].append([pid, round(best_cost, 4)])
+        else:
+            kept_index.add(pid, qvecs[pid]); n_kept += 1
         if (i + 1) % 1000 == 0:
-            _log(f"  scanned {i+1}/{len(ids)}  edges={len(edges)} [{time.time()-t1:.1f}s]")
-
-    # Build clusters from union-find
-    members: dict[str, list[str]] = collections.defaultdict(list)
-    for pid in {p for e in edges for p in e[:2]}:
-        members[uf.find(pid)].append(pid)
+            _log(f"  scanned {i+1}/{len(order)}  kept={n_kept} dropped={len(drop_parent)} [{time.time()-t1:.1f}s]")
 
     clusters = []
-    n_drop = 0
     dropped_by_source: collections.Counter[str] = collections.Counter()
-    edge_by_root: dict[str, list] = collections.defaultdict(list)
-    for a, b, c in edges:
-        edge_by_root[uf.find(a)].append([a, b, c])
-    for root, mem in members.items():
-        if len(mem) < 2:
-            continue
-        keep = max(mem, key=lambda p: _keep_rank(p, n_notes[p]))
-        drop = sorted(p for p in mem if p != keep)
-        n_drop += len(drop)
-        for d in drop:
+    for keep, kids in children.items():
+        members = [keep] + [k[0] for k in kids]
+        for d, _c in kids:
             dropped_by_source[_source(d)] += 1
-        amt_involved = any(_is_amt(p) for p in mem)
+        amt_involved = any(_is_amt(p) for p in members)
+        # confidence: HIGH if every drop is within the tight engraved gap; else MEDIUM
+        conf = "high" if all(c <= DUP_THRESHOLD for _, c in kids) else "medium"
         clusters.append({
             "keep": keep,
-            "drop": drop,
-            "size": len(mem),
-            "sources": dict(collections.Counter(_source(p) for p in mem)),
+            "drop": sorted(k[0] for k in kids),
+            "drop_costs": sorted(kids, key=lambda k: k[1]),
+            "size": len(members),
+            "sources": dict(collections.Counter(_source(p) for p in members)),
             "amt_involved": amt_involved,
-            "pairs": sorted(edge_by_root[root], key=lambda e: e[2]),
+            "confidence": conf,
         })
     clusters.sort(key=lambda cl: (-cl["size"], cl["keep"]))
+    n_drop = len(drop_parent)
+    # High-confidence drops: tight cost (<=0.2885) regardless of source -- the set safe
+    # to mask for the post-dedup re-measure. The medium set (AMT 0.2885-0.40) is a
+    # review candidate pool for the cleanliness pass, NOT auto-applied.
+    high_conf_drops = sorted(d for d, (_, c) in drop_parent.items() if c <= DUP_THRESHOLD)
 
     summary = {
         "catalog_size": len(catalog),
         "n_clusters": len(clusters),
         "n_drop_candidates": n_drop,
+        "n_drop_high_confidence": len(high_conf_drops),
         "post_dedup_size": len(catalog) - n_drop,
+        "post_dedup_size_high_conf": len(catalog) - len(high_conf_drops),
         "dropped_by_source": dict(dropped_by_source),
         "clusters_with_amt": sum(1 for c in clusters if c["amt_involved"]),
         "thresholds": {"engraved_engraved": DUP_THRESHOLD, "amt_involved": AMT_THRESHOLD},
         "note_cap": args.note_cap, "top_k": args.top_k,
     }
-    out = {"summary": summary, "clusters": clusters}
+    out = {"summary": summary, "high_confidence_drops": high_conf_drops, "clusters": clusters}
     outp = Path(args.out)
     outp.parent.mkdir(parents=True, exist_ok=True)
     outp.write_text(json.dumps(out, indent=2))
@@ -187,13 +172,15 @@ def main() -> None:
     print("\n" + "=" * 64)
     print(f"DEDUP SCAN  catalog={len(catalog)}  [{time.time()-t0:.1f}s]")
     print("=" * 64)
-    print(f"  clusters: {len(clusters)}  drop-candidates: {n_drop}  "
-          f"post-dedup catalog: {summary['post_dedup_size']}")
+    print(f"  clusters: {len(clusters)}  drop-candidates: {n_drop} "
+          f"(high-confidence <=0.2885: {len(high_conf_drops)})")
+    print(f"  post-dedup catalog: {summary['post_dedup_size']} "
+          f"(high-conf only: {summary['post_dedup_size_high_conf']})")
     print(f"  dropped by source: {dict(dropped_by_source)}")
     print(f"  clusters involving AMT: {summary['clusters_with_amt']}/{len(clusters)}")
-    print("  largest clusters:")
-    for cl in clusters[:10]:
-        print(f"    size={cl['size']} keep={cl['keep'][:48]} sources={cl['sources']}")
+    print("  largest clusters (size, keep, member sources, confidence):")
+    for cl in clusters[:12]:
+        print(f"    size={cl['size']:3d} {cl['confidence']:6s} keep={cl['keep'][:44]} {cl['sources']}")
     print(f"\nwrote {outp}")
 
 
