@@ -23,8 +23,8 @@ describe("prescribe_exercise — corpus_drill", () => {
     const cfg = result.componentsJson[0].config as {
       scoreClip?: { pieceId: string; bars: [number, number]; transpose?: number };
     };
-    expect(cfg.scoreClip?.pieceId).toBe("burgmuller_001"); // only phrasing match
-    expect(cfg.scoreClip?.bars).toEqual([1, 23]);
+    expect(cfg.scoreClip?.pieceId).toBe("bach_001"); // phrasing stable-first in the 154-drill corpus
+    expect(cfg.scoreClip?.bars).toEqual([1, 22]);
     expect(cfg.scoreClip).toHaveProperty("transpose");
   });
 });

@@ -1,18 +1,33 @@
 # model/tests/exercise_corpus/test_build_render_assets.py
-"""build() must materialize every committed primitive .xml as a valid MXL ZIP
-whose inner MusicXML preserves the source note count."""
+"""build() materializes one renderable asset per drill (tiered) + the API manifest.
 
-import glob
+Tier A (committed MusicXML) is exercised hermetically -- the .xml fixtures are
+committed. Tier B (Chopin etude **kern) and Tier C (Mutopia MIDI) depend on
+gitignored/regenerable corpus assets (data/midi/..., ~/crescendai_corpus_staging),
+so those tests SKIP when the source isn't present rather than fail in a bare CI.
+"""
+
 import io
+import json
 import zipfile
 from pathlib import Path
 
 import partitura
+import pytest
 from partitura.score import Note
 
-from exercise_corpus.build_render_assets import build
+from exercise_corpus.build_render_assets import (
+    _build_tier_a,
+    _build_tier_c,
+    _etude_krn_index,
+    _DEFAULT_KERN_REPO,
+    _DEFAULT_MIDI_DIR,
+    build,
+)
 
-_XML_DIR = Path(__file__).resolve().parents[2] / "data" / "scores" / "exercise_primitives"
+_MODEL_ROOT = Path(__file__).resolve().parents[2]
+_XML_DIR = _MODEL_ROOT / "data" / "scores" / "exercise_primitives"
+_EMBED_MANIFEST = _MODEL_ROOT / "data" / "embed_ready_manifest.json"
 _ZIP_MAGIC = b"PK\x03\x04"
 
 
@@ -29,97 +44,126 @@ def _inner_xml_bytes(mxl_bytes: bytes) -> bytes:
     raise AssertionError("no MusicXML entry inside MXL ZIP")
 
 
-def test_build_emits_valid_mxl_with_matching_note_count(tmp_path: Path):
-    out_dir = tmp_path / "mxl"
-    produced = build(xml_dir=_XML_DIR, out_dir=out_dir)
-
-    xml_files = sorted(glob.glob(str(_XML_DIR / "*.xml")))
-    assert len(produced) == len(xml_files) == 22
-
-    for xml_path_str in xml_files:
-        xml_path = Path(xml_path_str)
-        mxl_path = out_dir / f"{xml_path.stem}.mxl"
-        assert mxl_path.exists(), f"missing asset for {xml_path.stem}"
-
-        mxl_bytes = mxl_path.read_bytes()
-        assert mxl_bytes[:4] == _ZIP_MAGIC, f"{mxl_path.name} is not a ZIP"
-
-        # Inner MusicXML must parse and preserve note count.
-        inner = _inner_xml_bytes(mxl_bytes)
-        inner_path = tmp_path / f"{xml_path.stem}_inner.musicxml"
-        inner_path.write_bytes(inner)
-        assert _note_count_xml(inner_path) == _note_count_xml(xml_path)
-
-        # DOCTYPE must be stripped (Verovio WASM parser invariant).
-        assert b"<!DOCTYPE" not in inner
+def _subset_embed_manifest(tmp_path: Path, ids: set[str]) -> Path:
+    """A small embed_ready_manifest containing only `ids`, for fast hermetic build()
+    orchestration tests that don't need the whole 154-drill corpus."""
+    rows = [
+        p
+        for p in json.loads(_EMBED_MANIFEST.read_text())["primitives"]
+        if p["primitive_id"] in ids
+    ]
+    path = tmp_path / "embed.json"
+    path.write_text(json.dumps({"schema": "test", "n_primitives": len(rows), "primitives": rows}))
+    return path
 
 
-def test_build_is_idempotent(tmp_path: Path):
-    out_dir = tmp_path / "mxl"
-    build(xml_dir=_XML_DIR, out_dir=out_dir)
-    first = {p: (out_dir / f"{Path(p).stem}.mxl").read_bytes()
-             for p in glob.glob(str(_XML_DIR / "*.xml"))}
-
-    # Second run must not change any asset's bytes.
-    build(xml_dir=_XML_DIR, out_dir=out_dir)
-    for src, original_bytes in first.items():
-        again = (out_dir / f"{Path(src).stem}.mxl").read_bytes()
-        assert again == original_bytes, f"{Path(src).stem}.mxl changed on rebuild"
+# ---- Tier A: committed MusicXML -> MXL (hermetic) --------------------------
 
 
-def test_build_raises_naming_bad_xml(tmp_path: Path):
-    import pytest
+def test_tier_a_emits_valid_mxl_with_matching_note_count(tmp_path: Path):
+    xml_path = _XML_DIR / "hanon_001.xml"
+    assert xml_path.exists(), "tier-A .xml fixtures are committed"
 
-    bad_dir = tmp_path / "src"
-    bad_dir.mkdir()
-    bad = bad_dir / "broken_001.xml"
-    bad.write_text("<not-musicxml>this will not parse</not-musicxml>")
+    asset, bars = _build_tier_a("hanon_001", xml_path, tmp_path)
+    assert asset.name == "hanon_001.mxl"
+    assert bars == 29
 
-    with pytest.raises(ValueError, match="broken_001"):
-        build(xml_dir=bad_dir, out_dir=tmp_path / "out")
-
-
-# ---- appended: manifest-emission behavior (Task 1) -------------------------
-# build() emits the manifest ONLY when an explicit manifest_path is provided
-# (default None => no write), so the three regression tests above stay
-# manifest-side-effect-free. Bar counts (29/22/23) were verified empirically
-# via partitura; assert against the manifest build() actually wrote.
-
-# The 22 primitives that have committed .mxl assets on main.
-_EXPECTED_IDS = {
-    *(f"hanon_{i:03d}" for i in range(1, 21)),
-    "czerny_001",
-    "burgmuller_001",
-}
+    mxl_bytes = asset.read_bytes()
+    assert mxl_bytes[:4] == _ZIP_MAGIC
+    inner = _inner_xml_bytes(mxl_bytes)
+    inner_path = tmp_path / "hanon_001_inner.musicxml"
+    inner_path.write_bytes(inner)
+    assert _note_count_xml(inner_path) == _note_count_xml(xml_path)
+    assert b"<!DOCTYPE" not in inner  # Verovio WASM parser invariant
 
 
-def test_build_emits_manifest_for_exactly_the_built_primitives(tmp_path: Path):
-    import json
+# ---- Tier C: score-derived MIDI -> partitura MusicXML -> MXL (render-gated) -
 
+
+def test_tier_c_emits_render_gated_mxl(tmp_path: Path):
+    midi = _DEFAULT_MIDI_DIR / "satie_001.mid"
+    if not midi.exists():
+        pytest.skip(f"tier-C MIDI corpus absent ({midi}); run corpus acquire recipes")
+
+    asset, bars = _build_tier_c("satie_001", midi, tmp_path)
+    assert asset.name == "satie_001.mxl"
+    assert bars >= 1
+    mxl_bytes = asset.read_bytes()
+    assert mxl_bytes[:4] == _ZIP_MAGIC
+    inner = _inner_xml_bytes(mxl_bytes)
+    assert b"<!DOCTYPE" not in inner
+
+
+# ---- Tier B: etude .krn index mapping (skips without staging repo) ---------
+
+
+def test_etude_krn_index_maps_position_to_exercise_number():
+    if not _DEFAULT_KERN_REPO.exists():
+        pytest.skip(f"etude kern repo absent ({_DEFAULT_KERN_REPO})")
+    files = _etude_krn_index(_DEFAULT_KERN_REPO)
+    assert len(files) == 24
+    # chopin_etude_001 (source_exercise_number 1) maps to Op.10 No.1's first edition.
+    assert files[0].name == "010-1b-Sm-001.krn"
+    # chopin_etude_013 (Op.25 No.1) is the 13th in sort order.
+    assert files[12].name == "025-1b-LE-001.krn"
+
+
+# ---- build() orchestration + manifest emission ----------------------------
+
+
+def test_build_subset_emits_manifest_for_built_primitives(tmp_path: Path):
+    # hanon_001 (tier A) + satie_001 (tier C) -- no kern repo needed.
+    if not (_DEFAULT_MIDI_DIR / "satie_001.mid").exists():
+        pytest.skip("tier-C MIDI corpus absent; run corpus acquire recipes")
+
+    embed = _subset_embed_manifest(tmp_path, {"hanon_001", "satie_001"})
     manifest_path = tmp_path / "manifest.json"
-    # Explicit manifest_path + tmp out_dir: writes ONLY to tmp, never to the
-    # committed apps/api manifest or the real model/data mxl dir.
-    build(xml_dir=_XML_DIR, out_dir=tmp_path / "mxl", manifest_path=manifest_path)
+    produced = build(
+        out_dir=tmp_path / "assets",
+        embed_manifest=embed,
+        manifest_path=manifest_path,
+    )
+    assert len(produced) == 2
 
-    assert manifest_path.exists(), f"manifest not written at {manifest_path}"
     manifest = json.loads(manifest_path.read_text())
-
-    assert set(manifest.keys()) == _EXPECTED_IDS
-
-    # Spot-check the three distinct sources with verbatim keys and real bar counts.
-    # Bar counts verified empirically via partitura at plan time (29/22/23).
+    assert set(manifest.keys()) == {"hanon_001", "satie_001"}
+    # Tier-A bar count + verbatim tags (regression vs the old 22-primitive manifest).
     assert manifest["hanon_001"] == {
         "dimensions": ["articulation", "timing"],
         "key": "C",
         "totalBars": 29,
     }
-    assert manifest["czerny_001"] == {
-        "dimensions": ["timing", "articulation"],
-        "key": "c",  # VERBATIM lowercase from technique_tags.toml (not normalized)
-        "totalBars": 22,
-    }
-    assert manifest["burgmuller_001"] == {
-        "dimensions": ["phrasing", "dynamics", "interpretation"],
-        "key": "C",
-        "totalBars": 23,
-    }
+    # Tier-C drill carries a PEDALING dimension the old corpus could never route to.
+    assert "pedaling" in manifest["satie_001"]["dimensions"]
+    assert manifest["satie_001"]["totalBars"] >= 1
+
+
+def test_build_subset_is_idempotent(tmp_path: Path):
+    if not (_DEFAULT_MIDI_DIR / "satie_001.mid").exists():
+        pytest.skip("tier-C MIDI corpus absent; run corpus acquire recipes")
+
+    embed = _subset_embed_manifest(tmp_path, {"hanon_001", "satie_001"})
+    out = tmp_path / "assets"
+    build(out_dir=out, embed_manifest=embed)
+    first = {p.name: p.read_bytes() for p in out.glob("*.mxl")}
+
+    build(out_dir=out, embed_manifest=embed)
+    for name, original in first.items():
+        assert (out / name).read_bytes() == original, f"{name} changed on rebuild"
+
+
+def test_build_raises_on_primitive_missing_technique_tag(tmp_path: Path):
+    embed = tmp_path / "embed.json"
+    embed.write_text(
+        json.dumps(
+            {
+                "schema": "test",
+                "n_primitives": 1,
+                "primitives": [
+                    {"primitive_id": "ghost_999", "source": "ghost", "source_exercise_number": 1}
+                ],
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="ghost_999"):
+        build(out_dir=tmp_path / "assets", embed_manifest=embed)

@@ -256,15 +256,23 @@ seed-exercise-assets:
     set -euo pipefail
     shopt -s nullglob
     count=0
-    for f in model/data/exercise_primitives/mxl/*.mxl; do
+    # Drills carry tiered assets: .mei (Verovio-native, Chopin etudes) preferred by
+    # getPieceData, .mxl (wrapped MusicXML) for the rest. Seed both with the right
+    # content-type so scores/v1/{id}.{mei,mxl} serves identically to the piece library.
+    for f in model/data/exercise_primitives/assets/*.mei model/data/exercise_primitives/assets/*.mxl; do
         base="$(basename "$f")"
-        cd apps/api && wrangler r2 object put "crescendai-bucket/scores/v1/$base" \
-            --file="../../$f" --content-type "application/vnd.recordare.musicxml+zip" --local >/dev/null && cd ../..
+        case "$base" in
+            *.mei) ct="application/mei+xml" ;;
+            *.mxl) ct="application/vnd.recordare.musicxml+zip" ;;
+            *) echo "ERROR: unexpected asset extension: $base" >&2; exit 1 ;;
+        esac
+        ( cd apps/api && wrangler r2 object put "crescendai-bucket/scores/v1/$base" \
+            --file="../../$f" --content-type "$ct" --local >/dev/null )
         count=$((count+1))
-        echo "Seeded scores/v1/$base"
+        echo "Seeded scores/v1/$base ($ct)"
     done
     if [ "$count" -eq 0 ]; then
-        echo "ERROR: no .mxl found in model/data/exercise_primitives/mxl/ — run 'just build-exercise-assets' first" >&2
+        echo "ERROR: no assets found in model/data/exercise_primitives/assets/ — run 'just build-exercise-assets' first" >&2
         exit 1
     fi
     echo "Seeded $count exercise-primitive asset(s) into local R2."

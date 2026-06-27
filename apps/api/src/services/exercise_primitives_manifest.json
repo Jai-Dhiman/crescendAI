@@ -1,4 +1,124 @@
 {
+  "bach_001": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "C",
+    "totalBars": 22
+  },
+  "bach_002": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "c",
+    "totalBars": 27
+  },
+  "bach_003": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "D",
+    "totalBars": 60
+  },
+  "bach_004": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "d",
+    "totalBars": 52
+  },
+  "bach_005": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "Eb",
+    "totalBars": 32
+  },
+  "bach_006": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "E",
+    "totalBars": 62
+  },
+  "bach_007": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "e",
+    "totalBars": 23
+  },
+  "bach_008": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "F",
+    "totalBars": 34
+  },
+  "bach_009": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "f",
+    "totalBars": 34
+  },
+  "bach_010": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "G",
+    "totalBars": 32
+  },
+  "bach_011": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "g",
+    "totalBars": 23
+  },
+  "bach_012": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "A",
+    "totalBars": 21
+  },
+  "bach_013": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "a",
+    "totalBars": 25
+  },
+  "bach_014": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "Bb",
+    "totalBars": 20
+  },
+  "bach_015": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "b",
+    "totalBars": 22
+  },
   "burgmuller_001": {
     "dimensions": [
       "phrasing",
@@ -8,6 +128,726 @@
     "key": "C",
     "totalBars": 23
   },
+  "burgmuller_002": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "a",
+    "totalBars": 33
+  },
+  "burgmuller_003": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "G",
+    "totalBars": 29
+  },
+  "burgmuller_004": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "C",
+    "totalBars": 30
+  },
+  "burgmuller_005": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "F",
+    "totalBars": 17
+  },
+  "burgmuller_006": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "C",
+    "totalBars": 16
+  },
+  "burgmuller_007": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "G",
+    "totalBars": 16
+  },
+  "burgmuller_008": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "F",
+    "totalBars": 16
+  },
+  "burgmuller_009": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "C",
+    "totalBars": 57
+  },
+  "burgmuller_010": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "D",
+    "totalBars": 24
+  },
+  "burgmuller_011": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "C",
+    "totalBars": 30
+  },
+  "burgmuller_012": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "C",
+    "totalBars": 41
+  },
+  "burgmuller_013": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "C",
+    "totalBars": 27
+  },
+  "burgmuller_014": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "G",
+    "totalBars": 37
+  },
+  "burgmuller_015": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "c",
+    "totalBars": 96
+  },
+  "burgmuller_016": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "g",
+    "totalBars": 18
+  },
+  "burgmuller_017": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "F",
+    "totalBars": 35
+  },
+  "burgmuller_018": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "e",
+    "totalBars": 31
+  },
+  "chopin_001": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "C",
+    "totalBars": 34
+  },
+  "chopin_002": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "a",
+    "totalBars": 23
+  },
+  "chopin_003": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "G",
+    "totalBars": 33
+  },
+  "chopin_004": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "e",
+    "totalBars": 26
+  },
+  "chopin_005": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "D",
+    "totalBars": 39
+  },
+  "chopin_006": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "b",
+    "totalBars": 26
+  },
+  "chopin_007": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "A",
+    "totalBars": 16
+  },
+  "chopin_008": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "f#",
+    "totalBars": 34
+  },
+  "chopin_009": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "E",
+    "totalBars": 12
+  },
+  "chopin_010": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "c#",
+    "totalBars": 18
+  },
+  "chopin_011": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "B",
+    "totalBars": 27
+  },
+  "chopin_012": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "g#",
+    "totalBars": 80
+  },
+  "chopin_013": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "F#",
+    "totalBars": 38
+  },
+  "chopin_014": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "eb",
+    "totalBars": 7
+  },
+  "chopin_015": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "Db",
+    "totalBars": 89
+  },
+  "chopin_016": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "bb",
+    "totalBars": 46
+  },
+  "chopin_017": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "Ab",
+    "totalBars": 90
+  },
+  "chopin_018": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "f",
+    "totalBars": 21
+  },
+  "chopin_019": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "Eb",
+    "totalBars": 72
+  },
+  "chopin_020": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "c",
+    "totalBars": 13
+  },
+  "chopin_021": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "Bb",
+    "totalBars": 58
+  },
+  "chopin_022": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "g",
+    "totalBars": 42
+  },
+  "chopin_023": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "F",
+    "totalBars": 22
+  },
+  "chopin_024": {
+    "dimensions": [
+      "pedaling",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "d",
+    "totalBars": 74
+  },
+  "chopin_etude_001": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 79
+  },
+  "chopin_etude_002": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "Am",
+    "totalBars": 49
+  },
+  "chopin_etude_003": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "pedaling",
+      "interpretation"
+    ],
+    "key": "E",
+    "totalBars": 78
+  },
+  "chopin_etude_004": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C#m",
+    "totalBars": 83
+  },
+  "chopin_etude_005": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "Gb",
+    "totalBars": 85
+  },
+  "chopin_etude_006": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "pedaling",
+      "interpretation"
+    ],
+    "key": "Ebm",
+    "totalBars": 54
+  },
+  "chopin_etude_007": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 60
+  },
+  "chopin_etude_008": {
+    "dimensions": [
+      "articulation",
+      "timing",
+      "dynamics"
+    ],
+    "key": "F",
+    "totalBars": 96
+  },
+  "chopin_etude_009": {
+    "dimensions": [
+      "dynamics",
+      "phrasing",
+      "pedaling"
+    ],
+    "key": "Fm",
+    "totalBars": 67
+  },
+  "chopin_etude_010": {
+    "dimensions": [
+      "articulation",
+      "dynamics",
+      "phrasing"
+    ],
+    "key": "Ab",
+    "totalBars": 78
+  },
+  "chopin_etude_011": {
+    "dimensions": [
+      "pedaling",
+      "phrasing",
+      "dynamics"
+    ],
+    "key": "Eb",
+    "totalBars": 55
+  },
+  "chopin_etude_012": {
+    "dimensions": [
+      "articulation",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "Cm",
+    "totalBars": 84
+  },
+  "chopin_etude_013": {
+    "dimensions": [
+      "pedaling",
+      "phrasing",
+      "dynamics"
+    ],
+    "key": "Ab",
+    "totalBars": 50
+  },
+  "chopin_etude_014": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "Fm",
+    "totalBars": 70
+  },
+  "chopin_etude_015": {
+    "dimensions": [
+      "timing",
+      "articulation"
+    ],
+    "key": "F",
+    "totalBars": 73
+  },
+  "chopin_etude_016": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "Am",
+    "totalBars": 66
+  },
+  "chopin_etude_017": {
+    "dimensions": [
+      "phrasing",
+      "articulation",
+      "interpretation"
+    ],
+    "key": "Em",
+    "totalBars": 139
+  },
+  "chopin_etude_018": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "G#m",
+    "totalBars": 63
+  },
+  "chopin_etude_019": {
+    "dimensions": [
+      "phrasing",
+      "dynamics",
+      "pedaling",
+      "interpretation"
+    ],
+    "key": "C#m",
+    "totalBars": 69
+  },
+  "chopin_etude_020": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "Db",
+    "totalBars": 36
+  },
+  "chopin_etude_021": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "Gb",
+    "totalBars": 51
+  },
+  "chopin_etude_022": {
+    "dimensions": [
+      "articulation",
+      "dynamics"
+    ],
+    "key": "Bm",
+    "totalBars": 119
+  },
+  "chopin_etude_023": {
+    "dimensions": [
+      "articulation",
+      "dynamics",
+      "interpretation"
+    ],
+    "key": "Am",
+    "totalBars": 96
+  },
+  "chopin_etude_024": {
+    "dimensions": [
+      "articulation",
+      "pedaling",
+      "dynamics"
+    ],
+    "key": "Cm",
+    "totalBars": 83
+  },
+  "clementi_prelude_001": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "C",
+    "totalBars": 4
+  },
+  "clementi_prelude_002": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "Am",
+    "totalBars": 4
+  },
+  "clementi_prelude_003": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "F",
+    "totalBars": 6
+  },
+  "clementi_prelude_004": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "Dm",
+    "totalBars": 6
+  },
+  "clementi_prelude_005": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "G",
+    "totalBars": 3
+  },
+  "clementi_prelude_006": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "Em",
+    "totalBars": 5
+  },
+  "clementi_prelude_007": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "Bb",
+    "totalBars": 5
+  },
+  "clementi_prelude_008": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "Gm",
+    "totalBars": 3
+  },
+  "clementi_prelude_009": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "D",
+    "totalBars": 6
+  },
+  "clementi_prelude_010": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "Bm",
+    "totalBars": 6
+  },
+  "clementi_prelude_011": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "Eb",
+    "totalBars": 4
+  },
+  "clementi_prelude_012": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "Cm",
+    "totalBars": 4
+  },
+  "clementi_prelude_013": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "A",
+    "totalBars": 2
+  },
+  "clementi_prelude_014": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "F#m",
+    "totalBars": 11
+  },
+  "clementi_prelude_015": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "Ab",
+    "totalBars": 8
+  },
+  "clementi_prelude_016": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "Fm",
+    "totalBars": 4
+  },
+  "clementi_prelude_017": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "E",
+    "totalBars": 5
+  },
+  "clementi_prelude_018": {
+    "dimensions": [
+      "articulation",
+      "phrasing"
+    ],
+    "key": "C#m",
+    "totalBars": 6
+  },
   "czerny_001": {
     "dimensions": [
       "timing",
@@ -15,6 +855,230 @@
     ],
     "key": "c",
     "totalBars": 22
+  },
+  "czerny_002": {
+    "dimensions": [
+      "timing",
+      "articulation"
+    ],
+    "key": "F",
+    "totalBars": 32
+  },
+  "czerny_003": {
+    "dimensions": [
+      "timing",
+      "articulation"
+    ],
+    "key": "c",
+    "totalBars": 48
+  },
+  "czerny_004": {
+    "dimensions": [
+      "timing",
+      "articulation"
+    ],
+    "key": "Bb",
+    "totalBars": 64
+  },
+  "czerny_005": {
+    "dimensions": [
+      "timing",
+      "articulation"
+    ],
+    "key": "C",
+    "totalBars": 40
+  },
+  "czerny_006": {
+    "dimensions": [
+      "timing",
+      "articulation"
+    ],
+    "key": "C",
+    "totalBars": 32
+  },
+  "czerny_007": {
+    "dimensions": [
+      "timing",
+      "articulation"
+    ],
+    "key": "G",
+    "totalBars": 56
+  },
+  "czerny_008": {
+    "dimensions": [
+      "timing",
+      "articulation"
+    ],
+    "key": "C",
+    "totalBars": 32
+  },
+  "czerny_009": {
+    "dimensions": [
+      "timing",
+      "articulation"
+    ],
+    "key": "Bb",
+    "totalBars": 48
+  },
+  "czerny_010": {
+    "dimensions": [
+      "timing",
+      "articulation"
+    ],
+    "key": "G",
+    "totalBars": 32
+  },
+  "czerny_op821_001": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 8
+  },
+  "czerny_op821_002": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 8
+  },
+  "czerny_op821_003": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 8
+  },
+  "czerny_op821_004": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "C",
+    "totalBars": 8
+  },
+  "czerny_op821_005": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "F",
+    "totalBars": 8
+  },
+  "czerny_op821_006": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "F",
+    "totalBars": 8
+  },
+  "czerny_op821_007": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "F",
+    "totalBars": 8
+  },
+  "czerny_op821_008": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "F",
+    "totalBars": 8
+  },
+  "czerny_op821_009": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "F",
+    "totalBars": 8
+  },
+  "czerny_op821_010": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "F",
+    "totalBars": 8
+  },
+  "czerny_op821_011": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "Bb",
+    "totalBars": 8
+  },
+  "czerny_op821_012": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "Bb",
+    "totalBars": 8
+  },
+  "czerny_op821_013": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "Bb",
+    "totalBars": 8
+  },
+  "czerny_op821_014": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "Bb",
+    "totalBars": 16
+  },
+  "czerny_op821_015": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "G",
+    "totalBars": 8
+  },
+  "czerny_op821_016": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "G",
+    "totalBars": 8
+  },
+  "czerny_op821_017": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "G",
+    "totalBars": 8
+  },
+  "czerny_op821_018": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "G",
+    "totalBars": 8
+  },
+  "czerny_op821_019": {
+    "dimensions": [
+      "articulation",
+      "timing"
+    ],
+    "key": "D",
+    "totalBars": 8
   },
   "hanon_001": {
     "dimensions": [
@@ -175,5 +1239,53 @@
     ],
     "key": "C",
     "totalBars": 31
+  },
+  "satie_001": {
+    "dimensions": [
+      "pedaling",
+      "dynamics"
+    ],
+    "key": "f",
+    "totalBars": 82
+  },
+  "satie_002": {
+    "dimensions": [
+      "pedaling",
+      "dynamics"
+    ],
+    "key": "a",
+    "totalBars": 34
+  },
+  "satie_003": {
+    "dimensions": [
+      "pedaling",
+      "dynamics"
+    ],
+    "key": "a",
+    "totalBars": 54
+  },
+  "satie_004": {
+    "dimensions": [
+      "pedaling",
+      "dynamics"
+    ],
+    "key": "b",
+    "totalBars": 47
+  },
+  "satie_005": {
+    "dimensions": [
+      "pedaling",
+      "dynamics"
+    ],
+    "key": "a",
+    "totalBars": 65
+  },
+  "satie_006": {
+    "dimensions": [
+      "pedaling",
+      "dynamics"
+    ],
+    "key": "a",
+    "totalBars": 60
   }
 }
