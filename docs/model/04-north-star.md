@@ -16,6 +16,57 @@ The "better context" phrase is load-bearing: it does not mean larger prompts. It
 
 ---
 
+## Two grounding philosophies — and the "no neural encoder" possibility (2026-06-27)
+
+A session hardening the Path #1 verifier (#101) surfaced a strategic fork worth recording at
+the north-star level, because it bears directly on whether CrescendAI needs Aria/MuQ at all.
+
+**There are two independent ways to ground a per-dimension claim, and the codebase contains both:**
+
+1. **Perception-grounding** (Path #1 claim verifier, `apps/evals/claim_taxonomy/`; PercePiano
+   sweeps in `model/src/claim_measurement/`). Asks: *does a deterministic statistic correlate with
+   how humans rate this performance?* Validated against PercePiano. **Mostly fails** — it is
+   bottlenecked by the ~0.5 inter-rater label ceiling. The 2026-06-27 dimension findings:
+   only dynamics-LEVEL passes perceptual validity (ρ 0.54) and survives the AMT substrate, yet the
+   generator makes ~0 level claims (supply gap); dynamics-CONTRAST has the claims but no statistic
+   validates (≤0.26, validity gap); pedaling passes on MIDI but FAILS on AMT (0.18); timing is
+   degenerate; articulation/timbre/phrasing/interpretation were never built. See the **dimension
+   status matrix** in `docs/model/claim-verifier-signed-d-conventions.md`. Net: as a route to a
+   headline faithfulness *rate*, perception-grounding is largely a dead end — its value is the
+   *characterization of why* soft-perceptual feedback resists non-circular grounding (the paper).
+
+2. **Score + reference grounding** (the `apps/api/src/wasm/score-analysis/` Rust/WASM engine +
+   `model/src/score_library/reference_cache.py` MAESTRO-derived reference-performer profiles).
+   Asks: *does the student deviate from the notated score, and from how reference performers played
+   this bar?* **Needs no perception labels.** It is already coded for all 6 dimensions — perf-vs-score
+   velocity + crescendo/diminuendo shape (dynamics), onset deviation vs score (timing, rush/drag),
+   perf/score note-duration ratio → legato/staccato (articulation), pedal on-fraction, an onset-based
+   phrasing proxy — each with a "within/outside reference-performer range" comparison. **The neural
+   `model_score` is used only as a printed annotation in the analysis text; every substantive
+   measurement is deterministic MIDI+score+reference math.** This is the concrete realization of the
+   Core Insight above ("evaluate relative to what the score asks for") and of the 80/20 split (80% is
+   the harness, not the model).
+
+**Why this matters for "no Aria/MuQ".** Because the neural scores are already decorative in the
+analysis engine, the encoders' only real job is the holistic 6-dim *quality* number — which is exactly
+the thing perception-grounding shows we cannot validate. Dropping the encoders means the teacher LLM
+reasons over **deterministic score/reference deviations** instead of a black-box quality score. You
+lose "is this beautiful?"; you gain a fully explainable, non-hallucinated *deviation/precision coach*
+where every claim traces to a measured number. This is a positioning decision (taste-judge vs
+precision-coach), not primarily a technical one.
+
+**The gap is integration + substrate fidelity, not research.** The rich tier-1 (score+reference) path
+is BUILT but NOT WIRED: production (`session-brain.ts`) calls `analyzeTier2` (absolute MIDI only), and
+the tier-1 grounding chain is severed (no AMT endpoint, `analyzeTier1` never called, `barMapAlignments`
+always `[]`). That work is tracked in **#64**. The remaining *measurement* question flips from "does it
+correlate with perception?" to **"does the AMT-transcribed measure faithfully recover the ground-truth-MIDI
+measure?"** — a substrate-fidelity test (the test that passed dynamics velocity at 0.965 and killed
+pedaling at 0.39). Build the **per-dimension AMT-fidelity map** (velocity ✓0.97, pedal ✗0.39, onset ?,
+offset/duration ?) — onset and offset/duration are untested and gate whether timing and articulation are
+substrate-viable. That single cheap measurement is the highest-information next step.
+
+---
+
 ## The Perfect Pipeline (8 Stages)
 
 ```

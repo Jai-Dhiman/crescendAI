@@ -643,6 +643,18 @@ likely payoff: (1) articulation measurer (MIDI key-overlap is well-defined and A
 to rescue pedaling; (4) a beat-tracker to rescue timing. Dynamics-contrast and the mood/interpretation
 dims look deterministically out of reach.
 
+**Complement — score+reference grounding (the product path, #64).** Everything above grounds against
+*perception* (PercePiano). There is a SECOND, independent grounding already built in the product:
+`apps/api/src/wasm/score-analysis/` compares the performance against the **notated score** and against
+**reference-performer profiles** (MAESTRO-derived, `model/src/score_library/reference_cache.py`) — perf-vs-
+notated velocity + crescendo shape, onset deviation (rush/drag), perf/score duration ratio (legato/staccato),
+pedal on-fraction, all "within/outside reference range". It needs NO perception labels and the neural
+`model_score` is decorative. This sidesteps the perceptual-validity bottleneck entirely: the relevant test
+becomes **AMT-fidelity** (does the AMT measure recover the ground-truth-MIDI measure? — velocity ✓0.97,
+pedal ✗0.39, onset/offset UNTESTED), not perceptual correlation. The tier-1 (score+reference) path is built
+but unwired in prod (#64). See `docs/model/04-north-star.md` → "Two grounding philosophies" for the full
+strategic framing and the "no neural encoder" possibility.
+
 ---
 
 ## Path #1 operating mode and hard gates (#101)
