@@ -103,17 +103,34 @@ def _source_class(pid: str) -> str:
 # Catalog
 # ---------------------------------------------------------------------------
 
-def build_catalog(note_cap: int, scores_dir: Path = _SCORES_DIR) -> dict[str, list[Note]]:
+def build_catalog(note_cap: int, scores_dir: Path = _SCORES_DIR,
+                  exclude: set[str] | None = None) -> dict[str, list[Note]]:
     skip = {"titles.json", "seed.sql"}
+    exclude = exclude or set()
     paths = sorted(f for f in scores_dir.glob("*.json") if f.name not in skip)
     catalog: dict[str, list[Note]] = {}
     for p in paths:
+        if p.stem in exclude:
+            continue
         notes = load_score_notes(p)[:note_cap]
         if notes:
             catalog[p.stem] = notes
     if not catalog:
-        raise RuntimeError(f"empty catalog from {_SCORES_DIR}")
+        raise RuntimeError(f"empty catalog from {scores_dir}")
     return catalog
+
+
+def load_dedup_manifest(path: Path) -> tuple[set[str], dict[str, str]]:
+    """Return (drop_ids, remap drop_id -> cluster keep) from a dedup_scan manifest."""
+    body = json.loads(path.read_text())
+    drop: set[str] = set()
+    remap: dict[str, str] = {}
+    for cl in body.get("clusters", []):
+        keep = cl["keep"]
+        for d in cl.get("drop", []):
+            drop.add(d)
+            remap[d] = keep
+    return drop, remap
 
 
 # ---------------------------------------------------------------------------
@@ -193,11 +210,15 @@ def label_works(
     chroma: _RunningChromaIndex,
     gate: ElasticGate,
     note_cap: int,
+    remap: dict[str, str] | None = None,
 ) -> tuple[dict[str, dict], dict]:
     """Map each ASAP work folder -> {true_id, method, det_id, oracle_id}.
 
     Reads metadata.csv for the authoritative folder list. Returns (labels, stats).
+    `remap` (drop_id -> cluster keep) redirects labels onto the surviving entry
+    when running against a simulated deduped catalog.
     """
+    remap = remap or {}
     meta = _ASAP_DIR / "metadata.csv"
     if not meta.exists():
         raise FileNotFoundError(f"ASAP metadata.csv missing: {meta}")
@@ -209,7 +230,8 @@ def label_works(
     labels: dict[str, dict] = {}
     n_det = n_oracle = n_both = n_agree = n_none = 0
     for folder in sorted(folders):
-        det_id = derive_piece_id(_ASAP_DIR / folder, _ASAP_DIR)
+        det_raw = derive_piece_id(_ASAP_DIR / folder, _ASAP_DIR)
+        det_id = remap.get(det_raw, det_raw)
         det_id = det_id if det_id in catalog else None
         score_path = _ASAP_DIR / folder / "midi_score.mid"
         oracle_id = None
@@ -409,12 +431,19 @@ def main() -> None:
     ap.add_argument("--limit-works", type=int, default=0, help="debug: cap works")
     ap.add_argument("--scores-dir", type=str, default=str(_SCORES_DIR),
                     help="catalog score JSONs (default: module-relative data/scores)")
+    ap.add_argument("--exclude-manifest", type=str, default="",
+                    help="dedup_scan manifest: drop its twins + remap labels (simulated dedup)")
     ap.add_argument("--out", type=str, default=str(_OUT))
     args = ap.parse_args()
 
     t0 = time.time()
+    drop: set[str] = set()
+    remap: dict[str, str] = {}
+    if args.exclude_manifest:
+        drop, remap = load_dedup_manifest(Path(args.exclude_manifest))
+        _log(f"dedup manifest: dropping {len(drop)} twins (simulated deduped catalog)")
     _log(f"building catalog (note_cap={args.note_cap}) from {args.scores_dir} ...")
-    catalog = build_catalog(args.note_cap, Path(args.scores_dir))
+    catalog = build_catalog(args.note_cap, Path(args.scores_dir), exclude=drop)
     _log(f"  catalog: {len(catalog)} pieces  [{time.time()-t0:.1f}s]")
 
     t1 = time.time()
@@ -423,7 +452,7 @@ def main() -> None:
     _log(f"  indexed chroma + gate events  [{time.time()-t1:.1f}s]")
 
     t2 = time.time()
-    labels, lstats = label_works(catalog, chroma, gate, args.note_cap)
+    labels, lstats = label_works(catalog, chroma, gate, args.note_cap, remap=remap)
     _log(f"  labeled {lstats['labeled']}/{lstats['n_works']} works "
          f"(det={lstats['by_det']} oracle-only={lstats['by_oracle_only']} "
          f"none={lstats['unlabeled']}); oracle agreement on overlap "
