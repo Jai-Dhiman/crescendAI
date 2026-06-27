@@ -96,8 +96,11 @@ const previousChunkAudio = new WeakMap<SessionBrain, ArrayBuffer | null>();
 // Minimum notes before attempting piece identification
 const MIN_NOTES_FOR_IDENTIFICATION = 30;
 
-// Certified v2 elastic-DTW margin gate threshold (Stage-0c..0f). Lock only above this.
-const PIECE_ID_MARGIN_THRESHOLD = 0.0935;
+// Elastic-DTW margin gate threshold (Stage-0c..0f, re-certified at the 11K catalog).
+// Lock only above this. Bumped 0.0935 -> 0.13 after the #96 cross-performance + LOO
+// verification: at 0.0935 the 11x-larger catalog gave genuine open-set FA ~6.7%; 0.13
+// restores FA<=0.05 (point ~2.4%) at <1pt recognition cost (94.0% -> 93.5%).
+const PIECE_ID_MARGIN_THRESHOLD = 0.13;
 // Bounded retention for the accumulated identification buffer (most-recent notes kept).
 const MAX_IDENTIFICATION_BUFFER = 1200;
 

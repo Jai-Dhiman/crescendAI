@@ -323,13 +323,15 @@ export interface IdentifyResult {
 /**
  * Identify the piece for the accumulated performance notes against the v2 catalog
  * artifact (raw `fingerprint/v2/piece_index.json` text). Locks only when the margin
- * gate clears `marginThreshold` (certified 0.0935); otherwise returns a non-locking
- * result or null. Runs chroma recall + the elastic-DTW margin gate inside WASM.
+ * gate clears `marginThreshold` (re-certified 0.13 at the 11K catalog, #96); otherwise
+ * returns a non-locking result or null. Runs chroma recall + the elastic-DTW margin
+ * gate inside WASM. Callers (SessionBrain) pass the threshold explicitly; this default
+ * is the fallback for direct/test callers.
  */
 export function identifyPiece(
 	notes: PerfNote[],
 	artifactJson: string,
-	marginThreshold = 0.0935,
+	marginThreshold = 0.13,
 ): IdentifyResult | null {
 	// The WASM export returns a JSON string (or undefined) — see identify_piece in
 	// lib.rs for why the result is JSON-encoded rather than marshaled as a JS object.
