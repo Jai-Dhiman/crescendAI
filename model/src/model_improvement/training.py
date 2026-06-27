@@ -131,6 +131,9 @@ def train_model(
     log_file: str | None = None,
     accelerator: str | None = None,
     trackio_experiment_id: str | None = None,
+    extra_callbacks: list | None = None,
+    limit_train_batches: int | float | None = None,
+    limit_val_batches: int | float | None = None,
 ) -> pl.Trainer:
     """Train a model with standard callbacks.
 
@@ -186,6 +189,14 @@ def train_model(
     ]
     if trackio_experiment_id is not None:
         callbacks.append(TrackioCallback(experiment_id=trackio_experiment_id))
+    if extra_callbacks is not None:
+        callbacks.extend(extra_callbacks)
+
+    limit_kwargs = {}
+    if limit_train_batches is not None:
+        limit_kwargs["limit_train_batches"] = limit_train_batches
+    if limit_val_batches is not None:
+        limit_kwargs["limit_val_batches"] = limit_val_batches
 
     trainer = pl.Trainer(
         max_epochs=max_epochs,
@@ -199,6 +210,7 @@ def train_model(
         log_every_n_steps=10,
         deterministic=hw["deterministic"],
         num_sanity_val_steps=0,
+        **limit_kwargs,
     )
 
     trainer.fit(model, train_loader, val_loader)
