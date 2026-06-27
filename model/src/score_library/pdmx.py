@@ -82,10 +82,12 @@ def _candidates(limit: int | None):
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--note-cap", type=int, default=600,
+                    help="dedup window (notes); bounds elastic-DTW on large multi-movement scores")
     args = ap.parse_args()
     if not _CSV.exists():
         raise SystemExit(f"ABORT: {_CSV} missing")
-    res = bulk_ingest(_candidates(args.limit))
+    res = bulk_ingest(_candidates(args.limit), note_cap=args.note_cap)
     print(f"  ingested={len(res.ingested)} dups={len(res.dups)} "
           f"gate_fail={len(res.gate_failures)} parse_fail={len(res.parse_failures)}")
 

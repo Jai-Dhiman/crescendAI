@@ -29,6 +29,7 @@ from pathlib import Path
 
 from score_library.bulk_ingest import Candidate, bulk_ingest
 
+_SCORES_DIR = Path(__file__).resolve().parents[2] / "data" / "scores"
 _STAGE = Path.home() / "crescendai_corpus_staging" / "giantmidi" / "GiantMIDI-PIano"
 _SUBSETS = {
     "surname": _STAGE / "surname_midis",          # 7,236 curated
@@ -62,6 +63,10 @@ def _candidates(midi_dir: Path, limit: int | None, offset: int = 0):
             continue
         surname, first, title, ytid = parsed
         pid = f"giantmidi.{_sanitize(surname)}.{_sanitize(title)[:40]}_{ytid}"
+        # Fast skip of already-ingested ids (lets `--subset full` re-use the
+        # surname work: only the ~3619 full-only files get parsed/deduped).
+        if (_SCORES_DIR / f"{pid}.json").exists():
+            continue
         composer = f"{first} {surname}".strip()
         yield Candidate(midi, pid, composer, title)
         n += 1
