@@ -179,6 +179,14 @@ build-catalog-mxl:
 render-kern-mei:
     cd model && uv run python -m score_library.render_kern_assets
 
+# Render recognize-only Mutopia pieces (LilyPond .ly source, no clean MEI path) to
+# standalone whole-piece SVG via LilyPond -dcrop. Output: scores/v1/<pid>.svg, a
+# display-only tier the score-worker serves without Verovio. LOCAL-ONLY: Mutopia
+# engravings are CC-BY-SA/CC-BY (not PD) -- never seed these .svg to prod R2.
+# Requires `brew install lilypond` and the mutopia clone in ~/crescendai_corpus_staging.
+render-mutopia-svg:
+    cd model && uv run python -m score_library.mutopia_lilypond_svg
+
 # Re-bar every score JSON that has a paired engraved .mei so its bar grid matches
 # the displayed measures (total_bars == Verovio measure count). Notes are preserved
 # exactly, so the piece-ID fingerprint is unchanged. Fixes live score-highlighting
