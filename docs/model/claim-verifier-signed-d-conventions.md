@@ -562,6 +562,49 @@ Harnesses: `model/src/claim_measurement/gd_rate/`; regenerable inputs: `model/da
 
 ---
 
+## FRONT 6 / contrast-G-B UPDATE (#101, 2026-06-27): no deterministic dynamic-CONTRAST statistic validates — dynamics is DOUBLY blocked
+
+Front 5 (G-D) showed the generator's dynamics feedback is ~90% CONTRAST/shaping and ~0%
+falsifiable whole-piece LEVEL — so the G-B-validated mean-velocity LEVEL statistic has no
+claims to score. The obvious rescue is to perceptually-validate a CONTRAST statistic so the
+131 contrast claims become adjudicable. Front 6 tested that and it **does not work**.
+
+**The bet vs the earlier sweep.** The GATE-3 statistic sweep already showed *global-spread*
+contrast statistics fail to predict perceived dynamics (= PercePiano `dynamic_range`): std
++0.04, range −0.01, IQR −0.05. But "ebb and swell" is a *temporal-envelope* property a global
+std is blind to. So front 6 added a *temporal-shaping* family — swell depth (peak-to-trough of
+the time-binned velocity envelope), envelope-modulation std, quadratic arc curvature, terracing
+(envelope direction-changes), normalized swell — and correlated all of them (halo-controlled
+partial Spearman, control = mean of the other 18 dims) against all 19 granular PercePiano dims,
+n=1202. Harness `model/src/claim_measurement/contrast_gb/sweep.py`; report
+`model/data/results/contrast_gb_sweep.json`. Sanity: mean_velocity vs `dynamic_range` raw
+ρ 0.569 reproduces GATE-2 (0.625), confirming the index mapping and method.
+
+**Result: NO-GO.** Every shaping statistic's best partial against any dynamic-shaping dim
+(`dynamic_range`, `drama`, `mood_energy`, `sophistication`, `timbre_loudness`, `balance`) is
+**≤0.26** (swell_depth_norm↔sophistication; most ≤0.19) — far below the ~0.5 inter-rater ceiling.
+The only ≥0.45 correlations the temporal-shaping statistics achieve are with **`tempo`** (swell_depth
+0.467, envelope_std 0.467) — a note-density/speed confound, not dynamic shaping. Perceived dynamic
+shaping on 4–8-bar segments does not reduce to a deterministic MIDI-velocity-envelope statistic
+(likely because "drama"/"shaping" integrates timing + pedaling + timbre jointly, not loudness alone;
+and PercePiano segments are too short to express a whole-piece arc).
+
+**Net — dynamics is DOUBLY blocked, and the two blocks are complementary:**
+- **LEVEL**: a validated statistic exists (mean velocity, partial-ρ 0.54) but the generator makes
+  ~0 in-scope claims → rate unmeasurable (claim-SUPPLY gap, front 5).
+- **CONTRAST**: the generator makes ~90% of its dynamics claims here, but no deterministic statistic
+  validates against perception → no non-circular truth label possible (measurement-VALIDITY gap, front 6).
+
+A dynamics faithfulness RATE is therefore unattainable today by either route. This is decisive
+evidence for reframing Path #1's measured contribution around the **claim-supply / measurement-validity
+gap itself** (localization-yield + the dynamics double-block + the typed-abstention machinery) rather
+than a headline per-dimension faithfulness number — unless a fundamentally different substrate lands
+(a multi-modal learned shaping predictor, which reintroduces the circularity burden; or longer-segment
+human shaping labels). Caveats (leave a narrow door): single-velocity-feature only; PercePiano segments
+are short; shaping labels are themselves ~0.5-noisy.
+
+---
+
 ## Path #1 operating mode and hard gates (#101)
 
 **Operating mode (re-scoped 2026-06-24).** Open-ended, no time limit. The fixed M0–M3 timeline in the
