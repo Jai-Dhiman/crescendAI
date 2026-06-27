@@ -102,6 +102,22 @@ seed-mei mode="local" filter="":
     done
     echo "Seeded $count .mei into $flag R2 (filter='{{filter}}')."
 
+# Seed the LilyPond-rendered Mutopia .svg display assets into LOCAL wrangler R2.
+# LOCAL-ONLY by design: these engravings are CC-BY-SA/CC-BY (not PD) -- there is
+# deliberately NO remote mode here (mirrors the CC-BY-NC ASAP .mxl local-only rule).
+seed-mutopia-svg filter="mutopia.":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    count=0
+    for f in model/scores/v1/*.svg; do
+        base="$(basename "$f")"
+        if [ -n "{{filter}}" ] && [[ "$base" != "{{filter}}"* ]]; then continue; fi
+        cd apps/api && wrangler r2 object put "crescendai-bucket/scores/v1/$base" \
+            --file="../../$f" --content-type "image/svg+xml" --local >/dev/null && cd ../..
+        count=$((count+1))
+    done
+    echo "Seeded $count .svg into LOCAL R2 (filter='{{filter}}')."
+
 # Generate the v2 piece-ID index (chroma + chord-events) from the score library
 fingerprint:
     cd model && uv run python -m score_library.cli fingerprint --scores-dir data/scores --output-dir data/fingerprints
