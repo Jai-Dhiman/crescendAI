@@ -152,6 +152,25 @@ build-exercise-assets:
 corpus-acquire-kernscores:
     bash model/src/exercise_corpus/acquire_kernscores.sh
 
+# #49 exercise-BOOK expansion: acquire the Chopin Op.10/25 etudes (clone
+# pl-wnifc/humdrum-chopin-first-editions + verovio kern->MIDI; 24 drills).
+corpus-acquire-chopin-etudes:
+    bash model/src/exercise_corpus/acquire_chopin_etudes.sh
+
+# #49 exercise-BOOK expansion: acquire Clementi's Op.42 key-preludes (18 short
+# drills) from Mutopia prebuilt MIDI. No LilyPond needed.
+corpus-acquire-clementi-preludes:
+    bash model/src/exercise_corpus/acquire_clementi_preludes.sh
+
+# #49: full Aria embed -> catalog -> k-NN source-purity validation over the
+# exercise-book corpus. Requires the raw MIDI on disk (the corpus-acquire-*
+# recipes + the #17 acquire.sh) and the Aria weights at
+# model/data/weights/aria-medium-embedding. Builds model/data/exercise_primitives.db
+# (gitignored) and writes results/ artifacts. SLOW (CPU Aria, ~minutes).
+corpus-embed-validate:
+    cd model && uv run python -m exercise_corpus.run \
+        --sources src/exercise_corpus/sources.toml --output-dir data
+
 # #49: segment ALL exercise sources (#17 + KernScores) and write the
 # embed-ready manifest (model/data/embed_ready_manifest.json), STOPPING before
 # the Aria embed. The GPU embed -> catalog -> validate pass is scheduled
