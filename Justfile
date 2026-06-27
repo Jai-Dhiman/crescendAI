@@ -257,6 +257,20 @@ catalog-add-kernscores:
 catalog-acquire-mutopia:
     bash model/src/score_library/acquire_mutopia.sh
 
+# Acquire ASAP (held-out performances) for cross-performance piece-ID verification.
+catalog-acquire-asap:
+    cd model && test -d data/raw/asap || git clone --depth 1 https://github.com/CPJKU/asap-dataset.git data/raw/asap
+
+# Cross-performance recall + open-set (leave-one-out) verification of the piece-ID
+# margin gate against held-out ASAP performance MIDIs (1066 perfs / 242 works).
+# Runs the FROZEN production gate (chroma top-K -> pitch-only elastic-DTW -> lock
+# iff margin>=0.0935). Ground truth is gate-independent (derive_piece_id + score-MIDI
+# oracle). Reports cross-performance recall, leave-one-out false-accept decomposed
+# into genuine-different-piece vs duplicate-of-true, and a threshold sweep.
+# Requires ASAP (run catalog-acquire-asap first); fails loud if metadata.csv missing.
+catalog-pieceid-crossperf-verify:
+    cd model && PYTHONUNBUFFERED=1 uv run python -m score_library.pieceid_crossperf_verify --per-work 0 --note-cap 600
+
 # Add net-new Mutopia keyboard pieces to the catalog: instrument-filter ->
 # content semantic dedup vs existing catalog -> self-consistency ingest ->
 # re-fingerprint. Run `just catalog-acquire-mutopia` first.
