@@ -58,7 +58,7 @@ import partitura as pa
 from piece_id_eval.note_chroma import chroma_vector
 from piece_id_eval.notes import Note, load_score_notes
 from piece_id_eval.stage0c_elastic_dtwgate import ElasticGate, _notes_to_events
-from score_library.bulk_ingest import TOP_K, W_PITCH, W_TIME, _RunningChromaIndex
+from score_library.bulk_ingest import DUP_THRESHOLD, TOP_K, W_PITCH, W_TIME, _RunningChromaIndex
 from score_library.discover import derive_piece_id
 
 _MODULE_DIR = Path(__file__).resolve().parent
@@ -103,9 +103,9 @@ def _source_class(pid: str) -> str:
 # Catalog
 # ---------------------------------------------------------------------------
 
-def build_catalog(note_cap: int) -> dict[str, list[Note]]:
+def build_catalog(note_cap: int, scores_dir: Path = _SCORES_DIR) -> dict[str, list[Note]]:
     skip = {"titles.json", "seed.sql"}
-    paths = sorted(f for f in _SCORES_DIR.glob("*.json") if f.name not in skip)
+    paths = sorted(f for f in scores_dir.glob("*.json") if f.name not in skip)
     catalog: dict[str, list[Note]] = {}
     for p in paths:
         notes = load_score_notes(p)[:note_cap]
@@ -145,6 +145,20 @@ def _decision(ranked: list[tuple[str, float]]) -> tuple[str, float] | None:
     if len(ranked) < 2:
         return None
     return ranked[0][0], ranked[1][1] - ranked[0][1]
+
+
+def _catalog_pair_cost(gate: ElasticGate, id_a: str, id_b: str) -> float | None:
+    """Pitch-only elastic cost between two CATALOG entries (for dup detection).
+
+    Used to classify a LOO false-accept: if the falsely-locked neighbor is within
+    the certified dedup distance (DUP_THRESHOLD) of the true piece, it is a residual
+    catalog DUPLICATE of the same work -- a cleanliness artifact, NOT a genuine
+    open-set rejection failure between two different pieces.
+    """
+    ev_a = gate._events.get(id_a)
+    if ev_a is None:
+        return None
+    return gate.cost(ev_a[0], ev_a[1], id_b, W_PITCH, W_TIME)
 
 
 # ---------------------------------------------------------------------------
@@ -279,8 +293,18 @@ def eval_query(
                     "closed_locked": margin >= MARGIN_THRESHOLD})
     if loo is not None:
         lbest, lmargin = loo
+        locked = lmargin >= MARGIN_THRESHOLD
         rec.update({"loo_margin": lmargin, "loo_best": lbest,
-                    "loo_locked": lmargin >= MARGIN_THRESHOLD})
+                    "loo_best_source": _source_class(lbest),
+                    "loo_locked": locked})
+        # Decompose a false-accept: is the falsely-locked neighbor a residual
+        # duplicate of the true piece (cleanliness) or a genuinely different
+        # piece (a real open-set rejection failure)?
+        if locked:
+            pair = _catalog_pair_cost(gate, true_id, lbest)
+            is_dup = pair is not None and np.isfinite(pair) and pair <= DUP_THRESHOLD
+            rec["loo_fa_dup_of_true"] = bool(is_dup)
+            rec["loo_fa_pair_cost"] = round(float(pair), 4) if pair is not None and np.isfinite(pair) else None
     return rec
 
 
@@ -312,14 +336,23 @@ def summarize(records: list[dict], catalog: dict[str, list[Note]]) -> dict:
         locked = _rate(items, lambda it: it.get("closed_locked"))
         recognized = sum(1 for it in items
                          if it.get("closed_locked") and it.get("closed_correct")) / m
-        loo_fa = _rate(items, lambda it: it.get("loo_locked"))
+        loo_items = [it for it in items if "loo_locked" in it]
+        loo_fa = sum(1 for it in loo_items if it.get("loo_locked")) / len(loo_items) if loo_items else 0.0
+        # Decompose false accepts: genuine (different piece) vs duplicate-of-true.
+        fa_locked = [it for it in loo_items if it.get("loo_locked")]
+        fa_genuine = sum(1 for it in fa_locked if not it.get("loo_fa_dup_of_true"))
+        fa_dup = sum(1 for it in fa_locked if it.get("loo_fa_dup_of_true"))
+        loo_fa_genuine = fa_genuine / len(loo_items) if loo_items else 0.0
         return {"n": m,
                 "chroma_recall@k": round(recall_k, 4),
                 "chroma_recall@1": round(recall_1, 4),
                 "top1_correct": round(top1, 4),
                 "locked_rate": round(locked, 4),
                 "recognized": round(recognized, 4),
-                "loo_false_accept": round(loo_fa, 4)}
+                "loo_false_accept": round(loo_fa, 4),
+                "loo_fa_genuine": round(loo_fa_genuine, 4),
+                "loo_fa_dup_count": fa_dup,
+                "loo_fa_genuine_count": fa_genuine}
 
     by_source: dict[str, dict] = {}
     for cls in ("engraved", "giantmidi", "pdmx", "other"):
@@ -329,12 +362,20 @@ def summarize(records: list[dict], catalog: dict[str, list[Note]]) -> dict:
     common = [r for r in records if dens.get(_source(r["true_id"]), 0) >= 100]
     uncommon = [r for r in records if dens.get(_source(r["true_id"]), 0) < 100]
 
+    # What do open-set false-accepts lock ONTO? (do giantmidi AMT distractors steal matches?)
+    fa_locked = [r for r in records if r.get("loo_locked")]
+    fa_src = collections.Counter(r.get("loo_best_source") for r in fa_locked)
+    fa_genuine_src = collections.Counter(
+        r.get("loo_best_source") for r in fa_locked if not r.get("loo_fa_dup_of_true"))
+
     return {
         "n_queries": n,
         "overall": block(records),
         "by_source": by_source,
         "by_density": {"common(>=100 neighbors)": block(common),
                        "uncommon(<100 neighbors)": block(uncommon)},
+        "fa_lock_target_source": dict(fa_src),
+        "fa_genuine_lock_target_source": dict(fa_genuine_src),
     }
 
 
@@ -347,8 +388,11 @@ def sweep_thresholds(records: list[dict]) -> list[dict]:
         ta = sum(1 for r in pos if r["closed_margin"] >= t and r.get("closed_correct")) / len(pos) if pos else 0.0
         ta_lock = sum(1 for r in pos if r["closed_margin"] >= t) / len(pos) if pos else 0.0
         fa = sum(1 for r in loo if r["loo_margin"] >= t) / len(loo) if loo else 0.0
+        # genuine FA only: exclude false-accepts onto a residual duplicate of the true piece
+        fa_gen = sum(1 for r in loo if r["loo_margin"] >= t and not r.get("loo_fa_dup_of_true")) / len(loo) if loo else 0.0
         out.append({"threshold": t, "ta_recognized": round(ta, 4),
-                    "ta_locked": round(ta_lock, 4), "fa_loo": round(fa, 4)})
+                    "ta_locked": round(ta_lock, 4), "fa_loo": round(fa, 4),
+                    "fa_loo_genuine": round(fa_gen, 4)})
     return out
 
 
@@ -363,12 +407,14 @@ def main() -> None:
     ap.add_argument("--note-cap", type=int, default=600)
     ap.add_argument("--top-k", type=int, default=TOP_K)
     ap.add_argument("--limit-works", type=int, default=0, help="debug: cap works")
+    ap.add_argument("--scores-dir", type=str, default=str(_SCORES_DIR),
+                    help="catalog score JSONs (default: module-relative data/scores)")
     ap.add_argument("--out", type=str, default=str(_OUT))
     args = ap.parse_args()
 
     t0 = time.time()
-    _log(f"building catalog (note_cap={args.note_cap}) ...")
-    catalog = build_catalog(args.note_cap)
+    _log(f"building catalog (note_cap={args.note_cap}) from {args.scores_dir} ...")
+    catalog = build_catalog(args.note_cap, Path(args.scores_dir))
     _log(f"  catalog: {len(catalog)} pieces  [{time.time()-t0:.1f}s]")
 
     t1 = time.time()
@@ -441,7 +487,11 @@ def main() -> None:
     print(f"  top-1 correct (cost argmin): {ov['top1_correct']*100:.1f}%")
     print(f"  locked@{MARGIN_THRESHOLD} (any): {ov['locked_rate']*100:.1f}%   "
           f"RECOGNIZED (locked & correct): {ov['recognized']*100:.1f}%")
-    print(f"  LOO false-accept@{MARGIN_THRESHOLD}: {ov['loo_false_accept']*100:.1f}%")
+    print(f"  LOO false-accept@{MARGIN_THRESHOLD}: {ov['loo_false_accept']*100:.1f}% "
+          f"(GENUINE different-piece: {ov['loo_fa_genuine']*100:.1f}%, "
+          f"dup-of-true: {ov['loo_fa_dup_count']}, genuine: {ov['loo_fa_genuine_count']})")
+    print(f"  FA locks onto sources: {summary['fa_lock_target_source']}")
+    print(f"  GENUINE FA locks onto: {summary['fa_genuine_lock_target_source']}")
     print("\nBY SOURCE:")
     for cls, b in summary["by_source"].items():
         if b.get("n"):
@@ -453,11 +503,12 @@ def main() -> None:
         if b.get("n"):
             print(f"  {cls:26s} n={b['n']:4d} recall@k={b['chroma_recall@k']*100:5.1f}% "
                   f"recog={b['recognized']*100:5.1f}% loo_fa={b['loo_false_accept']*100:5.1f}%")
-    print("\nTHRESHOLD SWEEP (recognized TA vs LOO FA):")
+    print("\nTHRESHOLD SWEEP (recognized TA vs LOO FA, total + genuine):")
     for s in sweep:
-        if s["threshold"] in (0.0, 0.05, 0.0935, 0.09, 0.1, 0.15, 0.2):
+        if s["threshold"] in (0.0, 0.05, 0.09, 0.1, 0.15, 0.2, 0.25):
             print(f"  t={s['threshold']:.4f}  ta_recog={s['ta_recognized']*100:5.1f}%  "
-                  f"ta_locked={s['ta_locked']*100:5.1f}%  fa_loo={s['fa_loo']*100:5.1f}%")
+                  f"ta_locked={s['ta_locked']*100:5.1f}%  fa_loo={s['fa_loo']*100:5.1f}%  "
+                  f"fa_genuine={s['fa_loo_genuine']*100:5.1f}%")
     print(f"\nwrote {outp}   [total {time.time()-t0:.1f}s]")
 
 
