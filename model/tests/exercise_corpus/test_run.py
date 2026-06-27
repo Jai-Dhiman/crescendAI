@@ -120,17 +120,17 @@ def test_run_pipeline_validate_only_reads_existing_catalog(tmp_path: Path):
 def test_segment_only_writes_manifest_and_skips_embed(tmp_path: Path):
     # #49 boundary: segment_only stages per-primitive MIDI + the embed-ready
     # manifest (with source-level coarse tags), then STOPS before the Aria embed.
-    src = tmp_path / "raw" / "joplin_rags"
-    _write_midi(src / "rag_a.mid")
-    _write_midi(src / "rag_b.mid")
+    src = tmp_path / "raw" / "czerny_op821"
+    _write_midi(src / "ex_a.mid")
+    _write_midi(src / "ex_b.mid")
     sources_toml = tmp_path / "sources.toml"
     sources_toml.write_text(
         '[[sources]]\n'
-        'name = "joplin_rags"\n'
+        'name = "czerny_op821"\n'
         'license = "public_domain"\n'
         f'musicxml_path = "{src}"\n'
-        'dimensions = ["timing", "articulation"]\n'
-        'techniques = ["stride-bass", "syncopation"]\n'
+        'dimensions = ["articulation", "timing"]\n'
+        'techniques = ["finger-velocity", "evenness"]\n'
     )
 
     result = run_pipeline(
@@ -148,10 +148,10 @@ def test_segment_only_writes_manifest_and_skips_embed(tmp_path: Path):
     assert manifest["schema"] == "exercise_corpus.embed_ready.v1"
     assert manifest["n_primitives"] == 2
     rows = {r["primitive_id"]: r for r in manifest["primitives"]}
-    assert set(rows) == {"joplin_001", "joplin_002"}
-    row = rows["joplin_001"]
-    assert row["source"] == "joplin_rags"
-    assert row["source_dimensions"] == ["timing", "articulation"]
-    assert row["source_techniques"] == ["stride-bass", "syncopation"]
+    assert set(rows) == {"czerny_op821_001", "czerny_op821_002"}
+    row = rows["czerny_op821_001"]
+    assert row["source"] == "czerny_op821"
+    assert row["source_dimensions"] == ["articulation", "timing"]
+    assert row["source_techniques"] == ["finger-velocity", "evenness"]
     # The staged MIDI the embed job will read must actually exist on disk.
     assert Path(row["midi_path"]).exists()

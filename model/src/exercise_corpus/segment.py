@@ -20,9 +20,8 @@ The MIDI is what feeds Aria embedding; nothing downstream of slice A reads
 `musicxml_path` yet.
 
 Supported source names: "hanon", "bach", "czerny", "burgmuller", "chopin",
-"satie" (#17 Mutopia core) and "beethoven_sonatas", "mozart_sonatas",
-"scarlatti_sonatas", "haydn_sonatas", "joplin_rags", "chopin_mazurkas"
-(#49 KernScores expansion -- all per_file).
+"satie" (#17 Mutopia core) and the #49 exercise-book expansion (drill-sized
+study/etude collections, all per_file), e.g. "czerny_op821".
 """
 
 import logging
@@ -77,39 +76,14 @@ _SOURCE_CONFIGS: dict[str, dict] = {
         "id_prefix": "satie",
         "boundary": "per_file",
     },
-    # --- #49 corpus expansion: KernScores craigsapp repos (kern -> MIDI via
-    # verovio; all public domain, pre-1928 composers). Per-piece MIDI, so the
-    # same boundary='per_file' shape as the Mutopia sources above. id_prefix is
-    # source-distinct so ids never collide with the #17 sources (e.g.
-    # chopin_mazurka_NNN vs the existing chopin_NNN Op.28 preludes).
-    "beethoven_sonatas": {
-        "title_prefix": "Beethoven Sonata Movement",
-        "id_prefix": "beethoven_sonata",
-        "boundary": "per_file",
-    },
-    "mozart_sonatas": {
-        "title_prefix": "Mozart Sonata Movement",
-        "id_prefix": "mozart_sonata",
-        "boundary": "per_file",
-    },
-    "scarlatti_sonatas": {
-        "title_prefix": "Scarlatti Sonata",
-        "id_prefix": "scarlatti",
-        "boundary": "per_file",
-    },
-    "haydn_sonatas": {
-        "title_prefix": "Haydn Sonata Movement",
-        "id_prefix": "haydn_sonata",
-        "boundary": "per_file",
-    },
-    "joplin_rags": {
-        "title_prefix": "Joplin Rag",
-        "id_prefix": "joplin",
-        "boundary": "per_file",
-    },
-    "chopin_mazurkas": {
-        "title_prefix": "Chopin Mazurka",
-        "id_prefix": "chopin_mazurka",
+    # --- #49 EXERCISE-BOOK expansion (goal #3): drill-sized study/etude
+    # collections whose published numbered unit IS the drill (owner decision:
+    # published-unit, no sub-windowing). Per-piece MIDI -> boundary='per_file',
+    # same shape as the Mutopia sources above. id_prefix is source-distinct so
+    # ids never collide (czerny_op821 vs the #17 czerny Op.840).
+    "czerny_op821": {
+        "title_prefix": "Czerny Op.821 Exercise",
+        "id_prefix": "czerny_op821",
         "boundary": "per_file",
     },
 }

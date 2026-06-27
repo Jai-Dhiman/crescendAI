@@ -481,3 +481,102 @@ key = "a"
 dimensions = ["pedaling", "dynamics"]
 techniques = ["sustained_pedal", "voicing"]
 key = "a"
+
+# === #49 EXERCISE-BOOK expansion: Czerny Op.821 ===
+# 160 Eight-Bar Exercises (Nos.1-19 on Mutopia). Uniform daily
+# finger-velocity drills -> articulation + timing. Keys from MIDI key sig.
+
+[czerny_op821_001]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "C"
+
+[czerny_op821_002]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "C"
+
+[czerny_op821_003]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "C"
+
+[czerny_op821_004]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "C"
+
+[czerny_op821_005]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "F"
+
+[czerny_op821_006]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "F"
+
+[czerny_op821_007]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "F"
+
+[czerny_op821_008]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "F"
+
+[czerny_op821_009]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "F"
+
+[czerny_op821_010]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "F"
+
+[czerny_op821_011]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "Bb"
+
+[czerny_op821_012]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "Bb"
+
+[czerny_op821_013]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "Bb"
+
+[czerny_op821_014]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "Bb"
+
+[czerny_op821_015]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "G"
+
+[czerny_op821_016]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "G"
+
+[czerny_op821_017]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "G"
+
+[czerny_op821_018]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "G"
+
+[czerny_op821_019]
+dimensions = ["articulation", "timing"]
+techniques = ["finger_velocity", "evenness", "daily_exercise"]
+key = "D"
