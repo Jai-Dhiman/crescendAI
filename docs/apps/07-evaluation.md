@@ -184,6 +184,23 @@ A runtime-level `after_model` middleware that re-scores compound outputs in prod
 
 **Limitations:** Only 4 pieces. Cannot test confusion between similar pieces (e.g., Bach Invention 1 vs Invention 4). Limited negative control set. All recordings are full performances, not partial starts.
 
+### Realized cross-performance eval (#96, 2026-06-26)
+
+The T5 design above is now realized at scale by `model/src/score_library/pieceid_crossperf_verify.py`
+(`just catalog-pieceid-crossperf-verify`), which runs the **frozen production gate** against
+**1,066 held-out ASAP performance MIDIs** (242 works) vs the 11,046-piece catalog, with
+gate-independent ground truth (`discover.derive_piece_id` + a score-MIDI oracle, 203/203
+agreement). It measures cross-performance recall, leave-one-out open-set false-accept (decomposed
+into genuine-different-piece vs duplicate-of-true via the dedup-gate cost), a margin-threshold
+sweep, and splits by source (engraved vs GiantMIDI/PDMX AMT) and composer-neighborhood density.
+
+**Measured (post-dedup of 72 exact twins):** recognized (locked & correct) **94.0%**, chroma
+recall@5 94.8%, true different-piece open-set FA **~0.5%** (vs the <10% FPR target). Margin
+threshold re-tuned 0.0935 → 0.13. **What this eval still does NOT cover** (the next-iteration
+gaps): real-audio→AMT transcription noise (queries here are clean ASAP MIDIs), partial/mid-piece
+starts, uncommon-piece cross-performance recall (no held-out perfs exist for GiantMIDI/PDMX
+targets), per-confidence calibration, and a same-composer confusion matrix at scale.
+
 ---
 
 ## 2. Teaching Moment Selection Eval

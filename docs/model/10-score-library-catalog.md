@@ -124,6 +124,32 @@ audio required). Run with `just test-model` or `cd model && uv run pytest tests/
 VERDICT line. If PROCEED or TUNE, open a follow-on issue to wire the winning
 matcher into the Rust/WASM `score_follower` chroma-recall channel.
 
+## Current status — gate SHIPPED (#26) + re-verified at 11K (#96)
+
+The feasibility harness above (#21) led to the shipped production gate: **chroma
+top-K recall → pitch-only chord-Jaccard elastic-DTW → lock iff margin ≥ threshold**,
+ported to `apps/api/src/wasm/piece-identify/` and wired into the SessionBrain DO
+(`accumulateAndIdentify`). False-accept rejection was certified across 322 diverse
+out-of-catalog works (Stage-0e/0f).
+
+As the catalog grew **254 → 11,046**, the gate was re-verified against held-out
+**cross-performance** queries (1,066 ASAP performance MIDIs, `git clone
+CPJKU/asap-dataset`):
+
+| Harness (`model/src/score_library/`) | `just` recipe | Measures |
+|---|---|---|
+| `pieceid_crossperf_verify.py` | `catalog-pieceid-crossperf-verify` | cross-performance recall + leave-one-out open-set FA (decomposed: genuine vs duplicate-of-true) + threshold sweep |
+| `dedup_scan.py` | `catalog-dedup-scan` | non-destructive duplicate-cluster manifest (greedy nearest-keep, source-aware threshold) |
+
+**Result (post-dedup of 72 exact twins):** recognized 94.0%, chroma recall@5 94.8%,
+true different-piece open-set FA ~0.5%. The recognition margin threshold was
+**re-tuned 0.0935 → 0.13** (`session-brain.ts PIECE_ID_MARGIN_THRESHOLD`) to restore
+FA ≤ 0.05 at the 11K catalog. Key finding: **catalog duplication, not the gate, was
+the bottleneck** — removing 0.65% of the catalog (exact twins) jumped recognition
+81.5% → 94.0%. The `dedup_scan` manifest's medium-confidence tier (355 AMT near-dups)
+is the input for a deferred cleanliness pass. Full history in memory
+`project_piece_id_amt_stage0` + Issue #96.
+
 ## Catalog vs. eval set — two different things
 
 Do not conflate them:
