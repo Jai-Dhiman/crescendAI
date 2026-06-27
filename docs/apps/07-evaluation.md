@@ -196,10 +196,38 @@ sweep, and splits by source (engraved vs GiantMIDI/PDMX AMT) and composer-neighb
 
 **Measured (post-dedup of 72 exact twins):** recognized (locked & correct) **94.0%**, chroma
 recall@5 94.8%, true different-piece open-set FA **~0.5%** (vs the <10% FPR target). Margin
-threshold re-tuned 0.0935 → 0.13. **What this eval still does NOT cover** (the next-iteration
-gaps): real-audio→AMT transcription noise (queries here are clean ASAP MIDIs), partial/mid-piece
-starts, uncommon-piece cross-performance recall (no held-out perfs exist for GiantMIDI/PDMX
-targets), per-confidence calibration, and a same-composer confusion matrix at scale.
+threshold re-tuned 0.0935 → 0.13.
+
+### Comprehensive edge-case eval + autoresearch harness (#96, 2026-06-27)
+
+`model/src/score_library/pieceid_comprehensive_eval.py` (`just catalog-pieceid-comprehensive-eval`)
+closes the edge-case gaps the cross-performance harness could not see. It reuses the frozen gate
+(every axis is a query transform; gate algo + Rust parity untouched) and a parsed-catalog pickle
+cache (`--catalog-cache`) that turns the ~8min, ~9GB JSON re-parse into a ~10s load. Axes
+(n=242 works, raw 11K catalog, threshold 0.13, CIs cluster-bootstrapped by work):
+- **B mid-piece starts** — recognized 75.6% (opening) → 36.8% (halfway) → 14.5% (75%); recall@k
+  collapses 94.6→44.2→15.3%. The **whole-piece chroma shortlist** (not the subsequence gate) is
+  the ceiling: a mid-piece section's pitch distribution diverges from the full-piece histogram.
+- **C transposition** — total cliff (0% recognition at any ±1..6 semitones); key-dependent chroma.
+  A document-the-tradeoff item (rare in classical), not a hill-climb target.
+- **D same-composer confusion matrix** — 10 confusions, 1 same-composer; 9/10 lock onto
+  GiantMIDI/PDMX AMT distractors (the bulk recognize-only corpus is the confusion source).
+- **E confidence calibration** — margin is an informative ranking but not a calibrated probability
+  (ECE 0.15, non-monotone near 0.13); a margin→P(correct) map would fix the exposed `confidence`.
+- **G notes-to-lock latency** — median first lock ~300 notes/~33s, 7.8% of locks flip id over time.
+- **Dedup of the 72 exact twins** lifts opening recognition 75.6→90.9% (orthogonal to B/C).
+- **A real-audio→AMT** (`pieceid_amt_axis.py`, `just catalog-pieceid-amt-axis-stream`) — paired
+  clean-MIDI-vs-AMT recognition over the 519 ASAP↔MAESTRO matches, streaming each WAV from HF and
+  deleting it (disk-bounded). Blocked on placing the aria-amt `medium-double` `.safetensors`
+  checkpoint in `model/data/weights/aria-amt` (the AMT server does not auto-download it).
+
+**Autoresearch loop:** `pieceid_experimental.py` is the single editable knob-board (shortlist
+mode/K, margin, absolute-cost floor, source-aware AMT strictness); `pieceid_autoresearch_eval.py`
+(`just catalog-pieceid-autoresearch`) emits one scalar `AUTORESEARCH_METRIC` rewarding opening +
+mid-piece recognition while penalizing genuine FAs above 5% (the anti-gaming guard). Baseline
+reproduces this eval exactly (0.65496); ground-truth labels are frozen at the baseline gate (a
+leakage guard). A winning lever is a **proposal to port** to the Rust/WASM gate, never an automatic
+production change. The `/autoresearch` Goal/Scope/Metric/Verify/Guard config is a #96 handoff comment.
 
 ---
 
