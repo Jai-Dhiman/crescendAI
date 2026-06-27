@@ -5,6 +5,12 @@
       "phrasing"
     ],
     "key": "C",
+    "source": "bach",
+    "techniques": [
+      "counterpoint",
+      "voice_independence"
+    ],
+    "title": "Bach Invention 1",
     "totalBars": 22
   },
   "bach_002": {
@@ -13,6 +19,12 @@
       "phrasing"
     ],
     "key": "c",
+    "source": "bach",
+    "techniques": [
+      "counterpoint",
+      "voice_independence"
+    ],
+    "title": "Bach Invention 2",
     "totalBars": 27
   },
   "bach_003": {
@@ -21,6 +33,12 @@
       "phrasing"
     ],
     "key": "D",
+    "source": "bach",
+    "techniques": [
+      "counterpoint",
+      "voice_independence"
+    ],
+    "title": "Bach Invention 3",
     "totalBars": 60
   },
   "bach_004": {
@@ -29,6 +47,12 @@
       "phrasing"
     ],
     "key": "d",
+    "source": "bach",
+    "techniques": [
+      "counterpoint",
+      "voice_independence"
+    ],
+    "title": "Bach Invention 4",
     "totalBars": 52
   },
   "bach_005": {
@@ -37,6 +61,12 @@
       "phrasing"
     ],
     "key": "Eb",
+    "source": "bach",
+    "techniques": [
+      "counterpoint",
+      "voice_independence"
+    ],
+    "title": "Bach Invention 5",
     "totalBars": 32
   },
   "bach_006": {
@@ -45,6 +75,12 @@
       "phrasing"
     ],
     "key": "E",
+    "source": "bach",
+    "techniques": [
+      "counterpoint",
+      "voice_independence"
+    ],
+    "title": "Bach Invention 6",
     "totalBars": 62
   },
   "bach_007": {
@@ -53,6 +89,12 @@
       "phrasing"
     ],
     "key": "e",
+    "source": "bach",
+    "techniques": [
+      "counterpoint",
+      "voice_independence"
+    ],
+    "title": "Bach Invention 7",
     "totalBars": 23
   },
   "bach_008": {
@@ -61,6 +103,12 @@
       "phrasing"
     ],
     "key": "F",
+    "source": "bach",
+    "techniques": [
+      "counterpoint",
+      "voice_independence"
+    ],
+    "title": "Bach Invention 8",
     "totalBars": 34
   },
   "bach_009": {
@@ -69,6 +117,12 @@
       "phrasing"
     ],
     "key": "f",
+    "source": "bach",
+    "techniques": [
+      "counterpoint",
+      "voice_independence"
+    ],
+    "title": "Bach Invention 9",
     "totalBars": 34
   },
   "bach_010": {
@@ -77,6 +131,12 @@
       "phrasing"
     ],
     "key": "G",
+    "source": "bach",
+    "techniques": [
+      "counterpoint",
+      "voice_independence"
+    ],
+    "title": "Bach Invention 10",
     "totalBars": 32
   },
   "bach_011": {
@@ -85,6 +145,12 @@
       "phrasing"
     ],
     "key": "g",
+    "source": "bach",
+    "techniques": [
+      "counterpoint",
+      "voice_independence"
+    ],
+    "title": "Bach Invention 11",
     "totalBars": 23
   },
   "bach_012": {
@@ -93,6 +159,12 @@
       "phrasing"
     ],
     "key": "A",
+    "source": "bach",
+    "techniques": [
+      "counterpoint",
+      "voice_independence"
+    ],
+    "title": "Bach Invention 12",
     "totalBars": 21
   },
   "bach_013": {
@@ -101,6 +173,12 @@
       "phrasing"
     ],
     "key": "a",
+    "source": "bach",
+    "techniques": [
+      "counterpoint",
+      "voice_independence"
+    ],
+    "title": "Bach Invention 13",
     "totalBars": 25
   },
   "bach_014": {
@@ -109,6 +187,12 @@
       "phrasing"
     ],
     "key": "Bb",
+    "source": "bach",
+    "techniques": [
+      "counterpoint",
+      "voice_independence"
+    ],
+    "title": "Bach Invention 14",
     "totalBars": 20
   },
   "bach_015": {
@@ -117,6 +201,12 @@
       "phrasing"
     ],
     "key": "b",
+    "source": "bach",
+    "techniques": [
+      "counterpoint",
+      "voice_independence"
+    ],
+    "title": "Bach Invention 15",
     "totalBars": 22
   },
   "burgmuller_001": {
@@ -126,6 +216,13 @@
       "interpretation"
     ],
     "key": "C",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 1",
     "totalBars": 23
   },
   "burgmuller_002": {
@@ -135,6 +232,13 @@
       "interpretation"
     ],
     "key": "a",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 2",
     "totalBars": 33
   },
   "burgmuller_003": {
@@ -144,6 +248,13 @@
       "interpretation"
     ],
     "key": "G",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 3",
     "totalBars": 29
   },
   "burgmuller_004": {
@@ -153,6 +264,13 @@
       "interpretation"
     ],
     "key": "C",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 4",
     "totalBars": 30
   },
   "burgmuller_005": {
@@ -162,6 +280,13 @@
       "interpretation"
     ],
     "key": "F",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 5",
     "totalBars": 17
   },
   "burgmuller_006": {
@@ -171,6 +296,13 @@
       "interpretation"
     ],
     "key": "C",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 6",
     "totalBars": 16
   },
   "burgmuller_007": {
@@ -180,6 +312,13 @@
       "interpretation"
     ],
     "key": "G",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 7",
     "totalBars": 16
   },
   "burgmuller_008": {
@@ -189,6 +328,13 @@
       "interpretation"
     ],
     "key": "F",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 8",
     "totalBars": 16
   },
   "burgmuller_009": {
@@ -198,6 +344,13 @@
       "interpretation"
     ],
     "key": "C",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 9",
     "totalBars": 57
   },
   "burgmuller_010": {
@@ -207,6 +360,13 @@
       "interpretation"
     ],
     "key": "D",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 10",
     "totalBars": 24
   },
   "burgmuller_011": {
@@ -216,6 +376,13 @@
       "interpretation"
     ],
     "key": "C",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 11",
     "totalBars": 30
   },
   "burgmuller_012": {
@@ -225,6 +392,13 @@
       "interpretation"
     ],
     "key": "C",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 12",
     "totalBars": 41
   },
   "burgmuller_013": {
@@ -234,6 +408,13 @@
       "interpretation"
     ],
     "key": "C",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 13",
     "totalBars": 27
   },
   "burgmuller_014": {
@@ -243,6 +424,13 @@
       "interpretation"
     ],
     "key": "G",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 14",
     "totalBars": 37
   },
   "burgmuller_015": {
@@ -252,6 +440,13 @@
       "interpretation"
     ],
     "key": "c",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 15",
     "totalBars": 96
   },
   "burgmuller_016": {
@@ -261,6 +456,13 @@
       "interpretation"
     ],
     "key": "g",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 16",
     "totalBars": 18
   },
   "burgmuller_017": {
@@ -270,6 +472,13 @@
       "interpretation"
     ],
     "key": "F",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 17",
     "totalBars": 35
   },
   "burgmuller_018": {
@@ -279,6 +488,13 @@
       "interpretation"
     ],
     "key": "e",
+    "source": "burgmuller",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "character"
+    ],
+    "title": "Burgmuller Study (Op.100) 18",
     "totalBars": 31
   },
   "chopin_001": {
@@ -288,6 +504,13 @@
       "phrasing"
     ],
     "key": "C",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 1",
     "totalBars": 34
   },
   "chopin_002": {
@@ -297,6 +520,13 @@
       "phrasing"
     ],
     "key": "a",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 2",
     "totalBars": 23
   },
   "chopin_003": {
@@ -306,6 +536,13 @@
       "phrasing"
     ],
     "key": "G",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 3",
     "totalBars": 33
   },
   "chopin_004": {
@@ -315,6 +552,13 @@
       "phrasing"
     ],
     "key": "e",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 4",
     "totalBars": 26
   },
   "chopin_005": {
@@ -324,6 +568,13 @@
       "phrasing"
     ],
     "key": "D",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 5",
     "totalBars": 39
   },
   "chopin_006": {
@@ -333,6 +584,13 @@
       "phrasing"
     ],
     "key": "b",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 6",
     "totalBars": 26
   },
   "chopin_007": {
@@ -342,6 +600,13 @@
       "phrasing"
     ],
     "key": "A",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 7",
     "totalBars": 16
   },
   "chopin_008": {
@@ -351,6 +616,13 @@
       "phrasing"
     ],
     "key": "f#",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 8",
     "totalBars": 34
   },
   "chopin_009": {
@@ -360,6 +632,13 @@
       "phrasing"
     ],
     "key": "E",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 9",
     "totalBars": 12
   },
   "chopin_010": {
@@ -369,6 +648,13 @@
       "phrasing"
     ],
     "key": "c#",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 10",
     "totalBars": 18
   },
   "chopin_011": {
@@ -378,6 +664,13 @@
       "phrasing"
     ],
     "key": "B",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 11",
     "totalBars": 27
   },
   "chopin_012": {
@@ -387,6 +680,13 @@
       "phrasing"
     ],
     "key": "g#",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 12",
     "totalBars": 80
   },
   "chopin_013": {
@@ -396,6 +696,13 @@
       "phrasing"
     ],
     "key": "F#",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 13",
     "totalBars": 38
   },
   "chopin_014": {
@@ -405,6 +712,13 @@
       "phrasing"
     ],
     "key": "eb",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 14",
     "totalBars": 7
   },
   "chopin_015": {
@@ -414,6 +728,13 @@
       "phrasing"
     ],
     "key": "Db",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 15",
     "totalBars": 89
   },
   "chopin_016": {
@@ -423,6 +744,13 @@
       "phrasing"
     ],
     "key": "bb",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 16",
     "totalBars": 46
   },
   "chopin_017": {
@@ -432,6 +760,13 @@
       "phrasing"
     ],
     "key": "Ab",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 17",
     "totalBars": 90
   },
   "chopin_018": {
@@ -441,6 +776,13 @@
       "phrasing"
     ],
     "key": "f",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 18",
     "totalBars": 21
   },
   "chopin_019": {
@@ -450,6 +792,13 @@
       "phrasing"
     ],
     "key": "Eb",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 19",
     "totalBars": 72
   },
   "chopin_020": {
@@ -459,6 +808,13 @@
       "phrasing"
     ],
     "key": "c",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 20",
     "totalBars": 13
   },
   "chopin_021": {
@@ -468,6 +824,13 @@
       "phrasing"
     ],
     "key": "Bb",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 21",
     "totalBars": 58
   },
   "chopin_022": {
@@ -477,6 +840,13 @@
       "phrasing"
     ],
     "key": "g",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 22",
     "totalBars": 42
   },
   "chopin_023": {
@@ -486,6 +856,13 @@
       "phrasing"
     ],
     "key": "F",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 23",
     "totalBars": 22
   },
   "chopin_024": {
@@ -495,6 +872,13 @@
       "phrasing"
     ],
     "key": "d",
+    "source": "chopin",
+    "techniques": [
+      "pedaling",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Prelude (Op.28) 24",
     "totalBars": 74
   },
   "chopin_etude_001": {
@@ -503,6 +887,13 @@
       "timing"
     ],
     "key": "C",
+    "source": "chopin_etudes",
+    "techniques": [
+      "arpeggios",
+      "hand-extension",
+      "finger-evenness"
+    ],
+    "title": "Chopin Etude 1",
     "totalBars": 79
   },
   "chopin_etude_002": {
@@ -511,6 +902,13 @@
       "timing"
     ],
     "key": "Am",
+    "source": "chopin_etudes",
+    "techniques": [
+      "chromatic-scales",
+      "finger-independence",
+      "weak-fingers"
+    ],
+    "title": "Chopin Etude 2",
     "totalBars": 49
   },
   "chopin_etude_003": {
@@ -521,6 +919,13 @@
       "interpretation"
     ],
     "key": "E",
+    "source": "chopin_etudes",
+    "techniques": [
+      "cantabile",
+      "legato",
+      "voicing"
+    ],
+    "title": "Chopin Etude 3",
     "totalBars": 78
   },
   "chopin_etude_004": {
@@ -529,6 +934,13 @@
       "timing"
     ],
     "key": "C#m",
+    "source": "chopin_etudes",
+    "techniques": [
+      "velocity",
+      "finger-independence",
+      "toccata"
+    ],
+    "title": "Chopin Etude 4",
     "totalBars": 83
   },
   "chopin_etude_005": {
@@ -537,6 +949,13 @@
       "timing"
     ],
     "key": "Gb",
+    "source": "chopin_etudes",
+    "techniques": [
+      "black-keys",
+      "light-staccato",
+      "wrist"
+    ],
+    "title": "Chopin Etude 5",
     "totalBars": 85
   },
   "chopin_etude_006": {
@@ -547,6 +966,13 @@
       "interpretation"
     ],
     "key": "Ebm",
+    "source": "chopin_etudes",
+    "techniques": [
+      "chromatic",
+      "legato",
+      "voicing"
+    ],
+    "title": "Chopin Etude 6",
     "totalBars": 54
   },
   "chopin_etude_007": {
@@ -555,6 +981,13 @@
       "timing"
     ],
     "key": "C",
+    "source": "chopin_etudes",
+    "techniques": [
+      "double-notes",
+      "repeated-notes",
+      "toccata"
+    ],
+    "title": "Chopin Etude 7",
     "totalBars": 60
   },
   "chopin_etude_008": {
@@ -564,6 +997,13 @@
       "dynamics"
     ],
     "key": "F",
+    "source": "chopin_etudes",
+    "techniques": [
+      "passagework",
+      "arpeggios",
+      "brilliance"
+    ],
+    "title": "Chopin Etude 8",
     "totalBars": 96
   },
   "chopin_etude_009": {
@@ -573,6 +1013,13 @@
       "pedaling"
     ],
     "key": "Fm",
+    "source": "chopin_etudes",
+    "techniques": [
+      "left-hand-stretch",
+      "rubato",
+      "agitato"
+    ],
+    "title": "Chopin Etude 9",
     "totalBars": 67
   },
   "chopin_etude_010": {
@@ -582,6 +1029,13 @@
       "phrasing"
     ],
     "key": "Ab",
+    "source": "chopin_etudes",
+    "techniques": [
+      "accentuation",
+      "touch-variation",
+      "cross-accent"
+    ],
+    "title": "Chopin Etude 10",
     "totalBars": 78
   },
   "chopin_etude_011": {
@@ -591,6 +1045,13 @@
       "dynamics"
     ],
     "key": "Eb",
+    "source": "chopin_etudes",
+    "techniques": [
+      "rolled-chords",
+      "arpeggiation",
+      "voicing"
+    ],
+    "title": "Chopin Etude 11",
     "totalBars": 55
   },
   "chopin_etude_012": {
@@ -600,6 +1061,13 @@
       "interpretation"
     ],
     "key": "Cm",
+    "source": "chopin_etudes",
+    "techniques": [
+      "left-hand-velocity",
+      "dramatic-contrast",
+      "revolutionary"
+    ],
+    "title": "Chopin Etude 12",
     "totalBars": 84
   },
   "chopin_etude_013": {
@@ -609,6 +1077,13 @@
       "dynamics"
     ],
     "key": "Ab",
+    "source": "chopin_etudes",
+    "techniques": [
+      "arpeggios",
+      "voicing",
+      "pedal-wash"
+    ],
+    "title": "Chopin Etude 13",
     "totalBars": 50
   },
   "chopin_etude_014": {
@@ -617,6 +1092,13 @@
       "timing"
     ],
     "key": "Fm",
+    "source": "chopin_etudes",
+    "techniques": [
+      "light-touch",
+      "cross-rhythm",
+      "murmur"
+    ],
+    "title": "Chopin Etude 14",
     "totalBars": 70
   },
   "chopin_etude_015": {
@@ -625,6 +1107,13 @@
       "articulation"
     ],
     "key": "F",
+    "source": "chopin_etudes",
+    "techniques": [
+      "leaps",
+      "syncopation",
+      "rhythmic-precision"
+    ],
+    "title": "Chopin Etude 15",
     "totalBars": 73
   },
   "chopin_etude_016": {
@@ -633,6 +1122,13 @@
       "timing"
     ],
     "key": "Am",
+    "source": "chopin_etudes",
+    "techniques": [
+      "staccato",
+      "leaps",
+      "left-hand-agility"
+    ],
+    "title": "Chopin Etude 16",
     "totalBars": 66
   },
   "chopin_etude_017": {
@@ -642,6 +1138,13 @@
       "interpretation"
     ],
     "key": "Em",
+    "source": "chopin_etudes",
+    "techniques": [
+      "appoggiatura",
+      "cantabile",
+      "ornamentation"
+    ],
+    "title": "Chopin Etude 17",
     "totalBars": 139
   },
   "chopin_etude_018": {
@@ -650,6 +1153,13 @@
       "timing"
     ],
     "key": "G#m",
+    "source": "chopin_etudes",
+    "techniques": [
+      "double-thirds",
+      "chromatic",
+      "legato"
+    ],
+    "title": "Chopin Etude 18",
     "totalBars": 63
   },
   "chopin_etude_019": {
@@ -660,6 +1170,13 @@
       "interpretation"
     ],
     "key": "C#m",
+    "source": "chopin_etudes",
+    "techniques": [
+      "cantabile",
+      "rubato",
+      "voicing"
+    ],
+    "title": "Chopin Etude 19",
     "totalBars": 69
   },
   "chopin_etude_020": {
@@ -668,6 +1185,13 @@
       "timing"
     ],
     "key": "Db",
+    "source": "chopin_etudes",
+    "techniques": [
+      "double-sixths",
+      "legato",
+      "passagework"
+    ],
+    "title": "Chopin Etude 20",
     "totalBars": 36
   },
   "chopin_etude_021": {
@@ -676,6 +1200,13 @@
       "timing"
     ],
     "key": "Gb",
+    "source": "chopin_etudes",
+    "techniques": [
+      "light-staccato",
+      "wrist",
+      "butterfly"
+    ],
+    "title": "Chopin Etude 21",
     "totalBars": 51
   },
   "chopin_etude_022": {
@@ -684,6 +1215,13 @@
       "dynamics"
     ],
     "key": "Bm",
+    "source": "chopin_etudes",
+    "techniques": [
+      "octaves",
+      "legato-octaves",
+      "endurance"
+    ],
+    "title": "Chopin Etude 22",
     "totalBars": 119
   },
   "chopin_etude_023": {
@@ -693,6 +1231,13 @@
       "interpretation"
     ],
     "key": "Am",
+    "source": "chopin_etudes",
+    "techniques": [
+      "chromatic-passagework",
+      "endurance",
+      "winter-wind"
+    ],
+    "title": "Chopin Etude 23",
     "totalBars": 96
   },
   "chopin_etude_024": {
@@ -702,6 +1247,13 @@
       "dynamics"
     ],
     "key": "Cm",
+    "source": "chopin_etudes",
+    "techniques": [
+      "arpeggios",
+      "hand-extension",
+      "ocean"
+    ],
+    "title": "Chopin Etude 24",
     "totalBars": 83
   },
   "clementi_prelude_001": {
@@ -710,6 +1262,14 @@
       "phrasing"
     ],
     "key": "C",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 1",
     "totalBars": 4
   },
   "clementi_prelude_002": {
@@ -718,6 +1278,14 @@
       "phrasing"
     ],
     "key": "Am",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 2",
     "totalBars": 4
   },
   "clementi_prelude_003": {
@@ -726,6 +1294,14 @@
       "phrasing"
     ],
     "key": "F",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 3",
     "totalBars": 6
   },
   "clementi_prelude_004": {
@@ -734,6 +1310,14 @@
       "phrasing"
     ],
     "key": "Dm",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 4",
     "totalBars": 6
   },
   "clementi_prelude_005": {
@@ -742,6 +1326,14 @@
       "phrasing"
     ],
     "key": "G",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 5",
     "totalBars": 3
   },
   "clementi_prelude_006": {
@@ -750,6 +1342,14 @@
       "phrasing"
     ],
     "key": "Em",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 6",
     "totalBars": 5
   },
   "clementi_prelude_007": {
@@ -758,6 +1358,14 @@
       "phrasing"
     ],
     "key": "Bb",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 7",
     "totalBars": 5
   },
   "clementi_prelude_008": {
@@ -766,6 +1374,14 @@
       "phrasing"
     ],
     "key": "Gm",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 8",
     "totalBars": 3
   },
   "clementi_prelude_009": {
@@ -774,6 +1390,14 @@
       "phrasing"
     ],
     "key": "D",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 9",
     "totalBars": 6
   },
   "clementi_prelude_010": {
@@ -782,6 +1406,14 @@
       "phrasing"
     ],
     "key": "Bm",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 10",
     "totalBars": 6
   },
   "clementi_prelude_011": {
@@ -790,6 +1422,14 @@
       "phrasing"
     ],
     "key": "Eb",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 11",
     "totalBars": 4
   },
   "clementi_prelude_012": {
@@ -798,6 +1438,14 @@
       "phrasing"
     ],
     "key": "Cm",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 12",
     "totalBars": 4
   },
   "clementi_prelude_013": {
@@ -806,6 +1454,14 @@
       "phrasing"
     ],
     "key": "A",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 13",
     "totalBars": 2
   },
   "clementi_prelude_014": {
@@ -814,6 +1470,14 @@
       "phrasing"
     ],
     "key": "F#m",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 14",
     "totalBars": 11
   },
   "clementi_prelude_015": {
@@ -822,6 +1486,14 @@
       "phrasing"
     ],
     "key": "Ab",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 15",
     "totalBars": 8
   },
   "clementi_prelude_016": {
@@ -830,6 +1502,14 @@
       "phrasing"
     ],
     "key": "Fm",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 16",
     "totalBars": 4
   },
   "clementi_prelude_017": {
@@ -838,6 +1518,14 @@
       "phrasing"
     ],
     "key": "E",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 17",
     "totalBars": 5
   },
   "clementi_prelude_018": {
@@ -846,6 +1534,14 @@
       "phrasing"
     ],
     "key": "C#m",
+    "source": "clementi_preludes",
+    "techniques": [
+      "key_prelude",
+      "chord_voicing",
+      "cadential_shaping",
+      "touch"
+    ],
+    "title": "Clementi Op.42 Prelude 18",
     "totalBars": 6
   },
   "czerny_001": {
@@ -854,6 +1550,13 @@
       "articulation"
     ],
     "key": "c",
+    "source": "czerny",
+    "techniques": [
+      "velocity",
+      "finger_facility",
+      "evenness"
+    ],
+    "title": "Czerny Study (Op.840) 1",
     "totalBars": 22
   },
   "czerny_002": {
@@ -862,6 +1565,13 @@
       "articulation"
     ],
     "key": "F",
+    "source": "czerny",
+    "techniques": [
+      "velocity",
+      "finger_facility",
+      "evenness"
+    ],
+    "title": "Czerny Study (Op.840) 2",
     "totalBars": 32
   },
   "czerny_003": {
@@ -870,6 +1580,13 @@
       "articulation"
     ],
     "key": "c",
+    "source": "czerny",
+    "techniques": [
+      "velocity",
+      "finger_facility",
+      "evenness"
+    ],
+    "title": "Czerny Study (Op.840) 3",
     "totalBars": 48
   },
   "czerny_004": {
@@ -878,6 +1595,13 @@
       "articulation"
     ],
     "key": "Bb",
+    "source": "czerny",
+    "techniques": [
+      "velocity",
+      "finger_facility",
+      "evenness"
+    ],
+    "title": "Czerny Study (Op.840) 4",
     "totalBars": 64
   },
   "czerny_005": {
@@ -886,6 +1610,13 @@
       "articulation"
     ],
     "key": "C",
+    "source": "czerny",
+    "techniques": [
+      "velocity",
+      "finger_facility",
+      "evenness"
+    ],
+    "title": "Czerny Study (Op.840) 5",
     "totalBars": 40
   },
   "czerny_006": {
@@ -894,6 +1625,13 @@
       "articulation"
     ],
     "key": "C",
+    "source": "czerny",
+    "techniques": [
+      "velocity",
+      "finger_facility",
+      "evenness"
+    ],
+    "title": "Czerny Study (Op.840) 6",
     "totalBars": 32
   },
   "czerny_007": {
@@ -902,6 +1640,13 @@
       "articulation"
     ],
     "key": "G",
+    "source": "czerny",
+    "techniques": [
+      "velocity",
+      "finger_facility",
+      "evenness"
+    ],
+    "title": "Czerny Study (Op.840) 7",
     "totalBars": 56
   },
   "czerny_008": {
@@ -910,6 +1655,13 @@
       "articulation"
     ],
     "key": "C",
+    "source": "czerny",
+    "techniques": [
+      "velocity",
+      "finger_facility",
+      "evenness"
+    ],
+    "title": "Czerny Study (Op.840) 8",
     "totalBars": 32
   },
   "czerny_009": {
@@ -918,6 +1670,13 @@
       "articulation"
     ],
     "key": "Bb",
+    "source": "czerny",
+    "techniques": [
+      "velocity",
+      "finger_facility",
+      "evenness"
+    ],
+    "title": "Czerny Study (Op.840) 9",
     "totalBars": 48
   },
   "czerny_010": {
@@ -926,6 +1685,13 @@
       "articulation"
     ],
     "key": "G",
+    "source": "czerny",
+    "techniques": [
+      "velocity",
+      "finger_facility",
+      "evenness"
+    ],
+    "title": "Czerny Study (Op.840) 10",
     "totalBars": 32
   },
   "czerny_op821_001": {
@@ -934,6 +1700,13 @@
       "timing"
     ],
     "key": "C",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 1",
     "totalBars": 8
   },
   "czerny_op821_002": {
@@ -942,6 +1715,13 @@
       "timing"
     ],
     "key": "C",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 2",
     "totalBars": 8
   },
   "czerny_op821_003": {
@@ -950,6 +1730,13 @@
       "timing"
     ],
     "key": "C",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 3",
     "totalBars": 8
   },
   "czerny_op821_004": {
@@ -958,6 +1745,13 @@
       "timing"
     ],
     "key": "C",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 4",
     "totalBars": 8
   },
   "czerny_op821_005": {
@@ -966,6 +1760,13 @@
       "timing"
     ],
     "key": "F",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 5",
     "totalBars": 8
   },
   "czerny_op821_006": {
@@ -974,6 +1775,13 @@
       "timing"
     ],
     "key": "F",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 6",
     "totalBars": 8
   },
   "czerny_op821_007": {
@@ -982,6 +1790,13 @@
       "timing"
     ],
     "key": "F",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 7",
     "totalBars": 8
   },
   "czerny_op821_008": {
@@ -990,6 +1805,13 @@
       "timing"
     ],
     "key": "F",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 8",
     "totalBars": 8
   },
   "czerny_op821_009": {
@@ -998,6 +1820,13 @@
       "timing"
     ],
     "key": "F",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 9",
     "totalBars": 8
   },
   "czerny_op821_010": {
@@ -1006,6 +1835,13 @@
       "timing"
     ],
     "key": "F",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 10",
     "totalBars": 8
   },
   "czerny_op821_011": {
@@ -1014,6 +1850,13 @@
       "timing"
     ],
     "key": "Bb",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 11",
     "totalBars": 8
   },
   "czerny_op821_012": {
@@ -1022,6 +1865,13 @@
       "timing"
     ],
     "key": "Bb",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 12",
     "totalBars": 8
   },
   "czerny_op821_013": {
@@ -1030,6 +1880,13 @@
       "timing"
     ],
     "key": "Bb",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 13",
     "totalBars": 8
   },
   "czerny_op821_014": {
@@ -1038,6 +1895,13 @@
       "timing"
     ],
     "key": "Bb",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 14",
     "totalBars": 16
   },
   "czerny_op821_015": {
@@ -1046,6 +1910,13 @@
       "timing"
     ],
     "key": "G",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 15",
     "totalBars": 8
   },
   "czerny_op821_016": {
@@ -1054,6 +1925,13 @@
       "timing"
     ],
     "key": "G",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 16",
     "totalBars": 8
   },
   "czerny_op821_017": {
@@ -1062,6 +1940,13 @@
       "timing"
     ],
     "key": "G",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 17",
     "totalBars": 8
   },
   "czerny_op821_018": {
@@ -1070,6 +1955,13 @@
       "timing"
     ],
     "key": "G",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 18",
     "totalBars": 8
   },
   "czerny_op821_019": {
@@ -1078,6 +1970,13 @@
       "timing"
     ],
     "key": "D",
+    "source": "czerny_op821",
+    "techniques": [
+      "finger_velocity",
+      "evenness",
+      "daily_exercise"
+    ],
+    "title": "Czerny Op.821 Exercise 19",
     "totalBars": 8
   },
   "hanon_001": {
@@ -1086,6 +1985,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 1",
     "totalBars": 29
   },
   "hanon_002": {
@@ -1094,6 +1999,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 2",
     "totalBars": 29
   },
   "hanon_003": {
@@ -1102,6 +2013,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 3",
     "totalBars": 29
   },
   "hanon_004": {
@@ -1110,6 +2027,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 4",
     "totalBars": 29
   },
   "hanon_005": {
@@ -1118,6 +2041,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 5",
     "totalBars": 29
   },
   "hanon_006": {
@@ -1126,6 +2055,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 6",
     "totalBars": 29
   },
   "hanon_007": {
@@ -1134,6 +2069,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 7",
     "totalBars": 29
   },
   "hanon_008": {
@@ -1142,6 +2083,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 8",
     "totalBars": 29
   },
   "hanon_009": {
@@ -1150,6 +2097,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 9",
     "totalBars": 29
   },
   "hanon_010": {
@@ -1158,6 +2111,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 10",
     "totalBars": 29
   },
   "hanon_011": {
@@ -1166,6 +2125,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 11",
     "totalBars": 29
   },
   "hanon_012": {
@@ -1174,6 +2139,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 12",
     "totalBars": 30
   },
   "hanon_013": {
@@ -1182,6 +2153,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 13",
     "totalBars": 29
   },
   "hanon_014": {
@@ -1190,6 +2167,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 14",
     "totalBars": 29
   },
   "hanon_015": {
@@ -1198,6 +2181,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 15",
     "totalBars": 29
   },
   "hanon_016": {
@@ -1206,6 +2195,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 16",
     "totalBars": 29
   },
   "hanon_017": {
@@ -1214,6 +2209,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 17",
     "totalBars": 28
   },
   "hanon_018": {
@@ -1222,6 +2223,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 18",
     "totalBars": 29
   },
   "hanon_019": {
@@ -1230,6 +2237,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 19",
     "totalBars": 29
   },
   "hanon_020": {
@@ -1238,6 +2251,12 @@
       "timing"
     ],
     "key": "C",
+    "source": "hanon",
+    "techniques": [
+      "finger_independence",
+      "evenness"
+    ],
+    "title": "Hanon Exercise 20",
     "totalBars": 31
   },
   "satie_001": {
@@ -1246,6 +2265,12 @@
       "dynamics"
     ],
     "key": "f",
+    "source": "satie",
+    "techniques": [
+      "sustained_pedal",
+      "voicing"
+    ],
+    "title": "Satie 1",
     "totalBars": 82
   },
   "satie_002": {
@@ -1254,6 +2279,12 @@
       "dynamics"
     ],
     "key": "a",
+    "source": "satie",
+    "techniques": [
+      "sustained_pedal",
+      "voicing"
+    ],
+    "title": "Satie 2",
     "totalBars": 34
   },
   "satie_003": {
@@ -1262,6 +2293,12 @@
       "dynamics"
     ],
     "key": "a",
+    "source": "satie",
+    "techniques": [
+      "sustained_pedal",
+      "voicing"
+    ],
+    "title": "Satie 3",
     "totalBars": 54
   },
   "satie_004": {
@@ -1270,6 +2307,12 @@
       "dynamics"
     ],
     "key": "b",
+    "source": "satie",
+    "techniques": [
+      "sustained_pedal",
+      "voicing"
+    ],
+    "title": "Satie 4",
     "totalBars": 47
   },
   "satie_005": {
@@ -1278,6 +2321,12 @@
       "dynamics"
     ],
     "key": "a",
+    "source": "satie",
+    "techniques": [
+      "sustained_pedal",
+      "voicing"
+    ],
+    "title": "Satie 5",
     "totalBars": 65
   },
   "satie_006": {
@@ -1286,6 +2335,12 @@
       "dynamics"
     ],
     "key": "a",
+    "source": "satie",
+    "techniques": [
+      "sustained_pedal",
+      "voicing"
+    ],
+    "title": "Satie 6",
     "totalBars": 60
   }
 }

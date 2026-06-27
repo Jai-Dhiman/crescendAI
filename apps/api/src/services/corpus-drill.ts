@@ -4,7 +4,14 @@ import manifest from "./exercise_primitives_manifest.json";
 import type { ExerciseSetPayload } from "./exercises";
 import { parseKeyToPc, transposeInterval } from "./keys";
 
-type ManifestEntry = { dimensions: string[]; key: string; totalBars: number };
+type ManifestEntry = {
+  dimensions: string[];
+  techniques: string[];
+  key: string;
+  totalBars: number;
+  title: string;
+  source: string;
+};
 const MANIFEST: Record<string, ManifestEntry> = manifest as Record<string, ManifestEntry>;
 
 // The neutral generic fallback drill is an EXPLICIT product choice (a Hanon finger
