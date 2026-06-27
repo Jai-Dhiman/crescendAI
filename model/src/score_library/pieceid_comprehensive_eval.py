@@ -579,6 +579,9 @@ def main() -> None:
     ]
     baseline = [r for r in baseline if r is not None]
     results["baseline"] = _block(baseline, args.threshold)
+    # Persist the opening-window per-query records so axes D/E and threshold
+    # sensitivity can be re-derived offline without re-running the eval.
+    results["baseline_records"] = baseline
     _log(f"  baseline computed (n={len(baseline)})  [{time.time()-t3:.1f}s]")
 
     if "b" in axes:

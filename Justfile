@@ -287,6 +287,16 @@ catalog-pieceid-comprehensive-eval:
 catalog-pieceid-amt-axis maestro_dir limit="50":
     cd model && PYTHONUNBUFFERED=1 uv run python -m score_library.pieceid_amt_axis --maestro-dir {{maestro_dir}} --limit {{limit}} --opening-seconds 90 --threshold 0.13
 
+# AUTORESEARCH verify command: drives the experimental knob-board
+# (score_library/pieceid_experimental.py -- the ONLY file an autoresearch loop edits)
+# over held-out ASAP perfs vs the 11K catalog and prints a single scalar
+# `AUTORESEARCH_METRIC: <float>` rewarding opening + mid-piece recognition while
+# penalizing genuine open-set false-accepts above the 5% bar. Parsed-catalog +
+# label caches make each iteration ~50s. Pass CATALOG/CACHE/LABEL paths as needed;
+# defaults assume the catalog is in-worktree (data/scores) with sibling cache files.
+catalog-pieceid-autoresearch catalog_cache="data/evals/piece_id/catalog_cache.pkl" label_cache="data/evals/piece_id/labels_cache.json":
+    cd model && PYTHONUNBUFFERED=1 uv run python -m score_library.pieceid_autoresearch_eval --catalog-cache {{catalog_cache}} --label-cache {{label_cache}}
+
 # Catalog-wide AMT-aware duplicate detection (NON-DESTRUCTIVE manifest, nothing deleted).
 # Greedy nearest-keep: drops a piece only on a DIRECT match to an already-kept higher-
 # priority piece (engraved>pdmx>giantmidi, most-notes). Source-aware threshold (engraved
