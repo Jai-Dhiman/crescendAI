@@ -179,6 +179,25 @@ build-catalog-mxl:
 render-kern-mei:
     cd model && uv run python -m score_library.render_kern_assets
 
+# Re-bar every score JSON that has a paired engraved .mei so its bar grid matches
+# the displayed measures (total_bars == Verovio measure count). Notes are preserved
+# exactly, so the piece-ID fingerprint is unchanged. Fixes live score-highlighting
+# alignment for repeat-heavy / mis-segmented pieces (~210/618 had a drifted grid).
+# Re-run `just fingerprint` is NOT required (note set unchanged) but harmless.
+rebar-scores backup_dir="":
+    cd model && uv run python -m score_library.rebar_from_mei \
+        --scores-dir data/scores --mei-dir scores/v1 \
+        {{ if backup_dir != "" { "--backup-dir " + backup_dir } else { "" } }}
+
+# Render a stratified sample of the renderable .mei through the REAL scorehost
+# Verovio worker (headed Chrome) and screenshot each. Pass a sample JSON (rows of
+# {pid,total_bars,key,ts,coll}) and an output dir. Proves in-browser display, not
+# just python verovio.loadData. Requires `just build-scorehost` first.
+verify-mei-display sample shots_dir:
+    cd apps/web && MEI_DIR="../../model/scores/v1" MEI_SAMPLE="{{sample}}" SHOTS_DIR="{{shots_dir}}" \
+        bunx playwright test --config playwright.scorehost.config.ts \
+        src/scorehost/mei-display.playwright.ts --headed --timeout=0 --reporter=line
+
 # Stage net-new KernScores canon collections (Hummel preludes, Bach Art of the
 # Fugue, Scriabin solo piano) as per-piece MIDI under
 # ~/crescendai_corpus_staging/kernscores_midi/<repo>/ for catalog ingest. The
