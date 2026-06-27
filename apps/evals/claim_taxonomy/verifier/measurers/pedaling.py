@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
 
 import numpy as np
 
@@ -10,17 +9,45 @@ from claim_taxonomy.verifier.models import UnverifiableError
 from claim_taxonomy.verifier.location_resolver import ResolvedRegion
 from claim_taxonomy.verifier.substrate_error import SubstrateErrorEngine
 
-MINIMUM_EVENTS = 2          # minimum sustain-on events in region
-SUSTAIN_THRESHOLD = 64      # CC64 value >= 64 = sustain on
+# Reference pedal usage = corpus-median AMT sustain time-on-fraction over fixed-gain
+# piano-rendered PercePiano (#101 front-3, G-A neutral renders, n=30). The signed
+# whole_piece statistic is the performance on-fraction minus this neutral anchor.
+# AMT-derived (NOT MIDI-native): aria-amt inflates low pedal on-fraction (positive
+# floor bias) and compresses the range, so a MIDI-native median would mis-zero the
+# AMT-substrate measurement. locked:false -- front 4 / G-C recalibrate.
+REFERENCE_FRACTION = 0.4623
+
+# CC64 value >= 64 = sustain on (PerfPedalEvent uses 0/127; aria-amt emits clean
+# 0/127 on-off pairs, transcription.py:182-224).
+SUSTAIN_THRESHOLD = 64
+
+# AMT pedal-boundary onset jitter (s). Each on-span has two boundaries (on, off);
+# both perturb the on-time numerator. Placeholder substrate noise until G-C measures
+# the real re-transcription pedal-boundary churn (the dynamics VELOCITY_QUANT_STEP analog).
+BOUNDARY_JITTER_SEC = 0.010
 
 
 class PedalingMeasurer:
-    """Measure pedal presence density for pedaling claims.
+    """Measure sustain-pedal time-on-fraction (the GATE-2-validated statistic) for
+    pedaling claims.
 
-    Sign convention:
-    - d < 0: region has lower pedal density than self_density (sparse)
-    - d > 0: region has higher pedal density than self_density (over-pedaled)
-    - Whole-piece: d = pedal-bar fraction (presence statistic, 0.0 to 1.0)
+    Substrate: aria-amt-transcribed ``pedal_events`` (CC64 on/off). The statistic is
+    the fraction of duration the sustain pedal is down -- the EXACT statistic validated
+    against PercePiano perceived pedaling at partial-rho 0.478 (n=1202, GATE 2 /
+    ``gate2_expert_anchor.json``, measure ``pedal_frac`` = ``pedaling_on_fraction``).
+    The previously-shipped pedal-BAR-fraction (fraction of bars with >=1 event) was an
+    unvalidated cousin; switching to time-on-fraction makes the verifier check the
+    statistic G-B measured, so 0.478 is inherited verbatim (frac - const is monotone
+    in frac). Units: time-on-fraction in [0,1] for BOTH location tiers (one tau).
+
+    Sign convention (signed d vs reference, consumed by the frozen router):
+    - whole_piece: d = on_fraction - REFERENCE_FRACTION
+        d > 0 wetter / more sustain than a neutral performance (over-pedaled);
+        d < 0 drier / less sustain (under-pedaled). A genuinely dry performance
+        (zero pedal) measures d = -REFERENCE_FRACTION -- it is an informative signed
+        measurement, NOT an abstention (this is what makes "-" claims adjudicable).
+    - region: d = region_on_fraction - whole_piece_on_fraction
+        d > 0 region wetter than the piece; d < 0 drier. Within-clip, gain-free.
     """
 
     def measure(
@@ -31,118 +58,124 @@ class PedalingMeasurer:
         engine: SubstrateErrorEngine,
     ) -> Measurement:
         pedal_events = bundle.get("pedal_events") or []
-        sustain_on_times = np.array(
-            [float(e["time"]) for e in pedal_events if int(e["value"]) >= SUSTAIN_THRESHOLD],
-            dtype=np.float64,
-        )
-        measure_table = bundle.get("measure_table") or []
-        if not measure_table:
-            raise UnverifiableError("substrate_failure", "measure_table is empty")
+        notes = bundle.get("notes") or []
+        total_dur = self._total_duration(notes, pedal_events)
+        if total_dur <= 0.0:
+            raise UnverifiableError(
+                "substrate_failure",
+                "bundle has no measurable duration (no notes or pedal events)",
+            )
 
-        bars = sorted(measure_table, key=lambda r: r["bar_number"])
+        spans = self._sustain_spans(pedal_events, total_dur)
 
         if location == "whole_piece":
-            return self._measure_whole_piece(sustain_on_times, bars, engine)
+            return self._measure_whole_piece(spans, total_dur, engine)
 
-        bar_start = int(location["bar_start"])
-        bar_end = int(location["bar_end"])
+        return self._measure_region(spans, region, total_dur, engine)
 
-        global_event_count = int(sustain_on_times.size)
-        if global_event_count < MINIMUM_EVENTS:
-            raise UnverifiableError(
-                "region_too_short",
-                f"bundle has only {global_event_count} sustain-on events total; "
-                f"need >= {MINIMUM_EVENTS}",
-            )
+    def _total_duration(self, notes: list[dict], pedal_events: list[dict]) -> float:
+        note_end = max((float(n["offset"]) for n in notes), default=0.0)
+        pedal_end = max((float(e["time"]) for e in pedal_events), default=0.0)
+        return max(note_end, pedal_end)
 
-        region_events = sustain_on_times[
-            (sustain_on_times >= region.audio_start_sec)
-            & (sustain_on_times < region.audio_end_sec)
-        ]
-        event_count = int(region_events.size)
+    def _sustain_spans(
+        self, pedal_events: list[dict], total_dur: float
+    ) -> list[tuple[float, float]]:
+        """Reconstruct (on, off) sustain spans from the CC64 on/off event stream.
 
-        region_bar_rows = [r for r in bars if bar_start <= r["bar_number"] <= bar_end]
-        region_fraction = self._pedal_bar_fraction(region_bar_rows, sustain_on_times, bars)
+        An unterminated final 'on' is closed at total_dur (pedal held to the end).
+        """
+        evs = sorted(
+            ((float(e["time"]), int(e["value"])) for e in pedal_events),
+            key=lambda e: e[0],
+        )
+        spans: list[tuple[float, float]] = []
+        on: float | None = None
+        for t, v in evs:
+            if v >= SUSTAIN_THRESHOLD and on is None:
+                on = t
+            elif v < SUSTAIN_THRESHOLD and on is not None:
+                if t > on:
+                    spans.append((on, t))
+                on = None
+        if on is not None and total_dur > on:
+            spans.append((on, total_dur))
+        return spans
 
-        self_density = self._pedal_bar_fraction(bars, sustain_on_times, bars)
-
-        d = region_fraction - self_density
-
-        per_bar_presence = np.array([
-            1.0 if self._bar_has_pedal(r, sustain_on_times, bars) else 0.0
-            for r in region_bar_rows
-        ])
-        bootstrapped = engine.bootstrap_d(per_bar_presence, np.mean)
-        sampling_var = float(np.var(bootstrapped - self_density))
-
-        threshold_jitters = engine.pedal_threshold_jitter()
-        threshold_samples = np.empty(len(threshold_jitters))
-        for i, jitter in enumerate(threshold_jitters):
-            threshold = SUSTAIN_THRESHOLD + jitter
-            region_ev_j = np.array(
-                [float(e["time"]) for e in pedal_events if int(e["value"]) >= threshold],
-                dtype=np.float64,
-            )
-            region_ev_j = region_ev_j[
-                (region_ev_j >= region.audio_start_sec)
-                & (region_ev_j < region.audio_end_sec)
-            ]
-            frac_j = self._pedal_bar_fraction(region_bar_rows, region_ev_j, bars)
-            threshold_samples[i] = frac_j - self_density
-
-        substrate_var = float(np.var(threshold_samples))
-        error_bar = math.sqrt(sampling_var + substrate_var)
-
-        return Measurement(d=d, error_bar=error_bar, event_count=event_count, substrate_failure=False)
-
-    def _bar_start_end_sec(self, bar_row: dict, all_bars: list[dict]) -> tuple[float, float]:
-        start = float(bar_row["start_sec"])
-        bar_num = int(bar_row["bar_number"])
-        next_bars = [r for r in all_bars if int(r["bar_number"]) == bar_num + 1]
-        if next_bars:
-            end = float(next_bars[0]["start_sec"])
-        else:
-            prev_bars = [r for r in all_bars if int(r["bar_number"]) == bar_num - 1]
-            if prev_bars:
-                dur = start - float(prev_bars[0]["start_sec"])
-            else:
-                dur = 2.0
-            end = start + dur
-        return start, end
-
-    def _bar_has_pedal(
-        self, bar_row: dict, sustain_times: np.ndarray, all_bars: list[dict]
-    ) -> bool:
-        start, end = self._bar_start_end_sec(bar_row, all_bars)
-        return bool(np.any((sustain_times >= start) & (sustain_times < end)))
-
-    def _pedal_bar_fraction(
-        self, bar_rows: list[dict], sustain_times: np.ndarray, all_bars: list[dict]
+    def _on_fraction(
+        self, spans: list[tuple[float, float]], start: float, end: float, dur: float
     ) -> float:
-        if not bar_rows:
+        if dur <= 0.0:
             return 0.0
-        count = sum(1 for r in bar_rows if self._bar_has_pedal(r, sustain_times, all_bars))
-        return count / len(bar_rows)
+        on = 0.0
+        for a, b in spans:
+            lo = max(a, start)
+            hi = min(b, end)
+            if hi > lo:
+                on += hi - lo
+        return float(min(on / dur, 1.0))
 
     def _measure_whole_piece(
         self,
-        sustain_on_times: np.ndarray,
-        bars: list[dict],
+        spans: list[tuple[float, float]],
+        total_dur: float,
         engine: SubstrateErrorEngine,
     ) -> Measurement:
-        event_count = int(sustain_on_times.size)
-        if event_count < MINIMUM_EVENTS:
+        frac = self._on_fraction(spans, 0.0, total_dur, total_dur)
+        d = frac - REFERENCE_FRACTION
+        durations = np.array([b - a for a, b in spans], dtype=np.float64)
+        error_bar = self._error_bar(durations, total_dur, engine)
+        return Measurement(
+            d=d, error_bar=error_bar, event_count=len(spans), substrate_failure=False
+        )
+
+    def _measure_region(
+        self,
+        spans: list[tuple[float, float]],
+        region: ResolvedRegion,
+        total_dur: float,
+        engine: SubstrateErrorEngine,
+    ) -> Measurement:
+        r_start = region.audio_start_sec
+        r_end = region.audio_end_sec
+        region_dur = r_end - r_start
+        if region_dur <= 0.0:
             raise UnverifiableError(
-                "region_too_short",
-                f"whole_piece has only {event_count} sustain-on events; need >= {MINIMUM_EVENTS}",
+                "region_too_short", f"region duration {region_dur:.3f}s <= 0"
             )
-        d = self._pedal_bar_fraction(bars, sustain_on_times, bars)
-        per_bar = np.array([
-            1.0 if self._bar_has_pedal(r, sustain_on_times, bars) else 0.0
-            for r in bars
-        ])
-        bootstrapped = engine.bootstrap_d(per_bar, np.mean)
+
+        whole_frac = self._on_fraction(spans, 0.0, total_dur, total_dur)
+        region_frac = self._on_fraction(spans, r_start, r_end, region_dur)
+        d = region_frac - whole_frac
+
+        region_durations = np.array(
+            [
+                min(b, r_end) - max(a, r_start)
+                for a, b in spans
+                if min(b, r_end) > max(a, r_start)
+            ],
+            dtype=np.float64,
+        )
+        error_bar = self._error_bar(region_durations, region_dur, engine)
+        return Measurement(
+            d=d,
+            error_bar=error_bar,
+            event_count=int(region_durations.size),
+            substrate_failure=False,
+        )
+
+    def _error_bar(
+        self, durations: np.ndarray, dur: float, engine: SubstrateErrorEngine
+    ) -> float:
+        """Error bar on the on-fraction: bootstrap-sampling variance over spans plus
+        an assumed boundary-jitter substrate term. front 5 / G-C replaces the
+        substrate term with the measured re-transcription churn."""
+        n = int(durations.size)
+        if n == 0 or dur <= 0.0:
+            return 0.0
+        bootstrapped = engine.bootstrap_d(durations, lambda x: float(np.sum(x)) / dur)
         sampling_var = float(np.var(bootstrapped))
-        substrate_var = 0.0
-        error_bar = math.sqrt(sampling_var + substrate_var)
-        return Measurement(d=d, error_bar=error_bar, event_count=event_count, substrate_failure=False)
+        # two boundaries per span, each ~ N(0, BOUNDARY_JITTER_SEC); var of on-time
+        # = 2n*sigma^2, scaled into fraction units by dur^2.
+        substrate_var = (2.0 * n * BOUNDARY_JITTER_SEC ** 2) / (dur ** 2)
+        return math.sqrt(sampling_var + substrate_var)

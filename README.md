@@ -22,6 +22,7 @@ Multi-platform (iOS + web) practice companion that evaluates *how* a piano perfo
 |---------|------|-------------------|-------|
 | A1-Max (4-fold ensemble) | Audio | 79.85% | MuQ + LoRA rank-32, ListMLE+CCC. Deployed on HF endpoint |
 | Aria (frozen, Phase A) | Symbolic | 59.6% | 650M params, error correlation phi=0.043 vs MuQ -- strong fusion signal |
+| Aria (LoRA, Phase C -- T1) | Symbolic | 69.9% | 650M + LoRA rank-32 (layers 8-15), 4-fold clean folds. Beats frozen probe (+10.3pts); lower bound on AMT timbre proxy (#78) |
 
 > **Fold integrity note:** Earlier results (80.8%, S2 GNN 71.3%) were computed with leaked folds where segments from the same piece appeared in both train and val splits. Those numbers are invalid. All current results use piece-stratified CV only.
 

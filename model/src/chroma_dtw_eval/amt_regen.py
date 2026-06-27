@@ -58,9 +58,25 @@ DEFAULT_AMT_VERSION_CONFIG = _MODULE_DIR.parents[2] / "config/amt_version.json"
 DEFAULT_PRACTICE_ROOT = _MODULE_DIR.parents[2] / "data/evals/practice_eval"
 DEFAULT_CACHE_ROOT = _MODULE_DIR.parents[2] / "data/evals/pseudo_truth"
 DEFAULT_SCORE_ROOT = _MODULE_DIR.parents[2] / "data/scores"
+# piece slug -> score JSON. Verified 2026-06-22 against ls model/data/scores/ and
+# load-tested through _load_bach_json_score (variable-tempo / non-4/4 now supported, #98).
 DEFAULT_SCORE_BY_PIECE = {
     "bach_prelude_c_wtc1": DEFAULT_SCORE_ROOT / "bach.prelude.bwv_846.json",
     "bach_invention_1": DEFAULT_SCORE_ROOT / "bach.inventions.1.json",
+    "chopin_ballade_1": DEFAULT_SCORE_ROOT / "chopin.ballades.1.json",
+    "chopin_etude_op10no4": DEFAULT_SCORE_ROOT / "chopin.etudes_op_10.4.json",
+    "chopin_waltz_csm": DEFAULT_SCORE_ROOT / "chopin.waltzes.64-2.json",
+    "clair_de_lune": DEFAULT_SCORE_ROOT / "debussy.suite_bergamasque.3_clair_de_lune.json",
+    "debussy_arabesque_1": DEFAULT_SCORE_ROOT / "debussy.deux_arabesques.1.json",
+    "fantaisie_impromptu": DEFAULT_SCORE_ROOT / "chopin.fantaisie_impromptu.json",
+    "fur_elise": DEFAULT_SCORE_ROOT / "beethoven.fur_elise.json",
+    "liszt_liebestraum_3": DEFAULT_SCORE_ROOT / "liszt.liebestraume.3.json",
+    "moonlight_sonata_mvt1": DEFAULT_SCORE_ROOT / "beethoven.piano_sonatas.14-1.json",
+    "mozart_k545_mvt1": DEFAULT_SCORE_ROOT / "mozart.piano_sonatas.16-1.json",
+    "nocturne_op9no2": DEFAULT_SCORE_ROOT / "chopin.nocturnes.9-2.json",
+    "pathetique_mvt2": DEFAULT_SCORE_ROOT / "beethoven.piano_sonatas.8-2.json",
+    "rachmaninoff_prelude_csm": DEFAULT_SCORE_ROOT / "rachmaninoff.preludes_op_3.2.json",
+    "schumann_traumerei": DEFAULT_SCORE_ROOT / "schumann.kinderszenen.7.json",
 }
 
 
@@ -181,41 +197,41 @@ def _transcribe_clip(audio_16k: np.ndarray, amt_url: str) -> list[dict]:
 
 
 def _load_bach_json_score(score_path: Path) -> tuple[np.ndarray, list[dict], str, float]:
-    """Load a single-tempo score JSON (bach prelude format).
+    """Load a score JSON into (score_na, measure_table, sha256, beat_sec).
 
-    Returns (score_na, measure_table, score_sha256).
+    Variable-tempo and non-4/4 scores ARE supported (#98): the score-time axis comes
+    from the precomputed per-bar ``start_seconds`` / per-note ``onset_seconds``, and
+    beat positions come from MIDI ticks (``onset_tick / ticks_per_quarter``), which are
+    metric and tempo-independent. ``beat_sec`` is the nominal first-tempo quarter
+    duration -- only used to seed the perf-side beat scale; parangonar warps tempo.
+
     score_na fields: ("onset_sec", float), ("onset_beat", float),
                      ("pitch", int), ("duration_sec", float),
                      ("duration_beat", float), ("id", "U32").
-    Constant-tempo identity: onset_sec IS the score-audio-time axis.
     """
     score_sha256 = _sha256_file(score_path)
     body = json.loads(score_path.read_text())
     tempos = body.get("tempo_markings") or []
-    if len(tempos) != 1:
-        raise AmtRegenError(
-            f"variable-tempo scores not supported in this rework; got "
-            f"{len(tempos)} tempo markings in {score_path}. "
-            f"See spec section 'Variable-tempo score support (future)'."
-        )
+    if not tempos:
+        raise AmtRegenError(f"no tempo markings in {score_path}")
     bars = body.get("bars") or []
+    ts_list = body.get("time_signatures") or []
+    ts = ts_list[0] if ts_list else {}
+    numerator = int(ts.get("numerator", 4))
+    denominator = int(ts.get("denominator", 4))
     if len(bars) >= 2:
-        # Infer ticks_per_beat from bar geometry. Assert 4/4; fail loud otherwise.
-        ts_list = body.get("time_signatures") or []
-        ts = ts_list[0] if ts_list else {}
-        beats_per_bar = int(ts.get("numerator", 4))
-        if beats_per_bar != 4:
-            raise AmtRegenError(
-                f"non-4/4 scores not supported in this rework; got "
-                f"time_signature numerator={beats_per_bar} in {score_path}"
-            )
-        ticks_per_beat = (int(bars[1]["start_tick"]) - int(bars[0]["start_tick"])) // beats_per_bar
+        # ticks_per_quarter (PPQ) from bar geometry, meter-correct for any time sig:
+        # ticks_per_bar = ppq * 4 * numerator/denominator
+        #   => ppq = ticks_per_bar * denominator / (4 * numerator).
+        # For 4/4 this reduces to ticks_per_bar / 4, identical to the prior loader.
+        ticks_per_bar = int(bars[1]["start_tick"]) - int(bars[0]["start_tick"])
+        ticks_per_quarter = int(round(ticks_per_bar * denominator / (4 * numerator)))
     else:
-        ticks_per_beat = 480
-    if ticks_per_beat <= 0:
-        raise AmtRegenError(f"could not infer ticks_per_beat from {score_path}")
+        ticks_per_quarter = 480
+    if ticks_per_quarter <= 0:
+        raise AmtRegenError(f"could not infer ticks_per_quarter from {score_path}")
 
-    # BPM from the single tempo marking (microseconds per beat -> BPM).
+    # Nominal quarter duration from the FIRST tempo marking (perf-side seed only).
     bpm = float(tempos[0].get("bpm") or (60_000_000 / tempos[0]["tempo_usec"]))
     beat_sec = 60.0 / bpm
 
@@ -224,9 +240,16 @@ def _load_bach_json_score(score_path: Path) -> tuple[np.ndarray, list[dict], str
     for bar in bars:
         for n in (bar.get("notes") or []):
             onset_sec = float(n["onset_seconds"])
-            onset_beat = float(n["onset_tick"]) / ticks_per_beat
+            onset_beat = float(n["onset_tick"]) / ticks_per_quarter
             dur_sec = float(n.get("duration_seconds", 0.001))
-            dur_beat = dur_sec / beat_sec
+            # Tempo-independent beat duration from ticks; falls back to dur_sec/beat_sec
+            # only if duration_ticks is absent. Equal to the old value at constant tempo.
+            dur_ticks = n.get("duration_ticks")
+            dur_beat = (
+                float(dur_ticks) / ticks_per_quarter
+                if dur_ticks is not None
+                else dur_sec / beat_sec
+            )
             rows.append((
                 onset_sec,
                 onset_beat,

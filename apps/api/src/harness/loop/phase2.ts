@@ -1,15 +1,21 @@
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { FIRST_SESSION_GUARDRAIL } from "../../services/prompts";
 import { callModel } from "./gateway-client";
+import type { GroundedDigest } from "./grounded-digest";
 import { withRetries } from "./middleware";
 import { routeModel } from "./route-model";
 import type { HookEvent, Phase2Binding, PhaseContext } from "./types";
 
 export function buildPhase2Prompt(
-	digest: Record<string, unknown>,
+	digest: GroundedDigest,
 	diagnoses: unknown[],
 	guardrail: string,
 ): string {
+	const scopeInstruction =
+		'Scope: this is an end-of-session synthesis. Set synthesis_scope to "session" and ' +
+		'recurring_pattern to null. Do not use "weekly" or "piece_onboarding" here — those ' +
+		"belong to other review types.\n\n";
+
 	const reflectionInstruction =
 		"Headline instructions: write a light reflection in 2-4 sentences about what happened " +
 		"in this session, ending in exactly one directional question about the dominant_dimension " +
@@ -25,9 +31,10 @@ export function buildPhase2Prompt(
 		"Do NOT put a pieceId in prescribed_exercise — that is bound at the serving layer.\n\n";
 
 	return (
-		`Session digest:\n${JSON.stringify(digest, null, 2)}\n\n` +
+		`Session summary:\n${digest.compact_signal_summary}\n\n` +
 		`Collected diagnoses (${diagnoses.length}):\n${JSON.stringify(diagnoses, null, 2)}\n\n` +
 		guardrail +
+		scopeInstruction +
 		reflectionInstruction +
 		exerciseInstruction +
 		`Write the SynthesisArtifact now using the write_synthesis_artifact tool.`
@@ -61,7 +68,7 @@ export async function* runPhase2(
 			? `${FIRST_SESSION_GUARDRAIL}\n\n`
 			: "";
 
-	const userPrompt = buildPhase2Prompt(ctx.digest, diagnoses, guardrail);
+	const userPrompt = buildPhase2Prompt(ctx.digest as GroundedDigest, diagnoses, guardrail);
 	const client = routeModel("phase2_voice", ctx.env);
 	const messages: Array<{ role: "user" | "assistant"; content: unknown }> = [
 		{ role: "user", content: userPrompt },

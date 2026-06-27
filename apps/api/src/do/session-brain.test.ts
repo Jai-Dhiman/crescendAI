@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { toEnrichedChunk } from "./session-brain";
+import { describe, expect, it, test } from "vitest";
+import { toEnrichedChunk, toPastDiagnosisRecord } from "./session-brain";
 
 describe("toEnrichedChunk", () => {
 	it("converts onset seconds to ms and reshapes NoteAlignment to Alignment", () => {
@@ -79,3 +79,39 @@ describe("toEnrichedChunk", () => {
 		expect(result.bar_coverage).toBeNull();
 	});
 });
+
+test('toPastDiagnosisRecord: maps id, pieceId, and createdAt ISO string from DB row', () => {
+	const row = {
+		id: 'uuid-diag',
+		sessionId: 'uuid-sess',
+		primaryDimension: 'pedaling',
+		barRangeStart: 1,
+		barRangeEnd: 4,
+		artifactJson: { severity: 'moderate' },
+		createdAt: new Date(0),
+		pieceId: 'piece-abc',
+	}
+	const record = toPastDiagnosisRecord(row)
+	expect(record.id).toBe('uuid-diag')
+	expect(record.pieceId).toBe('piece-abc')
+	expect(record.createdAt).toBe(new Date(0).toISOString())
+	expect(record.barRangeStart).toBe(1)
+	expect(record.barRangeEnd).toBe(4)
+})
+
+test('toPastDiagnosisRecord: null pieceId and null barRange pass through as null', () => {
+	const row = {
+		id: 'uuid-diag-2',
+		sessionId: 'uuid-sess-2',
+		primaryDimension: 'dynamics',
+		barRangeStart: null,
+		barRangeEnd: null,
+		artifactJson: {},
+		createdAt: new Date(1000),
+		pieceId: null,
+	}
+	const record = toPastDiagnosisRecord(row)
+	expect(record.pieceId).toBeNull()
+	expect(record.barRangeStart).toBeNull()
+	expect(record.barRangeEnd).toBeNull()
+})

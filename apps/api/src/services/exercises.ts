@@ -8,11 +8,12 @@ import {
 import { ExerciseRoutingDecisionSchema } from "../harness/artifacts/exercise-routing";
 import { InferenceError, NotFoundError } from "../lib/errors";
 import type { ServiceContext } from "../lib/types";
+import { buildCorpusDrillClip } from "./corpus-drill";
 
 export type ExerciseSetPayload = {
 	sourcePassage: string;
 	targetSkill: string;
-	scoreClip?: { pieceId: string; bars: [number, number]; tempoFactor?: number };
+	scoreClip?: { pieceId: string; bars: [number, number]; tempoFactor?: number; transpose?: number };
 	exercises: Array<{
 		title: string;
 		instruction: string;
@@ -251,23 +252,8 @@ export async function assignPendingExercise(
 		};
 	}
 
-	// corpus_drill — text stub only
-	const stubInstruction =
-		`${pendingRow.focusDimension} drill coming soon` +
-		(routing.primitive_id ? ` (drill: ${routing.primitive_id})` : "") +
-		". In the meantime: " +
-		instruction;
-
-	return {
-		sourcePassage: `bars ${routing.bar_range[0]}-${routing.bar_range[1]}`,
-		targetSkill: pendingRow.focusDimension,
-		exercises: [
-			{
-				title,
-				instruction: stubInstruction,
-				focusDimension: pendingRow.focusDimension,
-				exerciseId: pendingRow.id,
-			},
-		],
-	};
+	// corpus_drill — render a matched primitive clip (transposed into the
+	// student's key when resolvable). pieceId is the STUDENT passage piece used
+	// only for key resolution; the clip itself is the primitive.
+	return buildCorpusDrillClip(ctx, routing, pendingRow.pieceId ?? null);
 }

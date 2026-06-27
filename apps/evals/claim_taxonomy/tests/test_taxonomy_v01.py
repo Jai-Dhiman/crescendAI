@@ -11,11 +11,26 @@ def _load():
     return taxonomy, schema
 
 
-def test_taxonomy_version_is_v01() -> None:
+def test_taxonomy_version_is_v03() -> None:
     taxonomy, _ = _load()
-    assert taxonomy["taxonomy_version"] == "v0.1", (
-        f"Expected v0.1, got {taxonomy['taxonomy_version']}"
+    assert taxonomy["taxonomy_version"] == "v0.3", (
+        f"Expected v0.3, got {taxonomy['taxonomy_version']}"
     )
+
+
+def test_localization_coverage_gate_recorded() -> None:
+    """GATE 1 refinement (#100): bar-level localization is coverage-dependent, so
+    localized claims are gated per-clip on alignment coverage; whole_piece is exempt."""
+    taxonomy, _ = _load()
+    lg = taxonomy["localization_granularity"]
+    assert lg["gate_1_verdict"] == "BAR_LEVEL_COVERAGE_DEPENDENT"
+    assert lg["tiers"]["whole_piece"]["admissible"] is True
+    assert lg["tiers"]["single_bar"]["admissible"] == "conditional_on_coverage"
+    assert lg["tiers"]["region"]["admissible"] == "conditional_on_coverage"
+    gate = lg["coverage_gate"]
+    assert 0.0 < gate["threshold"] <= 1.0
+    assert gate["reason_code"] == "low_coverage"
+    assert "low_coverage" in taxonomy["verdict_spec"]["unverifiable_reason_codes"]
 
 
 def test_dynamics_is_active() -> None:
@@ -30,7 +45,7 @@ def test_dynamics_has_all_active_fields() -> None:
     for field in ("reference", "check", "tolerance", "reliability_tier", "measurement", "minimum_events"):
         assert field in dyn, f"dynamics missing field: {field}"
     assert dyn["tolerance"]["locked"] is False
-    assert dyn["tolerance"]["calibration_source"] == "#65/M1 error-bar study"
+    assert "#101 G-B" in dyn["tolerance"]["calibration_source"]
 
 
 def test_v01_taxonomy_validates_against_schema() -> None:

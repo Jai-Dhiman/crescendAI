@@ -31,6 +31,7 @@ export type InlineComponent =
 	| { type: "exercise_set"; config: ExerciseSetConfig }
 	| { type: "score_highlight"; config: ScoreHighlightConfig }
 	| { type: "keyboard_guide"; config: KeyboardGuideConfig }
+	| { type: "session_data"; config: SessionDataConfig }
 	| { type: "play_passage"; config: PlayPassageConfig }
 	| { type: "segment_loop"; config: SegmentLoopConfig }
 	| { type: "pending_exercise"; config: PendingExerciseConfig };
@@ -38,7 +39,12 @@ export type InlineComponent =
 export interface ExerciseSetConfig {
 	sourcePassage: string;
 	targetSkill: string;
-	scoreClip?: { pieceId: string; bars: [number, number]; tempoFactor?: number };
+	scoreClip?: {
+		pieceId: string;
+		bars: [number, number];
+		tempoFactor?: number;
+		transpose?: number;
+	};
 	exercises: Array<{
 		title: string;
 		instruction: string;
@@ -58,7 +64,46 @@ export interface ScoreHighlightConfig {
 }
 
 export interface KeyboardGuideConfig {
-	[key: string]: unknown;
+	title: string;
+	description: string;
+	hands: "left" | "right" | "both";
+	fingering?: string;
+}
+
+// Emitted by the `show_session_data` tool (apps/api tool-processor.ts).
+// `data` shape depends on `queryType`; it crosses the JSON wire, so the
+// renderer narrows it defensively rather than trusting the static type.
+export type SessionDataQueryType =
+	| "dimension_history"
+	| "recent_sessions"
+	| "session_detail";
+
+export interface SessionDataObservationRow {
+	id: string;
+	dimension: string;
+	dimensionScore: number | null;
+	observationText: string | null;
+	framing: string | null;
+	createdAt: string;
+	sessionId: string | null;
+}
+
+export interface SessionDataSessionRow {
+	id: string;
+	startedAt: string;
+	endedAt: string | null;
+	avgDynamics: number | null;
+	avgTiming: number | null;
+	avgPedaling: number | null;
+	avgArticulation: number | null;
+	avgPhrasing: number | null;
+	avgInterpretation: number | null;
+}
+
+export interface SessionDataConfig {
+	queryType: SessionDataQueryType;
+	studentId: string;
+	data: unknown;
 }
 
 export interface PlayPassageConfig {

@@ -5,12 +5,13 @@ import type { ExerciseSetConfig } from "../../lib/types";
 
 const mockGetClip = vi.fn();
 const mockGetClipPlayback = vi.fn();
+const mockLoad = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("../../lib/score-renderer", () => ({
 	scoreRenderer: {
 		getClip: (...args: unknown[]) => mockGetClip(...args),
 		getClipPlayback: (...args: unknown[]) => mockGetClipPlayback(...args),
-		load: vi.fn().mockResolvedValue(undefined),
+		load: (...args: unknown[]) => mockLoad(...args),
 	},
 }));
 vi.mock("../../lib/api", () => ({
@@ -58,7 +59,7 @@ describe("ExerciseSetCard", () => {
 		render(React.createElement(ExerciseSetCard, { config }));
 
 		await waitFor(() => {
-			expect(mockGetClip).toHaveBeenCalledWith("chopin.ballades.1", 5, 8);
+			expect(mockGetClip).toHaveBeenCalledWith("chopin.ballades.1", 5, 8, 0);
 			expect(document.body.innerHTML).toContain('data-test="exercise-clip"');
 		});
 	});
@@ -83,7 +84,7 @@ describe("ExerciseSetCard", () => {
 		const { ExerciseSetCard } = await import("./ExerciseSetCard");
 		const { container } = render(React.createElement(ExerciseSetCard, { config }));
 		await waitFor(() => {
-			expect(mockGetClip).toHaveBeenCalledWith("chopin.ballades.1", 5, 8);
+			expect(mockGetClip).toHaveBeenCalledWith("chopin.ballades.1", 5, 8, 0);
 		});
 		// Card still renders with the exercise content
 		expect(container.textContent).toContain("Voicing the melody");
@@ -183,7 +184,7 @@ describe("ExerciseSetCard", () => {
 		render(React.createElement(ExerciseSetCard, { config }));
 
 		await waitFor(() => {
-			expect(mockGetClipPlayback).toHaveBeenCalledWith("chopin.ballades.1", 5, 8);
+			expect(mockGetClipPlayback).toHaveBeenCalledWith("chopin.ballades.1", 5, 8, 0);
 			expect(document.body.innerHTML).toContain('data-test="loop-clip"');
 		});
 		expect(document.body.querySelector('[data-testid="loop-transport"]')).not.toBeNull();
@@ -220,7 +221,7 @@ describe("ExerciseSetCard", () => {
 		render(React.createElement(ExerciseSetCard, { config }));
 
 		await waitFor(() => {
-			expect(mockGetClipPlayback).toHaveBeenCalledWith("bach.wtc.1", 1, 4);
+			expect(mockGetClipPlayback).toHaveBeenCalledWith("bach.wtc.1", 1, 4, 0);
 		});
 
 		// useLoopPlayer must have been called with the correct tempoFactor from scoreClip.
@@ -251,5 +252,34 @@ describe("ExerciseSetCard", () => {
 		});
 		expect(document.body.querySelector('[data-testid="loop-transport"]')).toBeNull();
 		expect(mockGetClipPlayback).not.toHaveBeenCalled();
+	});
+
+	it("forwards scoreClip.transpose to load and getClipPlayback", async () => {
+		mockGetClipPlayback.mockResolvedValue({
+			svg: "<svg data-test='transpose-clip'></svg>",
+			ir: {
+				pieceId: "hanon_001",
+				verovioVersion: "4.0.0",
+				pageWidth: 1600,
+				pages: [{ pageN: 1, viewBox: "0 0 1600 600", width: 1600, height: 600, systemBboxes: [] }],
+				bars: [
+					{ barNumber: 1, measureOn: "m1", pageN: 1, bbox: { x: 0, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 0, qstampEnd: 4 },
+				],
+				notes: {},
+			},
+			notes: [{ midi: 62, startQ: 0, endQ: 2 }],
+		});
+		const config: ExerciseSetConfig = {
+			sourcePassage: "bars 1-29",
+			targetSkill: "timing",
+			scoreClip: { pieceId: "hanon_001", bars: [1, 29] as [number, number], tempoFactor: 0.8, transpose: 2 },
+			exercises: [{ title: "t", instruction: "i", focusDimension: "timing" }],
+		};
+		const { ExerciseSetCard } = await import("./ExerciseSetCard");
+		render(React.createElement(ExerciseSetCard, { config }));
+		await waitFor(() => expect(mockGetClipPlayback).toHaveBeenCalled());
+		// load(pieceId, transpose) and getClipPlayback(pieceId, b0, b1, transpose).
+		expect(mockLoad).toHaveBeenCalledWith("hanon_001", 2);
+		expect(mockGetClipPlayback).toHaveBeenCalledWith("hanon_001", 1, 29, 2);
 	});
 });

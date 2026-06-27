@@ -13,7 +13,7 @@ def _build_registry():
     return {
         "amt_onsets_region_tempo_fit": TimingMeasurer(),
         "amt_sustain_pedal_events": PedalingMeasurer(),
-        "librosa_rms_region_estimator": DynamicsMeasurer(),
+        "amt_note_velocity_estimator": DynamicsMeasurer(),
     }
 
 
@@ -69,6 +69,22 @@ def verify(
 
     tau = float(dim["tolerance"]["provisional"])
     units = dim["tolerance"]["unit"]
+
+    # Substrate-insensitive direction: a dimension may declare a polarity its substrate
+    # cannot recover at a location tier. AMT pedal on-fraction SATURATES (~0.55 ceiling),
+    # so whole_piece "+"/over-pedal is physically unrecoverable from audio (#101 front-3
+    # G-A: flip+ 7/30 even with full-pedal corruption, vs under-pedal flip- 27/30 PASS).
+    # Such claims are UNVERIFIABLE by substrate, NOT REFUTED -- the frozen router would
+    # wrongly REFUTE a true over-pedaling observation (a faithfulness-rate poison).
+    insensitive = dim.get("substrate_insensitive_polarity", {})
+    loc_key = "whole_piece" if location == "whole_piece" else "region"
+    if claim.get("polarity") is not None and claim.get("polarity") == insensitive.get(loc_key):
+        return VerdictResult(
+            verdict="UNVERIFIABLE", reason_code="substrate_insensitive_direction",
+            measured_value=0.0, tau=tau, error_bar=0.0, event_count=0, units=units,
+            substrate_versions=substrate_versions, dimension=dimension_name, location=location,
+        )
+
     measurement_key = dim["measurement"]
     measurer_registry = _get_registry()
 
@@ -79,8 +95,13 @@ def verify(
             substrate_versions=substrate_versions, dimension=dimension_name, location=location,
         )
 
+    min_coverage = float(
+        taxonomy.get("localization_granularity", {})
+        .get("coverage_gate", {})
+        .get("threshold", 0.0)
+    )
     try:
-        resolver = LocationResolver(bundle, engine)
+        resolver = LocationResolver(bundle, engine, min_coverage=min_coverage)
         region = resolver.resolve(location)
     except UnverifiableError as e:
         return VerdictResult(

@@ -8,7 +8,7 @@ reads:
   signals: 'all enrichment cache entries for the session, plus prior live-practice-companion stop_moment DiagnosisArtifacts written during the session (per Option B compound-overlap policy)'
   artifacts: [DiagnosisArtifact]
 writes: SynthesisArtifact
-depends_on: [voicing-diagnosis, pedal-triage, rubato-coaching, phrasing-arc-analysis, tempo-stability-triage, dynamic-range-audit, articulation-clarity-check, exercise-proposal, prioritize-diagnoses, fetch-session-history]
+depends_on: [voicing-diagnosis, pedal-triage, rubato-coaching, phrasing-arc-analysis, tempo-stability-triage, dynamic-range-audit, exercise-proposal, prioritize-diagnoses, fetch-session-history]
 triggered_by: OnSessionEnd
 ---
 
@@ -28,7 +28,6 @@ PHASE 1 (parallel diagnosis sweep):
    - phrasing-arc-analysis on each marked phrase
    - tempo-stability-triage on motoric passages in non-rubato repertoire
    - dynamic-range-audit on passages with dynamic markings
-   - articulation-clarity-check on contrapuntal or fast-articulation passages
 3. Collect all DiagnosisArtifacts written by molecules above PLUS the prior live-companion stop_moment artifacts into one list.
 
 PHASE 2 (prioritize):

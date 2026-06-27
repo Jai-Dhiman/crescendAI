@@ -1,5 +1,5 @@
 {
-  "taxonomy_version": "v0.1",
+  "taxonomy_version": "v0.3",
   "extractor_judge_boundary": {
     "description": "An LLM may be used as the claim extractor (prose to structured claim). The verifier's truth label (SUPPORTED | REFUTED | UNVERIFIABLE) must never invoke an LLM. This boundary is the PROVE/ViCrit non-circularity defense: the checker's correctness is grounded in a programmatic oracle over a measured signal, not any model's opinion.",
     "llm_in_truth_label": false
@@ -33,7 +33,7 @@
             "const": "whole_piece"
           }
         ],
-        "description": "Bar-range [bar_start, bar_end] (inclusive) or 'whole_piece'. Beat granularity is not admissible."
+        "description": "Bar-range [bar_start, bar_end] (inclusive) or 'whole_piece'. Beat granularity is not admissible. GATE 1 (v0.2): single-bar localization is INADMISSIBLE on real audio; bar-ranges are admissible only as DEGRADED region-level claims (width >= localization_granularity.min_region_bars), and whole_piece is the only RELIABLE tier. See localization_granularity."
       },
       "polarity": {
         "type": "string",
@@ -58,6 +58,48 @@
     },
     "additionalProperties": false
   },
+  "localization_granularity": {
+    "description": "GATE 1 (#95) found bar-level localization FAILED on low-coverage Bach clips; the #100 refinement showed this is COVERAGE-DEPENDENT (clean bar localization 0.93-0.99 on high-coverage pathetique/moonlight vs ~0.55 on Bach). Admissibility of localized claims is therefore gated per-clip on alignment coverage (see coverage_gate). whole_piece is always admissible. The truth label never invokes an LLM.",
+    "gate_1_verdict": "BAR_LEVEL_COVERAGE_DEPENDENT",
+    "measured_on": "2 real Bach Invention clips (7zVlDxBO5q4, 2cbYFp9kNpg), construction-known corruption sweep {clean, tempo rush 1.3x/1.6x, dropout, noise SNR10}",
+    "headline_numbers": {
+      "clean_noise_floor_within_0.5s_over_resolvable": 0.80,
+      "clean_within_1.5s_over_resolvable": 0.87,
+      "tempo_within_1.5s_over_resolvable": 0.63,
+      "dropout_within_1.5s_over_resolvable": 0.54,
+      "noise_within_1.5s_over_resolvable": 0.31,
+      "resolvable_rate_2clip": 0.44,
+      "note": "Even re-transcribing bit-identical audio (clean) loses ~13-20% of resolvable bars -- an AMT-nondeterminism + parangonar match-churn floor BELOW 90% before any corruption. Widening to region-level (W=2..16 bars) raised clean to ~0.86-1.0 over-resolvable but did NOT lift tempo/noise above ~0.6/0.33; out-of-anchor-span bars cap the resolvable pool."
+    },
+    "tiers": {
+      "whole_piece": {
+        "admissible": true,
+        "reliability": "reliable",
+        "rationale": "No bar indexing; uses the full anchor span, always resolvable with >=2 anchors. The robust tier for all active dimensions and the dynamics dispersion / pedaling density / timing CV% checks. NOT subject to the coverage gate."
+      },
+      "region": {
+        "admissible": "conditional_on_coverage",
+        "reliability": "coverage_dependent",
+        "rationale": "Bar-range claims are admissible only when the clip clears coverage_gate.threshold. On high-coverage clips (pathetique/moonlight ~0.99) clean localization is 0.93-0.99 within +/-1.0s; on low-coverage clips it is abstained (low_coverage). Tempo corruption remains the weakest mode (~0.58) even at high coverage -- region-level timing measures (percent deviation) tolerate window jitter."
+      },
+      "single_bar": {
+        "admissible": "conditional_on_coverage",
+        "reliability": "coverage_dependent",
+        "rationale": "Replaces the v0.2 blanket ban (#100): per-bar localization is reliable on high-coverage clips (clean 0.93 within +/-0.1s on pathetique) but not on low-coverage clips. Gated by coverage_gate; abstains as low_coverage below threshold."
+      }
+    },
+    "coverage_gate": {
+      "metric": "anchor_span_coverage",
+      "definition": "(max(score_audio_sec) - min(score_audio_sec)) / (max(measure_table.start_sec) - min(measure_table.start_sec))",
+      "threshold": 0.9,
+      "threshold_status": "provisional",
+      "enforced_in": "LocationResolver(min_coverage=...), threaded from this value by the verify() orchestrator; whole_piece is exempt",
+      "calibration": "High-coverage clips pathetique (0.99) and moonlight (0.99) localize clean at 0.93-0.99 within +/-1.0s; low-coverage Bach (0.23-0.68) localizes at ~0.34-0.55. The 0.68->0.99 gap is unsampled, so 0.9 is a conservative provisional cut pending mid-coverage clips.",
+      "reason_code": "low_coverage"
+    },
+    "abstention_mechanism": "Two resolver guards return UNVERIFIABLE rather than mislocalizing: (1) out-of-anchor-span bars (np.interp would clamp to the last anchor); (2) the coverage gate (whole clip below coverage_gate.threshold). Both make the verifier SAFE-by-abstention.",
+    "evidence_doc": "docs/model/claim-verifier-signed-d-conventions.md (GATE 1 error-rich + corpus breadth + coverage-gate sections)"
+  },
   "dimensions": {
     "timing": {
       "status": "active",
@@ -77,35 +119,36 @@
     },
     "pedaling": {
       "status": "active",
-      "reference": "self_density",
-      "check": "pedal_presence_density",
+      "reference": "corpus_median_on_fraction@whole_piece / within_clip_on_fraction@region",
+      "check": "signed_sustain_on_fraction_vs_reference",
       "tolerance": {
-        "name": "pedal_presence_density_deviation",
+        "name": "on_fraction_deviation",
         "provisional": 0.25,
         "unit": "fraction",
-        "calibration_source": "#65/M1 error-bar study",
+        "calibration_source": "#101 G-B (AMT CC64 on-fraction, n=1202, partial-rho 0.478, ref=0.4623); provisional, locked pending front-4 anomaly calibration",
         "locked": false
       },
       "reliability_tier": 2,
       "measurement": "amt_sustain_pedal_events",
-      "minimum_events": 2,
-      "notes": "Coarse on/off and density only. Half-pedal and flutter pedaling are out of scope. reference is self_density: fraction of bars with at least one pedal event in the same piece."
+      "minimum_events": 0,
+      "substrate_insensitive_polarity": { "whole_piece": "+" },
+      "notes": "Sustain-pedal TIME-on-fraction (fraction of duration CC64 is down) = the EXACT statistic validated vs PercePiano perceived pedaling at partial-rho 0.478 (n=1202, #101 G-B / gate2_expert_anchor.json measure pedal_frac). Replaces the previously-shipped pedal-BAR-fraction (fraction of bars with >=1 event), an unvalidated cousin. Units: time-on-fraction for BOTH location tiers (one tau). whole_piece reference = corpus-median AMT on-fraction (0.4623, controlled-gain piano-render calibration, #101 front-3); region reference = within-clip whole-piece on-fraction. minimum_events = 0 (deliberate): a genuinely dry/zero-pedal performance is an informative signed measurement (d = -reference => '-' under-pedal claim adjudicable), NOT an abstention. Coarse on/off only; half-pedal and flutter remain out of scope. Scope: controlled-gain audio. DIRECTIONAL SCOPE (#101 front-3 G-A, maximal-corruption n=30): under-pedal '-' PASSES (performance-flip 0.90, polarity-shuffle collapse +0.23, ordering 29/30); over-pedal '+' FAILS because AMT pedal on-fraction SATURATES (~0.55 ceiling -- full pedal, true frac=1.0, only reaches median d +0.214 < tau), so whole_piece '+' is marked substrate_insensitive_polarity and returns UNVERIFIABLE rather than a wrong REFUTED."
     },
     "dynamics": {
       "status": "active",
-      "reference": "within_region_range",
-      "check": "rms_contour_std_normalized",
+      "reference": "corpus_median_velocity@whole_piece / within_clip_mean@region",
+      "check": "mean_amt_note_velocity_vs_reference",
       "tolerance": {
-        "name": "rms_contour_deviation",
-        "provisional": 1.5,
-        "unit": "dB",
-        "calibration_source": "#65/M1 error-bar study",
+        "name": "velocity_deviation",
+        "provisional": 8.0,
+        "unit": "midi_velocity",
+        "calibration_source": "#101 G-B (AMT velocity, n=180, partial-rho 0.544, ref=51.5); provisional, locked pending front-4 anomaly calibration",
         "locked": false
       },
-      "reliability_tier": 2,
-      "measurement": "librosa_rms_region_estimator",
+      "reliability_tier": 1,
+      "measurement": "amt_note_velocity_estimator",
       "minimum_events": 20,
-      "notes": "RMS-based loudness proxy. Absolute dB inadmissible (uncontrolled recording gain). Within-region dynamic range only. minimum_events = RMS frames at hop_length=512, SR=16000 (~640ms minimum region)."
+      "notes": "Mean AMT note-velocity = perceived-loudness proxy, validated vs PercePiano perceived dynamics at partial-rho 0.544 (n=180, #101 G-B), gain-robust and onset-level. Replaces the perceptually-null, gain-bound librosa-RMS std/range statistic (partial-rho ~0.04). Units: MIDI velocity for BOTH location tiers (one tau). minimum_events = AMT notes. whole_piece reference = corpus-median AMT velocity (51.5, controlled-gain piano-render calibration); region reference = within-clip mean velocity. Scope: controlled-gain audio; AMT velocity calibration on heterogeneous real recordings is a separate G-F question."
     },
     "articulation": {
       "status": "gated_on_measurement",
@@ -133,14 +176,17 @@
       "out_of_scope_dim",
       "gated_dim",
       "unlocalizable",
+      "low_coverage",
       "substrate_failure",
+      "substrate_insensitive_direction",
       "region_too_short",
       "near_threshold"
     ],
     "dispatch_order": [
       "1. If dimension.status == 'scoped_out' -> UNVERIFIABLE(out_of_scope_dim)",
       "2. If dimension.status == 'gated_on_measurement' and gate not validated -> UNVERIFIABLE(gated_dim)",
-      "3. If location is not resolvable (no score in catalog / piece not identified / span < alignment_uncertainty) -> UNVERIFIABLE(unlocalizable)",
+      "2b. If claim.polarity == dimension.substrate_insensitive_polarity[location_tier] -> UNVERIFIABLE(substrate_insensitive_direction) [orchestrator, pre-router; e.g. pedaling whole_piece '+' -- AMT pedal saturation, #101 front-3]",
+      "3. If location is not resolvable (no score in catalog / piece not identified / span < alignment_uncertainty / bar score-time outside the matched anchor span) -> UNVERIFIABLE(unlocalizable)",
       "4. If measurement substrate raised an error -> UNVERIFIABLE(substrate_failure)",
       "5. If region has fewer than dimension.minimum_events -> UNVERIFIABLE(region_too_short)",
       "6. Compute signed deviation d vs reference",

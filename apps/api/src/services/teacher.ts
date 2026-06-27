@@ -3,6 +3,7 @@ import { InferenceError } from "../lib/errors";
 import type { ServiceContext } from "../lib/types";
 import { runHook } from "../harness/loop/runHook";
 import { runStreamingHook } from "../harness/loop/runStreamingHook";
+import { buildGroundedDigest } from "../harness/loop/grounded-digest";
 import type {
 	CompoundBinding,
 	HookContext,
@@ -71,12 +72,14 @@ export interface SessionHistoryRecord {
 }
 
 export interface PastDiagnosisRecord {
+	id: string
 	sessionId: string
 	primaryDimension: string
 	barRangeStart: number | null
 	barRangeEnd: number | null
 	artifactJson: unknown
 	createdAt: string
+	pieceId: string | null
 }
 
 export interface SynthesisInput {
@@ -995,26 +998,18 @@ export async function* synthesizeV6(
 	sessionId: string,
 	waitUntil?: (p: Promise<unknown>) => void,
 ): AsyncGenerator<HookEvent<SynthesisArtifact>> {
-	const digest: Record<string, unknown> = {
-		sessionDurationMs: input.sessionDurationMs,
-		practicePattern: input.practicePattern,
-		topMoments: input.topMoments,
-		drillingRecords: input.drillingRecords,
-		pieceMetadata: input.pieceMetadata,
-		chunks: input.enrichedChunks,
-		baselines: input.baselines,
-		cohort_tables: COHORT_TABLES,
-		session_history: input.sessionHistory,
-		past_diagnoses: input.pastDiagnoses,
-		reference_mode: input.referenceMode ?? null,
-	};
+	const groundedDigest = await buildGroundedDigest(
+		input,
+		{ db: ctx.db, studentId: input.studentId },
+		COHORT_TABLES,
+	);
 
 	const hookCtx: HookContext = {
 		env: ctx.env,
 		studentId: input.studentId,
 		sessionId,
 		conversationId: input.conversationId,
-		digest,
+		digest: groundedDigest as unknown as Record<string, unknown>,
 		waitUntil: waitUntil ?? ((_p: Promise<unknown>) => {}),
 		pieceId: input.pieceId ?? undefined,
 		trigger: "synthesis",

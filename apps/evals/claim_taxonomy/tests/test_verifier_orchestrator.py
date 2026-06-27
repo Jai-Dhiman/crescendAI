@@ -73,6 +73,90 @@ def _make_rush_bundle() -> dict:
     }
 
 
+def _make_pedal_bundle(spans: list[tuple[float, float]], total_dur: float = 40.0) -> dict:
+    """Pedaling bundle from (on, off) CC64 spans; notes span [0, total_dur]."""
+    pedal_events = []
+    for a, b in spans:
+        pedal_events += [{"time": a, "value": 127}, {"time": b, "value": 0}]
+    n = int(total_dur / 0.5)
+    notes = [{"onset": i * 0.5, "offset": min(i * 0.5 + 0.4, total_dur), "pitch": 60, "velocity": 80}
+             for i in range(n)]
+    notes.append({"onset": total_dur - 0.1, "offset": total_dur, "pitch": 60, "velocity": 80})
+    measure_table = [{"bar_number": i + 1, "start_sec": float(i), "start_tick": i * 480}
+                     for i in range(int(total_dur) + 2)]
+    t = np.linspace(0.0, total_dur, 500)
+    return {
+        "notes": notes, "pedal_events": pedal_events, "measure_table": measure_table,
+        "anchors": {"perf_audio_sec": t.tolist(), "score_audio_sec": t.tolist()},
+        "substrate_versions": {"amt_checkpoint_hash": "test", "bundle_schema": "v1"},
+        "audio_path": "",
+    }
+
+
+def test_pedaling_whole_piece_over_pedal_is_substrate_insensitive() -> None:
+    """#101 front-3: AMT pedal saturates, so whole_piece '+' (over-pedal) is
+    UNVERIFIABLE(substrate_insensitive_direction), NOT a (wrong) REFUTED."""
+    taxonomy = _load_taxonomy()
+    bundle = _make_pedal_bundle(spans=[(0.0, 38.0)])  # heavy pedal
+    claim = {"claim_text": "over-pedaled throughout", "dimension": "pedaling",
+             "location": "whole_piece", "polarity": "+"}
+    result = verify(claim, bundle, taxonomy, engine=SubstrateErrorEngine(seed=42))
+    assert result.verdict == "UNVERIFIABLE"
+    assert result.reason_code == "substrate_insensitive_direction"
+
+
+def test_pedaling_whole_piece_under_pedal_dry_is_supported() -> None:
+    """The under-pedal direction is the validated tier: a dry performance + '-'
+    (under-pedaled) claim is SUPPORTED, not blocked by the guard."""
+    taxonomy = _load_taxonomy()
+    bundle = _make_pedal_bundle(spans=[])  # dry: zero pedal
+    claim = {"claim_text": "too dry, needs more pedal", "dimension": "pedaling",
+             "location": "whole_piece", "polarity": "-"}
+    result = verify(claim, bundle, taxonomy, engine=SubstrateErrorEngine(seed=42))
+    assert result.verdict == "SUPPORTED"
+    assert result.measured_value < 0
+
+
+def test_low_coverage_clip_bar_claim_is_low_coverage() -> None:
+    """#100 coverage gate: a clip whose anchors cover only a fraction of the score
+    span abstains on bar/region claims with reason_code 'low_coverage' (driven by the
+    taxonomy's coverage_gate.threshold through the orchestrator)."""
+    taxonomy = _load_taxonomy()
+    bundle = _make_rush_bundle()
+    # Shrink anchor coverage well below threshold while keeping the measure_table span.
+    span = max(m["start_sec"] for m in bundle["measure_table"])
+    low = np.linspace(0.0, 0.2 * span, 100)  # ~0.2 coverage
+    bundle["anchors"] = {"perf_audio_sec": low.tolist(), "score_audio_sec": low.tolist()}
+    claim = {
+        "proposition": "You rushed in bars 1-10",
+        "dimension": "timing",
+        "location": {"bar_start": 1, "bar_end": 10},
+        "polarity": "-",
+        "magnitude": None,
+    }
+    result = verify(claim, bundle, taxonomy, engine=SubstrateErrorEngine(seed=42))
+    assert result.verdict == "UNVERIFIABLE"
+    assert result.reason_code == "low_coverage"
+
+
+def test_whole_piece_claim_exempt_from_coverage_gate() -> None:
+    """whole_piece never trips the coverage gate, even on a low-coverage clip."""
+    taxonomy = _load_taxonomy()
+    bundle = _make_rush_bundle()
+    span = max(m["start_sec"] for m in bundle["measure_table"])
+    low = np.linspace(0.0, 0.2 * span, 100)
+    bundle["anchors"] = {"perf_audio_sec": low.tolist(), "score_audio_sec": low.tolist()}
+    claim = {
+        "proposition": "Your timing was uneven overall",
+        "dimension": "timing",
+        "location": "whole_piece",
+        "polarity": "-",
+        "magnitude": None,
+    }
+    result = verify(claim, bundle, taxonomy, engine=SubstrateErrorEngine(seed=42))
+    assert result.reason_code != "low_coverage"
+
+
 def test_timing_rush_claim_returns_verdict_result_wiring() -> None:
     """WIRING SMOKE TEST: orchestrator returns a VerdictResult without raising. Accepts all verdicts."""
     taxonomy = _load_taxonomy()
@@ -169,6 +253,44 @@ def test_dynamics_active_after_v01_returns_non_gated(tmp_path) -> None:
     engine = SubstrateErrorEngine(seed=42)
     result = verify(claim, bundle, taxonomy, engine=engine)
     assert result.reason_code != "gated_dim", "dynamics should not return gated_dim after v0.1"
+
+
+def test_all_active_measurement_keys_registered() -> None:
+    """Every active dimension's taxonomy 'measurement' key must exist in the orchestrator
+    measurer registry. Otherwise verify() silently returns substrate_failure for that whole
+    dimension. Regression guard for the dynamics measurement-key rename (#101)."""
+    from claim_taxonomy.verifier.orchestrator import _build_registry
+    taxonomy = _load_taxonomy()
+    registry = _build_registry()
+    for name, dim in taxonomy["dimensions"].items():
+        if dim.get("status") == "active":
+            assert dim["measurement"] in registry, (
+                f"active dimension '{name}' measurement '{dim['measurement']}' "
+                f"is not in the measurer registry {sorted(registry)}"
+            )
+
+
+def test_dynamics_measures_velocity_end_to_end() -> None:
+    """Full pipeline: a loud bundle (mean velocity 80 >> ref 51.5) with a '+' dynamics claim
+    must be adjudicated ON THE MEASUREMENT (SUPPORTED), not fall through to
+    substrate_failure/region_too_short. Exercises the taxonomy->registry->measurer->router
+    path that the DynamicsMeasurer unit tests bypass (#101)."""
+    taxonomy = _load_taxonomy()
+    if taxonomy["dimensions"]["dynamics"]["status"] != "active":
+        pytest.skip("dynamics not active")
+    bundle = _make_timing_bundle(n_notes=100)  # 100 notes @ velocity 80
+    claim = {
+        "proposition": "Your dynamics were strong and projected",
+        "dimension": "dynamics",
+        "location": "whole_piece",
+        "polarity": "+",
+        "magnitude": None,
+    }
+    result = verify(claim, bundle, taxonomy, engine=SubstrateErrorEngine(seed=42))
+    assert result.reason_code not in ("substrate_failure", "gated_dim", "out_of_scope_dim"), \
+        f"dynamics dispatch broken: {result.reason_code}"
+    assert result.verdict == "SUPPORTED", f"{result.verdict} / {result.reason_code}"
+    assert result.units == "midi_velocity"
 
 
 def test_unlocalizable_claim_returns_unverifiable() -> None:

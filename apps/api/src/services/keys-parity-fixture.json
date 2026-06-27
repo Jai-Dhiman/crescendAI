@@ -1,0 +1,52 @@
+{
+  "intervals": [
+    {
+      "expected": 0,
+      "from": "C",
+      "to": "C"
+    },
+    {
+      "expected": 2,
+      "from": "C",
+      "to": "D"
+    },
+    {
+      "expected": -3,
+      "from": "C",
+      "to": "A"
+    },
+    {
+      "expected": 6,
+      "from": "C",
+      "to": "F#"
+    },
+    {
+      "expected": 2,
+      "from": "Bb",
+      "to": "C"
+    },
+    {
+      "expected": -1,
+      "from": "E",
+      "to": "Eb"
+    }
+  ],
+  "pc": {
+    "A": 9,
+    "Ab": 8,
+    "Am": 9,
+    "B": 11,
+    "Bb": 10,
+    "C": 0,
+    "C major": 0,
+    "C#": 1,
+    "C#m": 1,
+    "D": 2,
+    "Db": 1,
+    "E": 4,
+    "Eb": 3,
+    "F": 5,
+    "F#": 6,
+    "G": 7
+  }
+}

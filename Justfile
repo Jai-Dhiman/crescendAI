@@ -32,6 +32,26 @@ muq:
 amt:
     cd apps/inference && uv run amt/amt_local_server.py --port 8001
 
+# --- AMT MIDI extraction for Aria symbolic path (issue #72) ---
+
+# Prepare per-segment WAVs for a tier (t1 | cliburn | chopin). Resumable.
+# t1 renders PercePiano ground-truth MIDI (fluidsynth); cliburn pulls from R2;
+# chopin re-downloads via yt-dlp. See script header for the T1 timbre caveat.
+amt-prepare TIER:
+    uv run model/scripts/prepare_amt_audio.py --tier {{TIER}}
+
+# Transcribe a tier's prepared WAVs -> model/data/midi/amt/{tier}/{seg_id}.mid. Resumable.
+amt-extract TIER:
+    cd apps/inference && uv run extract_amt_midi.py \
+        --wav-dir ../../model/data/raw/amt_audio/{{TIER}} \
+        --out-dir ../../model/data/midi/amt/{{TIER}}
+
+# Prepare + transcribe a tier end to end.
+amt-run TIER: (amt-prepare TIER) (amt-extract TIER)
+
+# Full T1+T2 corpus, sequential + resumable (intended as an overnight run).
+amt-run-all: (amt-run "t1") (amt-run "cliburn") (amt-run "chopin")
+
 # Start API worker (Hono, Cloudflare Workers, port 8787)
 api:
     cd apps/api && bun run dev
@@ -143,7 +163,7 @@ seed-score-json filter="":
 # .xml (model/data/scores/exercise_primitives/*.xml -> model/data/exercise_primitives/mxl/*.mxl).
 # Deterministic + idempotent; raises naming any .xml that fails partitura load.
 build-exercise-assets:
-    cd model && uv run python -c "from exercise_corpus.build_render_assets import build; print(f'built {len(build())} assets')"
+    cd model && uv run python -c "from pathlib import Path; from exercise_corpus.build_render_assets import build; mp = Path('..') / 'apps' / 'api' / 'src' / 'services' / 'exercise_primitives_manifest.json'; print(f'built {len(build(manifest_path=mp))} assets + manifest at {mp}')"
 
 # #49 exercise-corpus expansion: acquire the public-domain KernScores MIDIs
 # (clone craigsapp humdrum repos + verovio kern->MIDI). Writes gitignored raw

@@ -9,8 +9,11 @@ from __future__ import annotations
 import json
 
 import numpy as np
+import pytest
 
+from chroma_dtw_eval.amt_regen import AmtRegenError
 from claim_measurement import extractor
+from claim_measurement.extractor import BundleExtractionError
 
 
 def test_extract_bundle_populates_pedal_events(tmp_path, monkeypatch) -> None:
@@ -44,3 +47,29 @@ def test_extract_bundle_populates_pedal_events(tmp_path, monkeypatch) -> None:
     )
     bundle = json.loads(out_path.read_text())
     assert bundle["pedal_events"] == fake_pedals
+
+
+def test_amt_failure_becomes_bundle_extraction_error(tmp_path, monkeypatch) -> None:
+    """An AmtRegenError from transcription/alignment (e.g. AMT server down) must
+    surface as BundleExtractionError so a batch runner records a per-clip failure
+    instead of crashing the whole run."""
+    audio = tmp_path / "vid.wav"
+    audio.write_bytes(b"stub")
+    score = tmp_path / "score.json"
+    score.write_text("{}")
+
+    monkeypatch.setattr(extractor, "_read_wav_16k_mono",
+                        lambda p: np.zeros(10, dtype=np.float32))
+
+    def _boom(a, u):
+        raise AmtRegenError("AMT POST failed after 3 attempts: Connection refused")
+
+    monkeypatch.setattr(extractor, "_transcribe_clip_with_pedals", _boom)
+
+    with pytest.raises(BundleExtractionError):
+        extractor.extract_bundle(
+            "piece_x", "vid",
+            audio_path=audio, score_path=score,
+            cache_root=tmp_path, bundle_root=tmp_path / "bundles",
+            force=True,
+        )

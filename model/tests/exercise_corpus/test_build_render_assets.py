@@ -77,3 +77,49 @@ def test_build_raises_naming_bad_xml(tmp_path: Path):
 
     with pytest.raises(ValueError, match="broken_001"):
         build(xml_dir=bad_dir, out_dir=tmp_path / "out")
+
+
+# ---- appended: manifest-emission behavior (Task 1) -------------------------
+# build() emits the manifest ONLY when an explicit manifest_path is provided
+# (default None => no write), so the three regression tests above stay
+# manifest-side-effect-free. Bar counts (29/22/23) were verified empirically
+# via partitura; assert against the manifest build() actually wrote.
+
+# The 22 primitives that have committed .mxl assets on main.
+_EXPECTED_IDS = {
+    *(f"hanon_{i:03d}" for i in range(1, 21)),
+    "czerny_001",
+    "burgmuller_001",
+}
+
+
+def test_build_emits_manifest_for_exactly_the_built_primitives(tmp_path: Path):
+    import json
+
+    manifest_path = tmp_path / "manifest.json"
+    # Explicit manifest_path + tmp out_dir: writes ONLY to tmp, never to the
+    # committed apps/api manifest or the real model/data mxl dir.
+    build(xml_dir=_XML_DIR, out_dir=tmp_path / "mxl", manifest_path=manifest_path)
+
+    assert manifest_path.exists(), f"manifest not written at {manifest_path}"
+    manifest = json.loads(manifest_path.read_text())
+
+    assert set(manifest.keys()) == _EXPECTED_IDS
+
+    # Spot-check the three distinct sources with verbatim keys and real bar counts.
+    # Bar counts verified empirically via partitura at plan time (29/22/23).
+    assert manifest["hanon_001"] == {
+        "dimensions": ["articulation", "timing"],
+        "key": "C",
+        "totalBars": 29,
+    }
+    assert manifest["czerny_001"] == {
+        "dimensions": ["timing", "articulation"],
+        "key": "c",  # VERBATIM lowercase from technique_tags.toml (not normalized)
+        "totalBars": 22,
+    }
+    assert manifest["burgmuller_001"] == {
+        "dimensions": ["phrasing", "dynamics", "interpretation"],
+        "key": "C",
+        "totalBars": 23,
+    }

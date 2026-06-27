@@ -12,6 +12,7 @@
 !/scores/bach.prelude.bwv_846.json
 
 # Eval outputs (manifests/metadata tracked separately)
+/evals/
 /evals/inference_cache/
 /evals/traces/
 /evals/youtube_amt/
@@ -20,6 +21,7 @@
 /evals/practice_eval_pseudo/
 /evals/piece_id
 !/evals/piece_id/parity_fixtures.json
+evals/claim_bundles
 
 review.html
 fingerprints/

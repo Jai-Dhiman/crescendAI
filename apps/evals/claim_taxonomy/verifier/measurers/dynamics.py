@@ -9,18 +9,34 @@ from claim_taxonomy.verifier.models import UnverifiableError
 from claim_taxonomy.verifier.location_resolver import ResolvedRegion
 from claim_taxonomy.verifier.substrate_error import SubstrateErrorEngine
 
-SR = 16000
-HOP_LENGTH = 512
-MINIMUM_FRAMES = 20  # ~640ms at 16kHz / 512 hop
+# Reference loudness = corpus-median AMT note velocity over fixed-gain piano-rendered
+# PercePiano (n=180, #101 G-B). The signed whole_piece statistic is mean-velocity minus
+# this neutral anchor. locked:false -- recalibrate per substrate (front 4 / G-C).
+REFERENCE_VELOCITY = 51.5
+
+# AMT velocity quantization step (transcription.py velocity_quantization step=5) ->
+# per-note jitter ~ U(-2.5, +2.5), var = step**2/12. Placeholder substrate noise until
+# G-C measures the empirical re-transcription velocity churn.
+VELOCITY_QUANT_STEP = 5.0
+
+MINIMUM_NOTES = 20
 
 
 class DynamicsMeasurer:
-    """Measure RMS-based dynamic loudness for dynamics claims.
+    """Measure mean AMT note-velocity (perceived-loudness proxy) for dynamics claims.
 
-    Sign convention:
-    - d < 0: region is quieter / flatter than whole-piece reference (narrow dynamics)
-    - d > 0: region is louder / wider than reference
-    - Whole-piece: d = RMS-contour std normalized by within-piece dynamic range (dispersion)
+    Substrate: AMT-transcribed note velocities from the bundle (``notes``), NOT librosa
+    RMS. Validated against PercePiano perceived dynamics at partial-rho 0.544 (n=180,
+    #101 G-B) -- statistically indistinguishable from ground-truth MIDI velocity (0.525)
+    and gain-robust. (Frame RMS fails: it conflates strike velocity with note density,
+    partial-rho ~0.16; and absolute audio level is recording-gain-bound.) Units: MIDI
+    velocity (0-127); the dimension tau is in velocity units for BOTH location tiers.
+
+    Sign convention (signed d vs reference, consumed by the frozen router):
+    - whole_piece: d = mean(all note velocities) - REFERENCE_VELOCITY
+        d > 0 louder/more projected than a neutral performance; d < 0 softer/flatter.
+    - region: d = mean(region note velocities) - mean(all note velocities)
+        d > 0 region louder than the piece; d < 0 softer. Within-clip, so gain-free.
     """
 
     def measure(
@@ -30,75 +46,54 @@ class DynamicsMeasurer:
         region: ResolvedRegion,
         engine: SubstrateErrorEngine,
     ) -> Measurement:
-        audio_path = bundle.get("audio_path")
-        if not audio_path:
-            raise UnverifiableError("substrate_failure", "bundle missing audio_path")
-
-        import librosa
-        try:
-            y, _ = librosa.load(str(audio_path), sr=SR, mono=True)
-        except Exception as exc:
-            raise UnverifiableError("substrate_failure", f"failed to load audio: {exc}") from exc
-
-        rms_frames = librosa.feature.rms(y=y, hop_length=HOP_LENGTH)[0]
-        rms_db = 10.0 * np.log10(rms_frames + 1e-9)
-        frame_times = librosa.frames_to_time(
-            np.arange(len(rms_db)), sr=SR, hop_length=HOP_LENGTH
-        )
+        notes = bundle.get("notes") or []
+        all_vel = np.array([float(n["velocity"]) for n in notes], dtype=np.float64)
 
         if location == "whole_piece":
-            return self._measure_whole_piece(rms_db, engine)
+            return self._measure_whole_piece(all_vel, engine)
 
-        mask = (frame_times >= region.audio_start_sec) & (frame_times < region.audio_end_sec)
-        region_db = rms_db[mask]
-        event_count = int(region_db.size)
-
-        if event_count < MINIMUM_FRAMES:
+        if all_vel.size < MINIMUM_NOTES:
             raise UnverifiableError(
                 "region_too_short",
-                f"only {event_count} RMS frames in region "
-                f"[{region.audio_start_sec:.2f}, {region.audio_end_sec:.2f}s]; "
-                f"need >= {MINIMUM_FRAMES}",
+                f"bundle has only {all_vel.size} notes; need >= {MINIMUM_NOTES}",
             )
 
-        d = float(np.mean(region_db) - np.mean(rms_db))
+        onsets = np.array([float(n["onset"]) for n in notes], dtype=np.float64)
+        mask = (onsets >= region.audio_start_sec) & (onsets < region.audio_end_sec)
+        region_vel = all_vel[mask]
+        event_count = int(region_vel.size)
+        if event_count < MINIMUM_NOTES:
+            raise UnverifiableError(
+                "region_too_short",
+                f"only {event_count} notes in region "
+                f"[{region.audio_start_sec:.2f}, {region.audio_end_sec:.2f}s]; "
+                f"need >= {MINIMUM_NOTES}",
+            )
 
-        bootstrapped = engine.bootstrap_d(region_db, np.mean)
-        sampling_var = float(np.var(bootstrapped - np.mean(rms_db)))
-
-        jitters = engine.dynamics_rms_jitter_db()
-        # Per-sample dB jitter j is a scalar offset, so
-        # mean(region_db + j) - mean(whole_db) = d + j; var over samples reduces to var(jitters).
-        substrate_var = float(np.var(jitters))
-        error_bar = math.sqrt(sampling_var + substrate_var)
-
+        d = float(np.mean(region_vel) - np.mean(all_vel))
+        error_bar = self._error_bar(region_vel, engine, baseline=float(np.mean(all_vel)))
         return Measurement(d=d, error_bar=error_bar, event_count=event_count, substrate_failure=False)
 
     def _measure_whole_piece(
-        self, rms_db: np.ndarray, engine: SubstrateErrorEngine
+        self, all_vel: np.ndarray, engine: SubstrateErrorEngine
     ) -> Measurement:
-        event_count = int(rms_db.size)
-        if event_count < MINIMUM_FRAMES:
+        event_count = int(all_vel.size)
+        if event_count < MINIMUM_NOTES:
             raise UnverifiableError(
                 "region_too_short",
-                f"whole_piece has only {event_count} RMS frames; need >= {MINIMUM_FRAMES}",
+                f"whole_piece has only {event_count} notes; need >= {MINIMUM_NOTES}",
             )
-        dynamic_range = float(rms_db.max() - rms_db.min())
-        if dynamic_range < 0.1:
-            dynamic_range = 0.1
-        d = float(rms_db.std() / dynamic_range)
-
-        bootstrapped = engine.bootstrap_d(
-            rms_db,
-            lambda x: float(x.std() / max(x.max() - x.min(), 0.1)),
-        )
-        sampling_var = float(np.var(bootstrapped))
-        jitters = engine.dynamics_rms_jitter_db()
-        perturbed = np.array([
-            float((rms_db + j).std() / max((rms_db + j).max() - (rms_db + j).min(), 0.1))
-            for j in jitters
-        ])
-        substrate_var = float(np.var(perturbed))
-        error_bar = math.sqrt(sampling_var + substrate_var)
-
+        d = float(np.mean(all_vel) - REFERENCE_VELOCITY)
+        error_bar = self._error_bar(all_vel, engine, baseline=REFERENCE_VELOCITY)
         return Measurement(d=d, error_bar=error_bar, event_count=event_count, substrate_failure=False)
+
+    def _error_bar(
+        self, vel: np.ndarray, engine: SubstrateErrorEngine, baseline: float
+    ) -> float:
+        # sampling variance of the mean (bootstrap); subtracting a constant baseline
+        # leaves variance unchanged but mirrors the signed-d convention.
+        bootstrapped = engine.bootstrap_d(vel, np.mean)
+        sampling_var = float(np.var(bootstrapped - baseline))
+        # substrate: per-note quantization jitter averaged over N notes.
+        substrate_var = (VELOCITY_QUANT_STEP ** 2 / 12.0) / max(int(vel.size), 1)
+        return math.sqrt(sampling_var + substrate_var)
