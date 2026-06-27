@@ -57,17 +57,77 @@ import numpy as np
 
 from piece_id_eval.notes import Note
 from piece_id_eval.stage0c_elastic_dtwgate import ElasticGate
-from score_library.bulk_ingest import TOP_K, _RunningChromaIndex
+from score_library import pieceid_experimental as X
+from score_library.bulk_ingest import DUP_THRESHOLD, TOP_K, _RunningChromaIndex
 from score_library.pieceid_crossperf_verify import (
     _ASAP_DIR,
     _SCORES_DIR,
+    _catalog_pair_cost,
+    _decision,
+    _events,
     _load_perf_midi,
+    _ranked_costs,
     _source,
+    _source_class,
     build_catalog,
     eval_query,
     label_works,
     load_dedup_manifest,
 )
+
+# An optional experimental shortlist index (the autoresearch knob-board). When
+# set (via --experimental), the axis evaluators route through the EXPERIMENTAL
+# gate instead of the frozen eval_query, so the full comprehensive eval + its
+# cluster-bootstrap CIs measure a candidate lever set. The frozen eval_query is
+# untouched; this is a parallel measurement path, not a gate change.
+_EXPERIMENTAL_INDEX = None
+
+
+def _eval(notes, true_id, chroma, gate, k):
+    """Route to the experimental gate iff an experimental index is installed."""
+    if _EXPERIMENTAL_INDEX is not None:
+        return experimental_eval_query(notes, true_id, _EXPERIMENTAL_INDEX, gate)
+    return eval_query(notes, true_id, chroma, gate, k)
+
+
+def experimental_eval_query(notes, true_id, index, gate) -> dict | None:
+    """Mirror of the frozen eval_query but with the shortlist drawn from the
+    experimental knob-board (X.build_shortlist_index). The elastic gate, margin,
+    and dup-detection are the frozen primitives (reused verbatim); ONLY the
+    shortlist source changes -- so the comprehensive eval's downstream threshold
+    logic faithfully reflects a pure-shortlist lever. Replicates the autoresearch
+    eval's closed (full shortlist, untruncated) and LOO (shortlist k+1, drop true,
+    take k) candidate construction so axis-B here equals the AUTORESEARCH_METRIC."""
+    q_pc, q_li = _events(notes)
+    n_ev = int(q_pc.shape[0])
+    if n_ev < 2:
+        return None
+    closed_cands = index.shortlist(notes, X.TOP_K)          # union, NOT truncated
+    chroma_rank = closed_cands.index(true_id) if true_id in closed_cands else -1
+    closed = _decision(_ranked_costs(q_pc, q_li, closed_cands, gate))
+
+    loo_pool = index.shortlist(notes, X.TOP_K + 1)
+    loo_cands = [c for c in loo_pool if c != true_id][: X.TOP_K]
+    loo = _decision(_ranked_costs(q_pc, q_li, loo_cands, gate))
+
+    rec = {"true_id": true_id, "true_source": _source_class(true_id), "n_ev": n_ev,
+           "chroma_rank": chroma_rank,
+           "chroma_recall_at_k": 0 <= chroma_rank < X.TOP_K}
+    if closed is not None:
+        best, margin = closed
+        rec.update({"closed_best": best, "closed_margin": margin,
+                    "closed_correct": best == true_id,
+                    "closed_locked": margin >= X.MARGIN_THRESHOLD})
+    if loo is not None:
+        lbest, lmargin = loo
+        rec.update({"loo_margin": lmargin, "loo_best": lbest,
+                    "loo_best_source": _source_class(lbest),
+                    "loo_locked": lmargin >= X.MARGIN_THRESHOLD})
+        pair = _catalog_pair_cost(gate, true_id, lbest)
+        is_dup = pair is not None and np.isfinite(pair) and pair <= DUP_THRESHOLD
+        rec["loo_fa_dup_of_true"] = bool(is_dup)
+        rec["loo_fa_pair_cost"] = round(float(pair), 4) if pair is not None and np.isfinite(pair) else None
+    return rec
 
 # Production operating point after the 11K retune (session-brain.ts). The frozen
 # parity threshold is 0.0935; the live gate was retuned to 0.13 post-dedup.
@@ -233,7 +293,7 @@ def _eval_transformed(notes, true_id, chroma, gate, k, *, transform, label,
     q = transform(notes)
     if len(q) < 2:
         return None
-    rec = eval_query(q, true_id, chroma, gate, k)
+    rec = _eval(q, true_id, chroma, gate, k)
     if rec is None:
         return None
     rec["work"] = folder
@@ -318,7 +378,7 @@ def axis_latency(queries, chroma, gate, k, thr) -> dict:
             q = notes[:p]
             if len(q) < 2:
                 continue
-            rec = eval_query(q, true_id, chroma, gate, k)
+            rec = _eval(q, true_id, chroma, gate, k)
             if rec is None or "closed_margin" not in rec:
                 continue
             rec["work"] = folder
@@ -530,9 +590,15 @@ def main() -> None:
     ap.add_argument("--catalog-cache", type=str, default="",
                     help="path to a parsed-catalog pickle cache (built on first run, "
                          "loaded fast thereafter); avoids re-parsing ~9GB of JSON")
+    ap.add_argument("--experimental", action="store_true",
+                    help="route every axis through the experimental knob-board "
+                         "(pieceid_experimental, env-overridable PIECEID_*) instead of the "
+                         "frozen eval_query -- measures a candidate lever set across all "
+                         "axes + CIs. Ground-truth labels stay frozen-gate-derived.")
     ap.add_argument("--out", type=str, default=str(_OUT_DIR / "comprehensive_eval.json"))
     args = ap.parse_args()
 
+    global _EXPERIMENTAL_INDEX
     axes = {a.strip().lower() for a in args.axes.split(",") if a.strip()}
     t0 = time.time()
 
@@ -552,6 +618,11 @@ def main() -> None:
     gate = ElasticGate(catalog)
     _log(f"  indexed chroma + gate  [{time.time()-t1:.1f}s]")
 
+    if args.experimental:
+        _log(f"  EXPERIMENTAL gate levers: {X.levers()}")
+        _EXPERIMENTAL_INDEX = X.build_shortlist_index(catalog)
+        _log(f"  built experimental shortlist index ({X.SHORTLIST_MODE})  [{time.time()-t1:.1f}s]")
+
     t2 = time.time()
     labels, lstats = label_works(catalog, chroma, gate, args.note_cap, remap=remap)
     _log(f"  labeled {lstats['labeled']}/{lstats['n_works']} works "
@@ -564,7 +635,9 @@ def main() -> None:
         "config": {"axes": sorted(axes), "per_work": args.per_work,
                    "note_cap": args.note_cap, "top_k": args.top_k,
                    "threshold": args.threshold, "catalog_size": len(catalog),
-                   "frozen_parity_threshold": 0.0935},
+                   "frozen_parity_threshold": 0.0935,
+                   "experimental": bool(args.experimental),
+                   "experimental_levers": X.levers() if args.experimental else None},
         "labeling": lstats,
     }
 

@@ -33,6 +33,7 @@ Run:  PYTHONPATH=src uv run python -m score_library.pieceid_autoresearch_eval \
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import time
@@ -60,6 +61,28 @@ _FA_BAR = 0.05
 
 def _log(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
+
+
+# ---------------------------------------------------------------------------
+# Deterministic train/test split (overfit guard for the hill-climb)
+# ---------------------------------------------------------------------------
+# A win on the n=242 metric is only REAL if it also holds on works the search
+# never saw. The split is keyed on the WORK FOLDER (so every performance of a
+# work stays on one side -- train and test share no repertoire) and uses a fixed
+# sha1 hash (NOT the salted builtin hash()) so it is byte-identical across runs
+# and sessions. bucket(folder) % 10 < 7 => train (~70%), else test (~30%).
+
+def _works_bucket(folder: str) -> int:
+    # sha256 (not the salted builtin hash()) => deterministic across runs/sessions.
+    h = hashlib.sha256(folder.encode("utf-8")).hexdigest()
+    return int(h[:8], 16) % 10
+
+
+def _in_split(folder: str, split: str) -> bool:
+    if split == "all":
+        return True
+    train = _works_bucket(folder) < 7
+    return train if split == "train" else (not train)
 
 
 # ---------------------------------------------------------------------------
@@ -137,6 +160,9 @@ def main() -> None:
     ap.add_argument("--note-cap", type=int, default=600)
     ap.add_argument("--limit-works", type=int, default=0,
                     help="cap works for a faster (noisier) loop; 0 = all 242")
+    ap.add_argument("--works-split", choices=["train", "test", "all"], default="all",
+                    help="deterministic folder-hash split: train (~70%), test (~30%), "
+                         "all. Hill-climb on train, confirm the win on held-out test.")
     ap.add_argument("--out", type=str, default="")
     args = ap.parse_args()
 
@@ -152,7 +178,8 @@ def main() -> None:
     index = X.build_shortlist_index(catalog)
     _log(f"  built gate + shortlist index ({X.SHORTLIST_MODE})  [{time.time()-t0:.1f}s]")
 
-    folders = sorted(labels)
+    folders = [f for f in sorted(labels) if _in_split(f, args.works_split)]
+    _log(f"  works-split={args.works_split}: {len(folders)}/{len(labels)} works")
     if args.limit_works:
         folders = folders[: args.limit_works]
 
@@ -187,6 +214,7 @@ def main() -> None:
 
     result = {
         "metric": round(metric, 5),
+        "works_split": args.works_split,
         "n_queries": n_queries,
         "recognized": {f"{f:.2f}": round(recog_rates[f], 4) for f in _START_FRACS},
         "fa_genuine": round(fa_genuine, 4),
