@@ -59,26 +59,49 @@ def iter_candidates(midi_stage: Path | None = None):
             yield pid, ly
 
 
-def render_svg(pid: str, ly: Path, out_dir: Path, work_dir: Path) -> tuple[bool, str]:
-    """Render a .ly to <out_dir>/<pid>.svg (whole-piece cropped). Returns (ok, msg)."""
-    work_dir.mkdir(parents=True, exist_ok=True)
-    stem = work_dir / "score"
+def _run_lilypond(src: Path, stem: Path) -> subprocess.CompletedProcess | None:
     try:
-        proc = subprocess.run(
-            ["lilypond", "-dcrop", "-dbackend=svg", "-o", str(stem), str(ly)],
+        return subprocess.run(
+            ["lilypond", "-dcrop", "-dbackend=svg", "-o", str(stem), str(src)],
             capture_output=True,
             text=True,
-            timeout=180,
+            timeout=300,
         )
     except subprocess.TimeoutExpired:
-        return False, "timeout"
+        return None
+
+
+def render_svg(pid: str, ly: Path, out_dir: Path, work_dir: Path) -> tuple[bool, str]:
+    """Render a .ly to <out_dir>/<pid>.svg (whole-piece cropped). Returns (ok, msg).
+
+    Many Mutopia sources target LilyPond 2.x versions whose syntax 2.26 refuses to
+    render directly; on failure we copy the .ly locally, run `convert-ly -e` to
+    upgrade it, and retry."""
+    work_dir.mkdir(parents=True, exist_ok=True)
+    stem = work_dir / "score"
     cropped = work_dir / "score.cropped.svg"
+
+    proc = _run_lilypond(ly, stem)
+    if proc is None:
+        return False, "timeout"
+
     if not cropped.exists():
-        tail = (proc.stderr or proc.stdout or "")[-200:]
-        return False, f"no svg (exit {proc.returncode}): {tail}"
+        # Retry after upgrading the source with convert-ly.
+        local = work_dir / "src.ly"
+        local.write_bytes(ly.read_bytes())
+        up = subprocess.run(
+            ["convert-ly", "-e", str(local)], capture_output=True, text=True
+        )
+        if up.returncode == 0:
+            proc = _run_lilypond(local, stem)
+            if proc is None:
+                return False, "timeout (post convert-ly)"
+        if not cropped.exists():
+            tail = (proc.stderr or proc.stdout or "")[-160:] if proc else ""
+            return False, f"no svg (exit {proc.returncode if proc else '?'}): {tail}"
+
     out_dir.mkdir(parents=True, exist_ok=True)
     cropped.replace(out_dir / f"{pid}.svg")
-    # clean per-page svgs
     for p in work_dir.glob("score*.svg"):
         p.unlink(missing_ok=True)
     return True, "ok"
