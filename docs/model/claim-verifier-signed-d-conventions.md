@@ -605,6 +605,46 @@ are short; shaping labels are themselves ~0.5-noisy.
 
 ---
 
+## Dimension status matrix — what is verifiable today (#101, 2026-06-27)
+
+The honest, consolidated picture across every dimension the teacher emits feedback on. "Verifiable"
+= a deterministic, non-LLM statistic that (a) clears halo-controlled partial-ρ ~0.5 vs human
+perception AND (b) survives the production AMT-audio substrate AND (c) has falsifiable generator
+claims to score. **Today exactly zero dimensions are fully verifiable end-to-end** — each fails at a
+different stage, and knowing *which* stage is the contribution.
+
+| Dimension | Measurer built? | G-A (non-degen) | G-B perceptual validity | Substrate (AMT) | Claim supply | Net status |
+|---|---|---|---|---|---|---|
+| **dynamics — LEVEL** | yes (mean velocity) | PASS (flip 0.90) | **PASS** (ρ 0.54) | **survives** (AMT≈GT 0.965) | **~0 in-scope** (front 5) | validated stat, **no rate** — supply gap |
+| **dynamics — CONTRAST** | no (swept) | — | **FAIL** (≤0.26, front 6) | — | 90% of claims | **no validatable stat** — validity gap |
+| **pedaling** | yes (CC64 on-frac) | PASS under-pedal | PASS on MIDI (0.48) | **FAILS** (AMT 0.18, front 4) | moderate | **substrate-blocked**; coarse under-pedal only |
+| **timing** | yes (IOI-CV) | FAIL | marginal (0.25, < ceiling) | degenerate @whole_piece | n/a | **degenerate** — needs beat-tracker or scope-out |
+| **articulation** | **no** (`gated_on_measurement`) | — | never tested | — | — | **unbuilt**; candidate = note-overlap/legato ratio |
+| **timbre** (4 PercePiano dims) | **no** (`scoped_out`) | — | never tested | — | — | **unexamined**; needs SPECTRAL features, not velocity/MIDI |
+| **phrasing** | **no** (`scoped_out`) | — | never tested | — | — | **unexamined**; structural, likely hardest |
+| **interpretation** (+sophistication) | **no** (`scoped_out`) | — | never tested | — | — | **unexamined**; most holistic/subjective |
+
+**PercePiano granular dims probed for a deterministic correlate:** only `dynamic_range` (level ✓ /
+contrast ✗), `timing` (0.25), `pedal_amount/clarity` (MIDI ✓ / AMT ✗). The other 14 — `timbre_*`,
+`tempo`, `space`, `balance`, `drama`, `mood_valence/energy/imagination`, `sophistication`,
+`articulation_length/touch` — have **never been probed with their natural features** (front-6's velocity
+sweep touched some incidentally and they were ≤0.26, but velocity is the wrong feature for timbre/tempo/
+mood). So "unexamined" ≠ "impossible": timbre→spectral-centroid, articulation→key-overlap, tempo→beat-
+tracking are plausible unbuilt candidates; mood/sophistication/interpretation/drama are likely
+deterministically-unmeasurable (they integrate everything).
+
+**App implication (not just paper).** The deterministic verifier can stand behind essentially **no**
+expressive feedback today: dynamics-level is validated but the teacher speaks in contrast terms;
+pedaling works only for coarse construction-known under-pedal on clean audio; everything else is
+LLM-asserted, not ground-truth-checked. Any "grounded feedback" claim the app makes is currently
+honest only for that thin slice. The cheapest expansions of the verifiable surface, in rough order of
+likely payoff: (1) articulation measurer (MIDI key-overlap is well-defined and AMT gives note on/off);
+(2) timbre via spectral features (audio-native, no AMT-velocity dependence); (3) a better pedal substrate
+to rescue pedaling; (4) a beat-tracker to rescue timing. Dynamics-contrast and the mood/interpretation
+dims look deterministically out of reach.
+
+---
+
 ## Path #1 operating mode and hard gates (#101)
 
 **Operating mode (re-scoped 2026-06-24).** Open-ended, no time limit. The fixed M0–M3 timeline in the
