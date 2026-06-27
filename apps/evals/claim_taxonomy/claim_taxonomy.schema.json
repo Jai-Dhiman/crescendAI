@@ -73,7 +73,7 @@
         "provisional": { "type": "number" },
         "unit": { "type": "string" },
         "calibration_source": { "type": "string" },
-        "locked": { "type": "boolean", "const": false }
+        "locked": { "type": "boolean", "description": "false = provisional hand-set; true = calibrated against human anomaly labels and frozen (#101 front-4). A locked tolerance must cite its calibration in calibration_source." }
       },
       "additionalProperties": false
     },

@@ -44,8 +44,10 @@ def test_dynamics_has_all_active_fields() -> None:
     dyn = taxonomy["dimensions"]["dynamics"]
     for field in ("reference", "check", "tolerance", "reliability_tier", "measurement", "minimum_events"):
         assert field in dyn, f"dynamics missing field: {field}"
-    assert dyn["tolerance"]["locked"] is False
-    assert "#101 G-B" in dyn["tolerance"]["calibration_source"]
+    # #101 front-4: dynamics tau is now LOCKED (calibrated against human anomaly labels).
+    assert dyn["tolerance"]["locked"] is True
+    assert dyn["tolerance"]["provisional"] == 6.5
+    assert "#101" in dyn["tolerance"]["calibration_source"]
 
 
 def test_v01_taxonomy_validates_against_schema() -> None:

@@ -430,7 +430,12 @@ empirically measured — only dynamics had the harness). Both are done; G-A reve
 (fraction of bars with ≥1 CC64 event), but GATE-2's 0.478 was measured on CC64 **time**-on-fraction
 (`pedaling_on_fraction`, `gate2_expert_anchor.json`). These are cousins, not the same statistic — the
 exact trap the dynamics rescue caught. Both tiers now use **time-on-fraction**, so the verifier checks
-the EXACT validated quantity and 0.478 is inherited verbatim (frac − const is monotone in frac):
+the same *family* of statistic. **CORRECTED by FRONT 4 (below):** this section claimed "0.478 is
+inherited verbatim (frac − const is monotone in frac)" — that is WRONG. The monotonicity argument holds
+only if the verifier's **AMT** on-fraction equals the **MIDI** on-fraction 0.478 was measured on; it does
+not (lossy AMT pedal head). Measured directly, AMT pedaling G-B is only **0.181**, not 0.478. The signed
+under-pedal *construction-known* detection (G-A) still holds; the *perceptual* validity (G-B) does not.
+The original (now-corrected) reasoning:
 - whole_piece: `d = on_fraction − REFERENCE_FRACTION`, `REFERENCE_FRACTION = 0.4623` (corpus-median AMT
   on-fraction over the 30 fixed-gain neutral renders; AMT-derived, not MIDI-native, because AMT inflates
   low pedal and saturates high — a MIDI median would mis-zero the AMT-substrate measurement).
@@ -468,6 +473,39 @@ harnesses `model/src/claim_measurement/ga_validation/amt_pedaling_ga_{render,met
 
 ---
 
+## FRONT 4 UPDATE (#101, 2026-06-27): tau calibration — dynamics LOCKED, pedaling G-B corrected
+
+Front 4 calibrated the two `tau` against human-labeled anomaly slices and flipped `locked:true`.
+Method (`tau_calibration/tau_calibrate.py`): signed-anomaly detection — a clip is a `+` anomaly if its
+composite perceptual rating > Q75, `-` if < Q25, else normal; the verifier fires ±1 if `d` clears ±tau;
+`tau* = argmax(TPR − FPR)` (Youden), with bootstrap CI and per-direction tau. n=180 on the AMT substrate.
+
+**Dynamics — tau 8.0 → 6.5, LOCKED.** Youden point estimate 6.35 (boot 95% CI [4, 17] — wide because the
+composite "dynamics" label is a *quality* rating, only a noisy proxy for loudness level). The directional
+medians are clean (`+anom +5.7 / −anom −9.3 / normal +0.1`) and the per-direction optima (loud ~1.4 <
+soft ~5.0) explain the front-3 flip⁺<flip⁻ asymmetry: tau=8 was too high, especially for loud. Cross-checked
+on the construction-known G-A set — lowering tau 8→6.5 *raises* flip 0.85→0.90, narrows flip⁺ 22→24/30, and
+lifts shuffle-collapse 0.22→0.30. 6.5 is the symmetric compromise satisfying both human-calibration and G-A.
+
+**Pedaling — G-B FAIL on AMT; tau NOT locked (correction of a front-3 claim).** Front 3 asserted pedaling
+"G-B inherited 0.478 (frac − const is monotone in frac)". That argument is **wrong**: it assumes the
+verifier's *AMT* on-fraction equals the *MIDI* on-fraction that 0.478 was measured on. Measured directly on
+the production substrate (rendered audio → aria-amt, n=180 natural performances), pedaling's halo-controlled
+partial-ρ is only **0.181 [boot 95% CI 0.03–0.33]**, vs **0.386** for true MIDI on-fraction on the same
+clips — below the ~0.5 ceiling. Root cause (`gb_pedaling_amt_check.py`): the AMT pedal head recovers true
+on-fraction at only **Spearman 0.389** (regression-to-the-middle — +0.19 hallucinated pedal on dry clips,
+−0.34 on full-pedal clips), and `AMT ⊥ perception | TRUE = +0.106` (adds only noise). **Decisive contrast:**
+on the *same* fluidsynth→AMT renders the AMT *velocity* head recovers GT at **0.965** — so it is the
+weakly-supervised pedal head, not the render or postprocessing. **Pedaling is therefore NOT perceptually
+validated on the AMT substrate.** It stays `active` only for the COARSE construction-known under-pedal
+detection that G-A established (the verifier responds to large pedal swings), `tolerance.locked:false`,
+pending a better pedal-transcription substrate. The under-pedal tau itself calibrates to ~0.16–0.29
+(consistent with the provisional 0.25), but locking is premature while the dimension's perceptual validity
+is unestablished. Reports: `model/data/results/tau_cal_pedaling.json`; harnesses
+`model/src/claim_measurement/tau_calibration/`.
+
+---
+
 ## Path #1 operating mode and hard gates (#101)
 
 **Operating mode (re-scoped 2026-06-24).** Open-ended, no time limit. The fixed M0–M3 timeline in the
@@ -486,16 +524,19 @@ domain* (music as the existence proof). **No paper is drafted until every hard g
   chance (proposal: shifts |rate−0.5| by ≥0.20); (ii) *performance-flip sensitivity* — on
   corruption-harness clean-vs-corrupted pairs, the verdict flips in the expected direction in ≥0.80
   of construction-known cases. A dimension whose verdict is unmoved by either control FAILS.
-  *Status: **pedaling PASS for under-pedal `-`** (#101 front-3: performance-flip 0.90, polarity-shuffle
-  collapse +0.23, ordering 29/30, maximal corruption n=30) — over-pedal `+` FAILS (AMT pedal saturation)
-  and is scoped out as substrate-insensitive (see FRONT 3 UPDATE below); **dynamics PASS** (#101:
-  performance-flip 0.85, polarity-shuffle collapse 0.22, monotonicity 30/30 — see GATE 3 UPDATE below);
-  timing FAIL (degenerate).*
+  *Status: **pedaling construction-known PASS for under-pedal `-`** (#101 front-3: performance-flip 0.90,
+  polarity-shuffle collapse +0.23, ordering 29/30, maximal corruption n=30) — but note this is
+  construction-known detection only; pedaling FAILS G-B on natural data (front-4, below). Over-pedal `+`
+  FAILS (AMT pedal saturation), scoped out as substrate-insensitive; **dynamics PASS** (#101:
+  performance-flip 0.90 at the locked tau=6.5 / 0.85 at the old tau=8, polarity-shuffle collapse 0.30,
+  monotonicity 30/30 — see GATE 3 + FRONT 4 UPDATE); timing FAIL (degenerate).*
 - **G-B — Perceptual validity of the EXACT statistic.** The specific statistic the verifier checks
   (not a cousin) clears halo-controlled partial-Spearman ≥ the measured PercePiano inter-rater
-  ceiling (~0.5) on its perceptual dimension, p<1e-6. *Status: pedaling PASS (0.478) — the verifier now
-checks the EXACT validated statistic (CC64 time-on-fraction), having corrected the shipped pedal-BAR-
-fraction cousin (#101 front-3, see FRONT 3 UPDATE below);
+  ceiling (~0.5) on its perceptual dimension, p<1e-6. *Status: **pedaling FAIL on the AMT substrate**
+(#101 front-4: AMT on-fraction partial-Spearman **0.181** [CI 0.03–0.33], n=180 natural — the GATE-2
+0.478 was MIDI-native and does NOT transfer through the lossy AMT pedal head, which recovers true
+on-fraction at only 0.389; see FRONT 4 UPDATE). Pedaling stays active for construction-known detection
+only, not graded perceptual claims;
   **dynamics PASS** (#101: switched the statistic to mean AMT note-velocity → partial-Spearman 0.544,
   n=180, 95% CI [0.417, 0.655], indistinguishable from ground-truth MIDI velocity 0.525 — see GATE 3
   UPDATE below); timing FAILS (0.25) → out unless a new proxy passes.*

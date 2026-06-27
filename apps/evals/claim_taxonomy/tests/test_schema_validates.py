@@ -178,14 +178,17 @@ def test_active_dimensions_have_complete_registry() -> None:
             )
 
 
-def test_all_tolerances_are_provisional() -> None:
+def test_all_tolerances_cite_calibration() -> None:
+    # #101 front-4: tolerances may now be locked (calibrated against human anomaly
+    # labels) OR provisional (locked=false); either way the source must be documented.
+    # A LOCKED tolerance must cite its calibration in calibration_source.
     with open(TAXONOMY_PATH) as f:
         taxonomy = json.load(f)
     for dim_name, dim in taxonomy["dimensions"].items():
         if dim.get("status") == "active":
             tol = dim["tolerance"]
-            assert tol["locked"] is False, (
-                f"Dimension '{dim_name}': tolerance must be locked=false (provisional)"
+            assert isinstance(tol["locked"], bool), (
+                f"Dimension '{dim_name}': tolerance.locked must be a bool"
             )
             assert isinstance(tol["calibration_source"], str) and "#" in tol["calibration_source"], (
                 f"Dimension '{dim_name}': calibration_source must cite an issue "
