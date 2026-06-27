@@ -271,6 +271,14 @@ catalog-acquire-asap:
 catalog-pieceid-crossperf-verify:
     cd model && PYTHONUNBUFFERED=1 uv run python -m score_library.pieceid_crossperf_verify --per-work 0 --note-cap 600
 
+# Catalog-wide AMT-aware duplicate detection (NON-DESTRUCTIVE manifest, nothing deleted).
+# Greedy nearest-keep: drops a piece only on a DIRECT match to an already-kept higher-
+# priority piece (engraved>pdmx>giantmidi, most-notes). Source-aware threshold (engraved
+# 0.2885, AMT-involved 0.40); splits high-confidence (<=0.2885) from medium review-pool.
+# Writes data/evals/piece_id/dedup_manifest.json -- input for the deferred cleanliness pass.
+catalog-dedup-scan:
+    cd model && PYTHONUNBUFFERED=1 uv run python -m score_library.dedup_scan --note-cap 600 --top-k 8
+
 # Add net-new Mutopia keyboard pieces to the catalog: instrument-filter ->
 # content semantic dedup vs existing catalog -> self-consistency ingest ->
 # re-fingerprint. Run `just catalog-acquire-mutopia` first.
