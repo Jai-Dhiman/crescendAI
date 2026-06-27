@@ -125,14 +125,14 @@
         "name": "on_fraction_deviation",
         "provisional": 0.25,
         "unit": "fraction",
-        "calibration_source": "#101 G-B (AMT CC64 on-fraction, n=1202, partial-rho 0.478, ref=0.4699); provisional, locked pending front-4 anomaly calibration",
+        "calibration_source": "#101 G-B (AMT CC64 on-fraction, n=1202, partial-rho 0.478, ref=0.4623); provisional, locked pending front-4 anomaly calibration",
         "locked": false
       },
       "reliability_tier": 2,
       "measurement": "amt_sustain_pedal_events",
       "minimum_events": 0,
       "substrate_insensitive_polarity": { "whole_piece": "+" },
-      "notes": "Sustain-pedal TIME-on-fraction (fraction of duration CC64 is down) = the EXACT statistic validated vs PercePiano perceived pedaling at partial-rho 0.478 (n=1202, #101 G-B / gate2_expert_anchor.json measure pedal_frac). Replaces the previously-shipped pedal-BAR-fraction (fraction of bars with >=1 event), an unvalidated cousin. Units: time-on-fraction for BOTH location tiers (one tau). whole_piece reference = corpus-median AMT on-fraction (0.4699, controlled-gain piano-render calibration, #101 front-3); region reference = within-clip whole-piece on-fraction. minimum_events = 0 (deliberate): a genuinely dry/zero-pedal performance is an informative signed measurement (d = -reference => '-' under-pedal claim adjudicable), NOT an abstention. Coarse on/off only; half-pedal and flutter remain out of scope. Scope: controlled-gain audio. DIRECTIONAL SCOPE (#101 front-3 G-A, maximal-corruption n=30): under-pedal '-' PASSES (performance-flip 0.90, polarity-shuffle collapse +0.23, ordering 29/30); over-pedal '+' FAILS because AMT pedal on-fraction SATURATES (~0.55 ceiling -- full pedal, true frac=1.0, only reaches median d +0.214 < tau), so whole_piece '+' is marked substrate_insensitive_polarity and returns UNVERIFIABLE rather than a wrong REFUTED."
+      "notes": "Sustain-pedal TIME-on-fraction (fraction of duration CC64 is down) = the EXACT statistic validated vs PercePiano perceived pedaling at partial-rho 0.478 (n=1202, #101 G-B / gate2_expert_anchor.json measure pedal_frac). Replaces the previously-shipped pedal-BAR-fraction (fraction of bars with >=1 event), an unvalidated cousin. Units: time-on-fraction for BOTH location tiers (one tau). whole_piece reference = corpus-median AMT on-fraction (0.4623, controlled-gain piano-render calibration, #101 front-3); region reference = within-clip whole-piece on-fraction. minimum_events = 0 (deliberate): a genuinely dry/zero-pedal performance is an informative signed measurement (d = -reference => '-' under-pedal claim adjudicable), NOT an abstention. Coarse on/off only; half-pedal and flutter remain out of scope. Scope: controlled-gain audio. DIRECTIONAL SCOPE (#101 front-3 G-A, maximal-corruption n=30): under-pedal '-' PASSES (performance-flip 0.90, polarity-shuffle collapse +0.23, ordering 29/30); over-pedal '+' FAILS because AMT pedal on-fraction SATURATES (~0.55 ceiling -- full pedal, true frac=1.0, only reaches median d +0.214 < tau), so whole_piece '+' is marked substrate_insensitive_polarity and returns UNVERIFIABLE rather than a wrong REFUTED."
     },
     "dynamics": {
       "status": "active",
