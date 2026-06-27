@@ -64,6 +64,19 @@ class IngestResult:
     gate_failures: list[tuple[str, str]]    # (piece_id, reason)
     parse_failures: list[tuple[str, str]]   # (piece_id, reason)
     collisions: list[str]
+    dedup_costs: list[float]                # best_cost per scored candidate
+
+
+def _gap_report(costs: list[float], threshold: float) -> str:
+    """Confirm `threshold` sits in a genuine bimodal gap (the dedup audit)."""
+    if not costs:
+        return "  (no costs)"
+    below = [c for c in costs if c <= threshold]
+    above = [c for c in costs if c > threshold]
+    if not below or not above:
+        return f"  WARNING: all costs {'below' if not above else 'above'} {threshold} -- no bimodal structure"
+    return (f"  gap at {threshold}: [{max(below):.4f} last-DUP, {min(above):.4f} first-NEW] "
+            f"gap={min(above)-max(below):.4f}  (dups={len(below)} new={len(above)})")
 
 
 def _score_to_notes(score_data) -> list[Note]:
@@ -106,11 +119,12 @@ class _RunningChromaIndex:
         self._matrix = np.vstack([self._matrix, vec[None, :]])
 
 
-def _load_catalog_notes() -> dict[str, list[Note]]:
+def _load_catalog_notes(note_cap: int | None = None) -> dict[str, list[Note]]:
     skip = {"titles.json", "seed.sql"}
     catalog: dict[str, list[Note]] = {}
     for path in sorted(f for f in _SCORES_DIR.glob("*.json") if f.name not in skip):
-        catalog[path.stem] = load_score_notes(path)
+        notes = load_score_notes(path)
+        catalog[path.stem] = notes[:note_cap] if note_cap else notes
     return catalog
 
 
@@ -118,17 +132,26 @@ def bulk_ingest(
     candidates: Iterable[Candidate],
     *,
     progress_every: int = 250,
+    note_cap: int | None = None,
     on_progress: Callable[[int, IngestResult], None] | None = None,
 ) -> IngestResult:
     """Dedup + self-consistency ingest a candidate stream against the catalog
-    plus everything accepted earlier in the same stream. Returns counts."""
+    plus everything accepted earlier in the same stream. Returns counts.
+
+    note_cap bounds the dedup comparison to the first N notes of each piece (the
+    recognition window). Elastic DTW is O(Eq*Er) in chord-events, so for
+    multi-thousand-note performance MIDI (GiantMIDI/PDMX) an uncapped compare is
+    ~5s/candidate; capping to the opening window keeps it sub-second while
+    preserving identity (validate the 0.2885 gap on a sample per source). The
+    SELF-CONSISTENCY gate still runs on the FULL score -- only dedup is windowed.
+    """
     t0 = time.time()
-    catalog = _load_catalog_notes()
+    catalog = _load_catalog_notes(note_cap)
     chroma = _RunningChromaIndex(catalog)
     gate = ElasticGate(catalog)
     existing_ids = set(catalog)
 
-    result = IngestResult([], [], [], [], [])
+    result = IngestResult([], [], [], [], [], [])
     seen = 0
     for cand in candidates:
         seen += 1
@@ -137,8 +160,9 @@ def bulk_ingest(
             notes = _score_to_notes(score)
             if len(notes) < 2:
                 raise ValueError(f"too few notes: {len(notes)}")
-            q_vec = chroma_vector(notes)
-            q_pc, q_li = _notes_to_events(notes)
+            dedup_notes = notes[:note_cap] if note_cap else notes
+            q_vec = chroma_vector(dedup_notes)
+            q_pc, q_li = _notes_to_events(dedup_notes)
             if q_pc.shape[0] < 2:
                 raise ValueError("too few chord-events for DTW")
         except Exception as e:  # noqa: BLE001 -- surface every parse failure
@@ -150,6 +174,8 @@ def bulk_ingest(
             c = gate.cost(q_pc, q_li, cid, W_PITCH, W_TIME)
             if c is not None and np.isfinite(c) and c < best_cost:
                 best_cost, best_id = float(c), cid
+        if best_id:
+            result.dedup_costs.append(best_cost)
 
         if best_id and best_cost <= DUP_THRESHOLD:
             result.dups.append((cand.piece_id, best_cost, best_id))
@@ -198,4 +224,5 @@ def bulk_ingest(
         f"parse_fail={len(result.parse_failures)} ({time.time()-t0:.1f}s) ===",
         flush=True,
     )
+    print(_gap_report(result.dedup_costs, DUP_THRESHOLD), flush=True)
     return result
