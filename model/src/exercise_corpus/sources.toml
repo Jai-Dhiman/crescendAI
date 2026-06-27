@@ -87,3 +87,18 @@ license = "public_domain"
 musicxml_path = "data/scores/exercise_primitives/raw/czerny_op821"
 dimensions = ["articulation", "timing"]
 techniques = ["finger-velocity", "evenness", "daily-exercise", "scalar-passagework"]
+
+[[sources]]
+name = "chopin_etudes"
+title = "Etudes Op.10 & Op.25 (Chopin)"
+composer = "Frederic Chopin"
+opus = "10, 25"
+license = "public_domain"
+# All 24 etudes (Op.10 Nos.1-12 + Op.25 Nos.1-12), kern -> MIDI via verovio
+# from pl-wnifc/humdrum-chopin-first-editions (AGN:Etude, complete -1b- editions:
+# 010-1b-Sm + 025-1b-LE, deduped from 42 multi-edition files). Per-etude
+# technique_tags carry the authoritative per-primitive tagging (each etude
+# targets a distinct mechanism); these source-level tags are the coarse union.
+musicxml_path = "data/scores/exercise_primitives/raw/chopin_etudes"
+dimensions = ["articulation", "timing", "dynamics", "phrasing", "pedaling", "interpretation"]
+techniques = ["technical-etude", "passagework", "advanced-technique"]

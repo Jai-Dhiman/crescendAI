@@ -580,3 +580,127 @@ key = "G"
 dimensions = ["articulation", "timing"]
 techniques = ["finger_velocity", "evenness", "daily_exercise"]
 key = "D"
+
+# === #49 EXERCISE-BOOK expansion: Chopin Etudes Op.10 & Op.25 ===
+# Per-etude bespoke tags -- each etude trains a distinct mechanism.
+# Order: Op.10 Nos.1-12 (etude_001-012), Op.25 Nos.1-12 (etude_013-024).
+
+[chopin_etude_001]
+dimensions = ["articulation", "timing"]
+techniques = ["arpeggios", "hand-extension", "finger-evenness"]
+key = "C"
+
+[chopin_etude_002]
+dimensions = ["articulation", "timing"]
+techniques = ["chromatic-scales", "finger-independence", "weak-fingers"]
+key = "Am"
+
+[chopin_etude_003]
+dimensions = ["phrasing", "dynamics", "pedaling", "interpretation"]
+techniques = ["cantabile", "legato", "voicing"]
+key = "E"
+
+[chopin_etude_004]
+dimensions = ["articulation", "timing"]
+techniques = ["velocity", "finger-independence", "toccata"]
+key = "C#m"
+
+[chopin_etude_005]
+dimensions = ["articulation", "timing"]
+techniques = ["black-keys", "light-staccato", "wrist"]
+key = "Gb"
+
+[chopin_etude_006]
+dimensions = ["phrasing", "dynamics", "pedaling", "interpretation"]
+techniques = ["chromatic", "legato", "voicing"]
+key = "Ebm"
+
+[chopin_etude_007]
+dimensions = ["articulation", "timing"]
+techniques = ["double-notes", "repeated-notes", "toccata"]
+key = "C"
+
+[chopin_etude_008]
+dimensions = ["articulation", "timing", "dynamics"]
+techniques = ["passagework", "arpeggios", "brilliance"]
+key = "F"
+
+[chopin_etude_009]
+dimensions = ["dynamics", "phrasing", "pedaling"]
+techniques = ["left-hand-stretch", "rubato", "agitato"]
+key = "Fm"
+
+[chopin_etude_010]
+dimensions = ["articulation", "dynamics", "phrasing"]
+techniques = ["accentuation", "touch-variation", "cross-accent"]
+key = "Ab"
+
+[chopin_etude_011]
+dimensions = ["pedaling", "phrasing", "dynamics"]
+techniques = ["rolled-chords", "arpeggiation", "voicing"]
+key = "Eb"
+
+[chopin_etude_012]
+dimensions = ["articulation", "dynamics", "interpretation"]
+techniques = ["left-hand-velocity", "dramatic-contrast", "revolutionary"]
+key = "Cm"
+
+[chopin_etude_013]
+dimensions = ["pedaling", "phrasing", "dynamics"]
+techniques = ["arpeggios", "voicing", "pedal-wash"]
+key = "Ab"
+
+[chopin_etude_014]
+dimensions = ["articulation", "timing"]
+techniques = ["light-touch", "cross-rhythm", "murmur"]
+key = "Fm"
+
+[chopin_etude_015]
+dimensions = ["timing", "articulation"]
+techniques = ["leaps", "syncopation", "rhythmic-precision"]
+key = "F"
+
+[chopin_etude_016]
+dimensions = ["articulation", "timing"]
+techniques = ["staccato", "leaps", "left-hand-agility"]
+key = "Am"
+
+[chopin_etude_017]
+dimensions = ["phrasing", "articulation", "interpretation"]
+techniques = ["appoggiatura", "cantabile", "ornamentation"]
+key = "Em"
+
+[chopin_etude_018]
+dimensions = ["articulation", "timing"]
+techniques = ["double-thirds", "chromatic", "legato"]
+key = "G#m"
+
+[chopin_etude_019]
+dimensions = ["phrasing", "dynamics", "pedaling", "interpretation"]
+techniques = ["cantabile", "rubato", "voicing"]
+key = "C#m"
+
+[chopin_etude_020]
+dimensions = ["articulation", "timing"]
+techniques = ["double-sixths", "legato", "passagework"]
+key = "Db"
+
+[chopin_etude_021]
+dimensions = ["articulation", "timing"]
+techniques = ["light-staccato", "wrist", "butterfly"]
+key = "Gb"
+
+[chopin_etude_022]
+dimensions = ["articulation", "dynamics"]
+techniques = ["octaves", "legato-octaves", "endurance"]
+key = "Bm"
+
+[chopin_etude_023]
+dimensions = ["articulation", "dynamics", "interpretation"]
+techniques = ["chromatic-passagework", "endurance", "winter-wind"]
+key = "Am"
+
+[chopin_etude_024]
+dimensions = ["articulation", "pedaling", "dynamics"]
+techniques = ["arpeggios", "hand-extension", "ocean"]
+key = "Cm"

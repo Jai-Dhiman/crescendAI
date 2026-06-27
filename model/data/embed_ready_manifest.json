@@ -1,5 +1,5 @@
 {
-  "n_primitives": 112,
+  "n_primitives": 136,
   "primitives": [
     {
       "midi_path": "data/midi/exercise_primitives/hanon_001.mid",
@@ -1272,6 +1272,510 @@
         "scalar-passagework"
       ],
       "title": "Czerny Op.821 Exercise 19"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_001.mid",
+      "n_notes": 1337,
+      "primitive_id": "chopin_etude_001",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 1,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 1"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_002.mid",
+      "n_notes": 1459,
+      "primitive_id": "chopin_etude_002",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 2,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 2"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_003.mid",
+      "n_notes": 1884,
+      "primitive_id": "chopin_etude_003",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 3,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 3"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_004.mid",
+      "n_notes": 2204,
+      "primitive_id": "chopin_etude_004",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 4,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 4"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_005.mid",
+      "n_notes": 1629,
+      "primitive_id": "chopin_etude_005",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 5,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 5"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_006.mid",
+      "n_notes": 955,
+      "primitive_id": "chopin_etude_006",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 6,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 6"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_007.mid",
+      "n_notes": 1789,
+      "primitive_id": "chopin_etude_007",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 7,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 7"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_008.mid",
+      "n_notes": 2303,
+      "primitive_id": "chopin_etude_008",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 8,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 8"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_009.mid",
+      "n_notes": 1227,
+      "primitive_id": "chopin_etude_009",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 9,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 9"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_010.mid",
+      "n_notes": 2230,
+      "primitive_id": "chopin_etude_010",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 10,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 10"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_011.mid",
+      "n_notes": 1979,
+      "primitive_id": "chopin_etude_011",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 11,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 11"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_012.mid",
+      "n_notes": 2083,
+      "primitive_id": "chopin_etude_012",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 12,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 12"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_013.mid",
+      "n_notes": 2210,
+      "primitive_id": "chopin_etude_013",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 13,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 13"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_014.mid",
+      "n_notes": 1203,
+      "primitive_id": "chopin_etude_014",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 14,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 14"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_015.mid",
+      "n_notes": 1688,
+      "primitive_id": "chopin_etude_015",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 15,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 15"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_016.mid",
+      "n_notes": 1509,
+      "primitive_id": "chopin_etude_016",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 16,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 16"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_017.mid",
+      "n_notes": 2074,
+      "primitive_id": "chopin_etude_017",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 17,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 17"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_018.mid",
+      "n_notes": 2505,
+      "primitive_id": "chopin_etude_018",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 18,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 18"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_019.mid",
+      "n_notes": 1539,
+      "primitive_id": "chopin_etude_019",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 19,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 19"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_020.mid",
+      "n_notes": 1550,
+      "primitive_id": "chopin_etude_020",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 20,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 20"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_021.mid",
+      "n_notes": 1050,
+      "primitive_id": "chopin_etude_021",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 21,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 21"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_022.mid",
+      "n_notes": 3357,
+      "primitive_id": "chopin_etude_022",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 22,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 22"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_023.mid",
+      "n_notes": 3170,
+      "primitive_id": "chopin_etude_023",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 23,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 23"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_024.mid",
+      "n_notes": 2634,
+      "primitive_id": "chopin_etude_024",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 24,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 24"
     }
   ],
   "schema": "exercise_corpus.embed_ready.v1"

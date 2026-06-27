@@ -86,6 +86,11 @@ _SOURCE_CONFIGS: dict[str, dict] = {
         "id_prefix": "czerny_op821",
         "boundary": "per_file",
     },
+    "chopin_etudes": {
+        "title_prefix": "Chopin Etude",
+        "id_prefix": "chopin_etude",
+        "boundary": "per_file",
+    },
 }
 
 
