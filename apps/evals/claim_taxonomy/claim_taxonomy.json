@@ -125,14 +125,14 @@
         "name": "on_fraction_deviation",
         "provisional": 0.25,
         "unit": "fraction",
-        "calibration_source": "#101 G-B (AMT CC64 on-fraction, n=1202, partial-rho 0.478, ref=0.4623); provisional, locked pending front-4 anomaly calibration",
+        "calibration_source": "#101 front-4: NOT LOCKED -- pedaling FAILS G-B on the AMT substrate. The under-pedal '-' tau calibrates to ~0.16-0.29 (Youden, n=180, consistent with 0.25) but the dimension's perceptual validity itself is not established on AMT (partial-rho 0.181, see notes), so locking the threshold is premature. ref=0.4623 (front-3); broad n=180 natural median AMT on-fraction is 0.514. Stays provisional pending a better pedal-transcription substrate.",
         "locked": false
       },
       "reliability_tier": 2,
       "measurement": "amt_sustain_pedal_events",
       "minimum_events": 0,
       "substrate_insensitive_polarity": { "whole_piece": "+" },
-      "notes": "Sustain-pedal TIME-on-fraction (fraction of duration CC64 is down) = the EXACT statistic validated vs PercePiano perceived pedaling at partial-rho 0.478 (n=1202, #101 G-B / gate2_expert_anchor.json measure pedal_frac). Replaces the previously-shipped pedal-BAR-fraction (fraction of bars with >=1 event), an unvalidated cousin. Units: time-on-fraction for BOTH location tiers (one tau). whole_piece reference = corpus-median AMT on-fraction (0.4623, controlled-gain piano-render calibration, #101 front-3); region reference = within-clip whole-piece on-fraction. minimum_events = 0 (deliberate): a genuinely dry/zero-pedal performance is an informative signed measurement (d = -reference => '-' under-pedal claim adjudicable), NOT an abstention. Coarse on/off only; half-pedal and flutter remain out of scope. Scope: controlled-gain audio. DIRECTIONAL SCOPE (#101 front-3 G-A, maximal-corruption n=30): under-pedal '-' PASSES (performance-flip 0.90, polarity-shuffle collapse +0.23, ordering 29/30); over-pedal '+' FAILS because AMT pedal on-fraction SATURATES (~0.55 ceiling -- full pedal, true frac=1.0, only reaches median d +0.214 < tau), so whole_piece '+' is marked substrate_insensitive_polarity and returns UNVERIFIABLE rather than a wrong REFUTED."
+      "notes": "Sustain-pedal TIME-on-fraction (fraction of duration CC64 is down). The statistic GATE-2 validated at partial-rho 0.478 was the MIDI-native pedal_frac (gate2_expert_anchor.json); replaces the previously-shipped pedal-BAR-fraction cousin. G-B CORRECTION (#101 front-4): the verifier reads the AMT on-fraction, NOT MIDI, and AMT does NOT inherit 0.478 -- measured directly on the production substrate (rendered audio -> aria-amt, n=180 natural) the halo-controlled partial-rho is only 0.181 [boot 95% CI 0.03-0.33], vs 0.386 for true MIDI on-fraction on the same clips. Root cause: the AMT pedal head recovers true on-fraction at only spearman 0.389 (regression-to-the-middle: +0.19 hallucinated pedal on dry clips, -0.34 on full-pedal clips), whereas the AMT VELOCITY head recovers GT at 0.965 on the same renders -- so it is the weakly-supervised pedal head, not the render. PEDALING IS THEREFORE NOT PERCEPTUALLY VALIDATED on AMT; it is kept 'active' only for COARSE construction-known detection (G-A, below), not graded perceptual claims, pending a better pedal-transcription substrate. Units: time-on-fraction, both tiers. whole_piece reference = 0.4623 (front-3; broad n=180 median 0.514). minimum_events = 0 (deliberate): a dry/zero-pedal performance is an informative signed measurement (d=-reference => '-' under-pedal claim adjudicable), NOT an abstention. Half-pedal/flutter out of scope. DIRECTIONAL SCOPE (front-3 G-A, maximal-corruption n=30): under-pedal '-' construction-known detection PASSES (flip 0.90, shuffle +0.23, ordering 29/30); over-pedal '+' FAILS (AMT saturates ~0.55 ceiling), so whole_piece '+' is marked substrate_insensitive_polarity -> UNVERIFIABLE."
     },
     "dynamics": {
       "status": "active",
@@ -140,10 +140,10 @@
       "check": "mean_amt_note_velocity_vs_reference",
       "tolerance": {
         "name": "velocity_deviation",
-        "provisional": 8.0,
+        "provisional": 6.5,
         "unit": "midi_velocity",
-        "calibration_source": "#101 G-B (AMT velocity, n=180, partial-rho 0.544, ref=51.5); provisional, locked pending front-4 anomaly calibration",
-        "locked": false
+        "calibration_source": "#101 front-4 LOCKED: Youden-J on signed d vs composite-dynamics tails (AMT, n=180); point estimate 6.35 [boot 95% CI 4-17, wide because composite label is quality not level], cross-checked vs G-A flip (tau 8->6.5 raises flip 0.85->0.90, narrows flip+ 22->24/30, shuffle-collapse 0.22->0.30). Per-direction optima loud~1.4 < soft~5.0 explain the flip+<flip- asymmetry; 6.5 is the symmetric compromise. Was provisional 8.0.",
+        "locked": true
       },
       "reliability_tier": 1,
       "measurement": "amt_note_velocity_estimator",
