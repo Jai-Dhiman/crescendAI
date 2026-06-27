@@ -287,6 +287,15 @@ catalog-pieceid-comprehensive-eval:
 catalog-pieceid-amt-axis maestro_dir limit="50":
     cd model && PYTHONUNBUFFERED=1 uv run python -m score_library.pieceid_amt_axis --maestro-dir {{maestro_dir}} --limit {{limit}} --opening-seconds 90 --threshold 0.13
 
+# Axis A by STREAMING MAESTRO audio per-perf from HF (no local MAESTRO needed; each
+# WAV is downloaded, transcribed, then deleted -> peak disk ~2-3GB for the full 519).
+# Resumable (re-run continues from the incremental output). PREREQ: the AMT service
+# must be up (`just amt`, or `cd apps/inference && CRESCEND_DEVICE=cpu uv run amt/amt_local_server.py`
+# -- use cpu to avoid contending with MPS training). limit=0 runs all 519 (CPU ~1-1.5 days;
+# pick a smaller limit for an overnight pilot).
+catalog-pieceid-amt-axis-stream limit="100":
+    cd model && PYTHONUNBUFFERED=1 uv run python -m score_library.pieceid_amt_axis --stream-hf ddPn08/maestro-v3.0.0 --limit {{limit}} --opening-seconds 90 --threshold 0.13
+
 # AUTORESEARCH verify command: drives the experimental knob-board
 # (score_library/pieceid_experimental.py -- the ONLY file an autoresearch loop edits)
 # over held-out ASAP perfs vs the 11K catalog and prints a single scalar

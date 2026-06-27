@@ -134,16 +134,20 @@ def audio_to_notes(amt_url: str, audio_path: Path, opening_seconds: float) -> li
 # MAESTRO audio mapping
 # ---------------------------------------------------------------------------
 
-def _resolve_maestro(rel: str, maestro_dir: Path) -> Path:
-    """metadata.csv stores `{maestro}/2006/...wav`; resolve the placeholder."""
+def _maestro_rel(rel: str) -> str:
+    """metadata.csv stores `{maestro}/2006/...wav`; strip the placeholder ->
+    the year/filename path used as both the local-dir suffix and the HF repo path."""
     rel = rel.strip()
     if rel.startswith("{maestro}"):
         rel = rel[len("{maestro}"):].lstrip("/")
-    return maestro_dir / rel
+    return rel
 
 
-def matched_performances(maestro_dir: Path, limit: int) -> list[dict]:
-    """ASAP folders with a `maestro_audio_performance` whose audio file exists."""
+def matched_performances(maestro_dir: Path | None, limit: int,
+                         hf_repo: str | None) -> list[dict]:
+    """ASAP folders with a `maestro_audio_performance`. In HF-stream mode the audio
+    is fetched per-perf on demand (no local existence check, so the full 519 fit in
+    a few GB of disk); in local-dir mode only perfs whose file exists are kept."""
     meta = _ASAP_DIR / "metadata.csv"
     if not meta.exists():
         raise FileNotFoundError(f"ASAP metadata.csv missing: {meta}")
@@ -153,17 +157,33 @@ def matched_performances(maestro_dir: Path, limit: int) -> list[dict]:
             rel = row.get("maestro_audio_performance", "").strip()
             if not rel:
                 continue
-            audio = _resolve_maestro(rel, maestro_dir)
-            if audio.exists():
-                rows.append({"folder": row["folder"], "audio": audio,
-                             "perf_midi": _ASAP_DIR / row["midi_performance"]})
+            hf_path = _maestro_rel(rel)
+            entry = {"folder": row["folder"], "hf_path": hf_path,
+                     "perf_midi": _ASAP_DIR / row["midi_performance"]}
+            if hf_repo:
+                rows.append(entry)            # fetch on demand later
+            else:
+                if maestro_dir is None:
+                    raise ValueError("maestro_dir required when not streaming")
+                audio = maestro_dir / hf_path
+                if audio.exists():
+                    entry["audio"] = audio
+                    rows.append(entry)
     if not rows:
         raise FileNotFoundError(
-            f"No MAESTRO audio found under {maestro_dir}. Rehydrate MAESTRO v3 "
-            f"(hf download google/MAESTRO-v3 or per data/manifests/r2_offload.json).")
+            f"No MAESTRO-matched performances. In local mode rehydrate MAESTRO v3 "
+            f"under {maestro_dir}; or stream with --stream-hf ddPn08/maestro-v3.0.0.")
     if limit:
         rows = rows[:limit]
     return rows
+
+
+def _fetch_hf_audio(hf_repo: str, hf_path: str, dest_dir: Path) -> Path:
+    """Download one MAESTRO WAV from an HF dataset to dest_dir (disk-bounded streaming)."""
+    from huggingface_hub import hf_hub_download
+    local = hf_hub_download(repo_id=hf_repo, filename=hf_path, repo_type="dataset",
+                            local_dir=str(dest_dir))
+    return Path(local)
 
 
 # ---------------------------------------------------------------------------
@@ -186,8 +206,13 @@ def _check_amt(amt_url: str) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--scores-dir", type=str, default=str(_SCORES_DIR))
-    ap.add_argument("--maestro-dir", type=str, required=True,
-                    help="MAESTRO v3 root (the {maestro} placeholder target)")
+    ap.add_argument("--maestro-dir", type=str, default="",
+                    help="local MAESTRO v3 root (the {maestro} target); omit when streaming")
+    ap.add_argument("--stream-hf", type=str, default="",
+                    help="HF dataset id to stream audio per-perf from (e.g. ddPn08/maestro-v3.0.0); "
+                         "downloads each WAV on demand and deletes it -> disk stays ~2-3GB for the full 519")
+    ap.add_argument("--keep-audio", action="store_true",
+                    help="in stream mode, keep downloaded WAVs instead of deleting after transcription")
     ap.add_argument("--amt-url", type=str, default="http://localhost:8001")
     ap.add_argument("--limit", type=int, default=50,
                     help="number of MAESTRO-matched performances (0 = all 519)")
@@ -201,10 +226,15 @@ def main() -> None:
                     default=str(_ASAP_DIR.parent.parent / "evals" / "piece_id" / "amt_axis.json"))
     args = ap.parse_args()
 
+    if not args.stream_hf and not args.maestro_dir:
+        raise SystemExit("provide --maestro-dir (local audio) or --stream-hf <repo> (per-perf download)")
+
     t0 = time.time()
     _check_amt(args.amt_url)
-    rows = matched_performances(Path(args.maestro_dir), args.limit)
-    _log(f"{len(rows)} MAESTRO-matched performances")
+    maestro_dir = Path(args.maestro_dir) if args.maestro_dir else None
+    rows = matched_performances(maestro_dir, args.limit, args.stream_hf or None)
+    _log(f"{len(rows)} MAESTRO-matched performances"
+         + (f" (streaming from {args.stream_hf})" if args.stream_hf else ""))
 
     _log(f"building catalog from {args.scores_dir} ...")
     catalog = load_catalog(Path(args.scores_dir), args.note_cap,
@@ -214,21 +244,45 @@ def main() -> None:
     gate = ElasticGate(catalog)
     labels, _ = label_works(catalog, chroma, gate, args.note_cap)
 
+    outp = Path(args.out)
+    outp.parent.mkdir(parents=True, exist_ok=True)
+    # Resume: keep prior records, skip folders already processed (overnight resilience).
     records: list[dict] = []
+    done: set[str] = set()
+    if outp.exists():
+        try:
+            prior = json.loads(outp.read_text()).get("records", [])
+            records = prior
+            done = {r["work"] for r in prior}
+            _log(f"resuming: {len(done)} performances already processed")
+        except Exception:
+            pass
+
+    stream_dir = outp.parent / "_maestro_stream"
     for i, r in enumerate(rows):
         folder = r["folder"]
-        if folder not in labels:
+        if folder not in labels or folder in done:
             continue
         true_id = labels[folder]["true_id"]
         # Clean-MIDI baseline (same performance).
         clean_notes = _load_perf_midi(r["perf_midi"])[: args.note_cap]
         clean = eval_query(clean_notes, true_id, chroma, gate, args.top_k)
-        # Real-audio -> AMT path.
+        # Real-audio -> AMT path. Stream the WAV on demand, then delete it.
+        audio_path = r.get("audio")
+        fetched = False
         try:
-            amt_notes = audio_to_notes(args.amt_url, r["audio"], args.opening_seconds)
+            if args.stream_hf and audio_path is None:
+                audio_path = _fetch_hf_audio(args.stream_hf, r["hf_path"], stream_dir)
+                fetched = True
+            if audio_path is None:
+                raise FileNotFoundError(f"no audio resolved for {folder}")
+            amt_notes = audio_to_notes(args.amt_url, audio_path, args.opening_seconds)
         except Exception as e:
-            _log(f"  [{folder}] AMT failed: {e}")
+            _log(f"  [{folder}] AMT/fetch failed: {e}")
             continue
+        finally:
+            if fetched and not args.keep_audio and audio_path and Path(audio_path).exists():
+                Path(audio_path).unlink()
         amt_capped = amt_notes[: args.note_cap]
         amt = eval_query(amt_capped, true_id, chroma, gate, args.top_k) if len(amt_capped) >= 2 else None
         rec = {
@@ -243,8 +297,10 @@ def main() -> None:
             "amt_best": amt.get("closed_best") if amt else None,
         }
         records.append(rec)
+        # Persist after every performance so an overnight interruption resumes.
+        outp.write_text(json.dumps({"records": records}, indent=2))
         if (i + 1) % 10 == 0:
-            _log(f"  [{i+1}/{len(rows)}] processed, {len(records)} paired  [{time.time()-t0:.1f}s]")
+            _log(f"  [{i+1}/{len(rows)}] processed, {len(records)} records  [{time.time()-t0:.1f}s]")
 
     # Paired aggregation.
     paired = [r for r in records if r["clean_recognized"] is not None and r["amt_recognized"] is not None]
