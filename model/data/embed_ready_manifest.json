@@ -1,0 +1,2106 @@
+{
+  "n_primitives": 154,
+  "primitives": [
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_001.mid",
+      "n_notes": 464,
+      "primitive_id": "hanon_001",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 1,
+      "source_techniques": [],
+      "title": "Hanon Exercise 1"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_002.mid",
+      "n_notes": 450,
+      "primitive_id": "hanon_002",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 2,
+      "source_techniques": [],
+      "title": "Hanon Exercise 2"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_003.mid",
+      "n_notes": 450,
+      "primitive_id": "hanon_003",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 3,
+      "source_techniques": [],
+      "title": "Hanon Exercise 3"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_004.mid",
+      "n_notes": 450,
+      "primitive_id": "hanon_004",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 4,
+      "source_techniques": [],
+      "title": "Hanon Exercise 4"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_005.mid",
+      "n_notes": 450,
+      "primitive_id": "hanon_005",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 5,
+      "source_techniques": [],
+      "title": "Hanon Exercise 5"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_006.mid",
+      "n_notes": 450,
+      "primitive_id": "hanon_006",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 6,
+      "source_techniques": [],
+      "title": "Hanon Exercise 6"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_007.mid",
+      "n_notes": 450,
+      "primitive_id": "hanon_007",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 7,
+      "source_techniques": [],
+      "title": "Hanon Exercise 7"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_008.mid",
+      "n_notes": 450,
+      "primitive_id": "hanon_008",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 8,
+      "source_techniques": [],
+      "title": "Hanon Exercise 8"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_009.mid",
+      "n_notes": 450,
+      "primitive_id": "hanon_009",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 9,
+      "source_techniques": [],
+      "title": "Hanon Exercise 9"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_010.mid",
+      "n_notes": 450,
+      "primitive_id": "hanon_010",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 10,
+      "source_techniques": [],
+      "title": "Hanon Exercise 10"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_011.mid",
+      "n_notes": 450,
+      "primitive_id": "hanon_011",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 11,
+      "source_techniques": [],
+      "title": "Hanon Exercise 11"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_012.mid",
+      "n_notes": 466,
+      "primitive_id": "hanon_012",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 12,
+      "source_techniques": [],
+      "title": "Hanon Exercise 12"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_013.mid",
+      "n_notes": 450,
+      "primitive_id": "hanon_013",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 13,
+      "source_techniques": [],
+      "title": "Hanon Exercise 13"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_014.mid",
+      "n_notes": 450,
+      "primitive_id": "hanon_014",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 14,
+      "source_techniques": [],
+      "title": "Hanon Exercise 14"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_015.mid",
+      "n_notes": 450,
+      "primitive_id": "hanon_015",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 15,
+      "source_techniques": [],
+      "title": "Hanon Exercise 15"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_016.mid",
+      "n_notes": 450,
+      "primitive_id": "hanon_016",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 16,
+      "source_techniques": [],
+      "title": "Hanon Exercise 16"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_017.mid",
+      "n_notes": 434,
+      "primitive_id": "hanon_017",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 17,
+      "source_techniques": [],
+      "title": "Hanon Exercise 17"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_018.mid",
+      "n_notes": 450,
+      "primitive_id": "hanon_018",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 18,
+      "source_techniques": [],
+      "title": "Hanon Exercise 18"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_019.mid",
+      "n_notes": 450,
+      "primitive_id": "hanon_019",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 19,
+      "source_techniques": [],
+      "title": "Hanon Exercise 19"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/hanon_020.mid",
+      "n_notes": 482,
+      "primitive_id": "hanon_020",
+      "source": "hanon",
+      "source_dimensions": [],
+      "source_exercise_number": 20,
+      "source_techniques": [],
+      "title": "Hanon Exercise 20"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/bach_001.mid",
+      "n_notes": 458,
+      "primitive_id": "bach_001",
+      "source": "bach",
+      "source_dimensions": [],
+      "source_exercise_number": 1,
+      "source_techniques": [],
+      "title": "Bach Invention 1"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/bach_002.mid",
+      "n_notes": 634,
+      "primitive_id": "bach_002",
+      "source": "bach",
+      "source_dimensions": [],
+      "source_exercise_number": 2,
+      "source_techniques": [],
+      "title": "Bach Invention 2"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/bach_003.mid",
+      "n_notes": 495,
+      "primitive_id": "bach_003",
+      "source": "bach",
+      "source_dimensions": [],
+      "source_exercise_number": 3,
+      "source_techniques": [],
+      "title": "Bach Invention 3"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/bach_004.mid",
+      "n_notes": 443,
+      "primitive_id": "bach_004",
+      "source": "bach",
+      "source_dimensions": [],
+      "source_exercise_number": 4,
+      "source_techniques": [],
+      "title": "Bach Invention 4"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/bach_005.mid",
+      "n_notes": 734,
+      "primitive_id": "bach_005",
+      "source": "bach",
+      "source_dimensions": [],
+      "source_exercise_number": 5,
+      "source_techniques": [],
+      "title": "Bach Invention 5"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/bach_006.mid",
+      "n_notes": 547,
+      "primitive_id": "bach_006",
+      "source": "bach",
+      "source_dimensions": [],
+      "source_exercise_number": 6,
+      "source_techniques": [],
+      "title": "Bach Invention 6"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/bach_007.mid",
+      "n_notes": 473,
+      "primitive_id": "bach_007",
+      "source": "bach",
+      "source_dimensions": [],
+      "source_exercise_number": 7,
+      "source_techniques": [],
+      "title": "Bach Invention 7"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/bach_008.mid",
+      "n_notes": 598,
+      "primitive_id": "bach_008",
+      "source": "bach",
+      "source_dimensions": [],
+      "source_exercise_number": 8,
+      "source_techniques": [],
+      "title": "Bach Invention 8"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/bach_009.mid",
+      "n_notes": 558,
+      "primitive_id": "bach_009",
+      "source": "bach",
+      "source_dimensions": [],
+      "source_exercise_number": 9,
+      "source_techniques": [],
+      "title": "Bach Invention 9"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/bach_010.mid",
+      "n_notes": 439,
+      "primitive_id": "bach_010",
+      "source": "bach",
+      "source_dimensions": [],
+      "source_exercise_number": 10,
+      "source_techniques": [],
+      "title": "Bach Invention 10"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/bach_011.mid",
+      "n_notes": 568,
+      "primitive_id": "bach_011",
+      "source": "bach",
+      "source_dimensions": [],
+      "source_exercise_number": 11,
+      "source_techniques": [],
+      "title": "Bach Invention 11"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/bach_012.mid",
+      "n_notes": 685,
+      "primitive_id": "bach_012",
+      "source": "bach",
+      "source_dimensions": [],
+      "source_exercise_number": 12,
+      "source_techniques": [],
+      "title": "Bach Invention 12"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/bach_013.mid",
+      "n_notes": 564,
+      "primitive_id": "bach_013",
+      "source": "bach",
+      "source_dimensions": [],
+      "source_exercise_number": 13,
+      "source_techniques": [],
+      "title": "Bach Invention 13"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/bach_014.mid",
+      "n_notes": 592,
+      "primitive_id": "bach_014",
+      "source": "bach",
+      "source_dimensions": [],
+      "source_exercise_number": 14,
+      "source_techniques": [],
+      "title": "Bach Invention 14"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/bach_015.mid",
+      "n_notes": 477,
+      "primitive_id": "bach_015",
+      "source": "bach",
+      "source_dimensions": [],
+      "source_exercise_number": 15,
+      "source_techniques": [],
+      "title": "Bach Invention 15"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_001.mid",
+      "n_notes": 450,
+      "primitive_id": "czerny_001",
+      "source": "czerny",
+      "source_dimensions": [],
+      "source_exercise_number": 1,
+      "source_techniques": [],
+      "title": "Czerny Study (Op.840) 1"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_002.mid",
+      "n_notes": 498,
+      "primitive_id": "czerny_002",
+      "source": "czerny",
+      "source_dimensions": [],
+      "source_exercise_number": 2,
+      "source_techniques": [],
+      "title": "Czerny Study (Op.840) 2"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_003.mid",
+      "n_notes": 410,
+      "primitive_id": "czerny_003",
+      "source": "czerny",
+      "source_dimensions": [],
+      "source_exercise_number": 3,
+      "source_techniques": [],
+      "title": "Czerny Study (Op.840) 3"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_004.mid",
+      "n_notes": 567,
+      "primitive_id": "czerny_004",
+      "source": "czerny",
+      "source_dimensions": [],
+      "source_exercise_number": 4,
+      "source_techniques": [],
+      "title": "Czerny Study (Op.840) 4"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_005.mid",
+      "n_notes": 579,
+      "primitive_id": "czerny_005",
+      "source": "czerny",
+      "source_dimensions": [],
+      "source_exercise_number": 5,
+      "source_techniques": [],
+      "title": "Czerny Study (Op.840) 5"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_006.mid",
+      "n_notes": 463,
+      "primitive_id": "czerny_006",
+      "source": "czerny",
+      "source_dimensions": [],
+      "source_exercise_number": 6,
+      "source_techniques": [],
+      "title": "Czerny Study (Op.840) 6"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_007.mid",
+      "n_notes": 496,
+      "primitive_id": "czerny_007",
+      "source": "czerny",
+      "source_dimensions": [],
+      "source_exercise_number": 7,
+      "source_techniques": [],
+      "title": "Czerny Study (Op.840) 7"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_008.mid",
+      "n_notes": 387,
+      "primitive_id": "czerny_008",
+      "source": "czerny",
+      "source_dimensions": [],
+      "source_exercise_number": 8,
+      "source_techniques": [],
+      "title": "Czerny Study (Op.840) 8"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_009.mid",
+      "n_notes": 496,
+      "primitive_id": "czerny_009",
+      "source": "czerny",
+      "source_dimensions": [],
+      "source_exercise_number": 9,
+      "source_techniques": [],
+      "title": "Czerny Study (Op.840) 9"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_010.mid",
+      "n_notes": 600,
+      "primitive_id": "czerny_010",
+      "source": "czerny",
+      "source_dimensions": [],
+      "source_exercise_number": 10,
+      "source_techniques": [],
+      "title": "Czerny Study (Op.840) 10"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_001.mid",
+      "n_notes": 241,
+      "primitive_id": "burgmuller_001",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 1,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 1"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_002.mid",
+      "n_notes": 283,
+      "primitive_id": "burgmuller_002",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 2,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 2"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_003.mid",
+      "n_notes": 355,
+      "primitive_id": "burgmuller_003",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 3,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 3"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_004.mid",
+      "n_notes": 395,
+      "primitive_id": "burgmuller_004",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 4,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 4"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_005.mid",
+      "n_notes": 215,
+      "primitive_id": "burgmuller_005",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 5,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 5"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_006.mid",
+      "n_notes": 213,
+      "primitive_id": "burgmuller_006",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 6,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 6"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_007.mid",
+      "n_notes": 219,
+      "primitive_id": "burgmuller_007",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 7,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 7"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_008.mid",
+      "n_notes": 318,
+      "primitive_id": "burgmuller_008",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 8,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 8"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_009.mid",
+      "n_notes": 525,
+      "primitive_id": "burgmuller_009",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 9,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 9"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_010.mid",
+      "n_notes": 269,
+      "primitive_id": "burgmuller_010",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 10,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 10"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_011.mid",
+      "n_notes": 246,
+      "primitive_id": "burgmuller_011",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 11,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 11"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_012.mid",
+      "n_notes": 601,
+      "primitive_id": "burgmuller_012",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 12,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 12"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_013.mid",
+      "n_notes": 280,
+      "primitive_id": "burgmuller_013",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 13,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 13"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_014.mid",
+      "n_notes": 331,
+      "primitive_id": "burgmuller_014",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 14,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 14"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_015.mid",
+      "n_notes": 756,
+      "primitive_id": "burgmuller_015",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 15,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 15"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_016.mid",
+      "n_notes": 261,
+      "primitive_id": "burgmuller_016",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 16,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 16"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_017.mid",
+      "n_notes": 287,
+      "primitive_id": "burgmuller_017",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 17,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 17"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/burgmuller_018.mid",
+      "n_notes": 322,
+      "primitive_id": "burgmuller_018",
+      "source": "burgmuller",
+      "source_dimensions": [],
+      "source_exercise_number": 18,
+      "source_techniques": [],
+      "title": "Burgmuller Study (Op.100) 18"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_001.mid",
+      "n_notes": 330,
+      "primitive_id": "chopin_001",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 1,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 1"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_002.mid",
+      "n_notes": 342,
+      "primitive_id": "chopin_002",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 2,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 2"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_003.mid",
+      "n_notes": 663,
+      "primitive_id": "chopin_003",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 3,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 3"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_004.mid",
+      "n_notes": 600,
+      "primitive_id": "chopin_004",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 4,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 4"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_005.mid",
+      "n_notes": 459,
+      "primitive_id": "chopin_005",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 5,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 5"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_006.mid",
+      "n_notes": 405,
+      "primitive_id": "chopin_006",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 6,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 6"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_007.mid",
+      "n_notes": 168,
+      "primitive_id": "chopin_007",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 7,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 7"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_008.mid",
+      "n_notes": 1559,
+      "primitive_id": "chopin_008",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 8,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 8"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_009.mid",
+      "n_notes": 418,
+      "primitive_id": "chopin_009",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 9,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 9"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_010.mid",
+      "n_notes": 316,
+      "primitive_id": "chopin_010",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 10,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 10"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_011.mid",
+      "n_notes": 321,
+      "primitive_id": "chopin_011",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 11,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 11"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_012.mid",
+      "n_notes": 1250,
+      "primitive_id": "chopin_012",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 12,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 12"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_013.mid",
+      "n_notes": 902,
+      "primitive_id": "chopin_013",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 13,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 13"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_014.mid",
+      "n_notes": 434,
+      "primitive_id": "chopin_014",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 14,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 14"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_015.mid",
+      "n_notes": 1518,
+      "primitive_id": "chopin_015",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 15,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 15"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_016.mid",
+      "n_notes": 1199,
+      "primitive_id": "chopin_016",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 16,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 16"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_017.mid",
+      "n_notes": 2490,
+      "primitive_id": "chopin_017",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 17,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 17"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_018.mid",
+      "n_notes": 569,
+      "primitive_id": "chopin_018",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 18,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 18"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_019.mid",
+      "n_notes": 1237,
+      "primitive_id": "chopin_019",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 19,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 19"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_020.mid",
+      "n_notes": 286,
+      "primitive_id": "chopin_020",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 20,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 20"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_021.mid",
+      "n_notes": 875,
+      "primitive_id": "chopin_021",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 21,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 21"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_022.mid",
+      "n_notes": 632,
+      "primitive_id": "chopin_022",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 22,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 22"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_023.mid",
+      "n_notes": 560,
+      "primitive_id": "chopin_023",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 23,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 23"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_024.mid",
+      "n_notes": 1468,
+      "primitive_id": "chopin_024",
+      "source": "chopin",
+      "source_dimensions": [],
+      "source_exercise_number": 24,
+      "source_techniques": [],
+      "title": "Chopin Prelude (Op.28) 24"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/satie_001.mid",
+      "n_notes": 832,
+      "primitive_id": "satie_001",
+      "source": "satie",
+      "source_dimensions": [],
+      "source_exercise_number": 1,
+      "source_techniques": [],
+      "title": "Satie 1"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/satie_002.mid",
+      "n_notes": 372,
+      "primitive_id": "satie_002",
+      "source": "satie",
+      "source_dimensions": [],
+      "source_exercise_number": 2,
+      "source_techniques": [],
+      "title": "Satie 2"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/satie_003.mid",
+      "n_notes": 600,
+      "primitive_id": "satie_003",
+      "source": "satie",
+      "source_dimensions": [],
+      "source_exercise_number": 3,
+      "source_techniques": [],
+      "title": "Satie 3"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/satie_004.mid",
+      "n_notes": 282,
+      "primitive_id": "satie_004",
+      "source": "satie",
+      "source_dimensions": [],
+      "source_exercise_number": 4,
+      "source_techniques": [],
+      "title": "Satie 4"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/satie_005.mid",
+      "n_notes": 371,
+      "primitive_id": "satie_005",
+      "source": "satie",
+      "source_dimensions": [],
+      "source_exercise_number": 5,
+      "source_techniques": [],
+      "title": "Satie 5"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/satie_006.mid",
+      "n_notes": 326,
+      "primitive_id": "satie_006",
+      "source": "satie",
+      "source_dimensions": [],
+      "source_exercise_number": 6,
+      "source_techniques": [],
+      "title": "Satie 6"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_001.mid",
+      "n_notes": 152,
+      "primitive_id": "czerny_op821_001",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 1,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 1"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_002.mid",
+      "n_notes": 112,
+      "primitive_id": "czerny_op821_002",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 2,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 2"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_003.mid",
+      "n_notes": 209,
+      "primitive_id": "czerny_op821_003",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 3,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 3"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_004.mid",
+      "n_notes": 141,
+      "primitive_id": "czerny_op821_004",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 4,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 4"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_005.mid",
+      "n_notes": 145,
+      "primitive_id": "czerny_op821_005",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 5,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 5"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_006.mid",
+      "n_notes": 180,
+      "primitive_id": "czerny_op821_006",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 6,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 6"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_007.mid",
+      "n_notes": 114,
+      "primitive_id": "czerny_op821_007",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 7,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 7"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_008.mid",
+      "n_notes": 143,
+      "primitive_id": "czerny_op821_008",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 8,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 8"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_009.mid",
+      "n_notes": 128,
+      "primitive_id": "czerny_op821_009",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 9,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 9"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_010.mid",
+      "n_notes": 167,
+      "primitive_id": "czerny_op821_010",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 10,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 10"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_011.mid",
+      "n_notes": 287,
+      "primitive_id": "czerny_op821_011",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 11,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 11"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_012.mid",
+      "n_notes": 161,
+      "primitive_id": "czerny_op821_012",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 12,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 12"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_013.mid",
+      "n_notes": 162,
+      "primitive_id": "czerny_op821_013",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 13,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 13"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_014.mid",
+      "n_notes": 179,
+      "primitive_id": "czerny_op821_014",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 14,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 14"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_015.mid",
+      "n_notes": 148,
+      "primitive_id": "czerny_op821_015",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 15,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 15"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_016.mid",
+      "n_notes": 149,
+      "primitive_id": "czerny_op821_016",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 16,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 16"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_017.mid",
+      "n_notes": 142,
+      "primitive_id": "czerny_op821_017",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 17,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 17"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_018.mid",
+      "n_notes": 136,
+      "primitive_id": "czerny_op821_018",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 18,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 18"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/czerny_op821_019.mid",
+      "n_notes": 165,
+      "primitive_id": "czerny_op821_019",
+      "source": "czerny_op821",
+      "source_dimensions": [
+        "articulation",
+        "timing"
+      ],
+      "source_exercise_number": 19,
+      "source_techniques": [
+        "finger-velocity",
+        "evenness",
+        "daily-exercise",
+        "scalar-passagework"
+      ],
+      "title": "Czerny Op.821 Exercise 19"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_001.mid",
+      "n_notes": 1337,
+      "primitive_id": "chopin_etude_001",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 1,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 1"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_002.mid",
+      "n_notes": 1459,
+      "primitive_id": "chopin_etude_002",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 2,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 2"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_003.mid",
+      "n_notes": 1884,
+      "primitive_id": "chopin_etude_003",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 3,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 3"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_004.mid",
+      "n_notes": 2204,
+      "primitive_id": "chopin_etude_004",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 4,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 4"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_005.mid",
+      "n_notes": 1629,
+      "primitive_id": "chopin_etude_005",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 5,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 5"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_006.mid",
+      "n_notes": 955,
+      "primitive_id": "chopin_etude_006",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 6,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 6"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_007.mid",
+      "n_notes": 1789,
+      "primitive_id": "chopin_etude_007",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 7,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 7"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_008.mid",
+      "n_notes": 2303,
+      "primitive_id": "chopin_etude_008",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 8,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 8"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_009.mid",
+      "n_notes": 1227,
+      "primitive_id": "chopin_etude_009",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 9,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 9"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_010.mid",
+      "n_notes": 2230,
+      "primitive_id": "chopin_etude_010",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 10,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 10"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_011.mid",
+      "n_notes": 1979,
+      "primitive_id": "chopin_etude_011",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 11,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 11"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_012.mid",
+      "n_notes": 2083,
+      "primitive_id": "chopin_etude_012",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 12,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 12"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_013.mid",
+      "n_notes": 2210,
+      "primitive_id": "chopin_etude_013",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 13,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 13"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_014.mid",
+      "n_notes": 1203,
+      "primitive_id": "chopin_etude_014",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 14,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 14"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_015.mid",
+      "n_notes": 1688,
+      "primitive_id": "chopin_etude_015",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 15,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 15"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_016.mid",
+      "n_notes": 1509,
+      "primitive_id": "chopin_etude_016",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 16,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 16"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_017.mid",
+      "n_notes": 2074,
+      "primitive_id": "chopin_etude_017",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 17,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 17"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_018.mid",
+      "n_notes": 2505,
+      "primitive_id": "chopin_etude_018",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 18,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 18"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_019.mid",
+      "n_notes": 1539,
+      "primitive_id": "chopin_etude_019",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 19,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 19"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_020.mid",
+      "n_notes": 1550,
+      "primitive_id": "chopin_etude_020",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 20,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 20"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_021.mid",
+      "n_notes": 1050,
+      "primitive_id": "chopin_etude_021",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 21,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 21"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_022.mid",
+      "n_notes": 3357,
+      "primitive_id": "chopin_etude_022",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 22,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 22"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_023.mid",
+      "n_notes": 3170,
+      "primitive_id": "chopin_etude_023",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 23,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 23"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/chopin_etude_024.mid",
+      "n_notes": 2634,
+      "primitive_id": "chopin_etude_024",
+      "source": "chopin_etudes",
+      "source_dimensions": [
+        "articulation",
+        "timing",
+        "dynamics",
+        "phrasing",
+        "pedaling",
+        "interpretation"
+      ],
+      "source_exercise_number": 24,
+      "source_techniques": [
+        "technical-etude",
+        "passagework",
+        "advanced-technique"
+      ],
+      "title": "Chopin Etude 24"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_001.mid",
+      "n_notes": 36,
+      "primitive_id": "clementi_prelude_001",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 1,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 1"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_002.mid",
+      "n_notes": 29,
+      "primitive_id": "clementi_prelude_002",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 2,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 2"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_003.mid",
+      "n_notes": 52,
+      "primitive_id": "clementi_prelude_003",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 3,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 3"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_004.mid",
+      "n_notes": 58,
+      "primitive_id": "clementi_prelude_004",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 4,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 4"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_005.mid",
+      "n_notes": 60,
+      "primitive_id": "clementi_prelude_005",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 5,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 5"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_006.mid",
+      "n_notes": 92,
+      "primitive_id": "clementi_prelude_006",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 6,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 6"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_007.mid",
+      "n_notes": 80,
+      "primitive_id": "clementi_prelude_007",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 7,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 7"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_008.mid",
+      "n_notes": 63,
+      "primitive_id": "clementi_prelude_008",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 8,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 8"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_009.mid",
+      "n_notes": 120,
+      "primitive_id": "clementi_prelude_009",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 9,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 9"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_010.mid",
+      "n_notes": 57,
+      "primitive_id": "clementi_prelude_010",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 10,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 10"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_011.mid",
+      "n_notes": 64,
+      "primitive_id": "clementi_prelude_011",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 11,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 11"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_012.mid",
+      "n_notes": 75,
+      "primitive_id": "clementi_prelude_012",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 12,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 12"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_013.mid",
+      "n_notes": 77,
+      "primitive_id": "clementi_prelude_013",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 13,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 13"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_014.mid",
+      "n_notes": 55,
+      "primitive_id": "clementi_prelude_014",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 14,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 14"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_015.mid",
+      "n_notes": 87,
+      "primitive_id": "clementi_prelude_015",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 15,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 15"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_016.mid",
+      "n_notes": 58,
+      "primitive_id": "clementi_prelude_016",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 16,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 16"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_017.mid",
+      "n_notes": 80,
+      "primitive_id": "clementi_prelude_017",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 17,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 17"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_018.mid",
+      "n_notes": 88,
+      "primitive_id": "clementi_prelude_018",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 18,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 18"
+    }
+  ],
+  "schema": "exercise_corpus.embed_ready.v1"
+}

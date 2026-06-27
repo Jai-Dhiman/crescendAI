@@ -105,6 +105,76 @@
     "cosine_distance": 0.11277925968170166
   },
   {
+    "query_id": "chopin_etude_001",
+    "neighbor_id": "chopin_etude_024",
+    "source_a": "chopin_etudes",
+    "source_b": "chopin_etudes",
+    "cosine_distance": 0.11386823654174805
+  },
+  {
+    "query_id": "chopin_etude_002",
+    "neighbor_id": "chopin_etude_004",
+    "source_a": "chopin_etudes",
+    "source_b": "chopin_etudes",
+    "cosine_distance": 0.03887861967086792
+  },
+  {
+    "query_id": "chopin_etude_003",
+    "neighbor_id": "chopin_etude_004",
+    "source_a": "chopin_etudes",
+    "source_b": "chopin_etudes",
+    "cosine_distance": 0.10788583755493164
+  },
+  {
+    "query_id": "chopin_etude_004",
+    "neighbor_id": "chopin_etude_002",
+    "source_a": "chopin_etudes",
+    "source_b": "chopin_etudes",
+    "cosine_distance": 0.03887861967086792
+  },
+  {
+    "query_id": "chopin_etude_005",
+    "neighbor_id": "chopin_etude_013",
+    "source_a": "chopin_etudes",
+    "source_b": "chopin_etudes",
+    "cosine_distance": 0.045695722103118896
+  },
+  {
+    "query_id": "clementi_prelude_001",
+    "neighbor_id": "clementi_prelude_011",
+    "source_a": "clementi_preludes",
+    "source_b": "clementi_preludes",
+    "cosine_distance": 0.17170119285583496
+  },
+  {
+    "query_id": "clementi_prelude_002",
+    "neighbor_id": "clementi_prelude_005",
+    "source_a": "clementi_preludes",
+    "source_b": "clementi_preludes",
+    "cosine_distance": 0.2561396360397339
+  },
+  {
+    "query_id": "clementi_prelude_003",
+    "neighbor_id": "clementi_prelude_008",
+    "source_a": "clementi_preludes",
+    "source_b": "clementi_preludes",
+    "cosine_distance": 0.058920443058013916
+  },
+  {
+    "query_id": "clementi_prelude_004",
+    "neighbor_id": "clementi_prelude_014",
+    "source_a": "clementi_preludes",
+    "source_b": "clementi_preludes",
+    "cosine_distance": 0.13321453332901
+  },
+  {
+    "query_id": "clementi_prelude_005",
+    "neighbor_id": "clementi_prelude_003",
+    "source_a": "clementi_preludes",
+    "source_b": "clementi_preludes",
+    "cosine_distance": 0.12632304430007935
+  },
+  {
     "query_id": "czerny_001",
     "neighbor_id": "czerny_009",
     "source_a": "czerny",
@@ -138,6 +208,41 @@
     "source_a": "czerny",
     "source_b": "czerny",
     "cosine_distance": 0.05280524492263794
+  },
+  {
+    "query_id": "czerny_op821_001",
+    "neighbor_id": "czerny_op821_013",
+    "source_a": "czerny_op821",
+    "source_b": "czerny_op821",
+    "cosine_distance": 0.09566080570220947
+  },
+  {
+    "query_id": "czerny_op821_002",
+    "neighbor_id": "czerny_op821_006",
+    "source_a": "czerny_op821",
+    "source_b": "czerny_op821",
+    "cosine_distance": 0.10287731885910034
+  },
+  {
+    "query_id": "czerny_op821_003",
+    "neighbor_id": "czerny_op821_008",
+    "source_a": "czerny_op821",
+    "source_b": "czerny_op821",
+    "cosine_distance": 0.07878106832504272
+  },
+  {
+    "query_id": "czerny_op821_004",
+    "neighbor_id": "czerny_op821_014",
+    "source_a": "czerny_op821",
+    "source_b": "czerny_op821",
+    "cosine_distance": 0.09792202711105347
+  },
+  {
+    "query_id": "czerny_op821_005",
+    "neighbor_id": "czerny_op821_007",
+    "source_a": "czerny_op821",
+    "source_b": "czerny_op821",
+    "cosine_distance": 0.09700638055801392
   },
   {
     "query_id": "hanon_001",

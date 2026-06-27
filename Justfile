@@ -102,6 +102,26 @@ seed-scores:
         cd apps/api && wrangler r2 object put "crescendai-bucket/$key" --file="../../$f" --local && cd ../..
     done
 
+# Seed PD-clean Verovio MEI render assets (model/scores/v1/*.mei) into R2 at
+# scores/v1/<piece_id>.mei (the format getPieceData prefers). `mode` is "local"
+# (wrangler dev) or "remote" (PROD R2 -- authorized for PD-clean MEI only;
+# never seed the CC-BY-NC ASAP .mxl to prod). Optional `filter` seeds only
+# piece_ids with that prefix (e.g. `just seed-mei remote scriabin.`) so a
+# catalog increment can push just its new assets instead of all 472.
+seed-mei mode="local" filter="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    flag="--local"; [ "{{mode}}" = "remote" ] && flag="--remote"
+    count=0
+    for f in model/scores/v1/*.mei; do
+        base="$(basename "$f")"
+        if [ -n "{{filter}}" ] && [[ "$base" != "{{filter}}"* ]]; then continue; fi
+        cd apps/api && wrangler r2 object put "crescendai-bucket/scores/v1/$base" \
+            --file="../../$f" --content-type "application/mei+xml" $flag >/dev/null && cd ../..
+        count=$((count+1))
+    done
+    echo "Seeded $count .mei into $flag R2 (filter='{{filter}}')."
+
 # Generate the v2 piece-ID index (chroma + chord-events) from the score library
 fingerprint:
     cd model && uv run python -m score_library.cli fingerprint --scores-dir data/scores --output-dir data/fingerprints
@@ -145,6 +165,87 @@ seed-score-json filter="":
 build-exercise-assets:
     cd model && uv run python -c "from pathlib import Path; from exercise_corpus.build_render_assets import build; mp = Path('..') / 'apps' / 'api' / 'src' / 'services' / 'exercise_primitives_manifest.json'; print(f'built {len(build(manifest_path=mp))} assets + manifest at {mp}')"
 
+# #49 exercise-corpus expansion: acquire the public-domain KernScores MIDIs
+# (clone craigsapp humdrum repos + verovio kern->MIDI). Writes gitignored raw
+# MIDI into model/data/scores/exercise_primitives/raw/. Run the #17 Mutopia
+# `acquire.sh` too for the original 6 sources before a full embed rebuild.
+corpus-acquire-kernscores:
+    bash model/src/exercise_corpus/acquire_kernscores.sh
+
+# #49 exercise-BOOK expansion: acquire the Chopin Op.10/25 etudes (clone
+# pl-wnifc/humdrum-chopin-first-editions + verovio kern->MIDI; 24 drills).
+corpus-acquire-chopin-etudes:
+    bash model/src/exercise_corpus/acquire_chopin_etudes.sh
+
+# #49 exercise-BOOK expansion: acquire Clementi's Op.42 key-preludes (18 short
+# drills) from Mutopia prebuilt MIDI. No LilyPond needed.
+corpus-acquire-clementi-preludes:
+    bash model/src/exercise_corpus/acquire_clementi_preludes.sh
+
+# #49: full Aria embed -> catalog -> k-NN source-purity validation over the
+# exercise-book corpus. Requires the raw MIDI on disk (the corpus-acquire-*
+# recipes + the #17 acquire.sh) and the Aria weights at
+# model/data/weights/aria-medium-embedding. Builds model/data/exercise_primitives.db
+# (gitignored) and writes results/ artifacts. SLOW (CPU Aria, ~minutes).
+corpus-embed-validate:
+    cd model && uv run python -m exercise_corpus.run \
+        --sources src/exercise_corpus/sources.toml --output-dir data
+
+# #49: segment ALL exercise sources (#17 + KernScores) and write the
+# embed-ready manifest (model/data/embed_ready_manifest.json), STOPPING before
+# the Aria embed. The GPU embed -> catalog -> validate pass is scheduled
+# separately (run on the staged manifest). Requires the raw MIDI on disk
+# (`just corpus-acquire-kernscores` + the #17 acquire.sh first).
+corpus-segment-manifest:
+    cd model && uv run python -m exercise_corpus.run \
+        --sources src/exercise_corpus/sources.toml --output-dir data --segment-only
+
+# Build local renderable .mxl assets for all catalog pieces that have an ASAP
+# xml_score.musicxml (ASAP is CC-BY-NC -- LOCAL prototype use ONLY, do NOT
+# deploy to production R2 or any commercial build).
+# Requires: model/data/raw/asap (clone with `git clone --depth 1 https://github.com/CPJKU/asap-dataset.git model/data/raw/asap`)
+# Output: model/scores/v1/<piece_id>.mxl (gitignored, regenerable)
+# Runs the Verovio render gate; broken assets are reported but NOT written.
+# Idempotent: pieces whose inner XML is unchanged are skipped.
+build-catalog-mxl:
+    cd model && uv run python -m score_library.render_assets
+
+# Render PD-clean MEI for the catalog's KernScores pieces (Joplin/Scarlatti/
+# Chopin-mazurkas) via Verovio's native Humdrum importer (~100% yield vs ~46%
+# through partitura->MusicXML). Output: model/scores/v1/<piece_id>.mei
+# (gitignored, regenerable). The API serves .mei in preference to .mxl. Run
+# `just corpus-acquire-kernscores` first to populate the .krn clone.
+render-kern-mei:
+    cd model && uv run python -m score_library.render_kern_assets
+
+# Stage net-new KernScores canon collections (Hummel preludes, Bach Art of the
+# Fugue, Scriabin solo piano) as per-piece MIDI under
+# ~/crescendai_corpus_staging/kernscores_midi/<repo>/ for catalog ingest. The
+# until-loop is segfault-resume: Verovio's Humdrum importer SIGSEGVs on a few
+# pathological **kern files, so each crash promotes that file to a permanent
+# `.segfault` skip-marker and the next iteration resumes past it. Clone the
+# repos first (the module aborts loudly if a clone is missing).
+catalog-stage-kernscores:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    cd model
+    n=0
+    until uv run python -m score_library.kernscores_stage; do
+        n=$((n+1)); echo "  [restart $n] Verovio SIGSEGV -- resuming past marked file"
+        [ "$n" -ge 60 ] && { echo "ABORT: too many segfault restarts ($n)" >&2; exit 1; }
+    done
+
+# Expand the piece-ID catalog with the on-disk KernScores sonata/prelude
+# collections (Beethoven/Mozart/Haydn/Chopin-preludes): content-dedup vs the
+# existing catalog (chroma->elastic-DTW, threshold 0.2885) -> self-consistency
+# ingest of net-new works -> MEI render -> re-fingerprint. Run
+# `just corpus-acquire-kernscores` first to populate the .krn + MIDI staging.
+catalog-expand-kernscores:
+    cd model && uv run python -m score_library.kernscores_expand
+    just render-kern-mei
+    just fingerprint
+    cd model && echo "Catalog size: $(find data/scores -maxdepth 1 -name '*.json' ! -name titles.json | wc -l | tr -d ' ') score JSONs"
+
 # Seed the committed exercise-primitive .mxl assets into LOCAL wrangler R2 at
 # scores/v1/{primitive_id}.mxl so the UNCHANGED GET /api/scores/:pieceId/data
 # endpoint serves them for corpus_drill rendering. Flat keyspace: primitive ids
@@ -155,15 +256,23 @@ seed-exercise-assets:
     set -euo pipefail
     shopt -s nullglob
     count=0
-    for f in model/data/exercise_primitives/mxl/*.mxl; do
+    # Drills carry tiered assets: .mei (Verovio-native, Chopin etudes) preferred by
+    # getPieceData, .mxl (wrapped MusicXML) for the rest. Seed both with the right
+    # content-type so scores/v1/{id}.{mei,mxl} serves identically to the piece library.
+    for f in model/data/exercise_primitives/assets/*.mei model/data/exercise_primitives/assets/*.mxl; do
         base="$(basename "$f")"
-        cd apps/api && wrangler r2 object put "crescendai-bucket/scores/v1/$base" \
-            --file="../../$f" --content-type "application/vnd.recordare.musicxml+zip" --local >/dev/null && cd ../..
+        case "$base" in
+            *.mei) ct="application/mei+xml" ;;
+            *.mxl) ct="application/vnd.recordare.musicxml+zip" ;;
+            *) echo "ERROR: unexpected asset extension: $base" >&2; exit 1 ;;
+        esac
+        ( cd apps/api && wrangler r2 object put "crescendai-bucket/scores/v1/$base" \
+            --file="../../$f" --content-type "$ct" --local >/dev/null )
         count=$((count+1))
-        echo "Seeded scores/v1/$base"
+        echo "Seeded scores/v1/$base ($ct)"
     done
     if [ "$count" -eq 0 ]; then
-        echo "ERROR: no .mxl found in model/data/exercise_primitives/mxl/ — run 'just build-exercise-assets' first" >&2
+        echo "ERROR: no assets found in model/data/exercise_primitives/assets/ — run 'just build-exercise-assets' first" >&2
         exit 1
     fi
     echo "Seeded $count exercise-primitive asset(s) into local R2."
@@ -179,6 +288,29 @@ catalog-verify:
 # then run this. See docs/model/10-score-library-catalog.md for the full workflow.
 catalog-add:
     cd model && uv run python -m score_library.cli parse-manual --manifest data/manifests/manual_scores.json
+    just fingerprint
+    cd model && echo "Catalog size: $(find data/scores -maxdepth 1 -name '*.json' ! -name titles.json | wc -l | tr -d ' ') score JSONs"
+
+# Bulk-ingest KernScores MIDI collections (Joplin, Scarlatti, Chopin mazurkas)
+# via the self-consistency gate, then regenerate fingerprints.
+# Source MIDIs are read from ~/crescendai_corpus_staging/kernscores_midi/.
+# Fails loudly if any entire collection yields zero passes.
+catalog-add-kernscores:
+    cd model && uv run python -m score_library.kernscores_bulk
+    just fingerprint
+    cd model && echo "Catalog size: $(find data/scores -maxdepth 1 -name '*.json' ! -name titles.json | wc -l | tr -d ' ') score JSONs"
+
+# Acquire the Mutopia second-wave keyboard corpus (clone sources + polite download).
+catalog-acquire-mutopia:
+    bash model/src/score_library/acquire_mutopia.sh
+
+# Add net-new Mutopia keyboard pieces to the catalog: instrument-filter ->
+# content semantic dedup vs existing catalog -> self-consistency ingest ->
+# re-fingerprint. Run `just catalog-acquire-mutopia` first.
+catalog-add-mutopia:
+    cd model && uv run python -m score_library.mutopia_filter
+    cd model && uv run python -m score_library.mutopia_dedup
+    cd model && uv run python -m score_library.mutopia_ingest
     just fingerprint
     cd model && echo "Catalog size: $(find data/scores -maxdepth 1 -name '*.json' ! -name titles.json | wc -l | tr -d ' ') score JSONs"
 

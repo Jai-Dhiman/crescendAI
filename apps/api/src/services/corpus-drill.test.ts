@@ -41,58 +41,58 @@ describe("buildCorpusDrillClip — selection + assembly", () => {
     expect(payload.exercises[0].instruction).not.toContain("general warm-up");
   });
 
-  test("dimension-matched selection picks the FAITHFUL stable-first primitive (timing -> czerny_001)", async () => {
-    // "timing" matches hanon_001..020 + czerny_001. The sort is FAITHFUL to the
-    // model's match_by_dimension: (source_exercise_number, primitive_id) ascending,
-    // i.e. (suffixNum(id), id). All three sources have a suffix-1 member, so the
-    // id tiebreak decides and "czerny_001" < "hanon_001": the timing stable-first
-    // is czerny_001, NOT hanon_001. czerny_001.totalBars == 22.
+  test("dimension-matched selection picks the FAITHFUL stable-first primitive (timing -> chopin_etude_001)", async () => {
+    // The sort is FAITHFUL to the model's match_by_dimension:
+    // (source_exercise_number, primitive_id) ascending == (suffixNum(id), id). Over the
+    // full 154-drill corpus the timing stable-first is chopin_etude_001 (suffix 1; the
+    // lower-id suffix-1 ids bach_001/chopin_001 don't carry "timing"). bars == 79.
     const timing = await buildCorpusDrillClip(
       ctxNoScores(),
       corpusDrill({ primitive_id: null, target_dimension: "timing" }),
       null,
     );
-    expect(timing.scoreClip?.pieceId).toBe("czerny_001");
-    expect(timing.scoreClip?.bars).toEqual([1, 22]);
+    expect(timing.scoreClip?.pieceId).toBe("chopin_etude_001");
+    expect(timing.scoreClip?.bars).toEqual([1, 79]);
     expect(timing.exercises[0].instruction).toContain("timing");
     expect(timing.exercises[0].instruction).not.toContain("general warm-up");
 
-    // "phrasing" has a single match (only burgmuller_001 carries it among the 22),
-    // so it resolves unambiguously regardless of tiebreak. burgmuller_001.totalBars == 23.
+    // "phrasing" stable-first is bach_001 (suffix-1, lowest id carrying phrasing).
+    // bach_001.totalBars == 22.
     const payload = await buildCorpusDrillClip(
       ctxNoScores(),
       corpusDrill({ primitive_id: null, target_dimension: "phrasing" }),
       null,
     );
-    expect(payload.scoreClip?.pieceId).toBe("burgmuller_001");
-    expect(payload.scoreClip?.bars).toEqual([1, 23]);
+    expect(payload.scoreClip?.pieceId).toBe("bach_001");
+    expect(payload.scoreClip?.bars).toEqual([1, 22]);
     expect(payload.exercises[0].instruction).toContain("phrasing");
     expect(payload.exercises[0].instruction).not.toContain("general warm-up");
   });
 
-  test("no dimension match widens to the explicit hanon_001 constant with honest general-warm-up wording", async () => {
-    // "pedaling" has NO built primitive among the 22 (chopin/satie are unbuilt).
-    // The widen fallback is the EXPLICIT WIDEN_DEFAULT_PRIMITIVE constant ("hanon_001").
-    // hanon_001.totalBars == 29.
+  test("pedaling now resolves to a REAL pedaling drill (corpus closed the pedaling=0 gap)", async () => {
+    // The old 22-primitive corpus had ZERO pedaling drills, so "pedaling" widened to
+    // the hanon_001 warm-up. The 154-drill corpus carries 37 pedaling drills; the
+    // stable-first is chopin_001 (bars 34). This is a real dimension match -- NOT the
+    // widen path -- so the wording is dimension-specific, not "general warm-up".
     const payload = await buildCorpusDrillClip(
       ctxNoScores(),
       corpusDrill({ primitive_id: null, target_dimension: "pedaling" }),
       null,
     );
-    expect(payload.scoreClip?.pieceId).toBe("hanon_001");
-    expect(payload.scoreClip?.bars).toEqual([1, 29]);
-    expect(payload.exercises[0].instruction).toContain("general warm-up");
-    expect(payload.exercises[0].instruction).toContain("pedaling"); // honest: names the missing dim
+    expect(payload.scoreClip?.pieceId).toBe("chopin_001");
+    expect(payload.scoreClip?.bars).toEqual([1, 34]);
+    expect(payload.exercises[0].instruction).toContain("pedaling");
+    expect(payload.exercises[0].instruction).not.toContain("general warm-up");
   });
 
   test("explicit primitive_id NOT in the manifest falls through to dimension match", async () => {
     const payload = await buildCorpusDrillClip(
       ctxNoScores(),
-      corpusDrill({ primitive_id: "chopin_009", target_dimension: "phrasing" }),
+      corpusDrill({ primitive_id: "nonexistent_999", target_dimension: "phrasing" }),
       null,
     );
-    // chopin_009 is not a built asset -> ignored -> dimension match on "phrasing".
-    expect(payload.scoreClip?.pieceId).toBe("burgmuller_001");
+    // nonexistent_999 is not in the manifest -> ignored -> dimension match on "phrasing".
+    expect(payload.scoreClip?.pieceId).toBe("bach_001");
   });
 });
 

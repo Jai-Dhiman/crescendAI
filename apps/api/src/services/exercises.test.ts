@@ -236,13 +236,12 @@ describe("assignPendingExercise — routing_json path", () => {
 			sessionId: "sess-1",
 			exerciseId: "pending-row-id",
 		});
-		// timing matches hanon_001..020 + czerny_001. Under the FAITHFUL sort
-		// (source_exercise_number, primitive_id) == (suffixNum(id), id), all sources
-		// have a suffix-1 member so the id tiebreak decides: "czerny_001" < "hanon_001".
-		// Stable-first for timing is therefore czerny_001, NOT hanon_001.
-		// czerny_001.totalBars == 22.
-		expect(payload.scoreClip?.pieceId).toBe("czerny_001");
-		expect(payload.scoreClip?.bars).toEqual([1, 22]);
+		// Under the FAITHFUL sort (source_exercise_number, primitive_id) ==
+		// (suffixNum(id), id), the timing stable-first over the 154-drill corpus is
+		// chopin_etude_001 (suffix-1; lower-id suffix-1 ids bach_001/chopin_001 lack
+		// "timing"). chopin_etude_001.totalBars == 79.
+		expect(payload.scoreClip?.pieceId).toBe("chopin_etude_001");
+		expect(payload.scoreClip?.bars).toEqual([1, 79]);
 		expect(payload.scoreClip).toHaveProperty("transpose");
 		expect(typeof payload.scoreClip?.transpose).toBe("number");
 	});

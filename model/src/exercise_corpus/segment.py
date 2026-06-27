@@ -19,7 +19,9 @@ verbatim into the MIDI output dir and `musicxml_path` is set to that MIDI path.
 The MIDI is what feeds Aria embedding; nothing downstream of slice A reads
 `musicxml_path` yet.
 
-Supported source names: "hanon", "bach", "czerny", "burgmuller", "chopin", "satie"
+Supported source names: "hanon", "bach", "czerny", "burgmuller", "chopin",
+"satie" (#17 Mutopia core) and the #49 exercise-book expansion (drill-sized
+study/etude collections, all per_file), e.g. "czerny_op821".
 """
 
 import logging
@@ -72,6 +74,26 @@ _SOURCE_CONFIGS: dict[str, dict] = {
     "satie": {
         "title_prefix": "Satie",
         "id_prefix": "satie",
+        "boundary": "per_file",
+    },
+    # --- #49 EXERCISE-BOOK expansion (goal #3): drill-sized study/etude
+    # collections whose published numbered unit IS the drill (owner decision:
+    # published-unit, no sub-windowing). Per-piece MIDI -> boundary='per_file',
+    # same shape as the Mutopia sources above. id_prefix is source-distinct so
+    # ids never collide (czerny_op821 vs the #17 czerny Op.840).
+    "czerny_op821": {
+        "title_prefix": "Czerny Op.821 Exercise",
+        "id_prefix": "czerny_op821",
+        "boundary": "per_file",
+    },
+    "chopin_etudes": {
+        "title_prefix": "Chopin Etude",
+        "id_prefix": "chopin_etude",
+        "boundary": "per_file",
+    },
+    "clementi_preludes": {
+        "title_prefix": "Clementi Op.42 Prelude",
+        "id_prefix": "clementi_prelude",
         "boundary": "per_file",
     },
 }

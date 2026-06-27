@@ -154,6 +154,16 @@ def cmd_parse_manual(args):
         print(f"  {piece_id}: {info['resolved_url']}")
 
 
+def cmd_build_catalog_mxl(args):
+    import sys
+    from score_library.render_assets import main as render_main
+
+    argv = ["--asap-dir", args.asap_dir, "--output-dir", args.output_dir]
+    if args.catalog:
+        argv += ["--catalog", args.catalog]
+    sys.exit(render_main(argv))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Score MIDI Library pipeline")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -207,6 +217,30 @@ def main():
         help="Lockfile path (default: data/manifests/manual_scores.lock.json)",
     )
 
+    p_build_catalog_mxl = sub.add_parser(
+        "build-catalog-mxl",
+        help=(
+            "Build local renderable .mxl assets from ASAP xml_score.musicxml files. "
+            "ASAP is CC-BY-NC -- LOCAL prototype use ONLY, do NOT deploy to production R2."
+        ),
+    )
+    _default_ra = __import__("score_library.render_assets", fromlist=["_DEFAULT_ASAP_DIR", "_DEFAULT_OUTPUT_DIR"])
+    p_build_catalog_mxl.add_argument(
+        "--asap-dir",
+        default=str(_default_ra._DEFAULT_ASAP_DIR),
+        help=f"Root of the cloned ASAP dataset (default: {_default_ra._DEFAULT_ASAP_DIR})",
+    )
+    p_build_catalog_mxl.add_argument(
+        "--output-dir",
+        default=str(_default_ra._DEFAULT_OUTPUT_DIR),
+        help=f"Output directory for .mxl files (default: {_default_ra._DEFAULT_OUTPUT_DIR})",
+    )
+    p_build_catalog_mxl.add_argument(
+        "--catalog",
+        default=None,
+        help="Path to titles.json (optional; defaults to data/scores/titles.json)",
+    )
+
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     {
@@ -218,6 +252,7 @@ def main():
         "reupload-mxl": cmd_reupload_mxl,
         "fingerprint": cmd_fingerprint,
         "parse-manual": cmd_parse_manual,
+        "build-catalog-mxl": cmd_build_catalog_mxl,
     }[args.command](args)
 
 
