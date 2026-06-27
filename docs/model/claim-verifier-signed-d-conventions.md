@@ -18,7 +18,7 @@ and the Path #1 hard gates at the end of this document.**
 | Dimension | d formula (region) | d formula (whole_piece) | d < 0 means | d > 0 means | tau (provisional) | units |
 |-----------|-------------------|------------------------|-------------|-------------|-------------------|-------|
 | timing | `(established_tempo - region_median_bpm) / established_tempo * 100` | `CV% = std(bpms) / mean(bpms) * 100` | faster than reference (rushed) | slower than reference (dragging) | 8.0 | percent |
-| pedaling | `region_pedal_bar_fraction - self_density` | `pedal_bar_fraction` (0.0-1.0) | sparse pedaling vs piece average | dense pedaling vs piece average | 0.25 | fraction |
+| pedaling | `region_on_fraction - whole_piece_on_fraction` | `on_fraction - REFERENCE_FRACTION` | drier / less sustain (under-pedaled) | wetter / more sustain (over-pedaled) | 0.25 | fraction |
 | dynamics | `mean(region_rms_db) - mean(piece_rms_db)` | `std(rms_db) / dynamic_range` (dispersion) | quieter / flatter than whole piece | louder / wider than whole piece | 1.5 | dB |
 
 **Note on the timing sign:** The region formula subtracts the measured region BPM from the established tempo, so a rushed region (higher BPM) yields d < 0 and a dragging region yields d > 0. This matches the shipped `route_verdict` polarity contract: a "you rushed" claim carries polarity "-" and is SUPPORTED only when d < 0 and abs(d) > tau.
@@ -353,12 +353,15 @@ reference. Plugging a non-negative `d` into a signed test produces pathologies. 
 |---|---|---|---|---|
 | dynamics | `std/range` (unitless, ≤0.5) | 1.5 **dB** | `+`/`-` UNREACHABLE (`d>1.5` impossible); `neutral` ALWAYS SUPPORTED | **DEGENERATE (unit mismatch)** |
 | timing | IOI-BPM CV% (≥0, 100–260% on real polyphony) | 8.0 percent | `+` auto-SUPPORTED; `neutral`/`-` auto-REFUTED | **DEGENERATE (CV floor ≫ tau; noisy statistic)** |
-| pedaling | pedal-bar fraction ∈[0,1] | 0.25 fraction | verdict tracks the performance (fraction vs 0.25) | **REAL SIGNAL** |
+| pedaling | pedal-bar fraction ∈[0,1] | 0.25 fraction | verdict tracks the performance (fraction vs 0.25) | **SUPERSEDED 2026-06-26** (front 3) |
 
-Pedaling is the only dimension whose whole_piece statistic is (a) in units matching its tau and
-(b) the exact quantity GATE 2 validated against perception (CC64 on-fraction, partial ρ 0.478).
-Residual pedaling caveats: `-` polarity is still structurally auto-REFUTED (no signed under-pedal
-test), and virtue ("luminous resonance," `+`) is conflated with excess ("over-pedaled," also `+`).
+Pedaling was the only dimension whose whole_piece statistic was in units matching its tau, but the
+shipped statistic was pedal-BAR-fraction — an unvalidated *cousin* of the quantity GATE 2 actually
+validated (CC64 *time*-on-fraction, partial ρ 0.478). **Front 3 (#101, 2026-06-26)** corrects this:
+the whole_piece statistic is now signed CC64 time-on-fraction vs a corpus-median reference, so the
+verifier checks the exact validated quantity and `-` (under-pedaled) claims are adjudicable instead
+of structurally auto-REFUTED (see FRONT 3 UPDATE below). Residual caveat: virtue ("luminous
+resonance," `+`) is still conflated with excess ("over-pedaled," also `+`) — backlog item 8.
 
 **Bottom line:** a faithfulness rate computed today would mostly measure the generator's *polarity
 distribution*, not its truthfulness (dynamics `±` → 0% by construction; timing `+` → 100% by
@@ -417,6 +420,54 @@ audio (AMT velocity calibration on heterogeneous real recordings is a separate G
 
 ---
 
+## FRONT 3 UPDATE (#101, 2026-06-26): pedaling signed + statistic-corrected, scoped to under-pedal
+
+Front 3 had two jobs: (a) make `-` (under-pedaled) claims **adjudicable** instead of structurally
+auto-REFUTED, and (b) run pedaling **G-A** for the first time (the prior "provisional PASS" was never
+empirically measured — only dynamics had the harness). Both are done; G-A revealed a hard substrate limit.
+
+**Statistic correction (the latent cousin).** The shipped whole_piece statistic was pedal-**bar**-fraction
+(fraction of bars with ≥1 CC64 event), but GATE-2's 0.478 was measured on CC64 **time**-on-fraction
+(`pedaling_on_fraction`, `gate2_expert_anchor.json`). These are cousins, not the same statistic — the
+exact trap the dynamics rescue caught. Both tiers now use **time-on-fraction**, so the verifier checks
+the EXACT validated quantity and 0.478 is inherited verbatim (frac − const is monotone in frac):
+- whole_piece: `d = on_fraction − REFERENCE_FRACTION`, `REFERENCE_FRACTION = 0.4623` (corpus-median AMT
+  on-fraction over the 30 fixed-gain neutral renders; AMT-derived, not MIDI-native, because AMT inflates
+  low pedal and saturates high — a MIDI median would mis-zero the AMT-substrate measurement).
+- region: `d = region_on_fraction − whole_piece_on_fraction` (within-clip, gain-free).
+- `minimum_events: 0` (deliberate): a zero-pedal performance now measures `d = −0.4623` (an informative
+  signed measurement), NOT an abstention — this is what unblocks `-` claims. (The frozen router's Step-5
+  `event_count < minimum_events` gate would otherwise still force UNVERIFIABLE.)
+
+**Signed test works end-to-end** (real `PedalingMeasurer` + frozen `route_verdict`): dry+`-`→SUPPORTED
+(was auto-REFUTED), wet+`+`→SUPPORTED, both wrong polarities→REFUTED.
+
+**G-A (construction-known, maximal corruption, n=30).** sparse = remove ALL CC64 (true dry, frac→0),
+dense = full pedal down (frac→1), neutral = original; render → aria-amt → real measurer + frozen router.
+First verified AMT **preserves on-fraction ordering** (the gating risk; sparse<neutral<dense held). Result
+is **directional**:
+- **under-pedal `-` PASS**: performance-flip **0.90** (dry `-` SUPPORTED & wet `-` not, 27/30), polarity-
+  shuffle collapse **+0.23** (aligned 0.93 → shuffled 0.30), direction-ordering 29/30.
+- **over-pedal `+` FAIL**: flip⁺ only 7/30. AMT pedal on-fraction **SATURATES** (~0.55 ceiling): even
+  full-pedal (true frac=1.0) reaches only median `d = +0.214 < tau`. Over-pedaling is physically
+  unrecoverable from audio, regardless of tau (a tau sweep 0.05–0.25 never lifts flip⁺ above 0.27).
+  Unlike velocity (AMT↔GT 0.965, linear), AMT pedal is a saturating detector.
+
+**Scoping (production).** `pedaling.substrate_insensitive_polarity = {whole_piece: "+"}`; the **orchestrator**
+(not the frozen router) returns `UNVERIFIABLE(substrate_insensitive_direction)` for whole_piece `+`
+pedaling claims, so a true over-pedaling observation is abstained-on, not wrongly REFUTED (which would
+poison the G-D rate). The router is untouched.
+
+**Net:** pedaling whole_piece is now a real, G-A+G-B-passing signal **for under-pedal detection**; over-pedal
+is scoped out as substrate-insensitive. Residual caveats: tau=0.25 provisional (front 4 calibrates;
+under-pedal flip is 0.90 at tau=0.25 but degrades for gentler corruptions), error bar uses *assumed*
+boundary jitter (front 5 / G-C measures real re-transcription churn), region-tier saturation is unmeasured
+(only whole_piece was tested), and virtue-vs-excess is moot now that `+` is scoped out. Reports:
+`model/data/results/ga_pedal_onfraction.json` (scaled) + `ga_pedal_onfraction_maximal.json` (the gate);
+harnesses `model/src/claim_measurement/ga_validation/amt_pedaling_ga_{render,metrics}.py`.
+
+---
+
 ## Path #1 operating mode and hard gates (#101)
 
 **Operating mode (re-scoped 2026-06-24).** Open-ended, no time limit. The fixed M0–M3 timeline in the
@@ -435,11 +486,16 @@ domain* (music as the existence proof). **No paper is drafted until every hard g
   chance (proposal: shifts |rate−0.5| by ≥0.20); (ii) *performance-flip sensitivity* — on
   corruption-harness clean-vs-corrupted pairs, the verdict flips in the expected direction in ≥0.80
   of construction-known cases. A dimension whose verdict is unmoved by either control FAILS.
-  *Status: pedaling provisional-pass; **dynamics PASS** (#101: performance-flip 0.85, polarity-shuffle
-  collapse 0.22, monotonicity 30/30 — see GATE 3 UPDATE below); timing FAIL (degenerate).*
+  *Status: **pedaling PASS for under-pedal `-`** (#101 front-3: performance-flip 0.90, polarity-shuffle
+  collapse +0.23, ordering 29/30, maximal corruption n=30) — over-pedal `+` FAILS (AMT pedal saturation)
+  and is scoped out as substrate-insensitive (see FRONT 3 UPDATE below); **dynamics PASS** (#101:
+  performance-flip 0.85, polarity-shuffle collapse 0.22, monotonicity 30/30 — see GATE 3 UPDATE below);
+  timing FAIL (degenerate).*
 - **G-B — Perceptual validity of the EXACT statistic.** The specific statistic the verifier checks
   (not a cousin) clears halo-controlled partial-Spearman ≥ the measured PercePiano inter-rater
-  ceiling (~0.5) on its perceptual dimension, p<1e-6. *Status: pedaling-presence PASS (0.478);
+  ceiling (~0.5) on its perceptual dimension, p<1e-6. *Status: pedaling PASS (0.478) — the verifier now
+checks the EXACT validated statistic (CC64 time-on-fraction), having corrected the shipped pedal-BAR-
+fraction cousin (#101 front-3, see FRONT 3 UPDATE below);
   **dynamics PASS** (#101: switched the statistic to mean AMT note-velocity → partial-Spearman 0.544,
   n=180, 95% CI [0.417, 0.655], indistinguishable from ground-truth MIDI velocity 0.525 — see GATE 3
   UPDATE below); timing FAILS (0.25) → out unless a new proxy passes.*

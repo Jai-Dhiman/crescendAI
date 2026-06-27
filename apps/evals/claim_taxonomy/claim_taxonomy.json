@@ -119,19 +119,20 @@
     },
     "pedaling": {
       "status": "active",
-      "reference": "self_density",
-      "check": "pedal_presence_density",
+      "reference": "corpus_median_on_fraction@whole_piece / within_clip_on_fraction@region",
+      "check": "signed_sustain_on_fraction_vs_reference",
       "tolerance": {
-        "name": "pedal_presence_density_deviation",
+        "name": "on_fraction_deviation",
         "provisional": 0.25,
         "unit": "fraction",
-        "calibration_source": "#65/M1 error-bar study",
+        "calibration_source": "#101 G-B (AMT CC64 on-fraction, n=1202, partial-rho 0.478, ref=0.4699); provisional, locked pending front-4 anomaly calibration",
         "locked": false
       },
       "reliability_tier": 2,
       "measurement": "amt_sustain_pedal_events",
-      "minimum_events": 2,
-      "notes": "Coarse on/off and density only. Half-pedal and flutter pedaling are out of scope. reference is self_density: fraction of bars with at least one pedal event in the same piece."
+      "minimum_events": 0,
+      "substrate_insensitive_polarity": { "whole_piece": "+" },
+      "notes": "Sustain-pedal TIME-on-fraction (fraction of duration CC64 is down) = the EXACT statistic validated vs PercePiano perceived pedaling at partial-rho 0.478 (n=1202, #101 G-B / gate2_expert_anchor.json measure pedal_frac). Replaces the previously-shipped pedal-BAR-fraction (fraction of bars with >=1 event), an unvalidated cousin. Units: time-on-fraction for BOTH location tiers (one tau). whole_piece reference = corpus-median AMT on-fraction (0.4699, controlled-gain piano-render calibration, #101 front-3); region reference = within-clip whole-piece on-fraction. minimum_events = 0 (deliberate): a genuinely dry/zero-pedal performance is an informative signed measurement (d = -reference => '-' under-pedal claim adjudicable), NOT an abstention. Coarse on/off only; half-pedal and flutter remain out of scope. Scope: controlled-gain audio. DIRECTIONAL SCOPE (#101 front-3 G-A, maximal-corruption n=30): under-pedal '-' PASSES (performance-flip 0.90, polarity-shuffle collapse +0.23, ordering 29/30); over-pedal '+' FAILS because AMT pedal on-fraction SATURATES (~0.55 ceiling -- full pedal, true frac=1.0, only reaches median d +0.214 < tau), so whole_piece '+' is marked substrate_insensitive_polarity and returns UNVERIFIABLE rather than a wrong REFUTED."
     },
     "dynamics": {
       "status": "active",
@@ -177,12 +178,14 @@
       "unlocalizable",
       "low_coverage",
       "substrate_failure",
+      "substrate_insensitive_direction",
       "region_too_short",
       "near_threshold"
     ],
     "dispatch_order": [
       "1. If dimension.status == 'scoped_out' -> UNVERIFIABLE(out_of_scope_dim)",
       "2. If dimension.status == 'gated_on_measurement' and gate not validated -> UNVERIFIABLE(gated_dim)",
+      "2b. If claim.polarity == dimension.substrate_insensitive_polarity[location_tier] -> UNVERIFIABLE(substrate_insensitive_direction) [orchestrator, pre-router; e.g. pedaling whole_piece '+' -- AMT pedal saturation, #101 front-3]",
       "3. If location is not resolvable (no score in catalog / piece not identified / span < alignment_uncertainty / bar score-time outside the matched anchor span) -> UNVERIFIABLE(unlocalizable)",
       "4. If measurement substrate raised an error -> UNVERIFIABLE(substrate_failure)",
       "5. If region has fewer than dimension.minimum_events -> UNVERIFIABLE(region_too_short)",

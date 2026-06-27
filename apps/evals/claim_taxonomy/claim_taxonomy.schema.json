@@ -95,7 +95,16 @@
         "tolerance": { "$ref": "#/$defs/provisional_tolerance" },
         "reliability_tier": { "type": "integer", "minimum": 1, "maximum": 3 },
         "measurement": { "type": "string" },
-        "minimum_events": { "type": "integer", "minimum": 1 },
+        "minimum_events": { "type": "integer", "minimum": 0 },
+        "substrate_insensitive_polarity": {
+          "type": "object",
+          "description": "Optional. Maps a location tier ('whole_piece'|'region') to a polarity ('+'|'-') the substrate cannot recover at that tier; the orchestrator returns UNVERIFIABLE(substrate_insensitive_direction) for matching claims instead of letting the router REFUTE them. Pedaling sets whole_piece:'+' because AMT pedal on-fraction saturates, making over-pedaling unrecoverable (#101 front-3).",
+          "properties": {
+            "whole_piece": { "type": "string", "enum": ["+", "-"] },
+            "region": { "type": "string", "enum": ["+", "-"] }
+          },
+          "additionalProperties": false
+        },
         "notes": { "type": "string" }
       },
       "additionalProperties": false
