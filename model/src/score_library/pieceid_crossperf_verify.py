@@ -328,12 +328,14 @@ def eval_query(
                     "loo_locked": locked})
         # Decompose a false-accept: is the falsely-locked neighbor a residual
         # duplicate of the true piece (cleanliness) or a genuinely different
-        # piece (a real open-set rejection failure)?
-        if locked:
-            pair = _catalog_pair_cost(gate, true_id, lbest)
-            is_dup = pair is not None and np.isfinite(pair) and pair <= DUP_THRESHOLD
-            rec["loo_fa_dup_of_true"] = bool(is_dup)
-            rec["loo_fa_pair_cost"] = round(float(pair), 4) if pair is not None and np.isfinite(pair) else None
+        # piece (a real open-set rejection failure)?  Computed UNCONDITIONALLY
+        # (not only when locked at 0.0935) so the dup/genuine split is correct at
+        # ANY downstream operating threshold -- a sub-0.0935 sweep would otherwise
+        # find the flag absent and miscount every dup FA as genuine.
+        pair = _catalog_pair_cost(gate, true_id, lbest)
+        is_dup = pair is not None and np.isfinite(pair) and pair <= DUP_THRESHOLD
+        rec["loo_fa_dup_of_true"] = bool(is_dup)
+        rec["loo_fa_pair_cost"] = round(float(pair), 4) if pair is not None and np.isfinite(pair) else None
     return rec
 
 

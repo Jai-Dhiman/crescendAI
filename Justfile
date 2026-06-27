@@ -271,6 +271,22 @@ catalog-acquire-asap:
 catalog-pieceid-crossperf-verify:
     cd model && PYTHONUNBUFFERED=1 uv run python -m score_library.pieceid_crossperf_verify --per-work 0 --note-cap 600
 
+# Comprehensive production-fidelity piece-ID eval across edge-case axes the clean-MIDI
+# cross-performance harness cannot see: B mid-piece starts, C transposition, D same-composer
+# confusion matrix, E confidence calibration, G notes-to-lock latency. Builds the 11K catalog
+# + gate ONCE and runs every axis by transforming the query notes (frozen gate, threshold is a
+# parameter). CIs cluster-bootstrap by work. Axes A/F are gated siblings (catalog-pieceid-amt-axis).
+catalog-pieceid-comprehensive-eval:
+    cd model && PYTHONUNBUFFERED=1 uv run python -m score_library.pieceid_comprehensive_eval --axes b,c,d,e,g --per-work 1 --note-cap 600 --threshold 0.13
+
+# Axis A -- the #1 production-fidelity gap: real audio -> production AMT service -> the frozen
+# piece-ID gate, PAIRED against the clean-MIDI recognition of the same performance. Maps ASAP
+# perfs to MAESTRO audio (519 matched), slices 15s chunks with 15s context (production windowing),
+# POSTs to the AMT service, stitches notes, runs the gate. GATED: requires MAESTRO audio rehydrated
+# (--maestro-dir; offloaded ~34GB) AND the AMT service up (`just amt`). Fails loud if either missing.
+catalog-pieceid-amt-axis maestro_dir limit="50":
+    cd model && PYTHONUNBUFFERED=1 uv run python -m score_library.pieceid_amt_axis --maestro-dir {{maestro_dir}} --limit {{limit}} --opening-seconds 90 --threshold 0.13
+
 # Catalog-wide AMT-aware duplicate detection (NON-DESTRUCTIVE manifest, nothing deleted).
 # Greedy nearest-keep: drops a piece only on a DIRECT match to an already-kept higher-
 # priority piece (engraved>pdmx>giantmidi, most-notes). Source-aware threshold (engraved
