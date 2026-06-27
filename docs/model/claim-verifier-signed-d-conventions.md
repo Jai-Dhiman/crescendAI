@@ -506,6 +506,62 @@ is unestablished. Reports: `model/data/results/tau_cal_pedaling.json`; harnesses
 
 ---
 
+## FRONT 5 / G-D UPDATE (#101, 2026-06-27): the first faithfulness-rate attempt — dynamics rate is UNMEASURABLE (construct mismatch)
+
+G-D is the paper milestone: the first measured per-dimension faithfulness RATE. Because pedaling FAILS
+G-B on AMT (front-4) and timing is degenerate, G-D was scoped **dynamics-only, whole_piece**. The result
+is a clean, fully-reproducible **negative**: the rate cannot be measured on this generator — not for lack
+of corpus or CI, but because the generator never makes a claim the G-B-validated statistic can adjudicate.
+
+**Pairing resolved (the front-3 blocker).** The generator prose and the cached bundles had ZERO same-clip
+overlap. Fix = *extract-on-baseline-audio*: `baseline_v1.jsonl` (legacy `synthesize` generator) has **94
+chopin_ballade_1 performances** whose `recording_id` has BOTH prose AND local `skill_eval` audio (162 prose
+docs total; the other 10 baseline pieces lack local audio, so the corpus is single-piece — a G-F/G-E
+generalization limit, not a G-D one). This clears the ≥30-distinct-performances floor.
+
+**Pipeline (truth label deterministic; LLM only extracts).** (1) In-process aria-amt transcription of
+stratified 27s windows (`gd_rate/transcribe_bundles.py`) → minimal bundles carrying pooled `notes` with
+velocity (stub `measure_table`/`anchors` clear LocationResolver's whole_piece precondition but are never
+read by the whole_piece dynamics measurement). On MPS, dense-polyphony decode is ~30–130s/window, so full
+coverage of ~8.6-min clips is ~28h/94; 3 stratified windows ([0.15,0.45,0.75]·dur) remove the temporal
+bias (Ballade mean velocity varies 47–78 by section) at ~57s/clip. (2) Sonnet-4.6 extractors decompose
+prose into dynamics claims (`gd_rate/extract_prompt.md`). (3) `gd_rate/route_and_score.py` runs the real
+`verify()` + frozen `route_verdict` (tau 6.5) and computes the rate + performance-clustered bootstrap CI +
+abstention histogram.
+
+**The measured yield (the headline, `model/data/results/gd_dynamics_rate.json`):**
+
+| quantity | value | read |
+|---|---|---|
+| dynamics claims | 146 (162 docs, 94 perfs, 83 with ≥1) | prose decomposes fine |
+| bar-localized | **0 / 146** | corroborates front-3's 0.4% localization on a fresh corpus+dimension |
+| subtype split | **131 contrast (90%) / 15 level / 0 ambiguous** | the generator talks *shaping*, not *level* |
+| level-claim scope | **0 overall-loudness / 8 register-specific / 7 non-falsifiable** | even the "level" claims aren't whole-piece-overall |
+| **in scope** for whole-piece mean velocity | **0** | committed n=0 → **rate UNMEASURABLE** |
+| abstention histogram | `out_of_scope_statistic`: contrast 131, register 8, non-falsifiable 7 | 100% abstention |
+
+**Why this is a construct mismatch, not a supply-size problem.** The only G-B-passing dynamics statistic is
+whole-piece mean *level* (the doc's statistic sweep proved every contrast/spread statistic fails the ~0.5
+ceiling: std +0.04, range −0.01, IQR −0.05). But the generator's dynamics feedback is *about contrast/
+shaping/range* (90%) or *register-specific/exploratory* ("make the pp more hushed", "push the forte",
+"how soft can you go?" — 10%). These address a construct the validated statistic cannot test even in
+principle. The 17 transcribed bundles span mean velocity 47–78, so the statistic IS live and discriminating
+on this corpus — the gap is purely **claim supply of the in-scope construct**. Because level claims are a
+fixed ~7% of dynamics claims and only ~96 performances have local audio, no corpus expansion within reach
+clears the ≥30-committed gate; the binding constraint is the generator's claim distribution.
+
+**Net.** This extends the GATE-3 narrative one layer: front 1–4 *rescued the dynamics statistic*
+(G-A+G-B pass); G-D shows the *rate* is still unmeasurable because of a generator↔statistic **construct
+mismatch**. "An LLM piano teacher's dynamics feedback is ~90% contrast and ~0% falsifiable whole-piece
+loudness, so a perceptually-validated loudness-LEVEL verifier has no claims to score" is itself a measured,
+publishable finding — the faithfulness-rate analog of the localization-yield finding. **G-D stays NOT
+PASSED.** Forks (a user decision, none on the validated critical path): (i) reframe the paper's measured
+contribution around the claim-supply/validity gap; (ii) open a new G-B front to validate a dynamic-*contrast*
+statistic so the 131 contrast claims become adjudicable; (iii) better pedal substrate to revive pedaling.
+Harnesses: `model/src/claim_measurement/gd_rate/`; regenerable inputs: `model/data/results/gd_rate/`.
+
+---
+
 ## Path #1 operating mode and hard gates (#101)
 
 **Operating mode (re-scoped 2026-06-24).** Open-ended, no time limit. The fixed M0–M3 timeline in the
@@ -546,8 +602,11 @@ only, not graded perceptual claims;
 - **G-D — Claim supply for a stable rate.** Per reported dimension: ≥30 distinct performances and a
   bootstrap 95% CI half-width ≤0.05 on the faithfulness rate; report yield + the abstention
   histogram (`out_of_scope_dim`, `gated_dim`, `unlocalizable`, `low_coverage`, `region_too_short`,
-  `near_threshold`). *Status: pairing unresolved — existing prose has ZERO same-clip overlap with
-  the 10 bundles; needs generate-on-bundles or extract-on-baseline-audio (see issue #101).*
+  `near_threshold`). *Status: **MEASURED — NOT PASSED, supply-blocked** (#101 front-5 / #67). Pairing
+  resolved (extract-on-baseline-audio: 94 chopin_ballade_1 performances with both baseline_v1 generator
+  prose AND local skill_eval audio). 146 dynamics claims LLM-extracted → **0 in scope** for the
+  G-B-validated whole-piece mean-velocity statistic → committed n=0, rate UNMEASURABLE. The blocker is
+  a generator↔statistic CONSTRUCT MISMATCH, not corpus size or CI. See the FRONT 5 / G-D UPDATE below.*
 - **G-E — Reproducibility.** The per-dimension rate reproduces within CI across (a) a generator
   re-run and (b) two disjoint clip halves; a second independent decomposition (different LLM or a
   human-checked slice) agrees on (dim, polarity, location) at Cohen's κ ≥0.6. *Status: not started.*
