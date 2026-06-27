@@ -97,6 +97,8 @@ def main() -> None:
     ap.add_argument("--midi-stage", type=Path, help="override staged .mid dir")
     ap.add_argument("--out-dir", type=Path, help="SVG output dir (default scores/v1)")
     ap.add_argument("--limit", type=int, default=0, help="render at most N (0=all)")
+    ap.add_argument("--jobs", type=int, default=6, help="parallel LilyPond workers")
+    ap.add_argument("--force", action="store_true", help="re-render even if .svg exists")
     args = ap.parse_args()
 
     global _SCORES, _MEI
@@ -107,21 +109,33 @@ def main() -> None:
     out_dir = args.out_dir or _SVG_OUT
 
     cands = list(iter_candidates(args.midi_stage))
+    if not args.force:
+        cands = [(p, ly) for p, ly in cands if not (out_dir / f"{p}.svg").exists()]
     if args.limit:
         cands = cands[: args.limit]
-    print(f"rendering {len(cands)} Mutopia pieces -> SVG (LOCAL-ONLY, CC-BY-SA)")
+    print(f"rendering {len(cands)} Mutopia pieces -> SVG, {args.jobs} jobs (LOCAL-ONLY, CC-BY-SA)")
     ok = 0
     fails: list[tuple[str, str]] = []
+    done = 0
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     with tempfile.TemporaryDirectory() as tmp:
-        work = Path(tmp)
-        for i, (pid, ly) in enumerate(cands):
-            success, msg = render_svg(pid, ly, out_dir, work)
-            if success:
-                ok += 1
-            else:
-                fails.append((pid, msg))
-            if (i + 1) % 25 == 0:
-                print(f"  {i + 1}/{len(cands)} ({ok} ok, {len(fails)} failed)")
+        def task(item):
+            i, (pid, ly) = item
+            # unique per-task subdir so concurrent score.cropped.svg never collide.
+            return pid, render_svg(pid, ly, out_dir, Path(tmp) / f"w{i}")
+
+        with ThreadPoolExecutor(max_workers=args.jobs) as ex:
+            futs = [ex.submit(task, it) for it in enumerate(cands)]
+            for fut in as_completed(futs):
+                pid, (success, msg) = fut.result()
+                done += 1
+                if success:
+                    ok += 1
+                else:
+                    fails.append((pid, msg))
+                if done % 25 == 0:
+                    print(f"  {done}/{len(cands)} ({ok} ok, {len(fails)} failed)", flush=True)
     print(f"\nDONE: {ok}/{len(cands)} rendered; {len(fails)} failed")
     for pid, msg in fails[:20]:
         print(f"  FAIL {pid}: {msg}")
