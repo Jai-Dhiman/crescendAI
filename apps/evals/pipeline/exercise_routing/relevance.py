@@ -78,16 +78,21 @@ class RelevanceAggregate:
 
 SYSTEM = (
     "You are an expert piano pedagogue evaluating whether a prescribed practice "
-    "drill is appropriate for a diagnosed performance weakness. Judge ONLY "
-    "pedagogical fit: does practising this specific drill plausibly remediate the "
-    "diagnosed weakness? A drill is appropriate when the mechanism it trains "
-    "(from its title and technique tags) targets the weak dimension -- e.g. a "
-    "pedal-isolation prelude for a pedaling weakness, a velocity etude for a "
-    "timing/evenness weakness. A drill is inappropriate when it trains an "
-    "unrelated mechanism -- e.g. a finger-independence warm-up prescribed for a "
-    "pedaling or dynamics weakness -- even if it is a fine exercise in isolation. "
-    "Do not reward mere dimension-label overlap; weigh whether the actual "
-    "technique addresses the actual problem. Output strict JSON, no prose."
+    "drill is the RIGHT CHOICE for a diagnosed performance weakness, selected from "
+    "a curated library of public-domain piano studies and repertoire excerpts. "
+    "These drills are real musical pieces and methodical studies, NOT synthetic "
+    "mechanical exercises -- do NOT penalize a drill for being a musical piece; "
+    "that is how the library works. Judge ONLY the match between the technique the "
+    "drill develops (from its title and technique tags) and the diagnosed "
+    "weakness, as a knowledgeable teacher choosing from such a library would. "
+    "A drill is appropriate when its primary mechanism targets the weak dimension "
+    "-- e.g. a pedaled Romantic prelude for a pedaling weakness, a velocity/"
+    "evenness study for a timing weakness, a cantabile character piece for a "
+    "dynamics/phrasing weakness. A drill is inappropriate when its primary "
+    "mechanism is unrelated -- e.g. a finger-independence warm-up for a pedaling "
+    "weakness, an arpeggio/hand-extension etude for a pure timing-steadiness "
+    "weakness. Do not reward mere dimension-label overlap; weigh whether the "
+    "actual technique addresses the actual problem. Output strict JSON, no prose."
 )
 
 
@@ -144,7 +149,7 @@ def _parse_verdict(raw: str) -> tuple[int, str]:
 
 
 def judge_relevance(
-    case: RelevanceCase, client: JudgeClient, max_tokens: int = 512
+    case: RelevanceCase, client: JudgeClient, max_tokens: int = 4000
 ) -> RelevanceVerdict:
     """Judge one prescription's pedagogical relevance. Client-injected; no I/O here
     beyond the injected client call."""

@@ -98,8 +98,6 @@ def run_relevance(captures: list, judge_provider: str, judge_model: str | None):
     Returns the RelevanceAggregate; raises if the judge client cannot be built
     (missing gateway creds) -- fail loud rather than silently skip the metric.
     """
-    from teaching_knowledge.llm_client import LLMClient
-
     from pipeline.exercise_routing.relevance import aggregate_relevance, judge_relevance
     from pipeline.exercise_routing.selection import build_selector_case
 
@@ -112,7 +110,14 @@ def run_relevance(captures: list, judge_provider: str, judge_model: str | None):
         from pipeline.exercise_routing.relevance import RelevanceAggregate
         return RelevanceAggregate(relevance_at_1=0.0, mean_score=0.0, n_judged=0)
 
-    client = LLMClient(provider=judge_provider, model=judge_model, tier="judge")
+    # workers-ai goes through the authenticated `crescendai` gateway (the product
+    # path); other providers reuse the shared LLMClient.
+    if judge_provider == "workers-ai":
+        from pipeline.exercise_routing.gateway_judge import WorkersAiGatewayJudge
+        client = WorkersAiGatewayJudge(model=judge_model)
+    else:
+        from teaching_knowledge.llm_client import LLMClient
+        client = LLMClient(provider=judge_provider, model=judge_model, tier="judge")
     print(
         f"  [relevance] judging {len(cases)} selector choices "
         f"via {judge_provider}/{client.model} ..."
