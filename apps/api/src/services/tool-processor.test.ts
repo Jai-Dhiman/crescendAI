@@ -778,9 +778,10 @@ describe("processToolUse — prescribe_exercise own_passage_loop", () => {
 			scoreClip?: { pieceId: string; bars: [number, number]; transpose?: number };
 			exercises: { instruction: string }[];
 		};
-		// timing stable-first under (suffixNum, id) is czerny_001 (czerny < hanon).
-		expect(config.scoreClip?.pieceId).toBe("czerny_001");
-		expect(config.scoreClip?.bars).toEqual([1, 22]);
+		// timing stable-first under (suffixNum, id) over the 154-drill corpus is
+		// chopin_etude_001 (bars 79); lower-id suffix-1 ids bach_001/chopin_001 lack timing.
+		expect(config.scoreClip?.pieceId).toBe("chopin_etude_001");
+		expect(config.scoreClip?.bars).toEqual([1, 79]);
 		expect(config.scoreClip).toHaveProperty("transpose");
 	});
 });
