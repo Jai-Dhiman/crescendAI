@@ -81,6 +81,17 @@ _COMPOSER = {
     "grieg": "Grieg",
 }
 
+# Some chamber-work part files (e.g. chopin/first-editions/008-1-Sm-003-violoncello.krn)
+# carry NO real *I instrument token -- the only *I line is a mis-encoded tempo
+# marking (*I"ADAGIO.) -- and a Romantic string part switches between bass, tenor
+# and treble clef, so it spuriously satisfies the grand-staff clef heuristic. The
+# instrument is only reliably encoded in the filename suffix, so guard on that too.
+_FOREIGN_FILENAME = re.compile(
+    r"-(violoncello|violino|violin|viola|cello|contrabass|flute|oboe|clarinet|"
+    r"bassoon|horn|trumpet|trombone|tuba|harp|voice|vocal|soprano|alto|tenor|bass)",
+    re.IGNORECASE,
+)
+
 _KEYBOARD_INSTR = re.compile(r"^\*I(piano|forte|hpsi|clav|cemb|organ)", re.MULTILINE)
 # Foreign (non-keyboard) instrument tandem interpretations: any presence means
 # the file is chamber/vocal/orchestral, not solo keyboard, even if a piano part
@@ -110,6 +121,8 @@ def _is_keyboard(krn: Path) -> bool:
     instrument tandem; otherwise accept a piano-family instrument token, or a
     grand-staff clef pair (treble *clefG2 + bass *clefF4). Spine count is NOT
     used -- Romantic piano is routinely encoded with 3+ voice spines."""
+    if _FOREIGN_FILENAME.search(krn.name):
+        return False
     try:
         text = krn.read_text(errors="ignore")
     except Exception:
