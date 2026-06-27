@@ -19,6 +19,7 @@ _CORE_SOURCES = {"hanon", "bach", "czerny", "burgmuller", "chopin", "satie"}
 _EXERCISE_BOOK_SOURCES = {
     "czerny_op821",
     "chopin_etudes",
+    "clementi_preludes",
 }
 
 

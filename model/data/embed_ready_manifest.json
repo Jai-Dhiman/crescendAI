@@ -1,5 +1,5 @@
 {
-  "n_primitives": 136,
+  "n_primitives": 154,
   "primitives": [
     {
       "midi_path": "data/midi/exercise_primitives/hanon_001.mid",
@@ -1776,6 +1776,330 @@
         "advanced-technique"
       ],
       "title": "Chopin Etude 24"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_001.mid",
+      "n_notes": 36,
+      "primitive_id": "clementi_prelude_001",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 1,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 1"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_002.mid",
+      "n_notes": 29,
+      "primitive_id": "clementi_prelude_002",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 2,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 2"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_003.mid",
+      "n_notes": 52,
+      "primitive_id": "clementi_prelude_003",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 3,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 3"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_004.mid",
+      "n_notes": 58,
+      "primitive_id": "clementi_prelude_004",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 4,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 4"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_005.mid",
+      "n_notes": 60,
+      "primitive_id": "clementi_prelude_005",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 5,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 5"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_006.mid",
+      "n_notes": 92,
+      "primitive_id": "clementi_prelude_006",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 6,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 6"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_007.mid",
+      "n_notes": 80,
+      "primitive_id": "clementi_prelude_007",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 7,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 7"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_008.mid",
+      "n_notes": 63,
+      "primitive_id": "clementi_prelude_008",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 8,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 8"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_009.mid",
+      "n_notes": 120,
+      "primitive_id": "clementi_prelude_009",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 9,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 9"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_010.mid",
+      "n_notes": 57,
+      "primitive_id": "clementi_prelude_010",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 10,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 10"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_011.mid",
+      "n_notes": 64,
+      "primitive_id": "clementi_prelude_011",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 11,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 11"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_012.mid",
+      "n_notes": 75,
+      "primitive_id": "clementi_prelude_012",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 12,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 12"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_013.mid",
+      "n_notes": 77,
+      "primitive_id": "clementi_prelude_013",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 13,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 13"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_014.mid",
+      "n_notes": 55,
+      "primitive_id": "clementi_prelude_014",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 14,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 14"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_015.mid",
+      "n_notes": 87,
+      "primitive_id": "clementi_prelude_015",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 15,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 15"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_016.mid",
+      "n_notes": 58,
+      "primitive_id": "clementi_prelude_016",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 16,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 16"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_017.mid",
+      "n_notes": 80,
+      "primitive_id": "clementi_prelude_017",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 17,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 17"
+    },
+    {
+      "midi_path": "data/midi/exercise_primitives/clementi_prelude_018.mid",
+      "n_notes": 88,
+      "primitive_id": "clementi_prelude_018",
+      "source": "clementi_preludes",
+      "source_dimensions": [
+        "articulation",
+        "phrasing"
+      ],
+      "source_exercise_number": 18,
+      "source_techniques": [
+        "key-prelude",
+        "chord-voicing",
+        "cadential-shaping",
+        "touch"
+      ],
+      "title": "Clementi Op.42 Prelude 18"
     }
   ],
   "schema": "exercise_corpus.embed_ready.v1"

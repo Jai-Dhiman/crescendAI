@@ -704,3 +704,98 @@ key = "Am"
 dimensions = ["articulation", "pedaling", "dynamics"]
 techniques = ["arpeggios", "hand-extension", "ocean"]
 key = "Cm"
+
+# === #49 EXERCISE-BOOK expansion: Clementi Op.42 preludes ===
+# Clementi's 18 short key-preludes (3-6 bars). Preluding drills: establish
+# a key via chordal/arpeggiated touch -> articulation + phrasing. Keys from
+# the Op.42 lesson filenames (one prelude per key).
+
+[clementi_prelude_001]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "C"
+
+[clementi_prelude_002]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "Am"
+
+[clementi_prelude_003]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "F"
+
+[clementi_prelude_004]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "Dm"
+
+[clementi_prelude_005]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "G"
+
+[clementi_prelude_006]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "Em"
+
+[clementi_prelude_007]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "Bb"
+
+[clementi_prelude_008]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "Gm"
+
+[clementi_prelude_009]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "D"
+
+[clementi_prelude_010]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "Bm"
+
+[clementi_prelude_011]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "Eb"
+
+[clementi_prelude_012]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "Cm"
+
+[clementi_prelude_013]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "A"
+
+[clementi_prelude_014]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "F#m"
+
+[clementi_prelude_015]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "Ab"
+
+[clementi_prelude_016]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "Fm"
+
+[clementi_prelude_017]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "E"
+
+[clementi_prelude_018]
+dimensions = ["articulation", "phrasing"]
+techniques = ["key_prelude", "chord_voicing", "cadential_shaping", "touch"]
+key = "C#m"

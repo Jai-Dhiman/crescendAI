@@ -91,6 +91,11 @@ _SOURCE_CONFIGS: dict[str, dict] = {
         "id_prefix": "chopin_etude",
         "boundary": "per_file",
     },
+    "clementi_preludes": {
+        "title_prefix": "Clementi Op.42 Prelude",
+        "id_prefix": "clementi_prelude",
+        "boundary": "per_file",
+    },
 }
 
 

@@ -102,3 +102,18 @@ license = "public_domain"
 musicxml_path = "data/scores/exercise_primitives/raw/chopin_etudes"
 dimensions = ["articulation", "timing", "dynamics", "phrasing", "pedaling", "interpretation"]
 techniques = ["technical-etude", "passagework", "advanced-technique"]
+
+[[sources]]
+name = "clementi_preludes"
+title = "Preludes in all keys, Op.42 (Clementi, Introduction to the Art)"
+composer = "Muzio Clementi"
+opus = "42"
+license = "public_domain"
+# Clementi's own 18 short key-preludes (3-6 bars each) from the Op.42 method
+# book, via Mutopia prebuilt MIDI (clementi-op42-mids.zip). ONLY the *-prel-*
+# preludes are ingested -- the book's 60 other lessons are arrangements of OTHER
+# composers (Scarlatti/Mozart/Handel/etc.), i.e. repertoire by attribution, not
+# Clementi drills. Smallest, most drill-perfect primitives in the corpus.
+musicxml_path = "data/scores/exercise_primitives/raw/clementi_preludes"
+dimensions = ["articulation", "phrasing"]
+techniques = ["key-prelude", "chord-voicing", "cadential-shaping", "touch"]
