@@ -55,15 +55,18 @@ describe("alignChunkChroma", () => {
 describe("alignChunkNotes", () => {
 	it("forwards all eight arguments to align_chunk_notes and returns its result", async () => {
 		const { alignChunkNotes } = await import("./wasm-bridge");
-		const fakeBarMap = {
-			chunk_index: 2,
-			bar_start: 4,
-			bar_end: 7,
-			alignments: [],
-			confidence: 0.9,
-			is_reanchored: false,
+		const fakeResult = {
+			bar_map: {
+				chunk_index: 2,
+				bar_start: 4,
+				bar_end: 7,
+				alignments: [],
+				confidence: 0.9,
+				is_reanchored: false,
+			},
+			bar_per_frame: [4, 4, 5, 6, 7],
 		};
-		mockAlignChunkNotes.mockReturnValue(fakeBarMap);
+		mockAlignChunkNotes.mockReturnValue(fakeResult);
 
 		const audioBytes = new Uint8Array(12 * 4);
 		const perfNotes: never[] = [];
@@ -80,7 +83,7 @@ describe("alignChunkNotes", () => {
 			2,
 			0.1,
 		);
-		expect(result).toBe(fakeBarMap);
+		expect(result).toBe(fakeResult);
 	});
 });
 

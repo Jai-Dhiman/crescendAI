@@ -12,10 +12,21 @@
 //! `analyze_timing_tier1` reports the bar-MEAN of `onset_deviation_ms` (+-30ms
 //! rush/drag band), so per-note matching noise averages down by ~sqrt(N) per bar.
 
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 use crate::chroma_dtw::chroma_dtw_native;
 use crate::types::{BarMap, NoteAlignment, PerfNote, ScoreBar};
+
+/// Result of `align_chunk_notes`: the tier-1 `BarMap` plus the `bar_per_frame`
+/// map. Both come from the SAME single chroma pass; `bar_per_frame` is retained
+/// for client cursor following (the `chunk_bar_map` message) that previously
+/// rode on `BarMapChroma`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChunkNoteResult {
+    pub bar_map: BarMap,
+    pub bar_per_frame: Vec<u32>,
+}
 
 /// A score note flattened for matching.
 struct ScoreNoteRef {
@@ -169,7 +180,7 @@ pub fn align_chunk_notes_native(
     band_fwd_frames: u32,
     chunk_index: usize,
     onset_window_s: f64,
-) -> Result<BarMap, String> {
+) -> Result<ChunkNoteResult, String> {
     let chroma = chroma_dtw_native(
         audio_f32,
         n_audio,
@@ -189,13 +200,16 @@ pub fn align_chunk_notes_native(
         chroma.bar_max,
         onset_window_s,
     );
-    Ok(BarMap {
-        chunk_index,
-        bar_start: chroma.bar_min,
-        bar_end: chroma.bar_max,
-        alignments,
-        confidence: (1.0 - chroma.cost as f64).clamp(0.0, 1.0),
-        is_reanchored: false,
+    Ok(ChunkNoteResult {
+        bar_map: BarMap {
+            chunk_index,
+            bar_start: chroma.bar_min,
+            bar_end: chroma.bar_max,
+            alignments,
+            confidence: (1.0 - chroma.cost as f64).clamp(0.0, 1.0),
+            is_reanchored: false,
+        },
+        bar_per_frame: chroma.bar_per_frame,
     })
 }
 

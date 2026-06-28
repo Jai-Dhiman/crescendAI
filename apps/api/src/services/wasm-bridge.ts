@@ -146,6 +146,12 @@ export interface BarMapChroma {
 	bar_per_frame: number[];
 }
 
+/** Result of alignChunkNotes: tier-1 BarMap + bar_per_frame (single chroma pass). */
+export interface ChunkNoteResult {
+	bar_map: BarMap;
+	bar_per_frame: number[];
+}
+
 // --- Bar analysis types ---
 
 export interface DimensionAnalysis {
@@ -281,7 +287,7 @@ export function alignChunkNotes(
 	decimHz: number,
 	chunkIndex: number,
 	onsetWindowS: number,
-): BarMap {
+): ChunkNoteResult {
 	return scoreAnalysisModule.align_chunk_notes(
 		audioChromaBytes,
 		chromaFrames,
@@ -291,7 +297,7 @@ export function alignChunkNotes(
 		decimHz,
 		chunkIndex,
 		onsetWindowS,
-	) as BarMap;
+	) as ChunkNoteResult;
 }
 
 /**

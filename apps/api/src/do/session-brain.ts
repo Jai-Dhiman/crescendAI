@@ -67,8 +67,8 @@ import {
 } from "../services/teacher";
 import type { InlineComponent } from "../services/tool-processor";
 import type {
-	BarMapChroma,
 	ChunkAnalysis,
+	ChunkNoteResult,
 	NoteAlignment,
 	PerfNote,
 	PerfPedalEvent,
@@ -211,6 +211,10 @@ export function nextSynthesisAlarmDelayMs(opts: {
 
 /** MuQ audio chunk length in milliseconds (15s per scored chunk). */
 const MUQ_CHUNK_MS = 15000;
+// Tier-1 note matching tolerance (score-time seconds): how far a warped perf-note
+// onset may sit from a notated score-note onset to count as the same note. Generous
+// because timing here is coarse/directional (the bar-MEAN deviation is what matters).
+const TIER1_ONSET_WINDOW_S = 0.15;
 
 /**
  * Compute session duration from the number of scored chunks rather than
@@ -776,23 +780,29 @@ export class SessionBrain extends DurableObject<Bindings> {
 					: null;
 
 				if (scoreCtx !== null) {
-					// Chroma DTW alignment (replaces note-level alignChunk)
-					const chromaResult: BarMapChroma | null =
+					// Tier-1 producer: chroma-align the chunk AND derive per-note onset/
+					// duration deviations vs the notated score (supersedes the bar-only
+					// alignChunkChroma — one chroma pass yields both alignments and
+					// bar_per_frame for cursor following).
+					const noteResult: ChunkNoteResult | null =
 						chromaBytes !== null && chromaFrameRateHz > 0
 							? (() => {
 									try {
-										return wasm.alignChunkChroma(
+										return wasm.alignChunkNotes(
 											chromaBytes,
 											chromaFrames,
+											perfNotes,
 											scoreCtx.score.bars,
 											chromaFrameRateHz,
 											5.0,
+											index,
+											TIER1_ONSET_WINDOW_S,
 										);
 									} catch (e) {
 										console.log(
 											JSON.stringify({
 												level: "warn",
-												message: "alignChunkChroma failed",
+												message: "alignChunkNotes failed",
 												error: e instanceof Error ? e.message : String(e),
 											}),
 										);
@@ -801,15 +811,36 @@ export class SessionBrain extends DurableObject<Bindings> {
 								})()
 							: null;
 
-					if (chromaResult !== null) {
-						chunkBarRange = [chromaResult.bar_min, chromaResult.bar_max];
+					if (
+						noteResult !== null &&
+						noteResult.bar_map.alignments.length > 0
+					) {
+						// Tier 1: score+reference deviations reach the teacher.
+						const { bar_map } = noteResult;
+						chunkBarRange = [bar_map.bar_start, bar_map.bar_end];
+						barMapAlignments.push(...bar_map.alignments);
+						const analysis1 = wasm.analyzeTier1(
+							bar_map,
+							perfNotes,
+							perfPedal,
+							scoresArray,
+							scoreCtx,
+						);
+						chunkAnalysis = analysis1;
 						chunkAnalysisTier = 1;
-					}
 
-					// Tier 2 analysis (note-level; Tier 1 expression analysis deferred until AMT redeploy)
-					// Only invoke when chroma alignment failed; if chroma succeeded, tier is already
-					// promoted to 1 and bar_range is already set from chromaResult.
-					if (chromaResult === null) {
+						// Bar map for client cursor following (separate message, after
+						// the initial chunk_processed scores send).
+						this.sendWs(ws, {
+							type: "chunk_bar_map",
+							chunk_index: index,
+							bar_min: bar_map.bar_start,
+							bar_max: bar_map.bar_end,
+							bar_per_frame: noteResult.bar_per_frame,
+						});
+					} else {
+						// Alignment failed or matched no notes: fall back to Tier 2
+						// (absolute MIDI), preserving graceful degradation.
 						const analysis2 = wasm.analyzeTier2(
 							perfNotes,
 							perfPedal,
@@ -828,18 +859,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 								chunkBarRange = [parts[0], parts[1]];
 							}
 						}
-					}
-
-					// Send bar map to client for cursor following in a separate message because
-					// chroma alignment runs after the initial chunk_processed scores send.
-					if (chromaResult !== null) {
-						this.sendWs(ws, {
-							type: "chunk_bar_map",
-							chunk_index: index,
-							bar_min: chromaResult.bar_min,
-							bar_max: chromaResult.bar_max,
-							bar_per_frame: chromaResult.bar_per_frame,
-						});
 					}
 				} else {
 					// No score context: Tier 2 (MIDI only)
