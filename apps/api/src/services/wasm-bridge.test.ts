@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 // imports and passes arguments through without rearrangement.
 
 const mockAlignChunkChroma = vi.fn();
+const mockAlignChunkNotes = vi.fn();
 const mockAnalyzeTier1 = vi.fn();
 const mockAnalyzeTier2 = vi.fn();
 const mockSelectTeachingMoment = vi.fn();
@@ -15,6 +16,7 @@ const mockIdentifyPiece = vi.fn();
 
 vi.mock("../wasm/score-analysis/pkg/score_analysis", () => ({
 	align_chunk_chroma: mockAlignChunkChroma,
+	align_chunk_notes: mockAlignChunkNotes,
 	analyze_tier1: mockAnalyzeTier1,
 	analyze_tier2: mockAnalyzeTier2,
 	select_teaching_moment: mockSelectTeachingMoment,
@@ -47,6 +49,38 @@ describe("alignChunkChroma", () => {
 			5.0,
 		);
 		expect(result).toBe(fakeResult);
+	});
+});
+
+describe("alignChunkNotes", () => {
+	it("forwards all eight arguments to align_chunk_notes and returns its result", async () => {
+		const { alignChunkNotes } = await import("./wasm-bridge");
+		const fakeBarMap = {
+			chunk_index: 2,
+			bar_start: 4,
+			bar_end: 7,
+			alignments: [],
+			confidence: 0.9,
+			is_reanchored: false,
+		};
+		mockAlignChunkNotes.mockReturnValue(fakeBarMap);
+
+		const audioBytes = new Uint8Array(12 * 4);
+		const perfNotes: never[] = [];
+		const bars: never[] = [];
+		const result = alignChunkNotes(audioBytes, 1, perfNotes, bars, 50.0, 5.0, 2, 0.1);
+
+		expect(mockAlignChunkNotes).toHaveBeenCalledWith(
+			audioBytes,
+			1,
+			perfNotes,
+			bars,
+			50.0,
+			5.0,
+			2,
+			0.1,
+		);
+		expect(result).toBe(fakeBarMap);
 	});
 });
 

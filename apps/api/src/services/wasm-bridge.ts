@@ -257,6 +257,44 @@ export function alignChunkChroma(
 }
 
 /**
+ * Tier-1 producer: chroma-align a chunk AND emit per-note NoteAlignments.
+ *
+ * Runs chroma DTW once, then matches AMT performance notes to score notes via
+ * the frame-level warp and returns a full BarMap (with onset_deviation_ms per
+ * note) ready for analyzeTier1. Supersedes alignChunkChroma on the tier-1 path.
+ *
+ * @param audioChromaBytes raw LE float32, row-major 12 x chromaFrames
+ * @param chromaFrames number of audio chroma frames
+ * @param perfNotes AMT performance notes (onset/offset in chunk-relative seconds)
+ * @param scoreBars score bars (must cover the aligned range)
+ * @param frameRateHz audio chroma frame rate (typically 50)
+ * @param decimHz bar_per_frame output rate (typically 5)
+ * @param chunkIndex chunk index recorded on the BarMap
+ * @param onsetWindowS score-time matching tolerance in seconds
+ */
+export function alignChunkNotes(
+	audioChromaBytes: Uint8Array,
+	chromaFrames: number,
+	perfNotes: PerfNote[],
+	scoreBars: ScoreBar[],
+	frameRateHz: number,
+	decimHz: number,
+	chunkIndex: number,
+	onsetWindowS: number,
+): BarMap {
+	return scoreAnalysisModule.align_chunk_notes(
+		audioChromaBytes,
+		chromaFrames,
+		perfNotes,
+		scoreBars,
+		frameRateHz,
+		decimHz,
+		chunkIndex,
+		onsetWindowS,
+	) as BarMap;
+}
+
+/**
  * Tier 1 bar-aligned analysis: full analysis with score and reference comparison.
  *
  * @param barMap BarMap from a prior alignChunk call
