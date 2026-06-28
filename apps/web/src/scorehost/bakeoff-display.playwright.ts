@@ -16,7 +16,7 @@ const SAMPLE = process.env.BAKEOFF_SAMPLE ?? "";
 const SHOTS = process.env.SHOTS_DIR ?? "";
 const haveData = SAMPLE !== "" && fs.existsSync(SAMPLE);
 
-interface Row { pid: string; file: string; label: string }
+interface Row { pid: string; file: string; label: string; hl?: number }
 const sample: Row[] = haveData ? JSON.parse(fs.readFileSync(SAMPLE, "utf8")) : [];
 const byPid = new Map(sample.map((r) => [r.pid, r]));
 
@@ -43,7 +43,8 @@ test("BAKEOFF: candidate engravings render in real scorehost Verovio worker", as
     try {
       const loaded = await page.evaluate(async (id) => await (window as any).ScoreHost.load(id), row.pid);
       rec.loaded = JSON.stringify(loaded);
-      const artifact = JSON.stringify({ type: "score_highlight", config: { pieceId: row.pid, highlights: [] } });
+      const highlights = row.hl ? [{ bars: [row.hl, row.hl] }] : [];
+      const artifact = JSON.stringify({ type: "score_highlight", config: { pieceId: row.pid, highlights } });
       await page.evaluate(async (j) => { await (window as any).ScoreHost.showArtifact(j); }, artifact);
       await page.waitForSelector("#scorehost-container svg", { timeout: 25000 });
       const stats = await page.evaluate(() => {
