@@ -157,7 +157,14 @@ def main() -> None:
     ap.add_argument("--scores-dir", type=str, default=str(_SCORES_DIR))
     ap.add_argument("--catalog-cache", type=str, default="")
     ap.add_argument("--label-cache", type=str, default="")
-    ap.add_argument("--note-cap", type=int, default=600)
+    ap.add_argument("--note-cap", type=int, default=600,
+                    help="QUERY cap (the live note-buffer length); also the label-cache "
+                         "key, so ground truth stays frozen across catalog-cap changes")
+    ap.add_argument("--catalog-note-cap", type=int, default=-1,
+                    help="CATALOG piece length: -1 = same as --note-cap (legacy); 0 = "
+                         "UNCAPPED full pieces (matches production build_piece_index, which "
+                         "fingerprints the whole piece -- the production-faithful re-tune "
+                         "for window sizing); N = cap at N notes.")
     ap.add_argument("--limit-works", type=int, default=0,
                     help="cap works for a faster (noisier) loop; 0 = all 242")
     ap.add_argument("--works-split", choices=["train", "test", "all"], default="all",
@@ -168,9 +175,19 @@ def main() -> None:
 
     t0 = time.time()
     _log(f"levers: {X.levers()}")
-    catalog = load_catalog(Path(args.scores_dir), args.note_cap,
+    # CATALOG cap is decoupled from the QUERY cap: -1 => same as query (legacy);
+    # 0 => uncapped full pieces (production-faithful). Labels stay keyed by the
+    # QUERY note_cap below, so ground truth is frozen across catalog-cap changes
+    # (piece identity is cap-independent).
+    if args.catalog_note_cap < 0:
+        cat_cap = args.note_cap
+    elif args.catalog_note_cap == 0:
+        cat_cap = None
+    else:
+        cat_cap = args.catalog_note_cap
+    catalog = load_catalog(Path(args.scores_dir), cat_cap,
                            args.catalog_cache or None, exclude=None)
-    _log(f"  catalog: {len(catalog)} pieces  [{time.time()-t0:.1f}s]")
+    _log(f"  catalog: {len(catalog)} pieces (cap={cat_cap})  [{time.time()-t0:.1f}s]")
 
     labels = load_or_build_labels(catalog, args.note_cap, args.scores_dir,
                                   args.label_cache or None)

@@ -76,6 +76,17 @@ def _env_opt_float(name: str, default: float | None) -> float | None:
 # held-out mid-piece recognition from 36.6% to 67.1% while genuine open-set
 # false-accepts DROP (test 4.9%->2.4%). See the port proposal; defaults below are
 # the proposed production operating point (NOT yet ported to Rust/WASM).
+#
+# PRODUCTION-FAITHFUL CAVEAT (full-piece re-tune, #96): the numbers above are on a
+# catalog CAPPED at each piece's first 600 notes. Production build_piece_index
+# fingerprints the FULL piece (no cap), and on full pieces the whole-piece chroma
+# recall COLLAPSES (opening recog 80%->44%). The hybrid is still the right fix and
+# recovers it (->62% at WINDOWED_K=40), and BEATS pure-windowed, but (a) full pieces
+# need a much larger WINDOWED_K (~40, i.e. ~60 gate alignments => latency), and
+# (b) recognition CEILINGS ~62% (a 12-dim-chroma information limit, not a bug). The
+# exact (WINDOW_NOTES, WINDOWED_K) is a latency-vs-recall owner tradeoff; defaults
+# below stay at the capped-eval win as the documented starting point. Higher
+# recognition needs richer window features / a learned shortlist (a bigger call).
 SHORTLIST_MODE: str = _env_str("SHORTLIST_MODE", "hybrid")  # "whole_piece" | "windowed" | "hybrid"
 WINDOW_NOTES: int = _env_int("WINDOW_NOTES", 400)
 WINDOW_HOP: int = _env_int("WINDOW_HOP", 200)
