@@ -618,8 +618,8 @@ different stage, and knowing *which* stage is the contribution.
 | **dynamics — LEVEL** | yes (mean velocity) | PASS (flip 0.90) | **PASS** (ρ 0.54) | **survives** (AMT≈GT 0.965) | **~0 in-scope** (front 5) | validated stat, **no rate** — supply gap |
 | **dynamics — CONTRAST** | no (swept) | — | **FAIL** (≤0.26, front 6) | — | 90% of claims | **no validatable stat** — validity gap |
 | **pedaling** | yes (CC64 on-frac) | PASS under-pedal | PASS on MIDI (0.48) | **FAILS** (AMT 0.18, front 4) | moderate | **substrate-blocked**; coarse under-pedal only |
-| **timing** | yes (IOI-CV) | FAIL | marginal (0.25, < ceiling) | degenerate @whole_piece | n/a | **degenerate** — needs beat-tracker or scope-out |
-| **articulation** | **no** (`gated_on_measurement`) | — | never tested | — | — | **unbuilt**; candidate = note-overlap/legato ratio |
+| **timing** | yes (IOI-CV) | FAIL | marginal (0.25, < ceiling) | perceptual stat degenerate; **onset substrate clean** (AMT−GT 4.2ms ≪ 30ms, #64) | n/a | **degenerate for perception**; onset substrate-viable for the score-relative #64 path |
+| **articulation** | **no** (`gated_on_measurement`) | — | never tested | **AMT dur ✓ bar-mean** (clip-mean ρ0.925; per-note 0.57, #64) | — | perception unbuilt; **duration substrate-viable** (WASM perf/score ratio, #64) |
 | **timbre** (4 PercePiano dims) | **no** (`scoped_out`) | — | never tested | — | — | **unexamined**; needs SPECTRAL features, not velocity/MIDI |
 | **phrasing** | **no** (`scoped_out`) | — | never tested | — | — | **unexamined**; structural, likely hardest |
 | **interpretation** (+sophistication) | **no** (`scoped_out`) | — | never tested | — | — | **unexamined**; most holistic/subjective |
@@ -651,8 +651,17 @@ notated velocity + crescendo shape, onset deviation (rush/drag), perf/score dura
 pedal on-fraction, all "within/outside reference range". It needs NO perception labels and the neural
 `model_score` is decorative. This sidesteps the perceptual-validity bottleneck entirely: the relevant test
 becomes **AMT-fidelity** (does the AMT measure recover the ground-truth-MIDI measure? — velocity ✓0.97,
-pedal ✗0.39, onset/offset UNTESTED), not perceptual correlation. The tier-1 (score+reference) path is built
-but unwired in prod (#64). See `docs/model/04-north-star.md` → "Two grounding philosophies" for the full
+pedal ✗0.39, **onset ✓ and offset/duration ✓** as of 2026-06-27, #64), not perceptual correlation. The
+onset/duration map (`model/src/claim_measurement/amt_fidelity/`, n=15 PercePiano fluidsynth→aria-amt renders,
+median note recall 0.995): **onset noise 4.2ms** (std of AMT−GT onset; bias +2.4ms is a removable constant)
+vs the ±30ms rush/drag band — a **~6× margin, so timing is substrate-viable**; **note duration recovers at
+clip-mean-dur ρ 0.925** — the bar-mean statistic `analyze_articulation_tier1` actually consumes, cf velocity
+0.965 — with per-note ρ 0.57 (fine-grained per-note legato/staccato is noisier; one 3.2× outlier clip), so
+**articulation is substrate-viable at the bar-aggregate level the engine uses**. Critically, neither the AMT
+onset nor the offset head behaves like the saturating pedal head (0.39); the untested-offset risk does not
+materialize. Caveat: n=15 (a 40-clip run was cut short by a full disk); a confirmatory N≥40 run would tighten
+the 0.925 but is unlikely to move the verdict. The tier-1 (score+reference) path is built but unwired in prod
+(#64). See `docs/model/04-north-star.md` → "Two grounding philosophies" for the full
 strategic framing and the "no neural encoder" possibility.
 
 ---
