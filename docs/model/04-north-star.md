@@ -61,9 +61,14 @@ the tier-1 grounding chain is severed (no AMT endpoint, `analyzeTier1` never cal
 always `[]`). That work is tracked in **#64**. The remaining *measurement* question flips from "does it
 correlate with perception?" to **"does the AMT-transcribed measure faithfully recover the ground-truth-MIDI
 measure?"** — a substrate-fidelity test (the test that passed dynamics velocity at 0.965 and killed
-pedaling at 0.39). Build the **per-dimension AMT-fidelity map** (velocity ✓0.97, pedal ✗0.39, onset ?,
-offset/duration ?) — onset and offset/duration are untested and gate whether timing and articulation are
-substrate-viable. That single cheap measurement is the highest-information next step.
+pedaling at 0.39). The **per-dimension AMT-fidelity map** is now built and run
+(`model/src/claim_measurement/amt_fidelity/`, 2026-06-27, #64): velocity ✓0.97, pedal ✗0.39, **onset ✓**
+(AMT−GT noise 4.2ms ≪ the ±30ms rush/drag band → timing substrate-viable), **offset/duration ✓** at the
+bar-mean level the engine consumes (clip-mean-dur ρ0.925, cf velocity 0.965; per-note ρ0.57 noisier →
+articulation substrate-viable at bar aggregate). Both previously-untested cells resolve POSITIVE and
+neither saturates like the pedal head, so **timing and articulation are cleared to be wired in tier-1** —
+the gate is now integration (#64), not substrate fidelity. (n=15 PercePiano renders; a confirmatory N≥40
+would tighten the numbers without changing the verdict.)
 
 ---
 

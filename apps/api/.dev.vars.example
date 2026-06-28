@@ -1,0 +1,9 @@
+# Copy to `.dev.vars` (gitignored) for local `wrangler dev`.
+#
+# AMT_ENDPOINT wires the worker to a local Aria-AMT transcription server so live
+# practice chunks produce performance MIDI and the tier-1 score-relative grounding
+# path runs (per-bar onset/duration deviations vs the notated score, #64). Start
+# the server with `just amt` (listens on port 8001). Without this, AMT calls fail
+# and sessions degrade to Tier 3 (scores only). Production keeps AMT_ENDPOINT=""
+# in wrangler.toml until a deliberate deploy.
+AMT_ENDPOINT="http://localhost:8001"

@@ -6,6 +6,7 @@ use wasm_bindgen::prelude::*;
 mod bar_analysis;
 mod chroma_dtw;
 mod dims;
+mod note_align;
 mod teaching_moments;
 pub mod types;
 
