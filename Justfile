@@ -560,3 +560,10 @@ exercise-routing-ratchet:
 # Use --reply-timeout 180000 on a cold Workers AI stack (glm cold-start >90s).
 e2e-full-session *args:
     cd apps/evals && uv run python e2e_full_session.py --reply-timeout 180000 {{args}}
+
+# Disaster-recovery: regenerate per-piece score JSONs from the fingerprint
+# (piece_index.json = authoritative piece set) + staging source MIDIs, via
+# parse_score_midi. Covers ~92% (giantmidi/pdmx/mutopia with a clean piece_id<->
+# MIDI map); kern-family pieces recover from R2 or their ingest recipes. Resumable.
+regen-scores fingerprint jobs="8":
+    cd model && uv run python -m score_library.regen_scores --fingerprint {{ fingerprint }} --jobs {{ jobs }}
