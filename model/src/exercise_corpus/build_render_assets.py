@@ -220,7 +220,8 @@ def build(
     dimensions + key come from ``technique_tags.toml``; bars from the engraved asset.
 
     If ``manifest_path`` is provided, writes the JSON manifest the API routes over
-    (``{id: {dimensions, key, totalBars}}``). Default None => no write.
+    (``{id: {dimensions, techniques, key, totalBars, title, source}}``). Default
+    None => no write.
 
     Raises:
         FileNotFoundError: if the embed manifest, a referenced MIDI, or the etude
@@ -276,10 +277,17 @@ def build(
 
         produced.append(asset)
         entry = tags[primitive_id]
+        # title + source come from the embed manifest (provenance); techniques +
+        # dimensions + key from technique_tags.toml (the editorial layer). title
+        # and techniques are what the relevance judge + cosine ranker read to know
+        # WHICH drill was picked, so they must be propagated, not just dimensions.
         manifest[primitive_id] = {
             "dimensions": entry["dimensions"],
+            "techniques": entry["techniques"],
             "key": entry["key"],
             "totalBars": bars,
+            "title": prim["title"],
+            "source": prim["source"],
         }
 
     if manifest_path is not None:

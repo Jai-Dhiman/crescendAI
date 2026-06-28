@@ -19,6 +19,9 @@ PRACTICE_EVAL_ROOT = REPO_ROOT / "model" / "data" / "evals" / "practice_eval"
 RESULTS_DIR = Path(__file__).parents[2] / "results" / "exercise_routing"
 BASELINE_PATH = RESULTS_DIR / "baseline.json"
 LAST_RUN_PATH = RESULTS_DIR / "last_run.json"
+MANIFEST_PATH = (
+    REPO_ROOT / "apps" / "api" / "src" / "services" / "exercise_primitives_manifest.json"
+)
 
 
 def build_manifest() -> list[dict]:
@@ -84,6 +87,53 @@ def _check_baselines(axis_scores, baseline: dict) -> list[str]:
     return failures
 
 
+def run_relevance(captures: list, judge_provider: str, judge_model: str | None):
+    """Judge selector relevance@1 over every invoked session.
+
+    For each capture with a dominant weakness, ask the judge whether the drill the
+    deterministic selector would pick is pedagogically appropriate. This is the
+    selector-quality signal that cosine selection (Goal B) moves. The judge is a
+    different model family from the V6 teacher (glm) per the same-family rule.
+
+    Returns the RelevanceAggregate; raises if the judge client cannot be built
+    (missing gateway creds) -- fail loud rather than silently skip the metric.
+    """
+    from pipeline.exercise_routing.relevance import aggregate_relevance, judge_relevance
+    from pipeline.exercise_routing.selection import build_selector_case
+
+    manifest = json.loads(MANIFEST_PATH.read_text())
+    cases = [build_selector_case(c, manifest) for c in captures]
+    cases = [c for c in cases if c is not None]
+
+    if not cases:
+        print("  [relevance] no judgeable sessions (no dominant dimensions)")
+        from pipeline.exercise_routing.relevance import RelevanceAggregate
+        return RelevanceAggregate(relevance_at_1=0.0, mean_score=0.0, n_judged=0)
+
+    # workers-ai goes through the authenticated `crescendai` gateway (the product
+    # path); other providers reuse the shared LLMClient.
+    if judge_provider == "workers-ai":
+        from pipeline.exercise_routing.gateway_judge import WorkersAiGatewayJudge
+        client = WorkersAiGatewayJudge(model=judge_model)
+    else:
+        from teaching_knowledge.llm_client import LLMClient
+        client = LLMClient(provider=judge_provider, model=judge_model, tier="judge")
+    print(
+        f"  [relevance] judging {len(cases)} selector choices "
+        f"via {judge_provider}/{client.model} ..."
+    )
+    verdicts = []
+    for i, case in enumerate(cases, 1):
+        verdict = judge_relevance(case, client)
+        verdicts.append(verdict)
+        flag = "OK" if verdict.appropriate else "OFF"
+        print(
+            f"    [{i}/{len(cases)}] {case.weakness_dimension} -> "
+            f"{case.drill.primitive_id} score={verdict.score} {flag}"
+        )
+    return aggregate_relevance(verdicts)
+
+
 def run_skip_inference(baseline: dict) -> int:
     """Validate wiring without services: score.py imports, baseline has all axes."""
     from pipeline.exercise_routing.score import score_session, aggregate, SessionCapture, AxisScores
@@ -104,11 +154,39 @@ def run_skip_inference(baseline: dict) -> int:
 
     print("  score.py: OK")
     print("  baseline.json: OK")
+
+    # Validate the relevance pipeline wiring with a fake client (no network):
+    # selector-case build off the real manifest + judge parse path.
+    from pipeline.exercise_routing.relevance import RelevanceCase, DrillInfo, judge_relevance
+    from pipeline.exercise_routing.selection import select_primitive
+
+    real_manifest = json.loads(MANIFEST_PATH.read_text())
+    pid, _ = select_primitive({"target_dimension": "timing"}, real_manifest)
+
+    class _FakeJudge:
+        def complete(self, *, user, system, max_tokens):
+            return '{"score": 3, "rationale": "smoke"}'
+
+    entry = real_manifest[pid]
+    case = RelevanceCase(
+        weakness_dimension="timing", weakness_context="smoke", bar_range=(1, 2),
+        drill=DrillInfo(pid, entry["title"], entry["source"],
+                        entry["dimensions"], entry["techniques"]),
+    )
+    assert judge_relevance(case, _FakeJudge()).score == 3
+    print("  relevance pipeline: OK")
     print("[exercise-routing-eval] smoke PASSED")
     return 0
 
 
-def run_full(baseline: dict, wrangler_url: str) -> int:
+def run_full(
+    baseline: dict,
+    wrangler_url: str,
+    skip_relevance: bool = False,
+    judge_provider: str = "workers-ai",
+    judge_model: str | None = None,
+    allow_degraded_piece_id: bool = False,
+) -> int:
     """Run full eval: drive all recordings, score, write last_run.json, diff baseline."""
     from shared.local_session import drive, check_services
     from pipeline.exercise_routing.score import score_session, aggregate, SessionScore
@@ -121,12 +199,14 @@ def run_full(baseline: dict, wrangler_url: str) -> int:
     print(f"  manifest: {len(manifest)} recordings")
 
     session_scores = []
+    captures = []
     for entry in manifest:
         recording: Path = entry["recording"]
         piece_slug: str = entry["piece_slug"]
         print(f"  driving {recording.name} ({piece_slug}) ...", end=" ", flush=True)
         try:
             capture = drive(recording=recording, piece_slug=piece_slug, wrangler_url=wrangler_url)
+            captures.append(capture)
             score = score_session(capture)
             session_scores.append(score)
             status = "invoked" if score.invoked else "null"
@@ -147,7 +227,19 @@ def run_full(baseline: dict, wrangler_url: str) -> int:
             print(f"ERROR: {exc}")
             print(f"  [error count so far: {sum(1 for s in session_scores if s.error is not None)}]")
 
-    _check_no_universal_piece_id_failure(session_scores)
+    if allow_degraded_piece_id:
+        # AMT unavailable (e.g. local container can't run): chunk_ready degrades to
+        # Tier 3, so every session is corpus_drill with piece_resolved=False. That
+        # is exactly the universal-piece-id signature, but here it is expected, not
+        # a missing seed-fingerprint. The selector-relevance metric is unaffected
+        # (it keys on MuQ's dominant_dimension); only the piece-ID/kind/bar axes
+        # degrade. Warn instead of aborting.
+        print(
+            "  [warn] --allow-degraded-piece-id: skipping universal-piece-id guard; "
+            "piece-ID/kind/bar axes are degenerate (AMT-down proxy), relevance is real"
+        )
+    else:
+        _check_no_universal_piece_id_failure(session_scores)
 
     axis_scores = aggregate(session_scores)
 
@@ -171,6 +263,12 @@ def run_full(baseline: dict, wrangler_url: str) -> int:
         "tempo_weak_prior_flag_count": axis_scores.tempo_weak_prior_flag_count,
     }
 
+    if not skip_relevance:
+        rel = run_relevance(captures, judge_provider, judge_model)
+        last_run["selector_relevance_at_1"] = round(rel.relevance_at_1, 4)
+        last_run["selector_relevance_mean_score"] = round(rel.mean_score, 4)
+        last_run["selector_relevance_n"] = rel.n_judged
+
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     LAST_RUN_PATH.write_text(json.dumps(last_run, indent=2))
     print(f"\n[exercise-routing-eval] last_run.json written to {LAST_RUN_PATH}")
@@ -180,6 +278,21 @@ def run_full(baseline: dict, wrangler_url: str) -> int:
         print(f"  {k}: {v}")
 
     failures = _check_baselines(axis_scores, baseline)
+
+    # Relevance floor: only enforced when a floor is committed AND cases were judged.
+    rel_floor = baseline.get("selector_relevance_at_1_floor")
+    if (
+        not skip_relevance
+        and rel_floor is not None
+        and last_run.get("selector_relevance_n", 0) > 0
+    ):
+        rel_value = last_run["selector_relevance_at_1"]
+        if rel_value < rel_floor:
+            failures.append(
+                f"  selector_relevance_at_1: {rel_value:.3f} < floor {rel_floor:.3f} "
+                f"(n={last_run['selector_relevance_n']})"
+            )
+
     if failures:
         print("\nFAIL: axes below baseline floors:")
         for f in failures:
@@ -196,6 +309,15 @@ def main() -> int:
                         help="Smoke mode: validate wiring without live services (CI-safe)")
     parser.add_argument("--wrangler-url", default="http://localhost:8787",
                         help="API base URL (default: http://localhost:8787)")
+    parser.add_argument("--skip-relevance", action="store_true",
+                        help="Skip the LLM-judge relevance@1 pass (stats axes only)")
+    parser.add_argument("--judge-provider", default="workers-ai",
+                        help="Relevance judge provider (workers-ai|anthropic|openrouter)")
+    parser.add_argument("--judge-model", default=None,
+                        help="Override the judge model id (defaults to provider's judge tier)")
+    parser.add_argument("--allow-degraded-piece-id", action="store_true",
+                        help="Permit all-corpus_drill/piece_resolved=False runs (AMT down). "
+                             "Relevance stays real; piece-ID/kind/bar axes degenerate.")
     args = parser.parse_args()
 
     if not BASELINE_PATH.exists():
@@ -207,7 +329,14 @@ def main() -> int:
 
     if args.skip_inference:
         return run_skip_inference(baseline)
-    return run_full(baseline, args.wrangler_url)
+    return run_full(
+        baseline,
+        args.wrangler_url,
+        skip_relevance=args.skip_relevance,
+        judge_provider=args.judge_provider,
+        judge_model=args.judge_model,
+        allow_degraded_piece_id=args.allow_degraded_piece_id,
+    )
 
 
 if __name__ == "__main__":

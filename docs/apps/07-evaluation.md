@@ -370,7 +370,7 @@ Target: > 70% rated HIGH or MEDIUM.
 
 **Shipped:** Issue #48, merge `095fd143`. Supersedes the old `create_exercise` prose-judge framing.
 
-The exercise-routing eval measures deterministic structural correctness of the teacher's `ExerciseRoutingDecision` output (the discriminated union shipped in issue #29: `own_passage_loop | corpus_drill`). It drives real local `chunk_ready` inference end-to-end — no mocks, no LLM judge.
+The exercise-routing eval measures the teacher's `ExerciseRoutingDecision` output (the discriminated union shipped in issue #29: `own_passage_loop | corpus_drill`). It drives real local `chunk_ready` inference end-to-end — no mocks. The 5 original axes are deterministic/stats-only; issue #103 added a 6th **LLM-judge relevance axis** (below).
 
 ### Axes (5 deterministic, stats-only)
 
@@ -381,6 +381,12 @@ The exercise-routing eval measures deterministic structural correctness of the t
 | `dimension_match` | `dominant_dimension` matches a known 6-dim quality axis | ≥ 0.8 |
 | `bar_range_grounding` | `bar_range` is present and non-empty when kind is `own_passage_loop` | ≥ 0.6 |
 | `tempo_sanity` | `tempo_factor` in [0.5, 1.0] when present | ≥ 0.9 |
+
+### Relevance@1 axis (LLM-judge, added #103)
+
+The 5 stats axes verify the teacher targeted the right *dimension* but are blind to WHICH drill the serving layer then picks within that dimension — `selectPrimitive` returns a constant per dimension, so a finger warm-up can be prescribed for a pedaling weakness and `dimension_match` still passes. `selector_relevance_at_1` closes that gap: for every invoked session, an LLM judge (`relevance.py`, via the authenticated `crescendai` AI Gateway — `gateway_judge.py`, a family different from the glm teacher) rates 0-3 whether the drill the selector would pick for the dominant weakness is pedagogically appropriate, given the drill's `title`+`techniques`; the axis is the fraction scoring ≥2. It is computed counterfactually over the dominant weakness (`build_selector_case`) so it is powered even when most routes are `own_passage_loop`. This is the metric that decides whether cosine selection (`cosine-select.ts`) beats the deterministic baseline.
+
+**Status (2026-06-28):** the metric and judge are wired and validated against the real judge (`pedaling → chopin_001` = 3, `timing → chopin_etude_001` = 0), but no relevance floor is locked yet — the baseline run is gated on local disk (R2 chunk persistence) and AMT availability. Run `just exercise-routing-eval` (optionally `--allow-degraded-piece-id` when AMT is down) to lock it; until then the floor is absent and the axis is reported, not gated.
 
 ### Committed baseline
 
@@ -396,7 +402,7 @@ The exercise-routing eval measures deterministic structural correctness of the t
 
 ### Data and methodology
 
-Replays `practice_eval` audio through the real local API (`chunk_ready` WebSocket path) — same path production hits. Captures `prescribed_exercise` from the `OnSessionEnd` artifact. No LLM judge; all axes are computed from the structured JSON output of `ExerciseRoutingDecision`.
+Replays `practice_eval` audio through the real local API (`chunk_ready` WebSocket path) — same path production hits. Captures `prescribed_exercise` from the `OnSessionEnd` artifact. The 5 structural axes are computed from the JSON output of `ExerciseRoutingDecision`; the relevance@1 axis (#103) adds an LLM-judge pass over the selected drill's metadata.
 
 ### Ideal eval (future)
 
