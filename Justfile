@@ -203,8 +203,21 @@ render-kern-mei:
 render-mutopia-svg:
     cd model && uv run python -m score_library.mutopia_lilypond_svg
 
-# Re-bar every score JSON that has a paired engraved .mei so its bar grid matches
-# the displayed measures (total_bars == Verovio measure count). Notes are preserved
+# Render recognize-only MIDI-source catalog pieces (GiantMIDI performance MIDI,
+# PDMX score MIDI -- no clean MEI path) to INTERACTIVE .mxl via MuseScore 4
+# headless. Output: scores/v1/<pid>.mxl, the Verovio-loadable tier (per-bar
+# highlight + clip playback), preferred over a static SVG. Engine + -M import-
+# quantization config were locked by a real-scorehost bake-off (issue #97).
+# `source` is giantmidi|pdmx; `jobs` parallel MuseScore workers. Resumable
+# (skips pieces that already have a display asset; .skip sentinel for crashers).
+# Requires MuseScore 4.app + the source MIDIs in ~/crescendai_corpus_staging.
+# After rendering, run `just rebar-scores` then re-verify highlighting.
+render-midi-mxl source jobs="6":
+    cd model && uv run python -m score_library.midi_render --source {{ source }} --jobs {{ jobs }}
+
+# Re-bar every score JSON that has a paired engraved .mei OR .mxl so its bar grid
+# matches the displayed measures (total_bars == Verovio measure count, PPQ derived
+# per-piece from the JSON: kern=120, GiantMIDI=384, PDMX=480). Notes are preserved
 # exactly, so the piece-ID fingerprint is unchanged. Fixes live score-highlighting
 # alignment for repeat-heavy / mis-segmented pieces (~210/618 had a drifted grid).
 # Re-run `just fingerprint` is NOT required (note set unchanged) but harmless.
