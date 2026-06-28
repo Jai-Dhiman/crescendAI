@@ -8,7 +8,7 @@
 # Stage 1: builder -- exports ONNX encoder from safetensors checkpoint
 FROM python:3.11-slim AS builder
 
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends git libgomp1 && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir uv
 
@@ -18,7 +18,7 @@ RUN uv pip install --system --no-cache \
     torch
 
 RUN uv pip install --system --no-cache \
-    aria-amt \
+    "aria-amt @ git+https://github.com/EleutherAI/aria-amt.git" \
     safetensors \
     onnx \
     onnxruntime \
@@ -42,7 +42,7 @@ RUN python scripts/export_onnx.py \
 # Stage 2: runtime -- PyTorch CPU (decoder) + ONNX RT (encoder) + ffmpeg
 FROM python:3.11-slim AS runtime
 
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libgomp1 && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir uv
 
