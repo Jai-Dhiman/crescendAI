@@ -427,6 +427,39 @@ mod tests {
     }
 
     #[test]
+    fn align_chunk_notes_native_produces_alignments_from_real_chroma() {
+        // Real producer seam: chroma DTW + note alignment composed end-to-end (no
+        // mocks). Score is C4@0.0 then E4@0.5; the audio chroma is pitch-class C
+        // for the first half and E for the second -- so the DTW must align it and
+        // the aligner must recover both notes.
+        let score = vec![sbar(1, 0.0, vec![snote(60, 0.0), snote(64, 0.5)])];
+        let n_audio: usize = 60; // 1.2s at 50Hz
+        let frame_rate = 50.0_f32;
+        let mut chroma = vec![0.0_f32; 12 * n_audio];
+        for f in 0..n_audio {
+            let pc = if f < n_audio / 2 { 0 } else { 4 }; // C then E
+            chroma[pc * n_audio + f] = 1.0;
+        }
+        let perf = vec![pnote(60, 0.0), pnote(64, 0.6)];
+        let res = align_chunk_notes_native(
+            &chroma, n_audio as u32, &perf, &score, frame_rate, 5.0, -1, 0, 0, 0, 0.3,
+        )
+        .expect("producer should run end-to-end on real chroma");
+        assert!(!res.bar_per_frame.is_empty(), "bar_per_frame populated");
+        assert!(
+            !res.bar_map.alignments.is_empty(),
+            "real chroma path should yield at least one alignment"
+        );
+        assert!(
+            res.bar_map
+                .alignments
+                .iter()
+                .all(|a| a.perf_pitch == a.score_pitch),
+            "matched notes must share pitch"
+        );
+    }
+
+    #[test]
     fn affine_fit_recovers_slope_and_intercept() {
         // perf = 2*score + 1 exactly -> slope 2, intercept 1.
         let pairs = vec![(0.0, 1.0), (1.0, 3.0), (2.0, 5.0), (3.0, 7.0)];
