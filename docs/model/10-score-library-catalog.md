@@ -150,6 +150,21 @@ the bottleneck** — removing 0.65% of the catalog (exact twins) jumped recognit
 is the input for a deferred cleanliness pass. Full history in memory
 `project_piece_id_amt_stage0` + Issue #96.
 
+> **CORRECTION (2026-06-28, #96): the 94.0% is a CAPPED-CATALOG ARTIFACT.** That
+> verification capped the catalog at each piece's first 600 notes, but production
+> `fingerprint.build_piece_index` fingerprints the **full** piece. On full
+> fingerprints whole-piece chroma recall collapses (opening 80%→44%), so **real
+> shipped recall is ~44–62%, not 94%** (production queries the live ~1,200-note
+> buffer ≈ mid-piece → ~50–60% honest expectation). Fix SHIPPED to branch
+> `issue-96-autoresearch` (UNMERGED, deploy-gated): an **additive hybrid shortlist**
+> (whole-piece top-20 ∪ windowed top-K, 400-note windows) — recall-only, the
+> certified gate + golden parity fixture untouched (`cargo test` 28/0). Recovers
+> full-piece opening to ~57–62% but **ceilings ~62%** (12-dim-chroma limit; breaking
+> it = richer window features or a learned shortlist, deferred). `build_piece_index`
+> now also emits per-piece `windows`; **re-run `just fingerprint` + `just
+> seed-fingerprint` before the next deploy** so the prod artifact carries them. Any
+> future piece-ID eval MUST uncap the catalog (`--catalog-note-cap 0`).
+
 ## Catalog vs. eval set — two different things
 
 Do not conflate them:

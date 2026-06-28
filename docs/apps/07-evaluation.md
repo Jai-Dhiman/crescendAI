@@ -198,6 +198,18 @@ sweep, and splits by source (engraved vs GiantMIDI/PDMX AMT) and composer-neighb
 recall@5 94.8%, true different-piece open-set FA **~0.5%** (vs the <10% FPR target). Margin
 threshold re-tuned 0.0935 → 0.13.
 
+> **CORRECTION (2026-06-28, #96) — the 94.0% is a CAPPED-CATALOG ARTIFACT, not production
+> recall.** This harness (and `pieceid_comprehensive_eval.py` below) caps the catalog at each
+> piece's first 600 notes (`build_catalog`→`load_score_notes[:600]`), but production
+> `fingerprint.build_piece_index` fingerprints the **full** piece. The 600-cap accidentally makes
+> the catalog chroma ≈ the opening-600 chroma, which matches an opening query — so the eval is
+> systematically optimistic. On production-faithful **full** pieces, whole-piece chroma recall
+> COLLAPSES: opening recognition **80%→44%**, mid-halfway **54%→32%** (uncapped 11,037-catalog,
+> train split). **Real shipped piece-ID recall is ~44–62%, not 94%.** Production queries the live
+> ~1,200-note buffer (usually mid-piece), so **~50–60% is the honest real-world expectation.**
+> Every future piece-ID eval MUST uncap the catalog (`--catalog-note-cap 0`, added to
+> `pieceid_autoresearch_eval.py`) or it re-inflates recall. See the autoresearch result below.
+
 ### Comprehensive edge-case eval + autoresearch harness (#96, 2026-06-27)
 
 `model/src/score_library/pieceid_comprehensive_eval.py` (`just catalog-pieceid-comprehensive-eval`)
@@ -228,6 +240,32 @@ mid-piece recognition while penalizing genuine FAs above 5% (the anti-gaming gua
 reproduces this eval exactly (0.65496); ground-truth labels are frozen at the baseline gate (a
 leakage guard). A winning lever is a **proposal to port** to the Rust/WASM gate, never an automatic
 production change. The `/autoresearch` Goal/Scope/Metric/Verify/Guard config is a #96 handoff comment.
+
+**Autoresearch RESULT (#96, 2026-06-28) — hybrid shortlist (SHIPPED to branch, deploy-gated).**
+The winning lever is an **additive hybrid shortlist**: whole-piece chroma top-20 **∪** windowed
+chroma top-K (400-note windows, hop 200), feeding the **unchanged** elastic-DTW margin gate.
+- *Capped eval (the as-given harness):* held-out mid-piece recognition **36.6%→67.1%**, open-set
+  FA down (test 4.9%→2.4%, CI upper 0.058→0.037 — restores certification), lock-flip 7.8%→4.9%,
+  no axis regresses, `cargo test` parity 26/0.
+- *Production-faithful (uncapped) re-tune:* whole-piece recall collapses (see CORRECTION above);
+  the hybrid is the **fix** and recovers it (full-piece opening 44%→~57–62%, beats pure-windowed,
+  generalizes train↔test) but **ceilings ~62%** — a 12-dim-chroma information limit, not a bug.
+- *Ported* (recall-only, additive, behind the parity test): `types.rs` `windows` field
+  (serde-default, back-compat), `chroma.rs` `windowed_top_k`, `identify.rs` union shortlist into
+  the unchanged `margin_gate`; `fingerprint.build_piece_index` emits per-piece windows.
+  `cargo test` **28/0** (3 parity + 2 new hybrid tests); fingerprint pytest 4/0; gate.rs /
+  parity_test.rs / parity_fixtures.json / wasm-bridge.ts / session-brain.ts ZERO diff.
+
+**RESUME HERE (next session, #96):** branch `issue-96-autoresearch` (3 commits, UNMERGED, off
+`issue-96-pieceid-accuracy`). The port is done but **deploy-gated** — to ship: `just fingerprint`
+(now emits `windows`) → `just seed-fingerprint` (local) / upload to prod R2; threshold stays 0.13;
+parity fixture needs no regen. To keep IMPROVING accuracy, hill-climb on the **uncapped** catalog
+(`pieceid_autoresearch_eval.py --catalog-note-cap 0`, ~5 min/run on the warm cache); the open
+problem is the **~62% full-piece ceiling**, whose honest next steps (a bigger call, deferred) are
+(a) richer window features — onset-density, pitch register/range, melodic-contour appended to the
+12-dim chroma — or (b) a learned piece-ID shortlist embedding (needs a training run; cost first).
+`WINDOW_NOTES` / `WINDOWED_K` in `identify.rs` are a latency-vs-recall tradeoff to tune on
+uncapped fingerprints. Tune ONLY `pieceid_experimental.py`; never the frozen gate or the fixture.
 
 ---
 
