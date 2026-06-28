@@ -660,8 +660,13 @@ clip-mean-dur ρ 0.925** — the bar-mean statistic `analyze_articulation_tier1`
 **articulation is substrate-viable at the bar-aggregate level the engine uses**. Critically, neither the AMT
 onset nor the offset head behaves like the saturating pedal head (0.39); the untested-offset risk does not
 materialize. Caveat: n=15 (a 40-clip run was cut short by a full disk); a confirmatory N≥40 run would tighten
-the 0.925 but is unlikely to move the verdict. The tier-1 (score+reference) path is built but unwired in prod
-(#64). See `docs/model/04-north-star.md` → "Two grounding philosophies" for the full
+the 0.925 but is unlikely to move the verdict. The tier-1 (score+reference) path is now WIRED in the live
+practice path (#64, 2026-06-27): `finalizeChunk` calls `alignChunkNotes` -> `analyzeTier1`, so per-bar
+onset/duration deviations vs the notated score reach the teacher (a new Rust `align_chunk_notes` derives
+per-note `onset_deviation_ms` from the chroma frame-warp + an affine tempo fit; coarse/directional by
+design). Remaining: reference-performer profiles still deferred (score-relative only), and prod stays on
+Tier 3 until a deliberate deploy sets `AMT_ENDPOINT`. Verified at unit + integration + DO-suite level; live
+local-AMT-session verification still pending. See `docs/model/04-north-star.md` → "Two grounding philosophies" for the full
 strategic framing and the "no neural encoder" possibility.
 
 ---
