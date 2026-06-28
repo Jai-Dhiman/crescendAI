@@ -185,6 +185,7 @@ def run_full(
     skip_relevance: bool = False,
     judge_provider: str = "workers-ai",
     judge_model: str | None = None,
+    allow_degraded_piece_id: bool = False,
 ) -> int:
     """Run full eval: drive all recordings, score, write last_run.json, diff baseline."""
     from shared.local_session import drive, check_services
@@ -226,7 +227,19 @@ def run_full(
             print(f"ERROR: {exc}")
             print(f"  [error count so far: {sum(1 for s in session_scores if s.error is not None)}]")
 
-    _check_no_universal_piece_id_failure(session_scores)
+    if allow_degraded_piece_id:
+        # AMT unavailable (e.g. local container can't run): chunk_ready degrades to
+        # Tier 3, so every session is corpus_drill with piece_resolved=False. That
+        # is exactly the universal-piece-id signature, but here it is expected, not
+        # a missing seed-fingerprint. The selector-relevance metric is unaffected
+        # (it keys on MuQ's dominant_dimension); only the piece-ID/kind/bar axes
+        # degrade. Warn instead of aborting.
+        print(
+            "  [warn] --allow-degraded-piece-id: skipping universal-piece-id guard; "
+            "piece-ID/kind/bar axes are degenerate (AMT-down proxy), relevance is real"
+        )
+    else:
+        _check_no_universal_piece_id_failure(session_scores)
 
     axis_scores = aggregate(session_scores)
 
@@ -302,6 +315,9 @@ def main() -> int:
                         help="Relevance judge provider (workers-ai|anthropic|openrouter)")
     parser.add_argument("--judge-model", default=None,
                         help="Override the judge model id (defaults to provider's judge tier)")
+    parser.add_argument("--allow-degraded-piece-id", action="store_true",
+                        help="Permit all-corpus_drill/piece_resolved=False runs (AMT down). "
+                             "Relevance stays real; piece-ID/kind/bar axes degenerate.")
     args = parser.parse_args()
 
     if not BASELINE_PATH.exists():
@@ -319,6 +335,7 @@ def main() -> int:
         skip_relevance=args.skip_relevance,
         judge_provider=args.judge_provider,
         judge_model=args.judge_model,
+        allow_degraded_piece_id=args.allow_degraded_piece_id,
     )
 
 
