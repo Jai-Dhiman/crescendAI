@@ -42,7 +42,7 @@ RUN python scripts/export_onnx.py \
 # Stage 2: runtime -- PyTorch CPU (decoder) + ONNX RT (encoder) + ffmpeg
 FROM python:3.11-slim AS runtime
 
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libgomp1 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libgomp1 git && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir uv
 
