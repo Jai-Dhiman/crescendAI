@@ -26,7 +26,8 @@ pub struct CatalogEntry {
     pub title: String,
 }
 
-/// One catalog piece in the v2 artifact: chroma recall vector + chord-event masks.
+/// One catalog piece in the v2 artifact: chroma recall vector + chord-event masks +
+/// optional per-piece note-window chroma vectors for the hybrid shortlist (#96).
 #[derive(Serialize, Deserialize)]
 pub struct PieceArtifact {
     pub piece_id: String,
@@ -34,6 +35,10 @@ pub struct PieceArtifact {
     pub title: String,
     pub chroma: [f64; 12],
     pub events: Vec<u16>,
+    /// Overlapping note-window chroma vectors (400 notes, hop 200) used for the
+    /// windowed recall pass. Missing in old artifacts deserialized as empty (back-compat).
+    #[serde(default)]
+    pub windows: Vec<[f64; 12]>,
 }
 
 /// The v2 piece-ID artifact loaded from R2 (`fingerprint/v2/piece_index.json`).

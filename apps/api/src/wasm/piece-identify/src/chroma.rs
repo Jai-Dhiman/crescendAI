@@ -38,6 +38,32 @@ pub fn rank_top_k(query: &[f64; 12], catalog: &[[f64; 12]], k: usize) -> Vec<usi
     scored.into_iter().take(k).map(|(i, _)| i).collect()
 }
 
+/// Given a flat list of per-piece note-window chroma vectors with parallel owner piece
+/// indices, return the top-k PIECE indices (into the catalog) by best (max) window
+/// cosine to the query. Pieces with no windows in the list are simply not scored.
+/// Used by the hybrid shortlist pass in identify (#96).
+pub fn windowed_top_k(
+    query: &[f64; 12],
+    windows: &[[f64; 12]],
+    owner_idx: &[usize],
+    k: usize,
+) -> Vec<usize> {
+    if windows.is_empty() || k == 0 {
+        return vec![];
+    }
+    let mut best: std::collections::HashMap<usize, f64> = std::collections::HashMap::new();
+    for (win, &owner) in windows.iter().zip(owner_idx.iter()) {
+        let sim = dot12(query, win);
+        let entry = best.entry(owner).or_insert(f64::NEG_INFINITY);
+        if sim > *entry {
+            *entry = sim;
+        }
+    }
+    let mut pairs: Vec<(usize, f64)> = best.into_iter().collect();
+    pairs.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    pairs.into_iter().take(k).map(|(i, _)| i).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
