@@ -38,6 +38,11 @@
     "data/embeddings/competition": {
       "regen_command": "rclone copy r2:crescendai-bucket/raw/competition data/raw/competition && uv run python scripts/extract_muq_embeddings.py --source competition",
       "reason": "MuQ embeddings over T2 audio; 23GB regenerable on HF Job after raw/competition is rehydrated."
+    },
+    "data/scores": {
+      "r2_prefix": "scores-archive/data-scores",
+      "regen_command": "uv run python -m score_library.regen_scores --fingerprint data/fingerprints/piece_index.json",
+      "reason": "11k per-piece score JSONs (9GB; giantmidi/pdmx/mutopia). Offloaded after the issue-49 wipe -- rehydrate from R2 OR regenerate from staging MIDIs in ~10min via regen_scores."
     }
   },
   "mirrors": {
