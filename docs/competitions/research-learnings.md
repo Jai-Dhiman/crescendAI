@@ -1,7 +1,7 @@
 # Competition research learnings (shared, task-agnostic)
 
 > **Status:** LIVING. Distilled from two research passes (external assumption-targeted deep-research sweep, 102 agents / 24 confirmed; + file-grounded internal repo audit) run 2026-07-02/03. Confidence tags: [CONFIRMED] survived adversarial verification; [repo] read from our own code; [UNKNOWN] genuinely open.
-> **Scope:** Reusable findings for any CrescendAI performance-analysis work. Task-specific plans live in `mirex-difficulty.md` and `rewardbench.md`.
+> **Scope:** Reusable findings for any CrescendAI performance-analysis work. Task 1 (this branch) plan lives in `mirex-difficulty.md`. Track B (RewardBench) is worked separately on its own branch — intentionally not tracked here.
 
 ## The assumption audit (what we believed vs what is true)
 
