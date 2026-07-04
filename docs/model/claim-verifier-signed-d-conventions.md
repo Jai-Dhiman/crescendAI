@@ -809,3 +809,57 @@ BLOCKED — and by what:
 parallel at any time (all independent). Defer timbre / pedal / G-F until the first rate exists.
 Known external risk: both MIREX tracks (#104/#105, Oct 1 deadline) compete for the same sessions —
 FRONT 7 is weeks of work and loses by default unless explicitly scheduled.
+
+## FRONT 7a UPDATE (#101, 2026-07-04): claim-supply probe = **NO_GO**. 7b–7d NOT STARTED.
+
+**Gate status change:** FRONT 7's signed onset-deviation-vs-score route is **supply-blocked**, the
+same failure mode as dynamics G-D. The keystone-front premise ("supply-rich: rush/drag is the most
+common teacher claim") is **FALSIFIED on the generator corpus.** No measurer was built (the front-5
+lesson held: the probe stopped the front before 7b).
+
+**What was measured (harness `model/src/claim_measurement/timing_supply/`, LLM extract → deterministic
+classify; truth path is not an LLM):**
+- **Corpus A — chopin_ballade_1** (the exact 162-doc / 94-perf front-5 corpus): 77 timing claims across
+  55 perfs. Subtype: **rubato 70 (91%) / evenness 5 (6%) / rush_drag 2 (3%) / note_value 0 / hesitation
+  0 / ambiguous 0.** In-scope for signed onset-deviation (`rush_drag`, whole_piece|bar) = **2 claims,
+  both `neutral` polarity** ("your timing is steady/solid"). **0 directional rush-or-drag. 0
+  bar-localized** (100% whole_piece — corroborates the 0.4% localization finding on a fresh dim).
+- **Corpus B — bach_invention_1 + bach_prelude_c_wtc1** (60-doc / 55-perf metronomic probe, prose-only,
+  run to de-confound "chopin is a rubato piece"): **2 timing claims total** (rush_drag 1 — again
+  `neutral` "grounded and steady, exactly what Bach asks for"; evenness 1). Metronomic repertoire does
+  NOT rescue directional supply; timing is barely salient (2/60 docs) when the pulse is unremarkable.
+- **Net across both corpora:** 222 docs, 79 timing claims, **3 `rush_drag` — all 3 `neutral`. Directional
+  rush-or-drag error claims = 0.** A signed statistic needs a signed claim; the corpus supplies none.
+
+**Root cause = the GENERATOR VOICE, not the piece or the dimension.** The two confounds resolve cleanly:
+(1) piece — Bach (metronomic) also yields ~0 directional supply, so it is not a Chopin-rubato artifact;
+(2) voice — `baseline_v1` is the warm/"celebrate-strengths" synthesizer, which produces *aspirational
+shaping* advice ("add rubato, let it breathe") and *steadiness praise*, never *error-correction* ("you
+rushed bar 12"). Directional error is the one thing a signed-onset-deviation-vs-score statistic
+adjudicates, and this teacher voice structurally does not make it. **Caveat for the paper:** this NO_GO
+is proven on the GENERATOR corpus (what the production system actually adjudicates), NOT on real human
+masterclass prose — a real teacher may make more "you rushed" claims. If the paper's claim is about the
+SYSTEM's faithfulness, the generator corpus is the right denominator and this is decisive; if it is
+about verifying human teaching broadly, the generator-voice caveat must be stated.
+
+**The supply that DOES exist is rubato (91%)** — a *shaping/spread* quantity (deviation magnitude &
+structure across a phrase), not a signed mean (rubato stretches then compresses → signed mean ≈ 0). This
+is the exact structural twin of dynamics (contrast 90% / level ~0). **Do not naively pivot to a
+"rubato-magnitude" statistic:** FRONT 6 already proved no deterministic *shaping* statistic validates
+against perception for dynamics (best partial ≤0.26); a rubato-shape statistic inherits that unproven-
+validity risk AND lacks a clean perception anchor. That is a research gamble, not a next step.
+
+**Timing gate status now:** perception route = degenerate (IOI-CV, GATE 2/3); score-relative route =
+**substrate-clean but supply-blocked (7a NO_GO)**. Both timing routes are now closed on the available
+corpus. 7b (measurer), 7c (G-A), 7d (tau) — NOT STARTED, correctly un-built.
+
+**Re-plan fork (strategic; the front does NOT auto-continue):**
+- (a) **Accept + reframe** — the paper's measured contribution becomes the *supply/validity gap map*
+  across dimensions (dynamics-level supply-blocked, dynamics-contrast validity-blocked, timing
+  supply-blocked, pedal AMT-lossy), i.e. "what teacher feedback is even verifiable," with legible
+  abstention as the result. This is the honest, already-earned finding.
+- (b) **Change the corpus, not the statistic** — generate-on-bundles with a teacher prompt that is
+  permitted to make directional error claims (or acquire real masterclass prose), then re-probe supply.
+  Tests whether the NO_GO is the voice (fixable) vs the pedagogy (fundamental).
+- (c) **New G-B front for a rubato-shape statistic** — high-risk per FRONT 6; only if (b) also fails.
+FRONT 8 (articulation / duration-ratio) is independent of this NO_GO and remains available.
