@@ -728,7 +728,9 @@ only, not graded perceptual claims;
 1. Redesign whole_piece **dynamics** statistic → signed loudness *level* vs a reference (GATE-2-
    validated), dB-matched tau. (unblocks G-A, G-B for dynamics)
 2. Redesign / scope whole_piece **timing** → real beat-tracked tempo-stability statistic, or formally
-   scope whole_piece timing OUT until a beat tracker exists. (G-A, G-B)
+   scope whole_piece timing OUT until a beat tracker exists. (G-A, G-B) **SUPERSEDED 2026-07-04 by
+   FRONT 7 below: the paper's timing route is now SCORE-RELATIVE onset deviation (substrate cleared
+   #64), not a perception-anchored beat-tracker statistic.**
 3. Add a **signed whole_piece test per dimension** so `-` claims (54% of validated-scope) are
    adjudicable instead of auto-REFUTED.
 4. **Calibrate the three tau** against human-labeled anomaly/no-anomaly slices; flip `locked:true`. (G-B)
@@ -742,3 +744,68 @@ margin). Scope: one front; never modify `verdict_dispatch.py` or its tests (froz
 gate's measurable criterion above. Verify: `cd apps/evals && uv run --extra all pytest claim_taxonomy/ -q`
 (113 passing) green AND the gate metric improved on a held-out construction-known set. Guard: extractor
 is LLM-OK but the truth label is NEVER an LLM; TDD; revert any change that does not move its gate.
+
+---
+
+## FRONT 7 + dependency graph — the path to the first measurable rate (#101, 2026-07-04)
+
+**Mental-model updates this section records (supersedes earlier scope notes):**
+1. **The #64 score-relative substrate is now ON the paper critical path.** The 2026-06-26 note
+   ("#64 is PRODUCT-path, NOT paper critical path") is superseded: fronts 5/6 proved
+   perception-anchoring cannot produce a headline rate for the claims teachers actually make, while
+   the AMT-fidelity map (onset 4.2ms ≪ ±30ms band; duration bar-mean ρ0.925) cleared the
+   score-anchored route. The paper's contribution is the SYSTEM: two grounding backends
+   (perception-anchored where a validated statistic exists; score-anchored where a score exists)
+   plus legible abstention everywhere else.
+2. **Timing's "degenerate" verdict was statistic-specific, not dimension-specific.** IOI-CV vs
+   perception is dead; onset-deviation-vs-score is a different statistic with truth by construction
+   ("rushing" is definitionally score-relative). Kill-verdicts get re-checked when new substrate
+   evidence lands.
+3. **The perfect system verifies a wide KNOWN subset and abstains legibly** — dynamics-contrast and
+   the holistic dims (mood/interpretation/sophistication/drama) stay out BY DESIGN; the abstention
+   histogram is a first-class output, not an apology.
+
+**FRONT 7 — score-relative timing verifier (the keystone front).** Unique intersection of
+substrate-proven + supply-rich (rush/drag is the most common teacher claim) + machinery-built
+(`align_chunk_notes` / offline aria-AMT→parangonar bar-map). Success = the first measurable
+per-dimension faithfulness rate = the paper exists. Steps, in order:
+- **7a. Claim-supply probe FIRST (hours; GO/NO-GO).** Extract timing claims from the 162
+  baseline_v1 prose docs (the front-5 lesson institutionalized: check supply BEFORE building the
+  statistic). If timing claims are also ~90% out-of-scope for an onset-deviation statistic, the
+  front re-plans before any measurer work.
+- **7b. Offline timing measurer**: signed onset_deviation_ms vs the aligned score (offline
+  AMT→parangonar path, NOT the live DO), whole_piece + bar tiers.
+- **7c. G-A by construction**: tempo-warp corruptions (rush/drag injected in MIDI, render, AMT,
+  measure) — performance-flip ≥0.80 + polarity-shuffle collapse ≥0.20.
+- **7d. Construct validity + tau**: verify the teacher's "rushing/dragging" sentences map onto the
+  statistic; calibrate tau (start unlocked).
+- **FRONT 8 (after 7b skeleton): articulation** via perf/score duration ratio — rides the same
+  alignment infra; two dimensions make the rate a result, not an anecdote.
+
+**Dependency graph (what is unblocked TODAY vs blocked, and by what):**
+
+```
+UNBLOCKED NOW — parallel lanes:
+  L1 (critical): 7a supply probe (hours) ──GO──> 7b measurer -> 7c G-A -> 7d tau
+  L2 (mechanical, independent): G-C error bars (re-transcribe variance, >=10 clips)
+                                n>=40 confirmatory AMT-fidelity run (needs disk space)
+                                score-loader extension (variable-tempo / non-4/4) — chopin_ballade_1
+                                  (the ONLY paired prose+audio piece) needs this, or generate fresh
+                                  prose on the Bach clips (generate-on-bundles)
+  L3 (product/shared): #64 live local-AMT session verify (de-risks the alignment machinery)
+
+BLOCKED — and by what:
+  timing G-D rate        <- 7b-7d + prose+audio+SCORE triple overlap (score-loader OR generate-on-bundles)
+  articulation verifier  <- 7b skeleton (soft; reuses infra + lessons)
+  G-E reproducibility    <- a rate to reproduce (G-D)
+  G-F student audio      <- acquisition (ood_practice/ empty); independent, deferred
+  paper draft            <- ALL hard gates
+  pedal rescue           <- a better pedal-transcription substrate (model work, external to verifier)
+  timbre front           <- deliberate deferral (research gamble; audio-native spectral features)
+  paper #2 (RLVR)        <- paper #1 verifier adjudicating something real
+```
+
+**Priority ruling:** 7a first (same day), then 7b–7d as the main thread; L2 + L3 items run in
+parallel at any time (all independent). Defer timbre / pedal / G-F until the first rate exists.
+Known external risk: both MIREX tracks (#104/#105, Oct 1 deadline) compete for the same sessions —
+FRONT 7 is weeks of work and loses by default unless explicitly scheduled.
