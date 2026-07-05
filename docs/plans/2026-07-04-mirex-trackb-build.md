@@ -1204,7 +1204,7 @@ git add src/trackb/extract/encoders.py tests/test_encoders.py && git commit -m "
 - Create: `src/trackb/train/__init__.py`, `src/trackb/train/head.py`
 - Test: `tests/test_head.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_head.py
@@ -1223,14 +1223,14 @@ def test_pointwise_margin_is_antisymmetric():
     torch.testing.assert_close(m_ab, -m_ba)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_head.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'trackb.train'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # src/trackb/train/__init__.py
@@ -1288,14 +1288,14 @@ class BTHead(nn.Module):
         return (g_ab - g_ba) / 2
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_head.py -x -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/trackb/train tests/test_head.py && git commit -m "feat(train): pointwise BT head with antisymmetric margin"
