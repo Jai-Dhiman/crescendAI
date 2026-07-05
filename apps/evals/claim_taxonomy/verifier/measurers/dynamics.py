@@ -14,10 +14,23 @@ from claim_taxonomy.verifier.substrate_error import SubstrateErrorEngine
 # this neutral anchor. locked:false -- recalibrate per substrate (front 4 / G-C).
 REFERENCE_VELOCITY = 51.5
 
-# AMT velocity quantization step (transcription.py velocity_quantization step=5) ->
-# per-note jitter ~ U(-2.5, +2.5), var = step**2/12. Placeholder substrate noise until
-# G-C measures the empirical re-transcription velocity churn.
+# AMT velocity quantization step (transcription.py velocity_quantization step=5). Retained
+# for reference; superseded for the error bar by the G-C empirical churn constants below.
 VELOCITY_QUANT_STEP = 5.0
+
+# Empirical substrate error of the mean-velocity statistic (G-C, #101; n=12 PercePiano
+# clips, model/src/claim_measurement/gc_error_bars/). Measured by re-transcribing the SAME
+# performance under perceptually neutral recording nuisances (sub-JND +-0.5 dB gain jitter +
+# 40 dB-SNR additive noise); aria-amt decodes greedily, so identical audio is a no-op and
+# the churn is nuisance-driven (verified per clip). It has TWO physically distinct parts:
+#   - per-note (independent): quantization + local noise, averages out as sigma_note/sqrt(N)
+#   - correlated FLOOR: a global gain shift moves every note together, so the statistic
+#     sigma does NOT shrink with N -> a flat floor the error bar can never drop below.
+# The prior VELOCITY_QUANT_STEP/sqrt(12)/sqrt(N) placeholder had only the shrinking term and
+# under-covered the measured statistic churn ~5x at typical N (0.14 vs 0.68 median). Wired as
+# the pooled p90 (conservative "covers 90% of clips"); max observed statistic churn 2.39.
+SUBSTRATE_VELOCITY_SIGMA = 2.69   # velocity units, measured per-note churn p90
+SUBSTRATE_STATISTIC_FLOOR = 1.39  # velocity units, measured correlated re-capture floor p90
 
 MINIMUM_NOTES = 20
 
@@ -94,6 +107,12 @@ class DynamicsMeasurer:
         # leaves variance unchanged but mirrors the signed-d convention.
         bootstrapped = engine.bootstrap_d(vel, np.mean)
         sampling_var = float(np.var(bootstrapped - baseline))
-        # substrate: per-note quantization jitter averaged over N notes.
-        substrate_var = (VELOCITY_QUANT_STEP ** 2 / 12.0) / max(int(vel.size), 1)
+        # substrate: max of the (shrinking) per-note term and the (flat) correlated floor,
+        # both measured empirically (G-C, #101). The floor guarantees the near-threshold
+        # dead-band (verdict_dispatch: abs(abs(d)-tau) <= error_bar) covers the measured
+        # re-capture 1-sigma at every note count, not just small ones.
+        substrate_var = max(
+            (SUBSTRATE_VELOCITY_SIGMA ** 2) / max(int(vel.size), 1),
+            SUBSTRATE_STATISTIC_FLOOR ** 2,
+        )
         return math.sqrt(sampling_var + substrate_var)

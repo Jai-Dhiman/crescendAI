@@ -618,8 +618,8 @@ different stage, and knowing *which* stage is the contribution.
 | **dynamics — LEVEL** | yes (mean velocity) | PASS (flip 0.90) | **PASS** (ρ 0.54) | **survives** (AMT≈GT 0.965) | **~0 in-scope** (front 5) | validated stat, **no rate** — supply gap |
 | **dynamics — CONTRAST** | no (swept) | — | **FAIL** (≤0.26, front 6) | — | 90% of claims | **no validatable stat** — validity gap |
 | **pedaling** | yes (CC64 on-frac) | PASS under-pedal | PASS on MIDI (0.48) | **FAILS** (AMT 0.18, front 4) | moderate | **substrate-blocked**; coarse under-pedal only |
-| **timing** | yes (IOI-CV) | FAIL | marginal (0.25, < ceiling) | perceptual stat degenerate; **onset substrate clean** (AMT−GT 4.2ms ≪ 30ms, #64) | n/a | **degenerate for perception**; onset substrate-viable for the score-relative #64 path |
-| **articulation** | **no** (`gated_on_measurement`) | — | never tested | **AMT dur ✓ bar-mean** (clip-mean ρ0.925; per-note 0.57, #64) | — | perception unbuilt; **duration substrate-viable** (WASM perf/score ratio, #64) |
+| **timing** | yes (IOI-CV) | FAIL | marginal (0.25, < ceiling) | perceptual stat degenerate; **onset substrate clean** (AMT−GT 4.7ms ≪ 30ms, n=50 #101) | n/a | **degenerate for perception**; onset substrate-viable for the score-relative #64 path |
+| **articulation** | **no** (`gated_on_measurement`) | — | never tested | **AMT dur ✓ bar-mean** (clip-mean ρ0.90; per-note 0.76, n=50 #101) | — | perception unbuilt; **duration substrate-viable** (WASM perf/score ratio, #64) |
 | **timbre** (4 PercePiano dims) | **no** (`scoped_out`) | — | never tested | — | — | **unexamined**; needs SPECTRAL features, not velocity/MIDI |
 | **phrasing** | **no** (`scoped_out`) | — | never tested | — | — | **unexamined**; structural, likely hardest |
 | **interpretation** (+sophistication) | **no** (`scoped_out`) | — | never tested | — | — | **unexamined**; most holistic/subjective |
@@ -652,15 +652,16 @@ pedal on-fraction, all "within/outside reference range". It needs NO perception 
 `model_score` is decorative. This sidesteps the perceptual-validity bottleneck entirely: the relevant test
 becomes **AMT-fidelity** (does the AMT measure recover the ground-truth-MIDI measure? — velocity ✓0.97,
 pedal ✗0.39, **onset ✓ and offset/duration ✓** as of 2026-06-27, #64), not perceptual correlation. The
-onset/duration map (`model/src/claim_measurement/amt_fidelity/`, n=15 PercePiano fluidsynth→aria-amt renders,
-median note recall 0.995): **onset noise 4.2ms** (std of AMT−GT onset; bias +2.4ms is a removable constant)
+onset/duration map (`model/src/claim_measurement/amt_fidelity/`, **n=50** PercePiano fluidsynth→aria-amt renders,
+median note recall 0.99, 5731 pooled notes): **onset noise 4.7ms** (std of AMT−GT onset; bias +2.0ms is a removable constant)
 vs the ±30ms rush/drag band — a **~6× margin, so timing is substrate-viable**; **note duration recovers at
-clip-mean-dur ρ 0.925** — the bar-mean statistic `analyze_articulation_tier1` actually consumes, cf velocity
-0.965 — with per-note ρ 0.57 (fine-grained per-note legato/staccato is noisier; one 3.2× outlier clip), so
+clip-mean-dur ρ 0.90** — the bar-mean statistic `analyze_articulation_tier1` actually consumes, cf velocity
+0.965 — with per-note ρ 0.76, so
 **articulation is substrate-viable at the bar-aggregate level the engine uses**. Critically, neither the AMT
 onset nor the offset head behaves like the saturating pedal head (0.39); the untested-offset risk does not
-materialize. Caveat: n=15 (a 40-clip run was cut short by a full disk); a confirmatory N≥40 run would tighten
-the 0.925 but is unlikely to move the verdict. The tier-1 (score+reference) path is now WIRED in the live
+materialize. Confirmed at n=50 (#101, 2026-07-04, disk pre-checked): the earlier n=15 numbers (onset 4.2ms,
+clip-mean-dur ρ 0.925, per-note 0.57 w/ one 3.2× outlier) held to within noise — onset 4.2→4.7ms, ρ 0.925→0.90,
+per-note 0.57→0.76 (the outlier averaged out); verdict unchanged. The tier-1 (score+reference) path is now WIRED in the live
 practice path (#64, 2026-06-27): `finalizeChunk` calls `alignChunkNotes` -> `analyzeTier1`, so per-bar
 onset/duration deviations vs the notated score reach the teacher (a new Rust `align_chunk_notes` derives
 per-note `onset_deviation_ms` from the chroma frame-warp + an affine tempo fit; coarse/directional by
@@ -707,7 +708,17 @@ only, not graded perceptual claims;
   UPDATE below); timing FAILS (0.25) → out unless a new proxy passes.*
 - **G-C — Empirical (not assumed) error bars.** Substrate error per dimension MEASURED by
   re-transcribe→re-measure variance over ≥10 clips; the near-threshold dead-band set to ≥ the
-  measured 1σ. No assumed-noise error bars in the headline. *Status: not started.*
+  measured 1σ. No assumed-noise error bars in the headline. *Status: **dynamics DONE** (#101,
+  2026-07-04; `model/src/claim_measurement/gc_error_bars/`, n=12). Re-transcribed each clip under
+  perceptually neutral recording nuisances (sub-JND ±0.5 dB gain jitter + 40 dB-SNR additive noise;
+  aria-amt decodes greedily so identical audio is a no-op — churn is nuisance-driven, verified per
+  clip). Key finding: the mean-velocity churn is **correlated across notes** (a global gain shift
+  moves every note together), so the statistic 1σ (0.68 median / 1.39 p90 / 2.39 max velocity units)
+  is ~5× the old assumed `VELOCITY_QUANT_STEP/√12/√N` bar (0.14 at N≈103) and does NOT shrink with N.
+  Replaced the placeholder with a two-term `substrate_var = max(σ_note²/N, floor²)` (σ_note 2.69,
+  floor 1.39, both measured p90) in `DynamicsMeasurer` — dead-band now ≥ measured 1σ at every note
+  count; frozen router untouched; `claim_taxonomy` suite still 125-green. Timing G-C deferred (its
+  measurer, FRONT 7b, has not landed); pedaling is substrate-blocked (front 4) so no rate to bar.*
 - **G-D — Claim supply for a stable rate.** Per reported dimension: ≥30 distinct performances and a
   bootstrap 95% CI half-width ≤0.05 on the faithfulness rate; report yield + the abstention
   histogram (`out_of_scope_dim`, `gated_dim`, `unlocalizable`, `low_coverage`, `region_too_short`,
@@ -753,7 +764,7 @@ is LLM-OK but the truth label is NEVER an LLM; TDD; revert any change that does 
 1. **The #64 score-relative substrate is now ON the paper critical path.** The 2026-06-26 note
    ("#64 is PRODUCT-path, NOT paper critical path") is superseded: fronts 5/6 proved
    perception-anchoring cannot produce a headline rate for the claims teachers actually make, while
-   the AMT-fidelity map (onset 4.2ms ≪ ±30ms band; duration bar-mean ρ0.925) cleared the
+   the AMT-fidelity map (onset 4.7ms ≪ ±30ms band; duration bar-mean ρ0.90, n=50) cleared the
    score-anchored route. The paper's contribution is the SYSTEM: two grounding backends
    (perception-anchored where a validated statistic exists; score-anchored where a score exists)
    plus legible abstention everywhere else.
@@ -787,11 +798,15 @@ per-dimension faithfulness rate = the paper exists. Steps, in order:
 ```
 UNBLOCKED NOW — parallel lanes:
   L1 (critical): 7a supply probe (hours) ──GO──> 7b measurer -> 7c G-A -> 7d tau
-  L2 (mechanical, independent): G-C error bars (re-transcribe variance, >=10 clips)
-                                n>=40 confirmatory AMT-fidelity run (needs disk space)
-                                score-loader extension (variable-tempo / non-4/4) — chopin_ballade_1
-                                  (the ONLY paired prose+audio piece) needs this, or generate fresh
-                                  prose on the Bach clips (generate-on-bundles)
+  L2 (mechanical, independent): [DONE #101 2026-07-04] G-C error bars — dynamics MEASURED (n=12),
+                                  correlated-floor two-term model wired into DynamicsMeasurer
+                                [DONE #101 2026-07-04] n=50 confirmatory AMT-fidelity run (onset 4.7ms,
+                                  dur ρ0.90; verdict unchanged)
+                                [NOT A CODE TASK — score-loader already handles variable-tempo/non-4/4
+                                  since #98, regression-tested] chopin_ballade_1 is BLOCKED ON DATA, not
+                                  code: no local ASAP score MIDI AND no local audio (practice_eval/
+                                  chopin_ballade_1/ has only candidates.yaml). Unblock = clone ASAP +
+                                  acquire audio, OR generate fresh prose on the Bach clips (on-bundles).
   L3 (product/shared): #64 live local-AMT session verify (de-risks the alignment machinery)
 
 BLOCKED — and by what:
