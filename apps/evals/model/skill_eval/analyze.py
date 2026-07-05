@@ -68,6 +68,38 @@ def spearman_rho(x: np.ndarray, y: np.ndarray) -> float:
     return float(rho)
 
 
+def kendall_tau_c(x, y) -> float:
+    """Stuart's tau-c rank correlation -- the sole MIREX 2026 difficulty metric (#104).
+
+    tau_c = 2*m*(C - D) / (n^2 * (m - 1)),  m = min(#distinct x, #distinct y).
+
+    Uses the rectangular-table correction `m` so a perfect ordering reaches 1.0 even
+    when one variable is a coarse ordinal grade with many ties (the MIREX setup:
+    coarse pedagogical grade vs near-continuous model score). scipy's `kendalltau`
+    is tau-b, whose tie penalty caps the coefficient below 1.0 on such tables.
+
+    Kept deliberately small and isolated so it can be swapped for the organizers'
+    official scorer once the exact variant is published. Unlike `spearman_rho` above
+    (which returns 0.0 on degenerate input), this raises: tau-c is genuinely undefined
+    when either input is constant (m < 2 -> division by zero).
+    """
+    x = np.asarray(x, dtype=np.float64)
+    y = np.asarray(y, dtype=np.float64)
+    if x.ndim != 1 or x.shape != y.shape:
+        raise ValueError("x and y must be 1-D arrays of equal length")
+    n = x.size
+    if n < 2:
+        raise ValueError("need >= 2 observations for tau-c")
+    agree = np.sign(x[:, None] - x[None, :]) * np.sign(y[:, None] - y[None, :])
+    upper = agree[np.triu_indices(n, k=1)]
+    concordant = int(np.count_nonzero(upper > 0))
+    discordant = int(np.count_nonzero(upper < 0))
+    m = min(np.unique(x).size, np.unique(y).size)
+    if m < 2:
+        raise ValueError("tau-c undefined when x or y is constant (m < 2)")
+    return float(2 * m * (concordant - discordant) / (n**2 * (m - 1)))
+
+
 def cohens_d(group1: np.ndarray, group2: np.ndarray) -> float:
     """Cohen's d effect size between two groups."""
     if len(group1) < 2 or len(group2) < 2:
