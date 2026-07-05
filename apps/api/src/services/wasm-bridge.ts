@@ -288,15 +288,20 @@ export function alignChunkNotes(
 	chunkIndex: number,
 	onsetWindowS: number,
 ): ChunkNoteResult {
-	return scoreAnalysisModule.align_chunk_notes(
-		audioChromaBytes,
-		chromaFrames,
-		perfNotes,
-		scoreBars,
-		frameRateHz,
-		decimHz,
-		chunkIndex,
-		onsetWindowS,
+	// align_chunk_notes returns a JSON string (not a JsValue): under real workerd
+	// serde_wasm_bindgen mismarshals the nested BarMap's trailing `is_reanchored`
+	// bool into the garbage string "pitch", corrupting the round-trip. Parse here.
+	return JSON.parse(
+		scoreAnalysisModule.align_chunk_notes(
+			audioChromaBytes,
+			chromaFrames,
+			perfNotes,
+			scoreBars,
+			frameRateHz,
+			decimHz,
+			chunkIndex,
+			onsetWindowS,
+		) as unknown as string,
 	) as ChunkNoteResult;
 }
 
@@ -318,13 +323,16 @@ export function analyzeTier1(
 ): ChunkAnalysis {
 	// analyze_tier1 returns a JSON string (not a JsValue): serde_wasm_bindgen
 	// mismarshals the Option<String> bar_range field under real workerd. Parse it here.
+	// scoreContext is passed as a JSON STRING (deserialized Rust-side with serde_json):
+	// under real workerd serde_wasm_bindgen::from_value on this large nested struct
+	// corrupts a non-optional String field to null. See analyze_tier1 in lib.rs.
 	return JSON.parse(
 		scoreAnalysisModule.analyze_tier1(
 			barMap,
 			perfNotes,
 			perfPedal,
 			new Float64Array(scores),
-			scoreContext,
+			JSON.stringify(scoreContext),
 		) as unknown as string,
 	) as ChunkAnalysis;
 }
