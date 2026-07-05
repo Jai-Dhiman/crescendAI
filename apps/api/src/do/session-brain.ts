@@ -862,6 +862,26 @@ export class SessionBrain extends DurableObject<Bindings> {
 						const { bar_map } = noteResult;
 						chunkBarRange = [bar_map.bar_start, bar_map.bar_end];
 						barMapAlignments.push(...bar_map.alignments);
+						// [#64 live-verify] Decisive shape probe: is `is_reanchored`
+						// already corrupt in JS (JS-side shape bug) or clean in JS but
+						// corrupted crossing into Rust (workerd externref marshaling bug)?
+						console.log(
+							JSON.stringify({
+								level: "info",
+								message: "TIER1_SHAPE",
+								index,
+								barMapKeys: Object.keys(bar_map),
+								is_reanchored: (bar_map as { is_reanchored?: unknown })
+									.is_reanchored,
+								is_reanchored_type: typeof (
+									bar_map as { is_reanchored?: unknown }
+								).is_reanchored,
+								align0: bar_map.alignments[0] ?? null,
+								align0Keys: bar_map.alignments[0]
+									? Object.keys(bar_map.alignments[0])
+									: null,
+							}),
+						);
 						const analysis1 = wasm.analyzeTier1(
 							bar_map,
 							perfNotes,
@@ -951,6 +971,12 @@ export class SessionBrain extends DurableObject<Bindings> {
 						message: "WASM bar analysis skipped",
 						index,
 						error: error.message,
+						// [#64 live-verify] analyzeTier1 throws on real bar_map with an
+						// EMPTY message (likely a Rust panic surfacing as RuntimeError);
+						// capture the full detail to pin the root cause.
+						err_string: String(err),
+						err_name: error?.constructor?.name ?? typeof err,
+						err_stack: error?.stack ?? null,
 					}),
 				);
 				// Tier 3: scores only — chunkAnalysisTier stays 3
