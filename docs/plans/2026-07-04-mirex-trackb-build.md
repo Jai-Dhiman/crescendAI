@@ -53,7 +53,7 @@ Group E may be dispatched concurrently with Groups C/D (it depends only on Group
 - Create: `mirex-trackb/pyproject.toml`, `mirex-trackb/justfile`, `mirex-trackb/.gitignore`, `mirex-trackb/LICENSE`, `mirex-trackb/README.md`, `mirex-trackb/src/trackb/__init__.py`
 - Test: `mirex-trackb/tests/test_scaffold.py`
 
-- [ ] **Step 1: Create the repo and write the failing test**
+- [x] **Step 1: Create the repo and write the failing test**
 
 ```bash
 mkdir -p /Users/jdhiman/Documents/crescendai/mirex-trackb
@@ -71,14 +71,14 @@ def test_package_imports():
     assert trackb.__version__ == "0.1.0"
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/mirex-trackb && uv run pytest tests/test_scaffold.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'trackb'` (or uv errors on missing pyproject; create pyproject first in that case and re-run to see the import failure).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```toml
 # pyproject.toml
@@ -151,14 +151,14 @@ the submit module lands). `just test` runs the behavior suite (no GPU needed).
 curl -s https://www.apache.org/licenses/LICENSE-2.0.txt -o LICENSE
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/mirex-trackb && uv run pytest tests/test_scaffold.py -x -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/mirex-trackb && git add -A && git commit -m "feat(scaffold): uv project skeleton with trackb package"
@@ -176,7 +176,7 @@ cd /Users/jdhiman/Documents/crescendai/mirex-trackb && git add -A && git commit 
 - Create: `src/trackb/schema.py`
 - Test: `tests/test_schema.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_schema.py
@@ -226,14 +226,14 @@ def test_record_is_frozen():
         make().label = "B"
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_schema.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'trackb.schema'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # src/trackb/schema.py
@@ -291,14 +291,14 @@ def validate_pairs(records: Iterable[PairRecord]) -> list[PairRecord]:
     return out
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_schema.py -x -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/trackb/schema.py tests/test_schema.py && git commit -m "feat(schema): PairRecord + validate_pairs with loud per-field failures"
@@ -316,7 +316,7 @@ git add src/trackb/schema.py tests/test_schema.py && git commit -m "feat(schema)
 - Create: `src/trackb/extract/__init__.py`, `src/trackb/extract/store.py`
 - Test: `tests/test_store.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_store.py
@@ -362,14 +362,14 @@ def test_verify_raises_on_missing_manifest(tmp_path):
         FeatureStore(tmp_path).verify("toy", "fixture")
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_store.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'trackb.extract'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # src/trackb/extract/__init__.py
@@ -438,14 +438,14 @@ class FeatureStore:
         return manifest["entries"]
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_store.py -x -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/trackb/extract tests/test_store.py && git commit -m "feat(extract): content-hash FeatureStore with verified manifests"
@@ -463,7 +463,7 @@ git add src/trackb/extract tests/test_store.py && git commit -m "feat(extract): 
 - Create: `src/trackb/evalx/__init__.py`, `src/trackb/evalx/budget.py`
 - Test: `tests/test_budget.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_budget.py
@@ -495,14 +495,14 @@ def test_reason_is_required(tmp_path):
         PublicEvalBudget(tmp_path / "b.json", limit=5).spend("")
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_budget.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'trackb.evalx'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # src/trackb/evalx/__init__.py
@@ -549,14 +549,14 @@ class PublicEvalBudget:
         return len(spends)
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_budget.py -x -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/trackb/evalx tests/test_budget.py && git commit -m "feat(evalx): public-eval budget guard refusing spend six"
@@ -574,7 +574,7 @@ git add src/trackb/evalx tests/test_budget.py && git commit -m "feat(evalx): pub
 - Create: `src/trackb/evalx/ratchet.py`
 - Test: `tests/test_ratchet.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_ratchet.py
@@ -619,14 +619,14 @@ def test_promote_copies(tmp_path):
     assert json.loads((tmp_path / "baseline.json").read_text())["holdout_acc"] == 0.77
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_ratchet.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'trackb.evalx.ratchet'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # src/trackb/evalx/ratchet.py
@@ -660,14 +660,14 @@ def promote(last_run: Path | str, baseline: Path | str) -> None:
     shutil.copyfile(last_run, baseline)
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_ratchet.py -x -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/trackb/evalx/ratchet.py tests/test_ratchet.py && git commit -m "feat(evalx): baseline/last_run ratchet with epsilon"
@@ -685,7 +685,7 @@ git add src/trackb/evalx/ratchet.py tests/test_ratchet.py && git commit -m "feat
 - Create: `src/trackb/evalx/folds.py`
 - Test: `tests/test_folds.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_folds.py
@@ -738,14 +738,14 @@ def test_unknown_final_generator_raises():
         make_folds(build_pairs(), k=2, final_generators={"gX"}, seed=0)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_folds.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'trackb.evalx.folds'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # src/trackb/evalx/folds.py
@@ -797,14 +797,14 @@ def make_folds(pairs: list[PairRecord], k: int,
     return Folds(rotating=rotating, final_train=rest, final_holdout=touches_final)
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_folds.py -x -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/trackb/evalx/folds.py tests/test_folds.py && git commit -m "feat(evalx): rotating generator-holdout folds with excluded final fold"
@@ -822,7 +822,7 @@ git add src/trackb/evalx/folds.py tests/test_folds.py && git commit -m "feat(eva
 - Create: `tests/fixtures/__init__.py`, `tests/fixtures/make_fixtures.py`
 - Test: `tests/test_fixtures.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_fixtures.py
@@ -857,14 +857,14 @@ def test_fixture_is_deterministic(tmp_path):
     assert [p.label for p in pairs1] == [p.label for p in pairs2]
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_fixtures.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'tests.fixtures.make_fixtures'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # tests/fixtures/__init__.py
@@ -929,14 +929,14 @@ def build_fixture_corpus(root: Path, n_pairs: int = 48,
     return pairs, store
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_fixtures.py -x -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tests/fixtures tests/test_fixtures.py && git commit -m "feat(fixtures): synthetic planted-signal mini-corpus + toy store"
@@ -954,7 +954,7 @@ git add tests/fixtures tests/test_fixtures.py && git commit -m "feat(fixtures): 
 - Create: `src/trackb/extract/encoders.py`
 - Test: `tests/test_encoders.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_encoders.py
@@ -1000,14 +1000,14 @@ def test_load_audio_decodes_and_resamples(tmp_path):
     assert abs(len(wav) - 16000) <= 2
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_encoders.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'trackb.extract.encoders'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # src/trackb/extract/encoders.py
@@ -1179,14 +1179,14 @@ def text_embed(name: str, text: str, device: str = "cpu") -> np.ndarray:
     return _REGISTRY[name][1](text, device)
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_encoders.py -x -q
 ```
 Expected: PASS (real encoder paths are exercised later by the extraction CLI on real data, deliberately not in unit tests — no GPU/downloads in CI)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/trackb/extract/encoders.py tests/test_encoders.py && git commit -m "feat(extract): encoder registry (toy/clap/mert/muq_mulan) + soundfile decode"
@@ -1313,7 +1313,7 @@ git add src/trackb/train tests/test_head.py && git commit -m "feat(train): point
 - Modify: `src/trackb/train/head.py` (already implemented in Task 9 — this task adds the behavioral test that pins it)
 - Test: `tests/test_head.py`
 
-- [ ] **Step 1: Write the failing test** (append to `tests/test_head.py`)
+- [x] **Step 1: Write the failing test** (append to `tests/test_head.py`)
 
 ```python
 def test_joint_margin_is_antisymmetric():
@@ -1339,23 +1339,23 @@ def test_joint_uses_cross_clip_interaction():
     assert abs(d1 - d2) > 1e-6
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS or PASSES**
+- [x] **Step 2: Run test — verify it FAILS or PASSES**
 
 ```bash
 uv run pytest tests/test_head.py -x -q
 ```
 Expected: PASS (Task 9 implemented both modes). If `test_joint_uses_cross_clip_interaction` FAILS, the joint scorer is degenerate — fix `head.py` so the joint branch concatenates `[feat_a, feat_b, ctx]` through a shared MLP as written in Task 9. The value of this task is pinning the behavior; a pass without code change is acceptable ONLY because Task 9's diff already contains the implementation and this test would fail against a pointwise-only head (verifiable: temporarily setting `joint=0` in the test makes `test_joint_uses_cross_clip_interaction` fail).
 
-- [ ] **Step 3: Implement** — only if Step 2 failed; the Task 9 implementation is the reference.
+- [x] **Step 3: Implement** — only if Step 2 failed; the Task 9 implementation is the reference.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_head.py -x -q
 ```
 Expected: PASS (all four head tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tests/test_head.py && git commit -m "test(train): pin joint-head antisymmetry + cross-clip interaction"
@@ -1373,7 +1373,7 @@ git add tests/test_head.py && git commit -m "test(train): pin joint-head antisym
 - Create: `src/trackb/train/trainer.py`
 - Test: `tests/test_trainer.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_trainer.py
@@ -1410,14 +1410,14 @@ def test_metrics_contain_per_fold_accuracies(tmp_path):
         result.metrics["fold_accs"]) / 2
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_trainer.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'trackb.train.trainer'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # src/trackb/train/trainer.py
@@ -1530,14 +1530,14 @@ def train(config: TrainConfig, pairs: list[PairRecord], store: FeatureStore,
     return TrainResult(checkpoint_path=checkpoint_path, metrics=metrics)
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_trainer.py -x -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/trackb/train/trainer.py tests/test_trainer.py && git commit -m "feat(train): deterministic config-driven k-fold trainer"
@@ -1556,7 +1556,7 @@ git add src/trackb/train/trainer.py tests/test_trainer.py && git commit -m "feat
 - Modify: `justfile` (add `smoke` recipe)
 - Test: `tests/test_smoke.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_smoke.py
@@ -1591,14 +1591,14 @@ def test_score_checkpoint_on_final_fold(tmp_path):
     assert acc > 0.8
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_smoke.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'trackb.evalx.score'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # src/trackb/evalx/score.py
@@ -1643,14 +1643,14 @@ smoke:
     uv run pytest tests/test_smoke.py -x -q
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_smoke.py -x -q && just smoke
 ```
 Expected: PASS (if `holdout_acc` lands below 0.9, raise `epochs` to 300 in BOTH tests — the planted signal is linearly separable; failure at 300 epochs indicates a real bug in assemble/folds, not tuning)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/trackb/evalx/score.py tests/test_smoke.py justfile && git commit -m "feat(evalx): checkpoint scoring + planted-signal smoke gate"
@@ -1668,7 +1668,7 @@ git add src/trackb/evalx/score.py tests/test_smoke.py justfile && git commit -m 
 - Create: `src/trackb/probe/__init__.py`, `src/trackb/probe/generator_id.py`
 - Test: `tests/test_probe.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_probe.py
@@ -1695,14 +1695,14 @@ def test_probe_sits_at_chance_on_independent_features():
     assert abs(report["accuracy"] - 0.25) < 0.12
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_probe.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'trackb.probe'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # src/trackb/probe/__init__.py
@@ -1730,14 +1730,14 @@ def generator_id_probe(X: np.ndarray, labels: list[str], seed: int = 0) -> dict:
             "n_classes": len(classes)}
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_probe.py -x -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/trackb/probe tests/test_probe.py && git commit -m "feat(probe): generator-ID probe with chance calibration"
@@ -1755,7 +1755,7 @@ git add src/trackb/probe tests/test_probe.py && git commit -m "feat(probe): gene
 - Create: `src/trackb/probe/decompose.py`
 - Test: `tests/test_decompose.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_decompose.py
@@ -1777,14 +1777,14 @@ def test_decompose_reports_both_regimes(tmp_path):
     assert report["in_dist_acc"] >= report["holdout_acc"] - 0.05
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_decompose.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'trackb.probe.decompose'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # src/trackb/probe/decompose.py
@@ -1817,14 +1817,14 @@ def decompose(config: TrainConfig, pairs: list[PairRecord], store: FeatureStore,
             "gap": in_dist - holdout}
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_decompose.py -x -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/trackb/probe/decompose.py tests/test_decompose.py && git commit -m "feat(probe): in-dist vs generator-holdout decomposition"
@@ -1842,7 +1842,7 @@ git add src/trackb/probe/decompose.py tests/test_decompose.py && git commit -m "
 - Modify: `src/trackb/train/trainer.py`, `src/trackb/train/head.py`
 - Test: `tests/test_mitigation.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_mitigation.py
@@ -1883,14 +1883,14 @@ def test_unknown_sampler_raises(tmp_path):
               out_dir=tmp_path / "run")
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_mitigation.py -x -q
 ```
 Expected: FAIL — `KeyError: 'sample_stats'` (or equivalent: current trainer ignores sampler/adversarial fields)
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `src/trackb/train/head.py`, append:
 
@@ -2017,14 +2017,14 @@ def train(config: TrainConfig, pairs: list[PairRecord], store: FeatureStore,
 
 Note: `decompose` (Task 14) calls `_fit(config, data)` and uses only the head — update its call site to unpack: `head, _ = _fit(config, assemble(...))`.
 
-- [ ] **Step 4: Run test — verify it PASSES (and no regressions)**
+- [x] **Step 4: Run test — verify it PASSES (and no regressions)**
 
 ```bash
 uv run pytest tests/test_mitigation.py tests/test_trainer.py tests/test_smoke.py tests/test_decompose.py -x -q
 ```
 Expected: PASS (determinism and smoke still hold — sampling uses the seeded generator)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/trackb/train tests/test_mitigation.py && git commit -m "feat(train): generator-balanced sampler + gradient-reversal adversarial term"
@@ -2042,7 +2042,7 @@ git add src/trackb/train tests/test_mitigation.py && git commit -m "feat(train):
 - Create: `src/trackb/corpora/__init__.py`, `src/trackb/corpora/cmi_pref.py`, `tests/fixtures/cmi_pref_sample.jsonl`
 - Test: `tests/test_cmi_pref.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/fixtures/cmi_pref_sample.jsonl` (3 rows in the REAL field layout — verified against `all_test.jsonl` from the P0 scratch env on 2026-07-04):
 
@@ -2092,14 +2092,14 @@ def test_unknown_target_raises():
         rows_to_pairs(load_rows(), target="vibes")
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_cmi_pref.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'trackb.corpora'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # src/trackb/corpora/__init__.py
@@ -2157,14 +2157,14 @@ def load_split(split: str, target: str = "musicality") -> list[PairRecord]:
     return rows_to_pairs(list(ds), target=target)
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_cmi_pref.py -x -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/trackb/corpora tests/fixtures/cmi_pref_sample.jsonl tests/test_cmi_pref.py && git commit -m "feat(corpora): cmi_pref adapter with musicality/alignment targets"
@@ -2182,7 +2182,7 @@ git add src/trackb/corpora tests/fixtures/cmi_pref_sample.jsonl tests/test_cmi_p
 - Create: `src/trackb/corpora/aime_survey.py`
 - Test: `tests/test_aime_survey.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_aime_survey.py
@@ -2225,14 +2225,14 @@ def test_unknown_answer_code_raises():
         rows_to_pairs([bad], question_types={"Music Quality"})
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_aime_survey.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'trackb.corpora.aime_survey'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # src/trackb/corpora/aime_survey.py
@@ -2291,14 +2291,14 @@ def load(question_types: set[str] = frozenset({"Music Quality"})) -> list[PairRe
     return rows_to_pairs(list(ds), question_types=question_types)
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_aime_survey.py -x -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/trackb/corpora/aime_survey.py tests/test_aime_survey.py && git commit -m "feat(corpora): aime_survey adapter with segment clip_refs"
@@ -2316,7 +2316,7 @@ git add src/trackb/corpora/aime_survey.py tests/test_aime_survey.py && git commi
 - Create: `src/trackb/corpora/music_arena.py`
 - Test: `tests/test_music_arena.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_music_arena.py
@@ -2350,14 +2350,14 @@ def test_unknown_preference_value_raises():
         rows_to_pairs([row("u9", "MAYBE")], config_name="2025_12")
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_music_arena.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'trackb.corpora.music_arena'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # src/trackb/corpora/music_arena.py
@@ -2415,14 +2415,14 @@ def load(config_name: str) -> list[PairRecord]:
     return rows_to_pairs(list(ds), config_name=config_name)
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_music_arena.py -x -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/trackb/corpora/music_arena.py tests/test_music_arena.py && git commit -m "feat(corpora): music_arena adapter with pinned preference vocabulary"
@@ -2441,7 +2441,7 @@ git add src/trackb/corpora/music_arena.py tests/test_music_arena.py && git commi
 - Modify: `justfile` (add `extract` recipe)
 - Test: `tests/test_extract_run.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_extract_run.py
@@ -2500,14 +2500,14 @@ def test_missing_audio_file_fails_loudly(tmp_path):
                        device="cpu")
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_extract_run.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'trackb.extract.run'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # src/trackb/extract/run.py
@@ -2647,14 +2647,14 @@ extract encoder corpus audio_root device="cpu":
     uv run python -m trackb.extract.run --encoder {{encoder}} --corpus {{corpus}} --audio-root {{audio_root}} --device {{device}}
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_extract_run.py tests/test_store.py -x -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/trackb/extract tests/test_extract_run.py justfile && git commit -m "feat(extract): resume-safe extraction CLI with AIME segment slicing"
@@ -2672,7 +2672,7 @@ git add src/trackb/extract tests/test_extract_run.py justfile && git commit -m "
 - Create: `main.py`, `tests/fixtures/toy_input.jsonl`
 - Test: `tests/test_main_contract.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/fixtures/toy_input.jsonl` (the P0 toy contract shape):
 
@@ -2744,14 +2744,14 @@ def test_missing_checkpoint_fails_loudly(tmp_path):
             tmp_path / "nope" / "checkpoint.pt", audio_root=tmp_path)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run pytest tests/test_main_contract.py -x -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'main'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # main.py
@@ -2838,14 +2838,14 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run pytest tests/test_main_contract.py -x -q && uv run pytest -x -q
 ```
 Expected: PASS (full suite green)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add main.py tests/fixtures/toy_input.jsonl tests/test_main_contract.py && git commit -m "feat(submit): MIREX contract entrypoint with loud failures + deterministic ties"
@@ -2863,14 +2863,14 @@ git add main.py tests/fixtures/toy_input.jsonl tests/test_main_contract.py && gi
 - Create (nested repo): `configs/first.json`
 - Modify (nested repo): `justfile`, `README.md`
 
-- [ ] **Step 1: Write the failing check**
+- [x] **Step 1: Write the failing check**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-106-mirex-trackb && git check-ignore mirex-trackb; echo "exit=$?"
 ```
 Expected: `exit=1` (not yet ignored — the "failing test")
 
-- [ ] **Step 2: Implement**
+- [x] **Step 2: Implement**
 
 Append to `/Users/jdhiman/Documents/crescendai/.worktrees/issue-106-mirex-trackb/.gitignore`:
 
@@ -3001,7 +3001,7 @@ is CC-BY-NC-SA: research use, disclosed per MIREX rules).
 4. `just train` -> `just eval-ratchet` -> iterate (or point /autoresearch at it).
 ```
 
-- [ ] **Step 3: Run checks — verify they PASS**
+- [x] **Step 3: Run checks — verify they PASS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-106-mirex-trackb && git check-ignore mirex-trackb && echo IGNORED
@@ -3009,7 +3009,7 @@ cd /Users/jdhiman/Documents/crescendai/mirex-trackb && uv run pytest -x -q
 ```
 Expected: `IGNORED` printed; full nested suite PASS.
 
-- [ ] **Step 4: Commit (both repos)**
+- [x] **Step 4: Commit (both repos)**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/mirex-trackb && git add -A && git commit -m "feat(ops): train CLI, wave-1 config, complete just recipes"
@@ -3024,3 +3024,108 @@ cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-106-mirex-trackb && git 
 - **Type consistency:** `TrainConfig` fields identical in T11/T12/T14/T15/T21 config JSON; `_fit` signature change in T15 is propagated to its only other caller (`decompose`, noted in T15); `FeatureStore.put_needed` added in T19 is additive.
 - **Group correctness:** Group A tasks touch disjoint files; Group B disjoint; C and D sequential (shared `head.py`/`trainer.py`); E disjoint; F sequential (T19 touches `store.py` — no Group A task is still running by then).
 - **Known deliberate limits:** real-encoder paths (clap/mert/muq_mulan) and HF `load()`/`load_split()` network paths are exercised by the first real extraction, not unit tests; Music Arena's preference vocabulary and AIME's answer codes are pinned pessimistically (unknown values raise). MuQ-MuLan requires the `muq` package (vendored in the P0 scratch CMI-RewardBench repo if the PyPI package is unavailable) — cloud-wave concern, not wave-1-local.
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise Challenge.** The problem is real and specific: issue #105's P0 proved the CMI-RewardBench harness works but the reproduced 77.8% belongs to QMUL's checkpoint, not to CrescendAI — no submission is possible without an owned system. The plan is a direct path to that goal (extract-once feature cache → sweepable BT head → generator-holdout validation → shortcut probe), not a proxy. No existing crescendai code partially solves this (this is a new research artifact, correctly isolated as a nested repo so it doesn't entangle with the product monorepo). Verdict: right problem, direct path.
+
+**Scope Check.** The plan matches the spec's Modules section field-for-field (verified by re-reading `docs/specs/2026-07-04-mirex-trackb-build-design.md` Modules and File Changes tables against the plan's 21 tasks — every module/adapter/file in the spec maps to exactly one task, see the plan's own "Plan self-review notes: Spec coverage" line, which I independently confirmed). The hardest problem (generator-holdout fold purity, position-bias-immune head, content-hash resume-safe extraction) is being solved, not avoided — Tasks 6, 9/10, and 3 are exactly the guts of this. 20 files is a lot, but this is infra for a multi-corpus, multi-encoder research pipeline; the module count is justified by the spec's own DEEP/thin-by-design rationale, not accidental complexity. Minimum viable version: Group 0-C alone (scaffold → schema → store → budget → ratchet → folds → fixtures → encoders → heads → trainer → smoke) already proves the full loop mechanics on synthetic data — the plan itself flags this as "[SHIPS INDEPENDENTLY]," which is the right MVP framing.
+
+**Twelve-Month Alignment.**
+```
+CURRENT STATE                         THIS PLAN                              12-MONTH IDEAL
+No owned preference model;       →    Frozen-encoder + BT head,         →    Submitted MIREX entry + LBD
+CMI-RM's checkpoint borrowed           nested repo, generator-holdout          finding; reusable pattern for
+for P0 reproduction only.              validation, shortcut-probe study.       any future preference-model work.
+```
+This moves toward the ideal without creating monorepo tech debt — the nested-repo isolation is the correct call given this is a one-off competition submission, not a product feature.
+
+**Alternatives Check.** The spec's "Not in scope" section and the living doc's "Approach ranking" (LLM-judge ~60-70% ceiling; fusion meta-judge gains inside seed noise; no proprietary encoder) function as the alternatives analysis, with rejection reasoning recorded. This satisfies the alternatives check — no `[QUESTION]` needed here.
+
+### Engineering Pass
+
+**Architecture.** Data flow is clean and matches the "compute cliff" framing: `corpora/*.py` → `PairRecord` → `extract/run.py` (embeds once, content-hash keyed) → `FeatureStore` → `train/trainer.py` (assembles cached tensors, never re-embeds) → `evalx/{folds,score,ratchet,budget}` → `probe/*` and `main.py` as pure consumers. Traced end-to-end for both the smoke path (Tasks 7→11→12) and the real path (Tasks 16-18→19→21); no divergence found between the two.
+
+```
+corpora adapter → PairRecord → validate_pairs → extract.run (embed once)
+                                                        ↓
+                                                  FeatureStore (content-hash)
+                                                        ↓
+                                    trainer.assemble → BTHead.margin → BCE loss
+                                                        ↓
+                                    evalx.folds (generator-holdout) → score/ratchet/budget
+                                                        ↓
+                                              probe.generator_id / decompose
+                                                        ↓
+                                         main.py (checkpoint + encoder → predictions.jsonl)
+```
+Error path: `FeatureStore.verify` and corpus adapters raise loudly and are not caught anywhere upstream (no blanket `except`), so failures surface to the CLI/test runner — matches the project's explicit-exception-over-fallback preference. No SQL/shell/prompt-injection surface; `audio_root / clip_ref` path joins use corpus-provided strings without traversal sanitization, but the corpora are trusted HF datasets, not untrusted user input, so this is `[OBS]` not a finding.
+
+**Module Depth Audit** (spot-check on the modules with the most exported surface):
+- `schema.py`: interface = `PairRecord`, `validate_pairs`, `SchemaError` (3 symbols); hides per-field/dedup invariants across all corpora. DEEP.
+- `extract/store.py`: interface = `put/get/write_manifest/verify` (+ `put_needed` added in T19) — 5 methods; hides on-disk layout, resume semantics, manifest integrity. DEEP.
+- `extract/encoders.py`: interface = `embed/text_embed/load_audio` (3 functions) fronting 4 registered encoders each with device placement, chunking, HF loading. DEEP.
+- `train/head.py` + `train/trainer.py`: interface = `BTHead.margin/penultimate`, `TrainConfig`, `train()` — hides antisymmetrization, k-fold orchestration, adversarial gradient-reversal, sampler weighting. DEEP, though `trainer.py`'s `_fit` (Task 15 version) has grown to ~50 lines with three responsibilities (fitting, sampling-stat collection, adversarial term) threaded through optional params (`pairs=None, stats=None`) — borderline SHALLOW-by-accretion. Not a blocker; flagged as a `[RISK]` below (Code Quality).
+- `corpora/*.py` (cmi_pref, aime_survey, music_arena): interface = one `rows_to_pairs` + one `load`/`load_split` per module; genuinely shallow but explicitly justified in the spec ("depth here would mean duplicating validation three times") — this is the correct call, not a smell.
+
+**Code Quality.**
+- `[RISK]` (confidence: 6/10) — `trainer._fit` (post-Task-15) takes on three concerns (model fit, sample-stat bookkeeping, adversarial loss) via optional `pairs`/`stats` params with `if adv_head is not None and pairs is not None and config.joint == 0` gating. Adversarial mitigation silently has no effect when `joint=1` (the cross-encoder head) — there is no test combining `adversarial_lambda > 0` with `joint=1`, and no error is raised to say "adversarial mitigation is pointwise-only." Watch during Task 15 execution: either add a loud `ValueError` when `adversarial_lambda > 0 and joint == 1`, or add a test/comment documenting the restriction is intentional. Fallback: leave as-is for wave 1 (pointwise head is the default anyway) but note it in the nested repo's README so a future config sweep doesn't waste a cloud run on a no-op combination.
+- `[OBS]` — `Folds` construction in Task 6 (`rest = [p for p in pairs if p not in touches_final]`) is O(n·m) via dataclass equality rather than an id/pair_id-keyed set; fine for the 48-pair test fixture and probably fine for wave-1's ~4-20k real pairs, but worth a comment if a corpus grows past ~100k pairs.
+- `[RISK]` (confidence: 7/10) — no bare `except Exception` patterns found anywhere in the plan's code — good adherence to the project's explicit-exception preference. No further code-quality violations found on inspection of all 21 tasks' listed source.
+
+**Test Philosophy Audit.** All tests exercise public module interfaces (`validate_pairs`, `FeatureStore.put/get/verify`, `BTHead.margin`, `train()`, `generator_id_probe`, `run()` for `main.py`) with real in-memory/tmp_path fixtures — no internal collaborator mocking anywhere in the 21 tasks. This is a clean, behavior-first test suite. No `[BLOCKER]`s here.
+
+**Vertical Slice Audit.** 19 of 21 tasks are clean one-test→one-impl→one-commit slices, verified by reading each task's Steps 1-5. The two flagged exceptions:
+- Task 10 (joint-head antisymmetry test may pass without new code): justification given is that Task 9's diff already contains the joint-mode implementation, and the plan explicitly instructs verifying the test *would* fail against a pointwise-only head (temporarily setting `joint=0`) to prove it's a real behavioral pin, not a tautology. This is an adequate justification — the test is still checking real behavior (cross-clip interaction), just landing one task after the code that implements it. Not flagged.
+- Task 21 (git-check-ignore "test"): adequate for the `.gitignore` line itself. However, Task 21's Step 2 also creates `src/trackb/train/cli.py` — genuinely new application logic (loads a JSON config, constructs `TrainConfig`, and raises `ValueError` if `final_generators` is empty) — under the umbrella of an "ops" task whose only verification is `git check-ignore` + `uv run pytest -x -q` (the *existing* suite, which does not import or exercise `cli.py` at all). See Test Coverage Gaps below — flagged as `[RISK]`, not `[BLOCKER]`, since the guard clause is simple and every function `cli.py` calls (`train`, `TrainConfig`, `FeatureStore`) is already tested elsewhere; the untested surface is a single one-line invariant check.
+
+**Test Coverage Gaps.**
+```
+[+] src/trackb/extract/run.py
+    │
+    ├── extract_corpus() — plain clip_ref path ("audio/a1.wav")
+    │   ├── [TESTED] ★★  embed + write manifest — Task 19 test
+    │   ├── [TESTED] ★★  resume (second run re-embeds 0) — Task 19 test
+    │   └── [TESTED] ★★  missing audio file raises FileNotFoundError — Task 19 test
+    │
+    └── extract_corpus() / _resolve() — "aime:{track_id}:{begin}-{end}" path
+        ├── [GAP] _hms_to_seconds() — no test at all (any format, boundary values)
+        ├── [GAP] audio_root.glob(f"{track_id}.*") file-matching — no test; assumes
+        │         one file per track_id named exactly "{track_id}.<ext>", unverified
+        │         against the real disco-eth/AIME audio corpus's actual file-naming
+        │         convention
+        └── [GAP] wav[int(span[0]*sr):int(span[1]*sr)] slicing — no test for the
+                  aime clip_ref branch at all; test_extract_run.py only builds
+                  plain-named wavs, never an "aime:" ref
+
+[+] src/trackb/train/cli.py (Task 21)
+    └── main() / final_generators empty guard
+        └── [GAP] no test imports or calls this module at all
+```
+`[RISK]` (confidence: 8/10) — the AIME segment-resolution branch of `extract/run.py` (`_hms_to_seconds`, the `aime:` half of `_resolve`, and the slice-by-span logic) is completely unexercised by any test in the plan. This is not a peripheral path — AIME-survey is one of three wave-1 corpora and Task 17 explicitly encodes segment spans into `clip_a`/`clip_b` (`"aime:5331:00:00:53-00:01:03"`) specifically so extraction can slice them, but Task 19's test corpus never constructs an "aime:" ref. Since this is a real-data-only path (per the plan's own "known deliberate limits" note that real-encoder/network paths are validated at first real extraction, not in CI), this may be an intentional deferral consistent with that pattern — but unlike the encoder-registry deferral (which only skips GPU-dependent embedding, with the surrounding logic tested via the "toy" encoder), here the entire glob-matching and time-slicing logic is untested by *anything*, including the toy encoder. Recommend adding one `test_extract_run.py` case with a synthetic `"aime:track1:00:00:00-00:00:01"` ref and a `track1.wav` fixture file before the real Task 17→19 AIME extraction run — cheap insurance against a silent wrong-file-match or off-by-one slice during the actual overnight/cloud extraction (which is expensive to re-run and burns calendar time before the ~Jul 24 fork decision).
+
+**Failure Modes.** Reviewed per task: `FeatureStore.verify` (Task 3) refuses assembly loudly on incomplete manifests — no silent partial state. `PublicEvalBudget` (Task 4) persists to disk before allowing a 6th spend — a crash after `spend()` writes but before the caller uses the result would just look like one used spend, not a corruption. `train()` (Task 11/15) writes `checkpoint.pt` and `metrics.json` only after all folds complete; a mid-training crash leaves `out_dir` empty or partially populated but never a checkpoint that silently doesn't match its metrics (both write in the same function, back to back, no separate transaction boundary needed since there's no concurrent writer). `main.py::run()` (Task 20) raises loudly on missing checkpoint, malformed rows, and missing audio; writes rows to `output_path` incrementally inside the loop, so a mid-run crash leaves a truncated-but-valid-prefix `predictions.jsonl` rather than a corrupt file — acceptable for a non-interactive batch CLI. No silent failures identified in any of the 21 tasks.
+
+### Presumption Inventory
+
+| ASSUMPTION | VERDICT | REASON |
+|---|---|---|
+| CMI-Pref real row schema (`audio-path`, `model_a`, `preference-musicality`, etc.) matches Task 16's fixture | SAFE | Explicitly verified 2026-07-04 against the P0 scratch `all_test.jsonl`, per the plan's own comment and the living doc's P0 section. |
+| AIME-survey schema (`question-type`, `track-1-id`, `answer` ∈ {1,2}) | VALIDATE | Verified via HF datasets-server per the plan's comment, but the plan itself flags that tie/other answer codes are unconfirmed — hence the loud-raise design (correct mitigation), but the *audio file naming convention* for `track-{1,2}-id` is NOT verified anywhere (see Test Coverage Gaps `[RISK]` above). |
+| Music Arena preference vocabulary is exactly `{A, B, TIE, BOTH_BAD}` | VALIDATE | Plan's own docstring says this is "pinned optimistically... per the published dataset description" — the loud-raise-on-unknown design correctly surfaces a wrong guess at first real extraction rather than silently misclassifying, so the risk is contained even if the assumption is wrong. |
+| `guard-primary-tree-edits.py` judges files by nearest enclosing repo, so nested-repo edits on `build/initial-system` are not blocked by the crescendai hook | VALIDATE | Plan states this was "audited" this session; I did not independently re-verify the hook's source in this review (out of scope of the plan's own file list) — worth a quick sanity check (`echo test >> mirex-trackb/README.md` then attempt a Write) before Task 1 begins, since if wrong it blocks the entire Group 0-F execution. |
+| Adversarial mitigation (Task 15) is meaningful only for `joint=0` and this restriction needs no user-facing signal | RISKY | No error raised when `adversarial_lambda > 0` is combined with `joint=1`; silently a no-op. See Code Quality `[RISK]` above. |
+| `torch.load(..., weights_only=True)` (Task 12's `score.py`) can deserialize the Task 11/15 checkpoint dict (nested dataclass-derived dict, tensors, str/float primitives) | SAFE | `weights_only=True` in modern torch supports dicts of tensors + Python primitives (the checkpoint's `asdict(config)` is exactly that); no custom classes are pickled into the checkpoint. |
+| `mirex-trackb`'s own `.gitignore` (Task 1) correctly excludes `data/`, `checkpoints/`, `results/` so multi-GB feature caches and audio never get committed to the nested repo (which will go private→public on GitHub) | SAFE | Explicitly listed in Task 1's `.gitignore` content; consistent with the spec's "Raw bulk audio never lands on the Mac... ship home only feature tensors" stance, which still must not be *committed* even though it's on disk — worth a final `git status` sanity check before the private→public flip, but the ignore rules as written are correct. |
+
+### Summary
+[BLOCKER] count: 0
+[RISK]    count: 4
+[QUESTION] count: 0
+
+### Cautions
+No blockers. The plan is well-scoped, correctly isolates a one-off research artifact from the product monorepo, and its test suite is genuinely behavior-first with no internal-mocking or shape-testing violations. The four risks to watch during execution: (1) the AIME segment-extraction code path (`_hms_to_seconds`, glob-by-track-id, time-slicing) has zero test coverage anywhere in the plan and should get one cheap synthetic-fixture test added to Task 19 before the real AIME extraction burns calendar time on a possible silent wrong-file-match or off-by-one slice; (2) Task 21's `train/cli.py` ships a untested (if simple) `final_generators`-empty guard under an "ops" justification that technically covers only the `.gitignore` line, not this new file; (3) the adversarial-mitigation term silently no-ops when combined with the joint/cross-encoder head, with no error or test pinning that restriction; (4) the "guard-primary-tree-edits.py judges by nearest enclosing repo" claim that justifies skipping a crescendai worktree for Tasks 1-20 was asserted as "audited this session" but not independently re-verified in this review — worth one quick sanity check before Task 1's first commit.
+
+VERDICT: PROCEED_WITH_CAUTION — monitor: (1) AIME segment-slicing path untested, add a fixture before real extraction; (2) Task 21's cli.py final_generators guard is untested; (3) adversarial_lambda silently no-ops under joint=1; (4) re-verify the guard-primary-tree-edits.py nested-repo behavior before Task 1's first edit.
