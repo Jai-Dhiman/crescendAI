@@ -15,6 +15,7 @@ mod real_recording_test;
 
 // Re-export pure Rust core for integration tests (not wasm_bindgen — no JsValue in tests)
 pub use chroma_dtw::chroma_dtw_native;
+pub use note_align::{align_chunk_notes_native, ChunkNoteResult};
 
 /// Select the top-1 teaching moment from a session's scored chunks.
 ///
