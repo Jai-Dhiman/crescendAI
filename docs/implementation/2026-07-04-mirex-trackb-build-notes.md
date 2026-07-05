@@ -63,3 +63,9 @@ Decisions, deviations, and tradeoffs made during build. Read this before running
 - Crescendai worktree 4237792f: .gitignore ignores mirex-trackb/; docs/mirex/ copied from issue-105 branch + decision-log entry appended.
 - Deviation note: plan's Step-3 `git check-ignore mirex-trackb` (bare name) exits 1 in the worktree because the dir doesn't exist there and directory-only patterns need lstat evidence — verified rule correctness via trailing-slash form, temp-dir creation, and node_modules/ control. Rule works at the repo root where mirex-trackb/ exists.
 - Group F quality review: Tasks 19, 20, fix 4d38993 all APPROVED (4 MINOR notes: glob multi-match picks sorted-first silently; lazy torch import style; TOCTOU note; corpus choices accepted).
+
+## Final integration review + fixes
+- Final whole-repo reviewer: NEEDS_FIXES with 3 IMPORTANT seam findings (no CRITICAL): (1) trainer writes checkpoints/latest/checkpoint.pt but main.py defaults checkpoints/best.pt with no producer; (2) musicarena: clip refs fell through to a misleading FileNotFoundError; (3) probe/decompose/budget headline modules had no documented entrypoint.
+- Fixed in 918654f: promote-checkpoint just recipe + README wave-1 step 5 (kept main.py best.pt default — deliberate operator promotion, mirrors eval-promote); NotImplementedError guard for musicarena refs (watched-fail regression test); README "Shortcut study" + "Public-eval budget" sections.
+- Controller verified all three fixes directly (guard at run.py:36, recipe present, README sections present); final suite 61 passed; just --list shows 7 recipes.
+- BUILD COMPLETE: 21/21 tasks; nested repo 25 commits on build/initial-system; crescendai worktree carries Task 21 docs/gitignore + notes/plan bookkeeping.
