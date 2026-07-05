@@ -1,0 +1,97 @@
+# Track B (Task 2) — Music Evaluation via CMI-RewardBench
+
+**Status:** P0 REPRODUCED (harness trusted) · **Issue:** [#105](https://github.com/Jai-Dhiman/crescendAI/issues/105) · **Updated:** 2026-07-04 · **Research: COMPLETE** (5 briefs + task page + code audit) · **P0: PASS** (CMI-RM musicality 77.8% exact)
+
+## TL;DR / current verdict
+- **P0 harness reproduction: PASS (2026-07-03).** CMI-RM reproduced on the CMI-Pref test split (500 pairs) on this Mac: **musicality 77.8% (exact vs paper), compositional alignment 79.2% (exact vs repo)**, all alignment modalities within ~1pp. Harness is trustworthy. Toy MIREX I/O contract confirmed. See decision log for the table + env recipe. (TuneJury A1's exact 0.705 needs unshipped pre-extracted features — bounded follow-up.)
+- **Submission gate: easy PASS.** Floor = run the released TuneJury Apache CLAP-only checkpoint (~0.70). A commercially-clean ~0.70 model is buildable from permissive data.
+- **Pivot gate: FAIL on asset-edge (high confidence).** We have **no proprietary encoder** — our MuQ is stock/frozen (see code audit). Our piano-quality head is task-irrelevant. Fusion/LLM-judge edges are unproven/marginal. A passing probe proves reproduction competence, nothing strategic.
+- **Winning play = small frozen-encoder + Bradley-Terry pairwise head** (NOT LLM-judge, NOT fusion).
+
+## Task spec (confirmed from the MIREX task page)
+- **Goal:** given `{prompt, audio_A, audio_B}`, predict the human-preferred clip. Multi-genre GENERATED audio.
+- **I/O:** input JSONL rows `{sample_id, prompt, audio_A, audio_B}` → output `{sample_id, preferred_candidate: "A"|"B"}`. Run as `python main.py --path input.jsonl`.
+- **Metric:** pairwise accuracy vs crowdsourced consensus (framework also reports LCC/SRCC/Kendall). "Efficiency metrics" appear **reported, not ranked** — *CONFIRM with captain*.
+- **Rules:** external pretrained models + data allowed if disclosed. Self-contained env.
+- **Timing:** eval JSONL + audio released **Oct 1**; predictions due **Oct 2 AOE** via futuremirex.com/submission/. → System must be built/frozen before Oct 1; only inference in the 1-day window.
+- **Captain:** Yinghao Ma (QMUL) — yinghao.ma@qmul.ac.uk. Paper: arXiv:2603.00610 (ICML 2026). Baseline repo: github.com/Haiwen-Xia/CMI-RewardBench.
+
+### ⚠️ Open schema risk (highest-priority unknown)
+Task-page toy example shows only `{prompt, audio_A, audio_B}`, but the underlying CMI-Pref data carries `lyrics` + `ref-audio-path`, and its test split is balanced 25% each Text / Lyrics / Audio / Audio+lyrics. If the eval JSONL really omits lyrics/ref-audio, ~50% of items are structurally unjudgeable — so the real file likely exposes more fields. **Email the captain to confirm before fixing the architecture.**
+
+## Data & licenses
+| Resource | HF id | License | Pairwise? | Use |
+|---|---|---|---|---|
+| AIME-survey | `disco-eth/AIME-survey` | **CC-BY-4.0** | Yes — 15,600 pairs, 2,500+ raters | commercial-clean train |
+| Music Arena | `music-arena/music-arena-dataset` | **CC-BY-4.0** | Yes (A/B/TIE/BOTH_BAD), has `lyrics` | commercial-clean train |
+| CMI-Pref | `HaiwenXia/cmi-pref` | CC-BY-NC-SA | Yes (Bradley-Terry, 4,027; 500 test) | max-acc only (non-commercial) |
+| CMI-Pref-Pseudo (110k) | `HaiwenXia/cmi-pref-pseudo` | CC-BY-NC-SA | pseudo (Qwen3-Omni) | max-acc; **⚠ loader currently broken** |
+| SongEval | `ASLP-lab/SongEval` | CC-BY-NC-SA | No (MOS 1-5) | aux only, non-commercial |
+| AIME (corpus) | `disco-eth/AIME` | audio CC-BY-4.0 / tags CC-BY-NC-SA | No (tagged corpus) | source material |
+
+**Encoders:** LAION-CLAP-music `laion/larger_clap_music` = **Apache-2.0**; MERT-v1-330M, MuQ `OpenMuQ/MuQ-large-msd-iter`, MuQ-MuLan `OpenMuQ/MuQ-MuLan-large` = CC-BY-NC.
+
+**Commercial-clean recipe** = LAION-CLAP (Apache) + AIME-survey + Music Arena (all permissive) ≈ 17-20k real pairs, zero NC/SA. Expected ~0.70.
+**Max-accuracy recipe** = + MERT/MuQ-MuLan + CMI-Pref/Pseudo → ~0.78 but permanently NC/SA (non-shippable).
+
+## SOTA reference numbers (verified)
+- **CMI-RM** (frozen MuQ-MuLan two-tower + ~30M head, Bradley-Terry): **78.2%** CMI-Pref (overall), 77.8% musicality-only, 82.4% compositional. Accuracy AND efficiency leader.
+- **TuneJury** (frozen LAION-CLAP + MERT → ~2.8M MLP, RankNet): **0.7086** (Apache CLAP-only variant **0.705**). Released checkpoint. Trained on ~17.5k real human pairs.
+- **Audio-native LLM judges** (CMI-Pref, Table 2): Gemini 2.5 Pro **70.0** > Gemini 3 Pro 65.8 > Qwen3-Omni 60.4. Newer≠better. Our glm-4.7-flash is **text-only — cannot judge audio.**
+
+## Approach ranking (evidence-based)
+1. **Frozen-encoder + Bradley-Terry head** — the spine. Hard to beat.
+2. **LLM-judge** — ~60-70% ceiling; caption→text cascade strips the tested signal; at best an optional fusion stream.
+3. **Fusion meta-judge** — gains inside seed noise; can hurt OOD (the hard axis = unseen generators). Fixed average only, generator-holdout validation.
+4. **No encoder moat** (code audit). Aria dead (symbolic-MIDI only; AMT collapses on vocal).
+
+## Build plan
+- **P0 (day 1):** clone CMI-RewardBench; run released CMI-RM + TuneJury-CLAP through `inference_benchmark.py` → reproduce ~0.78/~0.70; prove harness + I/O. ← *the kickoff task (see pasteable prompt on #105).*
+- **P1:** wrap our `main.py --path input.jsonl` to the MIREX contract; both-orderings + tie-break (position bias: CMI measured 52%→59% swing).
+- **P2 (spine):** reimplement frozen-encoder + Bradley-Terry MLP head (no training code ships). Commercial-clean variant primary; optional max-acc. Two-tower Prompt Tower ingests optional lyrics/ref-audio (graceful degrade).
+- **P3 (optional bet):** add audio-native-LLM stream (Qwen3-Omni/Gemini), fixed-average fusion; keep ONLY if it beats P2 on generator-holdout.
+- **Ops:** if Gemini, pre-provision Tier-2 ($250 prior spend) before Oct 1; broken pseudo-loader sidesteppable (commercial-clean uses AIME-survey+Music Arena).
+
+## Code audit (capstone)
+Our "finetuned MuQ" is **stock/frozen** (`apps/inference/models/loader.py:217` loads unmodified `OpenMuQ/MuQ-large-msd-iter`; `audio_encoders.py` trains only a head on frozen embeddings; the `MuQLoRAMaxModel` LoRA path hard-errors `NotImplementedError`; full-unfreeze A3 rejected for catastrophic forgetting). MuQ finetune is the still-pending [#80] intent, not current reality. → No proprietary encoder for this task.
+
+## Must-confirm before build
+1. Eval-JSONL schema — does it expose `lyrics`/`ref-audio`? (captain)
+2. Is "efficiency" ranked or only reported? (captain)
+3. Exact eval size + whether it blends CMI-Pref/AIME/SongEval/Music Arena test items.
+
+## Decision log (append-only)
+- **2026-07-03** — Research complete. Verdict: submission gate easy PASS, pivot gate FAIL on asset-edge (no proprietary encoder — code audit). Recommend: enter only if P0+P2 stay ≤ single-digit weeks; treat as credential, not pivot signal.
+- **2026-07-03 (P0 harness reproduction — infra GREEN, numbers landing)** — Stood up the CMI-RewardBench harness end-to-end on this Mac (Apple Silicon, no CUDA) and confirmed the CMI-RM checkpoint runs faithfully. Details:
+  - **Env**: `uv` venv (Python 3.10.19) + `baselines/requirements.txt`. torch 2.10.0 / torchaudio 2.10.0 / transformers 4.57.3 (macOS wheels). Vendored modified `muq` package ships inside the CMI-RewardBench repo (`models/cmi-rm/src/`) — imports clean.
+  - **Model fidelity**: CMI-RM loads **880/880 weights, missing=0 unexpected=0** — the frozen MuQ-MuLan encoder is fully bundled in the 2.8 GB `model.safetensors` (no separate encoder download, nothing randomly initialized). config.yaml matches the paper (dim 768, joint_tf_depth 1, freeze_audio/text true, downsample eval=mean_4x). Runs on MPS (Metal), fp32 (bf16 auto-off outside CUDA — the most numerically faithful path).
+  - **Data**: full CMI-Pref TEST split = the **500 `cmi-arena-annotation` rows** inside `data/all_test.jsonl` (the other 2253 rows are PAM/MusicEval/MusicArena — skipped via `--subset CMI-Pref`). All **1231** referenced audio files (991 gen-audio A/B + 240 ref-audio) downloaded + ffprobe-verified (2.9 GB). Labels balanced (musicality 251/249, alignment 246/254 → chance ≈ 50%). 250/500 rows carry ref-audio (the "Audio"/"Audio+lyrics" modalities).
+  - **I/O contract CONFIRMED (hands-on)**: `BenchmarkBatchInput` exposes `audio, text, lyrics, ref_audio` — so the harness **does** consume lyrics + reference audio (resolves the highest-priority open schema question; a MIREX eval JSONL can carry them, our wrapper forwards them, graceful-degrade to None). Fed a toy `input.jsonl` in the MIREX submission schema `{sample_id, prompt, audio_A, audio_B}` → `BenchmarkPairInput` → `score_batch_pair` → `[N,4]` `[align_a,music_a,align_b,music_b]` → `preferred_candidate` "A"/"B". Both toy pairs emitted differentiated musicality-vs-alignment prefs. CMI-Pref uses the **pointwise** path (score A and B independently, margin `col_a−col_b`; exact ties → random) — the default adapter does not override `score_batch_pair`.
+  - **Env gotchas resolved (durable — don't re-derive)**: (1) `baselines/requirements.txt` adds a cu121 index → `uv pip install --index-strategy unsafe-best-match` so macOS torch resolves from PyPI. (2) HF hub client hangs on the Xet per-file token endpoint under load → bulk-download audio via authenticated `curl` to `/resolve/main/<path>` (302→pre-signed CDN, no token). (3) **torchcodec 0.14.0 (torchaudio 2.10 decode backend) is ABI-incompatible with the macOS torch 2.10.0 wheel** — every core lib fails on `Symbol not found: _torch_dtype_float4_e2m1fn_x2` (FFmpeg version irrelevant); patched `baselines/inference.py::load_audio` to decode via `soundfile`/libsndfile (same PCM). (4) MPS **wired** activation memory (not model size) is the constraint on 32 GB: `--batch_size 8` thrashed swap → 0 progress; **`--batch_size 2` is stable** (~15 s/pair, ~2 h full run). (5) needed `pandas`+`scipy`+PyYAML for `evaluate_results.py` (top-level `requirements.txt`, not `baselines/`).
+  - **Reproduction command**: `python inference_benchmark.py -c cmi-rm-ckpt/model.safetensors --dataset_jsonl data/all_test.jsonl --dataset_root data --device mps --subset CMI-Pref --batch_size 2` (max_dur=120, harness/paper default; ~2.5 h; `results/cmi_rm_full/metrics.json`).
+  - **CMI-RM REPRODUCED — PASS (500/500 pairs).** Musicality matches the paper to the decimal; alignment matches the paper's modality breakdown exactly or within ~1pp:
+
+    | Metric (CMI-Pref, n=500) | Paper (repo README) | Reproduced | Δ |
+    |---|---:|---:|---:|
+    | Musicality ACC (overall) | 77.8% | **77.8%** | 0.0 ✅ |
+    | Alignment ACC (overall) | — | 73.6% | — |
+    | Alignment — T (text) | 67.6% | 67.2% | −0.4 ✅ |
+    | Alignment — L (text+lyrics) | 72.8% | 72.8% | 0.0 ✅ |
+    | Alignment — A (text+ref-audio) | 76.4% | 75.2% | −1.2 ✅ |
+    | Alignment — C (compositional) | 79.2% | **79.2%** | 0.0 ✅ |
+    | Overall preference | 78.2% | ~77.8% (musicality proxy) | −0.4 ✅ |
+
+    Musicality=77.8% is an **exact** hit on the paper's MUS figure; compositional alignment (C) = 79.2% is an **exact** hit on the repo README's `CMI-Pref (C)`. High-confidence subset (conf>3, n=306) is higher as expected: musicality 81.4%, alignment 80.1%. Verdict: **the harness is trustworthy** — the reproduction path (880/880 weight load, soundfile decode, 30s chunk-encode, pointwise margin, eval) is faithful end-to-end. Caveat: the task-prompt/earlier-research figure "82.4% compositional" does **not** match the repo's published 79.2% and could not be reproduced; my run reproduces the README's 79.2% exactly, so 82.4 appears to be a different aggregation or a transcription slip — treat 79.2% as authoritative for compositional-alignment.
+  - **TuneJury (Apache CLAP-only, ~0.705)**: repo cloned, `A1_clap_audio_only.pt` (4.9 MB, 512-d, excludes mert+text) verified present. **Finding: A1's exact 0.705 is NOT cleanly reproducible from raw audio** — it is an internal cross-split aggregate (Appendix C) computed over TuneJury's **pre-extracted features** (`data/processed_features/`, not shipped in the repo) via `eval/input_ablation_eval.py`. The only raw-audio eval path (`eval/cmi_rewardbench.py`) hardcodes the **full 2048-d CLAP+MERT** model (CC-BY-NC, needs its own torch<2.8 env + 2.2 GB CLAP + MERT), not the Apache A1. So TuneJury A1-on-CMI-Pref is a bounded follow-up requiring TuneJury's feature dependency; deferred (secondary to the CMI-RM anchor).
+  - Scratch (gitignored, NOT committed): `.worktrees/issue-105-mirex-rewardbench/scratch/` — vendored repos + 2.8 GB ckpt + 2.9 GB audio + venv.
+
+## Resuming the P0 harness (reuse the scratch env — don't re-download)
+Everything below already exists on disk under `.worktrees/issue-105-mirex-rewardbench/scratch/` (gitignored, ~5.7 GB). A future session can re-run in minutes without re-downloading. If the worktree/scratch was pruned, the download + patch steps are all in the decision-log entry above.
+- **venv**: `scratch/.venv` (Python 3.10.19, torch 2.10 MPS). Activate: `scratch/.venv/bin/python`.
+- **CMI-RewardBench repo (with the soundfile decode patch applied)**: `scratch/CMI-RewardBench`. ⚠ If re-cloned fresh, re-apply the `load_audio` → soundfile patch (see gotcha #3 above) or mp3 decode fails.
+- **CMI-RM checkpoint**: `scratch/cmi-rm-ckpt/model.safetensors` (+ `config.yaml`). **CMI-Pref audio**: `scratch/data/cmi-pref/{gen-audio,ref-audio}`, dataset_root = `scratch/data`.
+- **Re-run the reproduction** (from `scratch/`): `.venv/bin/python CMI-RewardBench/inference_benchmark.py -c cmi-rm-ckpt/model.safetensors --dataset_jsonl CMI-RewardBench/data/all_test.jsonl --dataset_root data --device mps --subset CMI-Pref --batch_size 2 --output_dir results/cmi_rm_full` → `results/cmi_rm_full/metrics.json`. **Keep batch_size ≤ 2** (MPS wired-memory thrash above that on 32 GB).
+- **Toy I/O contract demo**: `scratch/.venv/bin/python scratch/toy_contract.py` (writes `toy_input.jsonl`, prints `preferred_candidate`).
+- **TuneJury**: cloned at `scratch/TuneJury`; A1 Apache head at `scratch/TuneJury/checkpoints/input_ablation/A1_clap_audio_only.pt`. A1-on-CMI-Pref eval still needs TuneJury's unshipped `data/processed_features/` + a torch<2.8 env + 2.2 GB CLAP.
+- **Doc location**: this file lives on branch `issue-105-mirex-rewardbench` (unmerged to main as of 2026-07-04). Read it from the branch, or `git show issue-105-mirex-rewardbench:docs/mirex/track-b-cmi-rewardbench.md`.
+- **2026-07-04 (Option C approved — build started, issue #106)** — Brainstorm + /plan complete. Win condition re-scoped: LBD credential (finding > rank); license fork dissolved (NC data fine for research submission); LLM-judge stream killed at <=$100 budget. System = extract-once feature cache (CLAP/MERT/MuQ-MuLan; CMI-Pref local overnight, AIME-survey + Music Arena cloud ~$25-40) -> BT-head sweeps on cached features (Mac, autoresearch, nested generator-holdout validation, public-500 budget <=5 evals) -> generator-identity shortcut probe + mitigation as the LBD headline. Code: NESTED STANDALONE REPO at `crescendai/mirex-trackb/` (own git history, Apache-2.0, private->public). Spec: docs/specs/2026-07-04-mirex-trackb-build-design.md; plan: docs/plans/2026-07-04-mirex-trackb-build.md (both on branch issue-106-mirex-trackb). Corpus schemas verified against real data (CMI-Pref via P0 scratch; AIME-survey + Music Arena via HF datasets-server): generator identity present in ALL three (model_a/b, model-1/2, system_a/b).
