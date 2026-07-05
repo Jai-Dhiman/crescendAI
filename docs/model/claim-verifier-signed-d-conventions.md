@@ -863,3 +863,55 @@ corpus. 7b (measurer), 7c (G-A), 7d (tau) — NOT STARTED, correctly un-built.
   Tests whether the NO_GO is the voice (fixable) vs the pedagogy (fundamental).
 - (c) **New G-B front for a rubato-shape statistic** — high-risk per FRONT 6; only if (b) also fails.
 FRONT 8 (articulation / duration-ratio) is independent of this NO_GO and remains available.
+
+## FRONT 7a-bis UPDATE (#101, 2026-07-04): fork (b) ran — the blocker is the INPUT, not the voice.
+
+Ran fork (b) as a paired two-arm supply re-probe over the 17 chopin_ballade_1 performances that
+have real AMT bundles. Prompt held IDENTICAL and permissive across arms (explicitly allowed to name
+directional rush/drag); Sonnet held constant; only the INPUT varied:
+- **ARM A** = permissive prompt + the ORIGINAL scalar input (`muq_means["timing"] ~0.57`, no direction).
+- **ARM B** = permissive prompt + a CONSTRUCTION-KNOWN directional cue (7 rush / 7 drag / 3 steady;
+  4 bar-localized). Construction-known because a cheap self-relative onset signal is texture-confounded
+  (raw AMT `median(60/IOI)` gave "established ~375 BPM", −47..−75% drift = polyphony density, not tempo —
+  independent confirmation that a trustworthy directional signal needs the score-relative bar-map = 7b).
+
+| condition | input | rush_drag | rubato | directional supply |
+|---|---|---|---|---|
+| original (warm prompt, 162 docs) | scalar timing 0.57 | 0 | 70 | **0** |
+| ARM A (permissive, 17 docs) | scalar timing 0.57 | **0** | 0 | **0** |
+| ARM B (permissive, 17 docs) | + directional cue | **19** (7 rush/7 drag/5 neutral) | 0 | **19** (4 bar-localized) |
+
+Construct-match (injected direction vs extracted claim): **17/17 direction, 4/4 bar-localization.**
+
+**Diagnosis — H1 (voice) REJECTED, H2 (input) CONFIRMED, H3 (fundamental) REJECTED.** Making the prompt
+permissive changes nothing (Arm A = original = 0): the teacher is HONEST and will not fabricate a
+direction from a scalar quality score. Add a real directional signal and directional claims appear
+immediately (0 → 19), correctly signed and located. The FRONT-7 NO_GO was never the statistic, the claim
+taxonomy, or the voice — **the production teacher's input carries no timing direction.**
+
+**What this does to FRONT 7:** it is not dead; its center of gravity moves from "is there supply?" to a
+PIPELINE change — compute score-relative onset deviation (7b's measurer) and feed it to the teacher, and
+directional (verifiable) claims flow. **But three caveats reshape the paper goal, and must be stated:**
+1. **Circularity.** If the SAME measurer both feeds the teacher and adjudicates it, the "faithfulness
+   rate" is near-tautological — the teacher parrots the fed signal (construct-match already 17/17). The
+   meaningful evaluation shifts from "is the claim true?" to "does the teacher DISTORT the signal it was
+   given (wrong magnitude / mislocated / dropped)?" — a signal-fidelity question, not a discovery one.
+2. **Construction-known, not real.** Arm B used INVENTED directions. This proves plumbing + voice
+   capability, NOT that real performances carry directional errors worth reporting, nor that a real 7b
+   measurer would find them. The 17 real performances' true directional timing remains unmeasured.
+3. **Model + n.** Sonnet-as-teacher (not production glm-4.7-flash; held constant so A-vs-B is clean but
+   transfer assumed); n=17, single piece.
+
+**Refined fork (the real decision now):**
+- (b1) **Build 7b for its own sake** — the score-relative onset measurer, validated by 7c G-A
+  (construction-known tempo-warp), becomes the paper's SYSTEM contribution: "a score-anchored directional
+  timing signal that, wired into the teacher, unlocks verifiable directional feedback absent by default,"
+  with the honest signal-fidelity (not discovery-faithfulness) framing. Real deliverable, but accept the
+  circularity reframing of caveat 1.
+- (a) **Accept + reframe** (unchanged) — fold 7a + 7a-bis into the supply/validity gap map; the finding
+  "directional timing feedback is input-limited, not voice- or verifier-limited" is itself a clean paper
+  result and needs no more building.
+- FRONT 8 (articulation) remains independent and available.
+
+Harness: `model/src/claim_measurement/timing_supply/{build_teacher_inputs.py, teacher_prompt.md}`;
+audit artifacts in `model/data/results/timing_supply_arm_{a,b}*.json` (gitignored).
