@@ -779,35 +779,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 						)
 					: null;
 
-				// [#64 live-verify] decision-point diagnostic: which tier-1 gate fails?
-				console.log(
-					JSON.stringify({
-						level: "info",
-						message: "TIER1_GATE",
-						index,
-						pieceId: currentState.pieceIdentification?.pieceId ?? null,
-						scoreCtxLoaded: scoreCtx !== null,
-						scoreBars: scoreCtx?.score?.bars?.length ?? null,
-						perfNotes: perfNotes.length,
-						perfOnsetMin: perfNotes.length
-							? Math.min(...perfNotes.map((n) => n.onset))
-							: null,
-						perfOnsetMax: perfNotes.length
-							? Math.max(...perfNotes.map((n) => n.onset))
-							: null,
-						scoreOnsetMax: scoreCtx?.score?.bars?.length
-							? Math.max(
-									...scoreCtx.score.bars.flatMap((b) =>
-										(b.notes ?? []).map((nn) => nn.onset_seconds),
-									),
-								)
-							: null,
-						chromaBytesLen: chromaBytes !== null ? chromaBytes.length : null,
-						chromaFrames,
-						chromaFrameRateHz,
-					}),
-				);
-
 				if (scoreCtx !== null) {
 					// Tier-1 producer: chroma-align the chunk AND derive per-note onset/
 					// duration deviations vs the notated score (supersedes the bar-only
@@ -840,20 +811,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 								})()
 							: null;
 
-					// [#64 live-verify] alignment outcome diagnostic
-					console.log(
-						JSON.stringify({
-							level: "info",
-							message: "TIER1_ALIGN",
-							index,
-							noteResultNull: noteResult === null,
-							alignments: noteResult?.bar_map?.alignments?.length ?? null,
-							bar_start: noteResult?.bar_map?.bar_start ?? null,
-							bar_end: noteResult?.bar_map?.bar_end ?? null,
-							confidence: noteResult?.bar_map?.confidence ?? null,
-						}),
-					);
-
 					if (
 						noteResult !== null &&
 						noteResult.bar_map.alignments.length > 0
@@ -862,26 +819,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 						const { bar_map } = noteResult;
 						chunkBarRange = [bar_map.bar_start, bar_map.bar_end];
 						barMapAlignments.push(...bar_map.alignments);
-						// [#64 live-verify] Decisive shape probe: is `is_reanchored`
-						// already corrupt in JS (JS-side shape bug) or clean in JS but
-						// corrupted crossing into Rust (workerd externref marshaling bug)?
-						console.log(
-							JSON.stringify({
-								level: "info",
-								message: "TIER1_SHAPE",
-								index,
-								barMapKeys: Object.keys(bar_map),
-								is_reanchored: (bar_map as { is_reanchored?: unknown })
-									.is_reanchored,
-								is_reanchored_type: typeof (
-									bar_map as { is_reanchored?: unknown }
-								).is_reanchored,
-								align0: bar_map.alignments[0] ?? null,
-								align0Keys: bar_map.alignments[0]
-									? Object.keys(bar_map.alignments[0])
-									: null,
-							}),
-						);
 						const analysis1 = wasm.analyzeTier1(
 							bar_map,
 							perfNotes,
@@ -891,29 +828,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 						);
 						chunkAnalysis = analysis1;
 						chunkAnalysisTier = 1;
-
-						// [#64 live-verify] Surface the tier-1 grounding directly in the
-						// wrangler log so the rush/drag SIGN reaching the teacher is visible.
-						console.log(
-							JSON.stringify({
-								level: "info",
-								message: "TIER1_VERIFY",
-								index,
-								tier: 1,
-								alignments: bar_map.alignments.length,
-								bar_range: [bar_map.bar_start, bar_map.bar_end],
-								sample_onset_dev_ms: bar_map.alignments
-									.slice(0, 8)
-									.map((a) => Math.round(a.onset_deviation_ms * 10) / 10),
-								timing_analysis:
-									analysis1.dimensions.find((d) => d.dimension === "timing")
-										?.analysis ?? null,
-								articulation_analysis:
-									analysis1.dimensions.find(
-										(d) => d.dimension === "articulation",
-									)?.analysis ?? null,
-							}),
-						);
 
 						// Bar map for client cursor following (separate message, after
 						// the initial chunk_processed scores send).
@@ -971,12 +885,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 						message: "WASM bar analysis skipped",
 						index,
 						error: error.message,
-						// [#64 live-verify] analyzeTier1 throws on real bar_map with an
-						// EMPTY message (likely a Rust panic surfacing as RuntimeError);
-						// capture the full detail to pin the root cause.
-						err_string: String(err),
-						err_name: error?.constructor?.name ?? typeof err,
-						err_stack: error?.stack ?? null,
 					}),
 				);
 				// Tier 3: scores only — chunkAnalysisTier stays 3
@@ -1614,17 +1522,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 	private async handleSetPiece(ws: WebSocket, query: string): Promise<void> {
 		const state = await this.readState();
 		state.pieceLocked = true;
-		// [#64 live-verify] Treat the query as an explicit pieceId and populate
-		// pieceIdentification so finalizeChunk's tier-1 gate (which reads
-		// pieceIdentification, not pieceLocked) can load score context and run the
-		// score-relative grounding. This forces a KNOWN-CORRECT identity to verify
-		// the downstream tier-1 chain independently of the piece-ID recall gap
-		// (#26/#96); it is a verification aid, not the production recall path.
-		state.pieceIdentification = {
-			pieceId: query,
-			confidence: 1.0,
-			method: "forced_verify",
-		};
+		state.pieceIdentification = null; // will be resolved on next chunk
 		state.version++;
 		await this.writeState(state);
 
