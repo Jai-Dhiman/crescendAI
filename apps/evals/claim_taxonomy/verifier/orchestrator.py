@@ -10,10 +10,15 @@ def _build_registry():
     from claim_taxonomy.verifier.measurers.timing import TimingMeasurer
     from claim_taxonomy.verifier.measurers.pedaling import PedalingMeasurer
     from claim_taxonomy.verifier.measurers.dynamics import DynamicsMeasurer
+    from claim_taxonomy.verifier.measurers.onset_deviation import OnsetDeviationMeasurer
     return {
         "amt_onsets_region_tempo_fit": TimingMeasurer(),
         "amt_sustain_pedal_events": PedalingMeasurer(),
         "amt_note_velocity_estimator": DynamicsMeasurer(),
+        # FRONT 7b: score-relative signed onset deviation (ms). Not yet the shipped
+        # timing dimension's measurement -- the taxonomy repoint waits until the offline
+        # pipeline emits score-aligned bundles, so timing is never left half-wired.
+        "amt_score_relative_onset_deviation": OnsetDeviationMeasurer(),
     }
 
 

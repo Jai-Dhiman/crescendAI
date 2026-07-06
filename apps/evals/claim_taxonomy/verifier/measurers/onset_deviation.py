@@ -2,9 +2,20 @@
 
 Score-RELATIVE timing statistic. Truth by construction: rushing = playing ahead of the
 score; dragging = behind. Consumes a SCORE-ALIGNED bundle in which each note carries
-``score_onset`` (sec) -- the aligned score time from the offline aria-AMT -> parangonar
-bar-map. This replaces the degenerate self-relative IOI-CV (GATE 3), which measured tempo
-SPREAD, not directional deviation.
+``score_onset`` (sec). This replaces the degenerate self-relative IOI-CV (GATE 3), which
+measured tempo SPREAD, not directional deviation.
+
+CONTRACT (the pipeline's responsibility, #101 7b): ``score_onset`` MUST be the
+GLOBAL-TEMPO-DETRENDED score prediction IN PERFORMANCE TIME -- i.e. the parangonar
+note match's score onset passed through a global AFFINE fit ``a * score_onset + b``
+(a,b = least squares over all matched notes), NOT the raw score-seconds. Raw
+``perf_onset - score_seconds`` is dominated by the global tempo difference (a real
+performance runs ~1.5-2.2x off the score's nominal seconds), which is NOT rush/drag.
+Equally, it must NOT be the full monotone DTW warp -- that follows local tempo and would
+absorb the very rush/drag we measure, collapsing d to ~0. Only the affine residual
+``perf_onset - (a*score_onset + b)`` is the directional rush/drag signal. This measurer
+subtracts and aggregates; the affine detrend happens upstream (mirrors the shipped Rust
+``align_notes_from_warp`` -> ``NoteAlignment.onset_deviation_ms``, note_align.rs).
 
 Statistic:  d = mean_over_matched_notes( (perf_onset - score_onset) * 1000 )  [ms]
   d < 0  -> perf onsets EARLY  -> rushing   (frozen route_verdict polarity "-")
