@@ -66,7 +66,10 @@ describe("alignChunkNotes", () => {
 			},
 			bar_per_frame: [4, 4, 5, 6, 7],
 		};
-		mockAlignChunkNotes.mockReturnValue(fakeResult);
+		// align_chunk_notes returns a JSON string (parsed JS-side): under real
+		// workerd serde_wasm_bindgen mismarshals the nested BarMap's is_reanchored
+		// bool. The bridge JSON.parses; the mock must mirror the string ABI.
+		mockAlignChunkNotes.mockReturnValue(JSON.stringify(fakeResult));
 
 		const audioBytes = new Uint8Array(12 * 4);
 		const perfNotes: never[] = [];
@@ -83,7 +86,7 @@ describe("alignChunkNotes", () => {
 			2,
 			0.1,
 		);
-		expect(result).toBe(fakeResult);
+		expect(result).toEqual(fakeResult);
 	});
 });
 
