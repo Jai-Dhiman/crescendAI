@@ -919,3 +919,41 @@ directional (verifiable) claims flow. **But three caveats reshape the paper goal
 
 Harness: `model/src/claim_measurement/timing_supply/{build_teacher_inputs.py, teacher_prompt.md}`;
 audit artifacts in `model/data/results/timing_supply_arm_{a,b}*.json` (gitignored).
+
+## FRONT 7b UPDATE (#101, 2026-07-05): measurer core + verifier integration LANDED (owner chose b1).
+
+Owner picked **build 7b**. The score-relative timing measurer now exists and is wired end-to-end
+through the FROZEN router; the remaining 7b work is the offline alignment PIPELINE that feeds it.
+
+**Shipped this session (TDD, verdict_dispatch untouched, 138 tests = 125 baseline + 13 new):**
+- `verifier/measurers/onset_deviation.py` — `OnsetDeviationMeasurer`: `d = mean(perf_onset -
+  score_onset)` ms, whole_piece + bar tiers; rush `d<0` / drag `d>0` (matches frozen polarity
+  contract: '-'=rush SUPPORTED iff d<0&|d|>tau; '+'=drag; neutral=steady iff |d|<=tau). error_bar
+  folds sampling + AMT onset-jitter + **alignment-uncertainty** in quadrature (weak alignment widens
+  the bar honestly). 7 unit tests.
+- Wired into `orchestrator._build_registry` under key `amt_score_relative_onset_deviation` (additive).
+  6 end-to-end `verify()` integration tests (inline taxonomy): rush→SUPPORTED, wrong-polarity→REFUTED,
+  below-tau→REFUTED, drag→SUPPORTED, neutral→SUPPORTED, **unaligned bundle→UNVERIFIABLE(substrate_
+  failure)** = legible abstention (timing without a score is unverifiable BY DESIGN, not REFUTED).
+
+**Key design decision (the crux — for whoever builds the pipeline): AFFINE detrend, not raw, not full
+warp.** Raw `perf_onset - score_seconds` is dominated by the global tempo difference (a real perf runs
+~1.5-2.2x off the score's nominal seconds) — that is NOT rush/drag. The measurer's `score_onset`
+CONTRACT is the score onset passed through a GLOBAL AFFINE fit `a*score_onset+b` (least squares over
+parangonar matches), so `perf_onset - score_onset` = the affine RESIDUAL = local rush/drag. It must NOT
+be the full monotone DTW warp (`anchors` / chroma follower) — that tracks local tempo and would ABSORB
+the rush/drag, collapsing d→0. Mirrors the shipped Rust `align_notes_from_warp` →
+`NoteAlignment.onset_deviation_ms` (affine detrend, note_align.rs), which is the LIVE-DO path; 7b is the
+offline analog.
+
+**Remaining 7b (offline pipeline — NOT the live DO; the heavy next slice):** an offline Python function
+(new, in `model/src/chroma_dtw_eval/` or `claim_measurement/`) that: parangonar-matches AMT perf notes
+to the score (`_match`, amt_regen.py:334, exists), fits the global affine (a,b), emits per matched note
+`score_onset = a*score_beat+b` (perf-time) + a `bar_number`, and writes a SCORE-ALIGNED bundle
+(`notes[*].score_onset`). `_build_pairs` (amt_regen.py:340) currently DISCARDS the per-note
+correspondence — must be replaced/forked to keep it. Score loader already supports variable-tempo/non-4/4
+(extended in #98; chopin_ballade_1 loadable). THEN: repoint the shipped `timing` dimension's
+`measurement` to the new key + unit `ms` + provisional tau (update the two dimension-count tests then);
+run 7c G-A (tempo-warp corruption through the REAL measurer, flip≥0.80 / shuffle≥0.20); 7d tau + construct
+validity (7a-bis already previewed construct-match 17/17). G-D timing rate still needs the prose→signal
+pipeline of 7a-bis fork-b caveat 1 (circularity: signal-fidelity, not discovery).
