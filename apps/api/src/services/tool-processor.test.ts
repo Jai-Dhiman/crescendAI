@@ -55,13 +55,15 @@ describe("TOOL_REGISTRY structure", () => {
 	it("maxResultChars defined for bounded tools", () => {
 		expect(TOOL_REGISTRY.score_highlight.maxResultChars).toBe(5000);
 		expect(TOOL_REGISTRY.keyboard_guide.maxResultChars).toBe(2000);
-		expect(TOOL_REGISTRY.show_session_data.maxResultChars).toBe(10000);
 		expect(TOOL_REGISTRY.play_passage.maxResultChars).toBe(2000);
 		expect(TOOL_REGISTRY.search_catalog.maxResultChars).toBe(3000);
 	});
 
-	it("prescribe_exercise has no maxResultChars", () => {
+	it("tools without a char cap have no maxResultChars", () => {
+		// prescribe_exercise is unbounded; show_session_data distills to a
+		// modelSummary instead of truncating, so it no longer needs a cap.
 		expect(TOOL_REGISTRY.prescribe_exercise.maxResultChars).toBeUndefined();
+		expect(TOOL_REGISTRY.show_session_data.maxResultChars).toBeUndefined();
 	});
 });
 
@@ -691,7 +693,9 @@ describe("processToolUse pass-through tools", () => {
 describe("reference_browser removal", () => {
 	it("reference_browser is no longer registered", async () => {
 		expect(TOOL_REGISTRY.reference_browser).toBeUndefined();
-		const ctx = { db: {} as unknown, env: {} as unknown } as Parameters<typeof processToolUse>[0];
+		const ctx = { db: {} as unknown, env: {} as unknown } as Parameters<
+			typeof processToolUse
+		>[0];
 		const result = await processToolUse(ctx, "student-1", "reference_browser", {
 			description: "test",
 		});
@@ -734,7 +738,13 @@ describe("processToolUse — prescribe_exercise own_passage_loop", () => {
 		expect(result.componentsJson).toHaveLength(1);
 		const comp = result.componentsJson[0];
 		expect(comp?.type).toBe("exercise_set");
-		const config = comp?.config as { scoreClip?: { pieceId: string; bars: [number, number]; tempoFactor?: number } };
+		const config = comp?.config as {
+			scoreClip?: {
+				pieceId: string;
+				bars: [number, number];
+				tempoFactor?: number;
+			};
+		};
 		expect(config.scoreClip).toEqual({
 			pieceId: "chopin.ballade.1",
 			bars: [12, 16],
@@ -754,7 +764,11 @@ describe("processToolUse — prescribe_exercise own_passage_loop", () => {
 		expect(result.isError).toBe(false);
 		expect(result.componentsJson).toHaveLength(1);
 		const config = result.componentsJson[0]?.config as {
-			scoreClip?: { pieceId: string; bars: [number, number]; tempoFactor?: number };
+			scoreClip?: {
+				pieceId: string;
+				bars: [number, number];
+				tempoFactor?: number;
+			};
 		};
 		expect(config.scoreClip?.tempoFactor).toBe(0.75);
 	});
@@ -775,7 +789,11 @@ describe("processToolUse — prescribe_exercise own_passage_loop", () => {
 		const comp = result.componentsJson[0];
 		expect(comp?.type).toBe("exercise_set");
 		const config = comp?.config as {
-			scoreClip?: { pieceId: string; bars: [number, number]; transpose?: number };
+			scoreClip?: {
+				pieceId: string;
+				bars: [number, number];
+				transpose?: number;
+			};
 			exercises: { instruction: string }[];
 		};
 		// timing stable-first under (suffixNum, id) over the 154-drill corpus is
@@ -792,7 +810,9 @@ describe("processToolUse — prescribe_exercise own_passage_loop", () => {
 
 describe("play_passage tool", () => {
 	it("processToolUse returns a play_passage InlineComponent for valid input", async () => {
-		const ctx = { db: {} as unknown, env: {} as unknown } as Parameters<typeof processToolUse>[0];
+		const ctx = { db: {} as unknown, env: {} as unknown } as Parameters<
+			typeof processToolUse
+		>[0];
 		const result = await processToolUse(ctx, "student-1", "play_passage", {
 			session_id: "00000000-0000-0000-0000-0000000000aa",
 			bars: [5, 8],
@@ -814,7 +834,9 @@ describe("play_passage tool", () => {
 	});
 
 	it("rejects focus_bars outside bars range", async () => {
-		const ctx = { db: {} as unknown, env: {} as unknown } as Parameters<typeof processToolUse>[0];
+		const ctx = { db: {} as unknown, env: {} as unknown } as Parameters<
+			typeof processToolUse
+		>[0];
 		const result = await processToolUse(ctx, "student-1", "play_passage", {
 			session_id: "00000000-0000-0000-0000-0000000000aa",
 			bars: [5, 8],

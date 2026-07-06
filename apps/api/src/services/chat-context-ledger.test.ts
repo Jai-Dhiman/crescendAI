@@ -6,7 +6,7 @@ import type { TeacherEvent } from "./teacher";
 // Full-session per-turn CONTEXT LEDGER
 //
 // Drives the REAL chat path — chatV6 -> runStreamingHook -> runPhase1Streaming
-// -> real processToolUse -> real summarizeSessionData -> real parseOpenAIStream
+// -> real processToolUse -> real buildProgressSummary -> real parseOpenAIStream
 // — in real workerd (vitest-pool-workers). Only the model's network call
 // (callWorkersAIStream) is intercepted, so we can (a) script a multi-turn
 // session that calls show_session_data, and (b) capture the EXACT {system,
