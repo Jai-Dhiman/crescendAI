@@ -231,7 +231,7 @@ pub fn align_chunk_notes(
     decim_hz: f32,
     chunk_index: u32,
     onset_window_s: f64,
-) -> Result<JsValue, JsValue> {
+) -> Result<String, JsValue> {
     if audio_bytes.len() % 4 != 0 {
         return Err(JsValue::from_str("audio_bytes length not a multiple of 4"));
     }
@@ -260,7 +260,14 @@ pub fn align_chunk_notes(
     )
     .map_err(|e| JsValue::from_str(&e))?;
 
-    serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+    // Return a JSON string (parsed JS-side) instead of serde_wasm_bindgen::to_value:
+    // under real workerd the latter mismarshals the trailing `is_reanchored: bool`
+    // field of the nested BarMap (a reclaimed input externref aliases it into the
+    // garbage string "pitch"), so the round-tripped bar_map fails analyze_tier1's
+    // deserialization. Same class of bug already worked around on the analyze_tier1
+    // /analyze_tier2 return paths (see lib.rs). Cargo tests exercise the native fn
+    // and never cross this boundary, so they miss it.
+    serde_json::to_string(&result).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 #[cfg(test)]

@@ -15,6 +15,7 @@ mod real_recording_test;
 
 // Re-export pure Rust core for integration tests (not wasm_bindgen — no JsValue in tests)
 pub use chroma_dtw::chroma_dtw_native;
+pub use note_align::{align_chunk_notes_native, ChunkNoteResult};
 
 /// Select the top-1 teaching moment from a session's scored chunks.
 ///
@@ -80,7 +81,7 @@ pub fn analyze_tier1(
     perf_notes_js: JsValue,
     perf_pedal_js: JsValue,
     scores: &[f64],
-    score_context_js: JsValue,
+    score_context_json: &str,
 ) -> Result<String, JsValue> {
     if scores.len() != 6 {
         return Err(JsValue::from_str(&format!(
@@ -96,7 +97,12 @@ pub fn analyze_tier1(
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
     let perf_pedal: Vec<types::PerfPedalEvent> = serde_wasm_bindgen::from_value(perf_pedal_js)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
-    let score_ctx: types::ScoreContext = serde_wasm_bindgen::from_value(score_context_js)
+    // Deserialize score context from a JSON STRING (not a JsValue): under real
+    // workerd serde_wasm_bindgen::from_value on this large nested struct corrupts a
+    // non-optional String field to null (a reclaimed input externref aliases it),
+    // failing deserialization. serde_json::from_str is deterministic and boundary-safe
+    // — same class of workerd bug worked around on the return paths (see above).
+    let score_ctx: types::ScoreContext = serde_json::from_str(score_context_json)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
     let result = bar_analysis::analyze_tier1(&bar_map, &perf_notes, &perf_pedal, &scores_arr, &score_ctx);

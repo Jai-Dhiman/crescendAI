@@ -665,8 +665,12 @@ practice path (#64, 2026-06-27): `finalizeChunk` calls `alignChunkNotes` -> `ana
 onset/duration deviations vs the notated score reach the teacher (a new Rust `align_chunk_notes` derives
 per-note `onset_deviation_ms` from the chroma frame-warp + an affine tempo fit; coarse/directional by
 design). Remaining: reference-performer profiles still deferred (score-relative only), and prod stays on
-Tier 3 until a deliberate deploy sets `AMT_ENDPOINT`. Verified at unit + integration + DO-suite level; live
-local-AMT-session verification still pending. See `docs/model/04-north-star.md` → "Two grounding philosophies" for the full
+Tier 3 until a deliberate deploy sets `AMT_ENDPOINT`. Verified at unit + integration + DO-suite level AND
+live local-AMT-session E2E (2026-07-05): tier-1 engages on the real DO path — alignment spans multiple
+advancing bars, `chunk_bar_map` reaches the client, and signed per-note rush/drag reaches the teacher. The
+live run additionally surfaced and fixed two workerd `serde_wasm_bindgen` ABI marshaling bugs in the
+`analyze_tier1` path (cargo tests miss the class — they never cross the workerd boundary). Signal is coarse
+on diatonic material (±200-360ms per-note residuals, #21 chroma-gap limit). See `docs/model/04-north-star.md` → "Two grounding philosophies" for the full
 strategic framing and the "no neural encoder" possibility.
 
 ---

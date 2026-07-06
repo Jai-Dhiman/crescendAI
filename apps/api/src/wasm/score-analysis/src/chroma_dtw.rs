@@ -84,20 +84,173 @@ fn cosine_dist(
     (1.0 - dot).max(0.0)
 }
 
-/// Subsequence DTW: finds best contiguous region of `score` (long) matching `audio` (short).
-/// Step pattern: (1,0), (0,1), (1,1) — standard monotonic.
-/// Returns (warping_path_vec, mean_cost).
-/// `warping_path_vec`: Vec of (score_frame, audio_frame) pairs, forward order.
+/// Subsequence DTW: finds the best contiguous region of `score` (long) matching
+/// `audio` (short). Returns (warping_path_vec, mean_cost); `warping_path_vec` is a
+/// Vec of (score_frame, audio_frame) pairs in forward order.
 ///
-/// Memory: the full cost recurrence only ever reads the previous audio row, so we keep
-/// two rolling rows of `f32` cost instead of the whole `n_a * n_s` cost matrix, and we
-/// store backtrack predecessors as a single `u8` step-code per cell instead of an
-/// `(i32, i32)` pair. This cuts the working set from ~12 bytes/cell to ~1 byte/cell —
-/// essential under the WASM isolate's 128MB linear-memory cap, where a full-length piece
-/// score (thousands of frames at 50Hz) against a 15s chunk previously OOM-aborted (a
-/// failed wasm alloc traps the isolate). Output is identical to the dense formulation:
-/// same recurrence, same `<=` tie-breaking (diag, then up, then left), same path.
+/// Strategy dispatch (#64): the slope-CONSTRAINED step pattern {(1,1),(1,2),(2,1)}
+/// runs first. When a whole 15s chunk of REAL chroma is aligned against a
+/// diatonically uniform score (a two-voice C-major invention), the per-bar chroma
+/// is nearly identical, so the DTW cost surface is flat -- there is no gradient to
+/// hold the path on the true diagonal. The legacy unconstrained pattern
+/// {(1,0),(0,1),(1,1)} then collapses: repeated (1,0) "hold-score, advance-audio"
+/// moves pile the entire query onto one score frame, and because backtracking is
+/// monotonic in score frame the endpoint argmin landing low (bar 1) drags the whole
+/// path to bar 1. The 82 perf onsets fall outside bar 1's window -> 0 alignments ->
+/// silent tier-2 fallback (this is the #21 synthetic-vs-real chroma gap resurfacing
+/// inside the aligner). The constrained pattern makes every step advance BOTH audio
+/// and score, bounding local slope to [1/2, 2], so over N audio frames the score
+/// must advance at least N/2 frames -- collapse becomes structurally impossible.
+///
+/// The unconstrained pattern is kept as an EXPLICIT fallback (not a silent one): a
+/// slope-constrained path is infeasible when the score is shorter than ~N/2 frames
+/// (e.g. a 1-frame score vs a 2-frame chunk). In that degenerate case the
+/// constrained pass returns no finite endpoint and we fall back to the legacy DP,
+/// preserving its exact behaviour for tiny fixtures.
 fn subseq_dtw(
+    audio: &[f32], n_audio: usize,
+    score: &[f32], n_score: usize,
+    band: Option<(usize, usize)>,
+) -> (Vec<(usize, usize)>, f32) {
+    match subseq_dtw_constrained(audio, n_audio, score, n_score, band) {
+        Some(result) => result,
+        None => subseq_dtw_unconstrained(audio, n_audio, score, n_score, band),
+    }
+}
+
+/// Slope-constrained subsequence DTW, step pattern {(1,1),(1,2),(2,1)} (local slope
+/// bounded to [1/2, 2]). Free start (row 0 = raw column cost, any score frame) and
+/// free end (argmin over the last audio row within `band`) are preserved, so a
+/// chunk may begin and end anywhere in the score -- only the interior warp is
+/// constrained. Returns `None` if no finite-cost path reaches the last audio row
+/// (score too short for the min slope), signalling the caller to fall back.
+///
+/// Memory: full `u8` backtrack matrix (1 byte/cell) plus THREE rolling `f32` cost
+/// rows (d[i-2], d[i-1], d[i]) -- the (2,1) step reaches back two audio rows. This
+/// stays O(n_s) working set, within the WASM 128MB linear-memory cap that the dense
+/// f32 cost matrix used to blow (the OOM regression the long-score test guards).
+fn subseq_dtw_constrained(
+    audio: &[f32], n_audio: usize,
+    score: &[f32], n_score: usize,
+    band: Option<(usize, usize)>,
+) -> Option<(Vec<(usize, usize)>, f32)> {
+    let n_a = n_audio;
+    let n_s = n_score;
+    if n_a == 0 || n_s == 0 {
+        return None;
+    }
+
+    // Backtrack step-code per cell: 0 = sentinel (row 0 free-start / infeasible),
+    // 1 = (1,1) diag, 2 = (1,2) two-score, 3 = (2,1) two-audio.
+    let mut p: Vec<u8> = vec![0u8; n_a * n_s];
+    let inf = f32::INFINITY;
+    // Rolling rows: prev2 = d[i-2], prev = d[i-1], cur = d[i].
+    let mut prev2 = vec![inf; n_s];
+    let mut prev = vec![inf; n_s];
+    let mut cur = vec![inf; n_s];
+
+    // Row 0: free subsequence start anywhere (raw column cost, sentinel predecessor).
+    for j in 0..n_s {
+        prev[j] = cosine_dist(audio, n_a, 0, score, n_s, j);
+    }
+
+    for i in 1..n_a {
+        for j in 0..n_s {
+            let c = cosine_dist(audio, n_a, i, score, n_s, j);
+            let mut best = inf;
+            let mut code = 0u8;
+            // (1,1): predecessor (i-1, j-1).
+            if j >= 1 && prev[j - 1] < best {
+                best = prev[j - 1];
+                code = 1;
+            }
+            // (1,2): predecessor (i-1, j-2) through intermediate (i, j-1).
+            if j >= 2 {
+                let v = prev[j - 2] + cosine_dist(audio, n_a, i, score, n_s, j - 1);
+                if v < best {
+                    best = v;
+                    code = 2;
+                }
+            }
+            // (2,1): predecessor (i-2, j-1) through intermediate (i-1, j).
+            if i >= 2 && j >= 1 {
+                let v = prev2[j - 1] + cosine_dist(audio, n_a, i - 1, score, n_s, j);
+                if v < best {
+                    best = v;
+                    code = 3;
+                }
+            }
+            cur[j] = if best.is_finite() { c + best } else { inf };
+            p[i * n_s + j] = code;
+        }
+        // Rotate rolling rows: (prev2, prev, cur) <- (prev, cur, recycled). Two swaps
+        // leave prev2 = old prev (d[i-1]), prev = old cur (d[i]); the freed buffer
+        // (old prev2, now d[i-2] and dead) is recycled as next cur and cleared.
+        std::mem::swap(&mut prev2, &mut prev);
+        std::mem::swap(&mut prev, &mut cur);
+        for x in cur.iter_mut() {
+            *x = inf;
+        }
+    }
+    // After the loop `prev` holds the last audio row (n_a - 1); for n_a == 1 it is row 0.
+    let last = &prev;
+    let last_row = n_a - 1;
+
+    let (lo, hi) = match band {
+        Some((lo, hi)) => {
+            let lo = lo.min(n_s);
+            let hi = hi.min(n_s);
+            if lo < hi { (lo, hi) } else { (0, n_s) }
+        }
+        None => (0, n_s),
+    };
+    let j_end = (lo..hi).min_by(|&ja, &jb| last[ja].partial_cmp(&last[jb]).unwrap())?;
+    if !last[j_end].is_finite() {
+        // No slope-constrained path reached the last audio row -> infeasible.
+        return None;
+    }
+
+    // Backtrack. (1,2) skips score frame j-1 and (2,1) skips audio frame i-1 in the
+    // recorded path; downstream gap-fill covers unmapped audio frames.
+    let mut path = Vec::with_capacity(n_a + n_s);
+    let mut i = last_row as i32;
+    let mut j = j_end as i32;
+    while i >= 0 {
+        path.push((j as usize, i as usize)); // (score_frame, audio_frame)
+        let (di, dj) = match p[(i as usize) * n_s + (j as usize)] {
+            1 => (-1i32, -1i32),
+            2 => (-1, -2),
+            3 => (-2, -1),
+            _ => (0, 0), // sentinel: free-start row reached — terminate
+        };
+        if di == 0 && dj == 0 {
+            break;
+        }
+        i += di;
+        j += dj;
+    }
+    path.reverse();
+
+    let mean_cost = if path.is_empty() {
+        1.0
+    } else {
+        let total: f32 = path
+            .iter()
+            .map(|&(sf, af)| cosine_dist(audio, n_a, af, score, n_s, sf))
+            .sum();
+        total / path.len() as f32
+    };
+
+    Some((path, mean_cost))
+}
+
+/// Legacy unconstrained subsequence DTW, step pattern {(1,0),(0,1),(1,1)}. Retained
+/// as the explicit fallback for degenerate short-score cases where the constrained
+/// pattern is infeasible (see `subseq_dtw`). Behaviour is byte-for-byte the original.
+///
+/// Memory: two rolling `f32` rows + a `u8` step-code matrix (~1 byte/cell), sized
+/// for the WASM isolate's 128MB linear-memory cap.
+fn subseq_dtw_unconstrained(
     audio: &[f32], n_audio: usize,  // row-major 12 x n_audio
     score: &[f32], n_score: usize,  // row-major 12 x n_score
     band: Option<(usize, usize)>,   // restrict the endpoint argmin to [lo, hi)

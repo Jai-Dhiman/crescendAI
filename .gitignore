@@ -191,3 +191,6 @@ apps/evals/results/exercise_routing/last_run.json
 codedb.snapshot
 paper/
 .serena/
+
+# nested standalone repo (MIREX Track B, issue #106) - own git history
+mirex-trackb/
