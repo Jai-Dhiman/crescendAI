@@ -4,7 +4,7 @@ import { pieces } from "../db/schema/catalog";
 import { observations } from "../db/schema/observations";
 import { sessions } from "../db/schema/sessions";
 import { CorpusDrillSchema } from "../harness/artifacts/exercise-routing";
-import { DIMS_6 } from "../lib/dims";
+import { DIMS_6, type Dimension } from "../lib/dims";
 import type { ServiceContext } from "../lib/types";
 import { buildCorpusDrillClip } from "./corpus-drill";
 
@@ -22,6 +22,13 @@ export interface ToolResult {
 	componentsJson: InlineComponent[];
 	isError: boolean;
 	errorMessage?: string;
+	/**
+	 * Distilled, model-facing prose. When set, the teacher model sees this
+	 * string as the tool_result content instead of the raw componentsJson —
+	 * the client still renders componentsJson. Populated for tools that carry
+	 * raw telemetry (see `summarizeForModel`).
+	 */
+	modelSummary?: string;
 }
 
 interface AnthropicToolSchema {
@@ -49,6 +56,13 @@ interface ToolDefinition {
 		studentId: string,
 		input: unknown,
 	) => Promise<InlineComponent[]>;
+	/**
+	 * Optional model-facing distillation. When present, `processToolUse`
+	 * derives a `modelSummary` from the produced components so the teacher
+	 * model never sees the tool's raw payload. Mirrors the numbers-in /
+	 * prose-out contract of the synthesis molecules.
+	 */
+	summarizeForModel?: (components: InlineComponent[]) => string;
 }
 
 // ---------------------------------------------------------------------------
@@ -347,6 +361,168 @@ async function processShowSessionData(
 			},
 		},
 	];
+}
+
+// ---------------------------------------------------------------------------
+// Model-facing distillation for show_session_data (context hygiene)
+//
+// The client renders the full numeric componentsJson as a chart. The teacher
+// model must NOT see raw scores — it receives only this qualitative prose,
+// mirroring the numbers-in / prose-out contract that the synthesis molecules
+// already enforce (e.g. pedal-triage's one_sentence_finding).
+// ---------------------------------------------------------------------------
+
+interface SessionAvgRow {
+	avgDynamics: number | null;
+	avgTiming: number | null;
+	avgPedaling: number | null;
+	avgArticulation: number | null;
+	avgPhrasing: number | null;
+	avgInterpretation: number | null;
+}
+
+interface DimHistoryRow {
+	dimension: string;
+	dimensionScore: number | null;
+	observationText: string | null;
+	framing: string | null;
+	createdAt: Date | string;
+}
+
+const AVG_COL: Record<Dimension, keyof SessionAvgRow> = {
+	dynamics: "avgDynamics",
+	timing: "avgTiming",
+	pedaling: "avgPedaling",
+	articulation: "avgArticulation",
+	phrasing: "avgPhrasing",
+	interpretation: "avgInterpretation",
+};
+
+const TREND_EPSILON = 0.03;
+
+function trendWord(earliest: number, latest: number): string {
+	const delta = latest - earliest;
+	if (delta > TREND_EPSILON) return "improving";
+	if (delta < -TREND_EPSILON) return "an area to focus on";
+	return "holding steady";
+}
+
+function rankDimensions(row: SessionAvgRow): {
+	strongest: Dimension | null;
+	weakest: Dimension | null;
+} {
+	const scored = DIMS_6.map((d) => ({ d, v: row[AVG_COL[d]] })).filter(
+		(x): x is { d: Dimension; v: number } => typeof x.v === "number",
+	);
+	if (scored.length === 0) return { strongest: null, weakest: null };
+	scored.sort((a, b) => b.v - a.v);
+	return { strongest: scored[0].d, weakest: scored[scored.length - 1].d };
+}
+
+/**
+ * Turn a `show_session_data` component into qualitative prose with ZERO raw
+ * score values. Exported for direct unit testing.
+ */
+export function summarizeSessionData(components: InlineComponent[]): string {
+	const comp = components[0];
+	if (!comp || comp.type !== "session_data") {
+		return "No session data available.";
+	}
+	const { queryType, data } = comp.config as {
+		queryType?: string;
+		data?: unknown;
+	};
+
+	if (queryType === "dimension_history") {
+		const rows = Array.isArray(data) ? (data as DimHistoryRow[]) : [];
+		if (rows.length === 0) {
+			return "No progress observations recorded yet for that query.";
+		}
+		const byDim = new Map<string, DimHistoryRow[]>();
+		for (const r of rows) {
+			const list = byDim.get(r.dimension) ?? [];
+			list.push(r);
+			byDim.set(r.dimension, list);
+		}
+		const parts: string[] = [];
+		for (const [dim, list] of byDim) {
+			const chron = [...list].sort(
+				(a, b) =>
+					new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+			);
+			const scored = chron.filter(
+				(r): r is DimHistoryRow & { dimensionScore: number } =>
+					typeof r.dimensionScore === "number",
+			);
+			const latest = chron[chron.length - 1];
+			const note = latest.framing ?? latest.observationText ?? null;
+			const trend =
+				scored.length >= 2
+					? trendWord(
+							scored[0].dimensionScore,
+							scored[scored.length - 1].dimensionScore,
+						)
+					: "not enough history to call a trend";
+			const noteClause = note ? ` Most recent note: "${note}".` : "";
+			parts.push(
+				`${dim} (${list.length} observation${list.length === 1 ? "" : "s"}): trend is ${trend}.${noteClause}`,
+			);
+		}
+		return `Progress history — ${parts.join(" ")}`;
+	}
+
+	if (queryType === "recent_sessions") {
+		const rows = Array.isArray(data) ? (data as SessionAvgRow[]) : [];
+		if (rows.length === 0) {
+			return "No recent sessions recorded yet.";
+		}
+		// rows arrive newest-first (ordered by startedAt desc)
+		const newest = rows[0];
+		const oldest = rows[rows.length - 1];
+		const { strongest, weakest } = rankDimensions(newest);
+		const rankClause =
+			strongest && weakest && strongest !== weakest
+				? `In your most recent session the strongest area was ${strongest}; the area with most room to grow was ${weakest}.`
+				: strongest
+					? `In your most recent session the strongest area was ${strongest}.`
+					: "The most recent session has no scored dimensions yet.";
+		const trendParts: string[] = [];
+		if (rows.length >= 2) {
+			for (const d of DIMS_6) {
+				const a = oldest[AVG_COL[d]];
+				const b = newest[AVG_COL[d]];
+				if (typeof a === "number" && typeof b === "number") {
+					trendParts.push(`${d} ${trendWord(a, b)}`);
+				}
+			}
+		}
+		const trendClause = trendParts.length
+			? ` Trends across the last ${rows.length} sessions: ${trendParts.join(", ")}.`
+			: "";
+		return `${rankClause}${trendClause}`;
+	}
+
+	// session_detail
+	if (data === null || data === undefined) {
+		return "No session data found for that session.";
+	}
+	const { strongest, weakest } = rankDimensions(data as SessionAvgRow);
+	if (!strongest) {
+		return "This session has no scored dimensions yet.";
+	}
+	if (!weakest || strongest === weakest) {
+		return `In this session your strongest area was ${strongest}.`;
+	}
+	return `In this session your strongest area was ${strongest}; the area with most room to grow was ${weakest}.`;
+}
+
+/**
+ * The single source of truth for what a successful tool result contributes to
+ * the model's context: the distilled `modelSummary` when present, otherwise
+ * the raw component JSON (unchanged legacy behaviour for non-telemetry tools).
+ */
+export function toolResultModelContent(result: ToolResult): string {
+	return result.modelSummary ?? JSON.stringify(result.componentsJson);
 }
 
 // ---------------------------------------------------------------------------
@@ -799,6 +975,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
 		concurrencySafe: true,
 		maxResultChars: 10000,
 		process: processShowSessionData,
+		summarizeForModel: summarizeSessionData,
 	},
 	play_passage: {
 		name: "play_passage",
@@ -881,6 +1058,18 @@ export async function processToolUse(
 
 	try {
 		const componentsJson = await tool.process(ctx, studentId, validation.data);
+
+		// Tools that distill their own model-facing summary (context hygiene):
+		// the client still receives the full componentsJson for rendering; the
+		// teacher model sees only the distilled prose, never the raw payload.
+		if (tool.summarizeForModel) {
+			return {
+				name: toolName,
+				componentsJson,
+				isError: false,
+				modelSummary: tool.summarizeForModel(componentsJson),
+			};
+		}
 
 		// Apply maxResultChars truncation if needed
 		if (tool.maxResultChars !== undefined) {

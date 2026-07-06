@@ -28,6 +28,7 @@ import {
 	type InlineComponent,
 	processToolUse,
 	type ToolResult,
+	toolResultModelContent,
 } from "./tool-processor";
 import { assignSegmentLoopAtom } from "../harness/atoms/assign-segment-loop";
 
@@ -726,7 +727,7 @@ export async function* runPhase1Streaming(
 				return {
 					type: "tool_result" as const,
 					tool_use_id: tc.id,
-					content: JSON.stringify(tc.result.componentsJson),
+					content: toolResultModelContent(tc.result),
 				};
 			},
 		);
