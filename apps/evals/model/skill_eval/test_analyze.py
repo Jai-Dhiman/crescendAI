@@ -51,6 +51,22 @@ def test_matches_tau_b_when_no_ties_and_square():
     assert kendall_tau_c(x, y) == pytest.approx(stats.kendalltau(x, y).statistic, abs=1e-12)
 
 
+def test_parity_with_scipy_tau_c_official_scorer():
+    # MIREX captains (2026-07-04) confirmed the scorer is scipy's Kendall tau-c
+    # (variant='c'). Lock our implementation to it so it can never drift from the
+    # official metric. Covers rectangular tables with heavy ties (the real setup).
+    cases = [
+        ([1, 2, 3, 4, 5], [1, 2, 3, 4, 5]),
+        ([1, 2, 3, 4], [1, 2, 4, 3]),
+        ([1, 2, 3, 4, 4], [1, 2, 3, 5, 4]),
+        ([1, 1, 2, 2], [1, 2, 3, 4]),
+        ([1, 3, 2, 5, 4, 3, 2, 1, 5, 4], [2, 2, 1, 3, 3, 1, 2, 1, 3, 2]),  # rectangular ties
+    ]
+    for x, y in cases:
+        assert kendall_tau_c(x, y) == pytest.approx(
+            stats.kendalltau(x, y, variant="c").statistic, abs=1e-12)
+
+
 def test_constant_input_raises():
     with pytest.raises(ValueError):
         kendall_tau_c([1, 1, 1, 1], [1, 2, 3, 4])

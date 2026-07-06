@@ -78,10 +78,11 @@ def kendall_tau_c(x, y) -> float:
     coarse pedagogical grade vs near-continuous model score). scipy's `kendalltau`
     is tau-b, whose tie penalty caps the coefficient below 1.0 on such tables.
 
-    Kept deliberately small and isolated so it can be swapped for the organizers'
-    official scorer once the exact variant is published. Unlike `spearman_rho` above
-    (which returns 0.0 on degenerate input), this raises: tau-c is genuinely undefined
-    when either input is constant (m < 2 -> division by zero).
+    Confirmed by the MIREX captains (2026-07-04) to equal the official scorer,
+    `scipy.stats.kendalltau(variant='c')` -- `test_analyze.py` pins the parity so this
+    cannot drift. (scipy's *default* is tau-b, which differs on tied/rectangular tables;
+    do not use it.) Unlike `spearman_rho` above (which returns 0.0 on degenerate input),
+    this raises: tau-c is genuinely undefined when either input is constant (m < 2).
     """
     x = np.asarray(x, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64)

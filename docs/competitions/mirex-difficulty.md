@@ -2,30 +2,33 @@
 
 > **Status:** LIVING — Phase 1 kill-gate CLEARED (2026-07-04): symbolic-from-AMT features are render-stable → approach GREENLIT. GH issue: #104 (`Jai-Dhiman/crescendAI`).
 > **Current state:** Feature extractor + Kendall tau-c merged (TDD, green). Phase 1 cross-render stability ran on 28 MAESTRO composers → **all 4 features cross-render Spearman > 0.9 → PASS** (refutes the A4 soundfont-fragility fear for onset/pitch features). See "Phase 1 results" below.
-> **Next step:** Phase 3 (ordinal ranker on CIPI/PSyllabus, then tau-c gate vs trivial baselines) — BLOCKED on dataset access (email captains). The two components (feature extractor, tau-c) are reusable now.
+> **Next step:** Phase 3 (ordinal ranker on PSyllabus/CIPI, then tau-c gate vs trivial baselines) — **UNBLOCKED 2026-07-04**: captains granted dataset access + answered all open Qs (see "Captain answers"). Feature extractor + tau-c reusable now; tau-c parity-locked to the confirmed official scorer.
 
 ## Task spec (verified from the MIREX 2026 task page, last-modified 2026-07-01)
 
-- **Input:** strictly a WAV file path (44.1kHz solo piano). **Output:** one real-valued difficulty score. **No metadata at inference** (no composer/era/year) — CONFIRMED.
-- **Metric:** Kendall's **Tau-c** is the SOLE ranking metric ("agreement between predicted and reference orderings without assuming fixed distances between categories"). Exact formula/scoring-script NOT public.
-- **Splits:** test set is **composer-disjoint** from training — CONFIRMED (organizers' own protocol, "to measure true generalization beyond repertoire memorization").
-- **Anti-cheat pair:** each test piece has >=1 human performance + 1 synthesized fixed-soundfont rendering, **scored INDEPENDENTLY then aggregated per piece** — CONFIRMED. Exact aggregation fn (mean/median) not specified. => each rendering must rank correctly on its own => cross-render stability is CRITICAL.
-- **Suggested (NOT mandatory) training data:** PSyllabus / CIPI / Mikrokosmos-difficulty. External data allowed provided no held-out test pieces leak. No official dev set — self-evaluate on public data.
+- **Input:** strictly a WAV file path (44.1kHz solo piano), audio-only. **Output:** one **INTEGER** score per recording (captain-confirmed 2026-07-04; scale is arbitrary, metric is relative/rank-based). **No metadata at inference** — CONFIRMED.
+- **Metric:** Kendall's **Tau-c** = `scipy.stats.kendalltau(variant='c')` (captain-confirmed 2026-07-04). NB scipy's *default* is tau-b — must pass `variant='c'`. Our `kendall_tau_c` is parity-locked to it.
+- **Splits:** No released train set and **no train/test split** — the test set is a **private, expert-annotated** set (captain-confirmed). Suggested public data is only for training/self-eval. Composer-disjointness of the private test vs public data is unconfirmed → keep composer-disjoint self-eval as the safe proxy.
+- **Anti-cheat pair:** each test piece has a human performance + a synth soundfont rendering; the two model outputs are **AVERAGED** to derive the piece score and are **NOT required to agree** (captain-confirmed — SOFTER than the earlier "scored independently" reading). => render-fragility partially cancels under averaging; our Phase 1 independent-render PASS is therefore conservative. Bias (systematic human-vs-synth shift) still survives averaging, so Phase 1 remains the right check.
+- **Suggested (NOT mandatory) training data:** PSyllabus / CIPI / Mikrokosmos-difficulty — but "**use anything to train, no sanctioned set**" (captain-confirmed). External data allowed provided no private test leak.
 - **Submission:** Docker container, standardized WAV-in -> score-out interface, full test set <24h on 1 GPU.
 - **Dates:** submissions open 2026-07-01, close 2026-10-01, results 2026-10-15.
 - **Captains:** Huan Zhang (QMUL, `huan.zhang@qmul.ac.uk`), Pedro Ramoneda (Songscription, `pedro@songscription.ai`).
 
-## Still-open (email captains — NON-blocking, late-stage swaps)
+## Captain answers (RESOLVED 2026-07-04 — Huan Zhang & Pedro Ramoneda)
 
-1. Exact Tau-c formula/variant + any official scoring-script link.
-2. A published reference/baseline score.
-3. Exact test-set size.
-4. Exact pair-aggregation function (mean vs median vs rank-then-average).
-Defaults until answered: Stuart's tau-c (rectangular correction), our own trivial baselines, mean-of-pair aggregation — all isolated + swappable.
+All prior open items are now answered. Three change the build:
+
+1. **Datasets:** access GRANTED to CIPI (Zenodo 8037327) + PSyllabus (Zenodo 14794592). **No sanctioned training set — use anything.** => Phase 3 UNBLOCKED.
+2. **Scorer:** `scipy.stats` Kendall's tau-c (i.e. `variant='c'`). => our `kendall_tau_c` is parity-locked to it; NO custom variant risk.
+3. **Baseline:** none provided. Output must be an **INTEGER**; scale is arbitrary because the metric is relative/rank-based. => emit predictions on a **fine integer grid** (e.g. round(score*1000)) to minimise ties and preserve rank resolution; keep our OWN trivial baselines (note-count, duration) for the kill-gate.
+4. **Split:** private expert-annotated test set; no train/test split, no official training data. => train on public data, self-eval composer-disjoint.
+5. **Pair scoring:** the human + synth predictions are **AVERAGED**, agreement NOT required (softer than feared). => (a) Phase 1 PASS is conservative; (b) opportunity: **train-time synth-render augmentation** — render PSyllabus/CIPI MIDI to fluidsynth audio (we have the pipeline) and train on both real- and synth-derived features so the model is robust to both test input types.
+6. **Metadata:** none at inference, audio-only. => era/composer multitask trick stays dead (A10 confirmed).
 
 ## Kill/commit gate (#104)
 
-Beat a trivial (duration / note-count) baseline on Tau-c AND land in a respectable Tau-c band (~0.6+; published cross-dataset 0.56-0.68, audio in-domain 0.77-0.78). ~1 week budget.
+Beat our OWN trivial (duration / note-count) baseline on tau-c AND land in a respectable tau-c band (~0.6+; published cross-dataset 0.56-0.68, audio in-domain 0.77-0.78). No organizer baseline exists to beat. ~1 week budget.
 
 ## Phase 1 results — cross-render feature stability (RUN 2026-07-04)
 
@@ -50,8 +53,9 @@ Kill-gate was cross-render ρ > ~0.9. **All four clear it.** This directly **ref
 pessimistic A4 hypothesis** (that a human recording and a fixed-soundfont render of the
 same notes would transcribe inconsistently enough to break the features) — for these
 onset/pitch-based features, on this repertoire. It confirms A5/A6: pitch + onset are
-AMT's reliable substrate, and difficulty features built only on them survive the
-independently-scored anti-cheat design that punishes render-fragility.
+AMT's reliable substrate. (The anti-cheat turned out to be *averaging* the human+synth
+predictions, not independent scoring — captain answer #5 — so this render-stability
+margin is more than the task strictly needs; averaging only helps.)
 
 **pitch_range is the weakest and should be flagged, not trusted blindly.** Its
 oracle↔AMT-real fidelity is near-perfect (0.9986), but cross-render drops to 0.9602 and
