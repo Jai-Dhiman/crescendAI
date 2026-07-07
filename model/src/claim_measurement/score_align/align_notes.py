@@ -45,6 +45,13 @@ SCORE_ALIGN_SCHEMA = "v2"
 REFERENCE_FRAME = "windowed_affine"  # same-set LSQ: whole-piece mean-d degenerate
 DEFAULT_WINDOW_SEC = 15.0  # mirrors the live Rust per-chunk affine (note_align.rs)
 MIN_WINDOW_EVENTS = 8
+# Drop matches farther than this from the bundle's accepted pseudo-truth anchor
+# envelope. parangonar's global matcher scatters matches across the score with no
+# local constraint (#108 day-0 finding; confirmed here: 9/10 real bundles were
+# match-scatter-limited, not rubato-limited). The anchors passed distributional
+# acceptance at extraction (MIN_ANCHORS/span/gap), so they are the trusted coarse
+# map. 1.5s = the pseudo-truth localization tolerance.
+ANCHOR_GATE_SEC = 1.5
 MS = 1000.0
 
 
@@ -145,6 +152,24 @@ def annotate_bundle(
     pairs = matched_note_pairs(score_na, matches, len(notes))
     perf = np.array([float(notes[p]["onset"]) for p, _ in pairs])
     score_sec = np.array([float(score_na[s]["onset_sec"]) for _, s in pairs])
+
+    # Anchor gate: keep only matches consistent with the accepted coarse map.
+    anchors = bundle.get("anchors") or {}
+    anchor_perf = np.asarray(anchors.get("perf_audio_sec") or [], dtype=np.float64)
+    anchor_score = np.asarray(anchors.get("score_audio_sec") or [], dtype=np.float64)
+    n_anchor_dropped = 0
+    if anchor_perf.size >= 2:
+        expected_score = np.interp(perf, anchor_perf, anchor_score)
+        keep = np.abs(score_sec - expected_score) <= ANCHOR_GATE_SEC
+        n_anchor_dropped = int((~keep).sum())
+        if not keep.any():
+            raise ScoreAlignError(
+                f"all {len(pairs)} matches fall outside the anchor envelope "
+                f"(+-{ANCHOR_GATE_SEC}s); match set and accepted coarse map disagree"
+            )
+        pairs = [pr for pr, k in zip(pairs, keep) if k]
+        perf, score_sec = perf[keep], score_sec[keep]
+
     preds, n_windows = _windowed_predictions(perf, score_sec, window_sec)
     if n_windows == 0:
         raise ScoreAlignError(
@@ -171,6 +196,7 @@ def annotate_bundle(
         "window_sec": float(window_sec),
         "n_windows": n_windows,
         "n_matched": len(pairs),
+        "n_anchor_dropped": n_anchor_dropped,
         "n_annotated": len(residuals_ms),
         "n_notes": len(notes),
         "residual_rms_ms": float(np.sqrt(np.mean(np.square(residuals_ms)))),

@@ -237,6 +237,29 @@ def test_annotate_skips_notes_in_sparse_windows():
     assert all("score_onset" not in n for n in bundle["notes"][10:])
 
 
+def test_annotate_anchor_gate_drops_scattered_matches():
+    # 10 matches on a clean line + 2 parangonar teleports (score onsets far from
+    # the anchor envelope): the teleports must be dropped before the window fit.
+    score_onsets = [0.5 * i for i in range(10)] + [40.0, 45.0]
+    perf_onsets = [2.0 * s + 1.0 for s in score_onsets[:10]] + [3.2, 7.7]
+    bundle = _bundle_with_notes(perf_onsets)
+    # identity-ish anchors covering the true region: perf = 2*score + 1
+    bundle["anchors"] = {
+        "perf_audio_sec": [1.0, 10.0],
+        "score_audio_sec": [0.0, 4.5],
+    }
+    annotate_bundle(
+        bundle, _score_na(score_onsets), _match_entries([(i, i) for i in range(12)])
+    )
+
+    meta = bundle["score_align"]
+    assert meta["n_anchor_dropped"] == 2
+    assert meta["n_matched"] == 10
+    assert "score_onset" not in bundle["notes"][10]
+    assert "score_onset" not in bundle["notes"][11]
+    assert meta["residual_rms_ms"] == pytest.approx(0.0, abs=1e-6)
+
+
 def test_annotate_raises_when_no_window_fittable():
     score_onsets = [0.0, 1.0, 2.0]  # 3 matches < MIN_WINDOW_EVENTS everywhere
     perf_onsets = [2.0 * s for s in score_onsets]

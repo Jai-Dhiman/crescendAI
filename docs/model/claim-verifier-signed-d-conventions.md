@@ -1009,3 +1009,16 @@ tiers are subsets of each window — they carry the real signal.
 - Timing dim REPOINTED in the taxonomy (measurement `amt_score_relative_onset_deviation`, tolerance
   30ms provisional `locked:false`); frozen `verdict_dispatch` untouched; the two behavioral timing
   tests now run on score-aligned construction-known bundles.
+
+**UPDATE-2 addendum (same session): anchor gate + the substrate verdict.** Gating matches to the
+accepted pseudo-truth anchor envelope (+-1.5s) improves 9/10 clips ~40% (waltz 1.57->0.90s,
+pathetique 2.03->0.85s median) but the floor stays 0.85-1.9s everywhere except Traumerei (0.23s,
+already clean). Etude op10no4 is METRONOMIC and still 1.43s -> the residual is per-note MATCH ERROR,
+not rubato: parangonar+AMT per-note correspondence on real YouTube audio is +-1s-coarse (consistent
+with GATE-1's +-1.5s tolerance). CONSEQUENCES: (1) bar-tier timing claims on REAL audio are
+substrate-blocked on 9/10 clips (bar-mean sigma >> any honest tau); Traumerei-class alignment
+(~230ms note / ~50-80ms bar-mean) is the existence proof of the usable regime. (2) 7c G-A runs on
+RENDERED construction-known audio (clean AMT) — unaffected. (3) The real-audio rate inherits a new
+dependency: **#108's continuity-penalized symbolic matcher replacing parangonar inside this offline
+pipeline** (its day-0 probe already beat parangonar's global matchers, which scatter with no local
+constraint). The #101 paper path and the #108 product path CONVERGE at the matcher.
