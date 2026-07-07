@@ -40,3 +40,16 @@ def test_from_alignment_matches_real_asap_beat_arrays_exactly() -> None:
     assert traj.anchors[0] == (alignment.performance_beats[0], alignment.midi_score_beats[0])
     assert traj.anchors[-1] == (alignment.performance_beats[-1], alignment.midi_score_beats[-1])
     assert traj.is_monotonic_non_decreasing() is True
+
+
+from follower_bench.segments import Segment
+from follower_bench.trajectory import build_trajectory_from_segments
+
+
+def test_build_trajectory_from_segments_identity_matches_clean_exactly() -> None:
+    clean = TrueTrajectory(anchors=((0.0, 0.0), (1.0, 0.5), (2.0, 1.0), (3.0, 1.5)))
+    identity = [Segment(src_start=0.0, src_end=3.0, dst_start=0.0, time_scale=1.0)]
+    spliced = build_trajectory_from_segments(clean, identity)
+    for t, expected_pos in clean.anchors:
+        assert spliced.score_position_at(t) == pytest.approx(expected_pos)
+    assert spliced.is_monotonic_non_decreasing() is True
