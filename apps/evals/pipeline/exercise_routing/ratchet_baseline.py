@@ -27,5 +27,12 @@ out = {
     "tempo_sanity_floor": last["tempo_sanity_rate"],
     "notes": baseline.get("notes", ""),
 }
+
+# selector_relevance_at_1 is only present when the run included the judge pass;
+# ratchet it when measured, otherwise carry the existing floor forward unchanged.
+if "selector_relevance_at_1" in last and last.get("selector_relevance_n", 0) > 0:
+    out["selector_relevance_at_1_floor"] = last["selector_relevance_at_1"]
+elif "selector_relevance_at_1_floor" in baseline:
+    out["selector_relevance_at_1_floor"] = baseline["selector_relevance_at_1_floor"]
 BASELINE_PATH.write_text(json.dumps(out, indent=2))
 print("ratcheted baseline.json from last_run.json")

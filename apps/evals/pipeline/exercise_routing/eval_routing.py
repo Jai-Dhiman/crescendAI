@@ -186,6 +186,7 @@ def run_full(
     judge_provider: str = "workers-ai",
     judge_model: str | None = None,
     allow_degraded_piece_id: bool = False,
+    timeout_per_event: float = 120.0,
 ) -> int:
     """Run full eval: drive all recordings, score, write last_run.json, diff baseline."""
     from shared.local_session import drive, check_services
@@ -205,7 +206,12 @@ def run_full(
         piece_slug: str = entry["piece_slug"]
         print(f"  driving {recording.name} ({piece_slug}) ...", end=" ", flush=True)
         try:
-            capture = drive(recording=recording, piece_slug=piece_slug, wrangler_url=wrangler_url)
+            capture = drive(
+                recording=recording,
+                piece_slug=piece_slug,
+                wrangler_url=wrangler_url,
+                timeout_per_event=timeout_per_event,
+            )
             captures.append(capture)
             score = score_session(capture)
             session_scores.append(score)
@@ -318,6 +324,9 @@ def main() -> int:
     parser.add_argument("--allow-degraded-piece-id", action="store_true",
                         help="Permit all-corpus_drill/piece_resolved=False runs (AMT down). "
                              "Relevance stays real; piece-ID/kind/bar axes degenerate.")
+    parser.add_argument("--timeout-per-event", type=float, default=120.0,
+                        help="Seconds to wait for each WS event (chunk_processed, synthesis). "
+                             "Raise when the teacher model is slow (glm can take 150-230s/call).")
     args = parser.parse_args()
 
     if not BASELINE_PATH.exists():
@@ -336,6 +345,7 @@ def main() -> int:
         judge_provider=args.judge_provider,
         judge_model=args.judge_model,
         allow_degraded_piece_id=args.allow_degraded_piece_id,
+        timeout_per_event=args.timeout_per_event,
     )
 
 
