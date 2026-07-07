@@ -11,13 +11,14 @@
 ## Task spec (confirmed from the MIREX task page)
 - **Goal:** given `{prompt, audio_A, audio_B}`, predict the human-preferred clip. Multi-genre GENERATED audio.
 - **I/O:** input JSONL rows `{sample_id, prompt, audio_A, audio_B}` → output `{sample_id, preferred_candidate: "A"|"B"}`. Run as `python main.py --path input.jsonl`.
-- **Metric:** pairwise accuracy vs crowdsourced consensus (framework also reports LCC/SRCC/Kendall). "Efficiency metrics" appear **reported, not ranked** — *CONFIRM with captain*.
+- **Metric:** pairwise accuracy vs crowdsourced consensus (framework also reports LCC/SRCC/Kendall). Efficiency metrics **reported, not ranked** — CONFIRMED by captain (email, 2026-07-07: "For information only"). Do not spend effort on efficiency as a competitive axis.
+- **Validation rule (captain, 2026-07-07):** open validation is our choice (CMI-Pref, Music Arena, PAM, ...) **"as long as they are not in your training set"** — data allocation is a one-way door: any corpus added to training becomes illegal as validation. Current split (train=CMI-Pref-train, validate=CMI-Pref-test-500) is clean.
 - **Rules:** external pretrained models + data allowed if disclosed. Self-contained env.
 - **Timing:** eval JSONL + audio released **Oct 1**; predictions due **Oct 2 AOE** via futuremirex.com/submission/. → System must be built/frozen before Oct 1; only inference in the 1-day window.
 - **Captain:** Yinghao Ma (QMUL) — yinghao.ma@qmul.ac.uk. Paper: arXiv:2603.00610 (ICML 2026). Baseline repo: github.com/Haiwen-Xia/CMI-RewardBench.
 
 ### ⚠️ Open schema risk (highest-priority unknown)
-Task-page toy example shows only `{prompt, audio_A, audio_B}`, but the underlying CMI-Pref data carries `lyrics` + `ref-audio-path`, and its test split is balanced 25% each Text / Lyrics / Audio / Audio+lyrics. If the eval JSONL really omits lyrics/ref-audio, ~50% of items are structurally unjudgeable — so the real file likely exposes more fields. **Email the captain to confirm before fixing the architecture.**
+Task-page toy example shows only `{prompt, audio_A, audio_B}`, but the underlying CMI-Pref data carries `lyrics` + `ref-audio-path`, and its test split is balanced 25% each Text / Lyrics / Audio / Audio+lyrics. If the eval JSONL really omits lyrics/ref-audio, ~50% of items are structurally unjudgeable — so the real file likely exposes more fields. **Status (2026-07-07):** captain emailed; efficiency + validation questions answered, schema question DEFERRED ("away, will check later — remind me if not this week"). **Remind Yinghao Ma by Mon 2026-07-13 if no answer.** Not blocking: main.py already consumes lyrics/ref_audio when present and degrades gracefully; only the ref-audio-pathway investment decision waits on this. Eval size/blend also still unknown (he confirmed only the Oct 1 -> Oct 2 timeline).
 
 ## Data & licenses
 | Resource | HF id | License | Pairwise? | Use |
