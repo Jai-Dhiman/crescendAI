@@ -85,6 +85,7 @@ mod lib_tests {
         ];
         let p = |id: &str, events: Vec<u16>, chroma: [f64; 12]| PieceArtifact {
             piece_id: id.into(), composer: "C".into(), title: id.into(), chroma, events,
+            windows: Vec::new(),
         };
         let index = PieceIndex {
             onset_tol_ms: 50.0,

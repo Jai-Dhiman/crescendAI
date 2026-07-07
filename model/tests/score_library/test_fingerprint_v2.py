@@ -31,3 +31,21 @@ def test_build_piece_index_chroma_and_events(tmp_path):
     assert len(beta["chroma"]) == 12
     # events: onset 0.0 (C,E within 50ms -> {60,64}) then 1.0 (D -> {62})
     assert beta["events"] == [(1 << 0) | (1 << 4), (1 << 2)]  # [17, 4]
+    # short pieces emit NO windows (the whole-piece chroma covers them, #96 hybrid)
+    assert beta["windows"] == []
+
+
+def test_build_piece_index_windows_for_long_piece(tmp_path):
+    # A >400-note piece gets overlapping 400-note / hop-200 window chroma vectors
+    # (the hybrid-shortlist recall feature, #96).
+    notes = [(60 + i % 12, i * 0.1, 80) for i in range(900)]
+    _write_score(tmp_path, "long.piece", "C", "Long", notes)
+    _write_score(tmp_path, "z.other", "C", "Z", [(60, 0.0, 80), (62, 0.5, 80)])  # 2nd piece
+
+    index = build_piece_index(tmp_path, onset_tol_s=0.05)
+    long = next(p for p in index["pieces"] if p["piece_id"] == "long.piece")
+    # starts 0,200,400,600,800 -> lens 400,400,400,300,100; guard >=200 keeps first 4
+    assert len(long["windows"]) == 4
+    for w in long["windows"]:
+        assert len(w) == 12
+        assert abs(math.sqrt(sum(x * x for x in w)) - 1.0) < 1e-9

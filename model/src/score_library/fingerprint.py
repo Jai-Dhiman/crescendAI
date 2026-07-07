@@ -57,6 +57,35 @@ def _piece_events(notes: list[dict], onset_tol_s: float) -> list[int]:
     return events
 
 
+_WINDOW_NOTES = 400
+_WINDOW_HOP = 200
+
+
+def _piece_windows(notes: list[dict], window_notes: int = _WINDOW_NOTES,
+                   window_hop: int = _WINDOW_HOP) -> list[list[float]]:
+    """Per-piece overlapping note-WINDOW chroma vectors for the hybrid shortlist (#96).
+
+    Mirrors score_library.pieceid_experimental.HybridShortlist EXACTLY: notes are
+    onset-ordered, then a window_notes-wide window slides by window_hop and each
+    window's chroma is emitted. Pieces with <= window_notes notes emit NO windows
+    (the whole-piece chroma already covers them in the union). The trailing-window
+    guard keeps only windows with >= max(2, window_notes//2) notes.
+    """
+    ordered = sorted(notes, key=lambda n: float(n["onset_seconds"]))
+    n = len(ordered)
+    if n <= window_notes:
+        return []
+    out: list[list[float]] = []
+    start = 0
+    min_len = max(2, window_notes // 2)
+    while start < n:
+        w = ordered[start:start + window_notes]
+        if len(w) >= min_len:
+            out.append(_piece_chroma(w))
+        start += window_hop
+    return out
+
+
 def build_piece_index(scores_dir: Path, onset_tol_s: float = 0.05) -> dict:
     """Build the v2 piece-ID artifact (chroma vector + chord-event masks per piece)."""
     json_files = sorted(
@@ -73,6 +102,7 @@ def build_piece_index(scores_dir: Path, onset_tol_s: float = 0.05) -> dict:
             "title": data["title"],
             "chroma": _piece_chroma(notes),
             "events": _piece_events(notes, onset_tol_s),
+            "windows": _piece_windows(notes),
         })
     pieces.sort(key=lambda p: p["piece_id"])
     return {"version": "v2", "onset_tol_ms": int(round(onset_tol_s * 1000)), "pieces": pieces}

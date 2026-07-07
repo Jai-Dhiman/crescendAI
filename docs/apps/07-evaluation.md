@@ -184,6 +184,89 @@ A runtime-level `after_model` middleware that re-scores compound outputs in prod
 
 **Limitations:** Only 4 pieces. Cannot test confusion between similar pieces (e.g., Bach Invention 1 vs Invention 4). Limited negative control set. All recordings are full performances, not partial starts.
 
+### Realized cross-performance eval (#96, 2026-06-26)
+
+The T5 design above is now realized at scale by `model/src/score_library/pieceid_crossperf_verify.py`
+(`just catalog-pieceid-crossperf-verify`), which runs the **frozen production gate** against
+**1,066 held-out ASAP performance MIDIs** (242 works) vs the 11,046-piece catalog, with
+gate-independent ground truth (`discover.derive_piece_id` + a score-MIDI oracle, 203/203
+agreement). It measures cross-performance recall, leave-one-out open-set false-accept (decomposed
+into genuine-different-piece vs duplicate-of-true via the dedup-gate cost), a margin-threshold
+sweep, and splits by source (engraved vs GiantMIDI/PDMX AMT) and composer-neighborhood density.
+
+**Measured (post-dedup of 72 exact twins):** recognized (locked & correct) **94.0%**, chroma
+recall@5 94.8%, true different-piece open-set FA **~0.5%** (vs the <10% FPR target). Margin
+threshold re-tuned 0.0935 → 0.13.
+
+> **CORRECTION (2026-06-28, #96) — the 94.0% is a CAPPED-CATALOG ARTIFACT, not production
+> recall.** This harness (and `pieceid_comprehensive_eval.py` below) caps the catalog at each
+> piece's first 600 notes (`build_catalog`→`load_score_notes[:600]`), but production
+> `fingerprint.build_piece_index` fingerprints the **full** piece. The 600-cap accidentally makes
+> the catalog chroma ≈ the opening-600 chroma, which matches an opening query — so the eval is
+> systematically optimistic. On production-faithful **full** pieces, whole-piece chroma recall
+> COLLAPSES: opening recognition **80%→44%**, mid-halfway **54%→32%** (uncapped 11,037-catalog,
+> train split). **Real shipped piece-ID recall is ~44–62%, not 94%.** Production queries the live
+> ~1,200-note buffer (usually mid-piece), so **~50–60% is the honest real-world expectation.**
+> Every future piece-ID eval MUST uncap the catalog (`--catalog-note-cap 0`, added to
+> `pieceid_autoresearch_eval.py`) or it re-inflates recall. See the autoresearch result below.
+
+### Comprehensive edge-case eval + autoresearch harness (#96, 2026-06-27)
+
+`model/src/score_library/pieceid_comprehensive_eval.py` (`just catalog-pieceid-comprehensive-eval`)
+closes the edge-case gaps the cross-performance harness could not see. It reuses the frozen gate
+(every axis is a query transform; gate algo + Rust parity untouched) and a parsed-catalog pickle
+cache (`--catalog-cache`) that turns the ~8min, ~9GB JSON re-parse into a ~10s load. Axes
+(n=242 works, raw 11K catalog, threshold 0.13, CIs cluster-bootstrapped by work):
+- **B mid-piece starts** — recognized 75.6% (opening) → 36.8% (halfway) → 14.5% (75%); recall@k
+  collapses 94.6→44.2→15.3%. The **whole-piece chroma shortlist** (not the subsequence gate) is
+  the ceiling: a mid-piece section's pitch distribution diverges from the full-piece histogram.
+- **C transposition** — total cliff (0% recognition at any ±1..6 semitones); key-dependent chroma.
+  A document-the-tradeoff item (rare in classical), not a hill-climb target.
+- **D same-composer confusion matrix** — 10 confusions, 1 same-composer; 9/10 lock onto
+  GiantMIDI/PDMX AMT distractors (the bulk recognize-only corpus is the confusion source).
+- **E confidence calibration** — margin is an informative ranking but not a calibrated probability
+  (ECE 0.15, non-monotone near 0.13); a margin→P(correct) map would fix the exposed `confidence`.
+- **G notes-to-lock latency** — median first lock ~300 notes/~33s, 7.8% of locks flip id over time.
+- **Dedup of the 72 exact twins** lifts opening recognition 75.6→90.9% (orthogonal to B/C).
+- **A real-audio→AMT** (`pieceid_amt_axis.py`, `just catalog-pieceid-amt-axis-stream`) — paired
+  clean-MIDI-vs-AMT recognition over the 519 ASAP↔MAESTRO matches, streaming each WAV from HF and
+  deleting it (disk-bounded). Blocked on placing the aria-amt `medium-double` `.safetensors`
+  checkpoint in `model/data/weights/aria-amt` (the AMT server does not auto-download it).
+
+**Autoresearch loop:** `pieceid_experimental.py` is the single editable knob-board (shortlist
+mode/K, margin, absolute-cost floor, source-aware AMT strictness); `pieceid_autoresearch_eval.py`
+(`just catalog-pieceid-autoresearch`) emits one scalar `AUTORESEARCH_METRIC` rewarding opening +
+mid-piece recognition while penalizing genuine FAs above 5% (the anti-gaming guard). Baseline
+reproduces this eval exactly (0.65496); ground-truth labels are frozen at the baseline gate (a
+leakage guard). A winning lever is a **proposal to port** to the Rust/WASM gate, never an automatic
+production change. The `/autoresearch` Goal/Scope/Metric/Verify/Guard config is a #96 handoff comment.
+
+**Autoresearch RESULT (#96, 2026-06-28) — hybrid shortlist (SHIPPED to branch, deploy-gated).**
+The winning lever is an **additive hybrid shortlist**: whole-piece chroma top-20 **∪** windowed
+chroma top-K (400-note windows, hop 200), feeding the **unchanged** elastic-DTW margin gate.
+- *Capped eval (the as-given harness):* held-out mid-piece recognition **36.6%→67.1%**, open-set
+  FA down (test 4.9%→2.4%, CI upper 0.058→0.037 — restores certification), lock-flip 7.8%→4.9%,
+  no axis regresses, `cargo test` parity 26/0.
+- *Production-faithful (uncapped) re-tune:* whole-piece recall collapses (see CORRECTION above);
+  the hybrid is the **fix** and recovers it (full-piece opening 44%→~57–62%, beats pure-windowed,
+  generalizes train↔test) but **ceilings ~62%** — a 12-dim-chroma information limit, not a bug.
+- *Ported* (recall-only, additive, behind the parity test): `types.rs` `windows` field
+  (serde-default, back-compat), `chroma.rs` `windowed_top_k`, `identify.rs` union shortlist into
+  the unchanged `margin_gate`; `fingerprint.build_piece_index` emits per-piece windows.
+  `cargo test` **28/0** (3 parity + 2 new hybrid tests); fingerprint pytest 4/0; gate.rs /
+  parity_test.rs / parity_fixtures.json / wasm-bridge.ts / session-brain.ts ZERO diff.
+
+**RESUME HERE (next session, #96):** branch `issue-96-autoresearch` (3 commits, UNMERGED, off
+`issue-96-pieceid-accuracy`). The port is done but **deploy-gated** — to ship: `just fingerprint`
+(now emits `windows`) → `just seed-fingerprint` (local) / upload to prod R2; threshold stays 0.13;
+parity fixture needs no regen. To keep IMPROVING accuracy, hill-climb on the **uncapped** catalog
+(`pieceid_autoresearch_eval.py --catalog-note-cap 0`, ~5 min/run on the warm cache); the open
+problem is the **~62% full-piece ceiling**, whose honest next steps (a bigger call, deferred) are
+(a) richer window features — onset-density, pitch register/range, melodic-contour appended to the
+12-dim chroma — or (b) a learned piece-ID shortlist embedding (needs a training run; cost first).
+`WINDOW_NOTES` / `WINDOWED_K` in `identify.rs` are a latency-vs-recall tradeoff to tune on
+uncapped fingerprints. Tune ONLY `pieceid_experimental.py`; never the frozen gate or the fixture.
+
 ---
 
 ## 2. Teaching Moment Selection Eval

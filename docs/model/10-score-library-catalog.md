@@ -124,6 +124,47 @@ audio required). Run with `just test-model` or `cd model && uv run pytest tests/
 VERDICT line. If PROCEED or TUNE, open a follow-on issue to wire the winning
 matcher into the Rust/WASM `score_follower` chroma-recall channel.
 
+## Current status — gate SHIPPED (#26) + re-verified at 11K (#96)
+
+The feasibility harness above (#21) led to the shipped production gate: **chroma
+top-K recall → pitch-only chord-Jaccard elastic-DTW → lock iff margin ≥ threshold**,
+ported to `apps/api/src/wasm/piece-identify/` and wired into the SessionBrain DO
+(`accumulateAndIdentify`). False-accept rejection was certified across 322 diverse
+out-of-catalog works (Stage-0e/0f).
+
+As the catalog grew **254 → 11,046**, the gate was re-verified against held-out
+**cross-performance** queries (1,066 ASAP performance MIDIs, `git clone
+CPJKU/asap-dataset`):
+
+| Harness (`model/src/score_library/`) | `just` recipe | Measures |
+|---|---|---|
+| `pieceid_crossperf_verify.py` | `catalog-pieceid-crossperf-verify` | cross-performance recall + leave-one-out open-set FA (decomposed: genuine vs duplicate-of-true) + threshold sweep |
+| `dedup_scan.py` | `catalog-dedup-scan` | non-destructive duplicate-cluster manifest (greedy nearest-keep, source-aware threshold) |
+
+**Result (post-dedup of 72 exact twins):** recognized 94.0%, chroma recall@5 94.8%,
+true different-piece open-set FA ~0.5%. The recognition margin threshold was
+**re-tuned 0.0935 → 0.13** (`session-brain.ts PIECE_ID_MARGIN_THRESHOLD`) to restore
+FA ≤ 0.05 at the 11K catalog. Key finding: **catalog duplication, not the gate, was
+the bottleneck** — removing 0.65% of the catalog (exact twins) jumped recognition
+81.5% → 94.0%. The `dedup_scan` manifest's medium-confidence tier (355 AMT near-dups)
+is the input for a deferred cleanliness pass. Full history in memory
+`project_piece_id_amt_stage0` + Issue #96.
+
+> **CORRECTION (2026-06-28, #96): the 94.0% is a CAPPED-CATALOG ARTIFACT.** That
+> verification capped the catalog at each piece's first 600 notes, but production
+> `fingerprint.build_piece_index` fingerprints the **full** piece. On full
+> fingerprints whole-piece chroma recall collapses (opening 80%→44%), so **real
+> shipped recall is ~44–62%, not 94%** (production queries the live ~1,200-note
+> buffer ≈ mid-piece → ~50–60% honest expectation). Fix SHIPPED to branch
+> `issue-96-autoresearch` (UNMERGED, deploy-gated): an **additive hybrid shortlist**
+> (whole-piece top-20 ∪ windowed top-K, 400-note windows) — recall-only, the
+> certified gate + golden parity fixture untouched (`cargo test` 28/0). Recovers
+> full-piece opening to ~57–62% but **ceilings ~62%** (12-dim-chroma limit; breaking
+> it = richer window features or a learned shortlist, deferred). `build_piece_index`
+> now also emits per-piece `windows`; **re-run `just fingerprint` + `just
+> seed-fingerprint` before the next deploy** so the prod artifact carries them. Any
+> future piece-ID eval MUST uncap the catalog (`--catalog-note-cap 0`).
+
 ## Catalog vs. eval set — two different things
 
 Do not conflate them:

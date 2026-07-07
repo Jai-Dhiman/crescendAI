@@ -304,6 +304,63 @@ catalog-add-kernscores:
 catalog-acquire-mutopia:
     bash model/src/score_library/acquire_mutopia.sh
 
+# Acquire ASAP (held-out performances) for cross-performance piece-ID verification.
+catalog-acquire-asap:
+    cd model && test -d data/raw/asap || git clone --depth 1 https://github.com/CPJKU/asap-dataset.git data/raw/asap
+
+# Cross-performance recall + open-set (leave-one-out) verification of the piece-ID
+# margin gate against held-out ASAP performance MIDIs (1066 perfs / 242 works).
+# Runs the FROZEN production gate (chroma top-K -> pitch-only elastic-DTW -> lock
+# iff margin>=0.0935). Ground truth is gate-independent (derive_piece_id + score-MIDI
+# oracle). Reports cross-performance recall, leave-one-out false-accept decomposed
+# into genuine-different-piece vs duplicate-of-true, and a threshold sweep.
+# Requires ASAP (run catalog-acquire-asap first); fails loud if metadata.csv missing.
+catalog-pieceid-crossperf-verify:
+    cd model && PYTHONUNBUFFERED=1 uv run python -m score_library.pieceid_crossperf_verify --per-work 0 --note-cap 600
+
+# Comprehensive production-fidelity piece-ID eval across edge-case axes the clean-MIDI
+# cross-performance harness cannot see: B mid-piece starts, C transposition, D same-composer
+# confusion matrix, E confidence calibration, G notes-to-lock latency. Builds the 11K catalog
+# + gate ONCE and runs every axis by transforming the query notes (frozen gate, threshold is a
+# parameter). CIs cluster-bootstrap by work. Axes A/F are gated siblings (catalog-pieceid-amt-axis).
+catalog-pieceid-comprehensive-eval:
+    cd model && PYTHONUNBUFFERED=1 uv run python -m score_library.pieceid_comprehensive_eval --axes b,c,d,e,g --per-work 1 --note-cap 600 --threshold 0.13
+
+# Axis A -- the #1 production-fidelity gap: real audio -> production AMT service -> the frozen
+# piece-ID gate, PAIRED against the clean-MIDI recognition of the same performance. Maps ASAP
+# perfs to MAESTRO audio (519 matched), slices 15s chunks with 15s context (production windowing),
+# POSTs to the AMT service, stitches notes, runs the gate. GATED: requires MAESTRO audio rehydrated
+# (--maestro-dir; offloaded ~34GB) AND the AMT service up (`just amt`). Fails loud if either missing.
+catalog-pieceid-amt-axis maestro_dir limit="50":
+    cd model && PYTHONUNBUFFERED=1 uv run python -m score_library.pieceid_amt_axis --maestro-dir {{maestro_dir}} --limit {{limit}} --opening-seconds 90 --threshold 0.13
+
+# Axis A by STREAMING MAESTRO audio per-perf from HF (no local MAESTRO needed; each
+# WAV is downloaded, transcribed, then deleted -> peak disk ~2-3GB for the full 519).
+# Resumable (re-run continues from the incremental output). PREREQ: the AMT service
+# must be up (`just amt`, or `cd apps/inference && CRESCEND_DEVICE=cpu uv run amt/amt_local_server.py`
+# -- use cpu to avoid contending with MPS training). limit=0 runs all 519 (CPU ~1-1.5 days;
+# pick a smaller limit for an overnight pilot).
+catalog-pieceid-amt-axis-stream limit="100":
+    cd model && PYTHONUNBUFFERED=1 uv run python -m score_library.pieceid_amt_axis --stream-hf ddPn08/maestro-v3.0.0 --limit {{limit}} --opening-seconds 90 --threshold 0.13
+
+# AUTORESEARCH verify command: drives the experimental knob-board
+# (score_library/pieceid_experimental.py -- the ONLY file an autoresearch loop edits)
+# over held-out ASAP perfs vs the 11K catalog and prints a single scalar
+# `AUTORESEARCH_METRIC: <float>` rewarding opening + mid-piece recognition while
+# penalizing genuine open-set false-accepts above the 5% bar. Parsed-catalog +
+# label caches make each iteration ~50s. Pass CATALOG/CACHE/LABEL paths as needed;
+# defaults assume the catalog is in-worktree (data/scores) with sibling cache files.
+catalog-pieceid-autoresearch catalog_cache="data/evals/piece_id/catalog_cache.pkl" label_cache="data/evals/piece_id/labels_cache.json":
+    cd model && PYTHONUNBUFFERED=1 uv run python -m score_library.pieceid_autoresearch_eval --catalog-cache {{catalog_cache}} --label-cache {{label_cache}}
+
+# Catalog-wide AMT-aware duplicate detection (NON-DESTRUCTIVE manifest, nothing deleted).
+# Greedy nearest-keep: drops a piece only on a DIRECT match to an already-kept higher-
+# priority piece (engraved>pdmx>giantmidi, most-notes). Source-aware threshold (engraved
+# 0.2885, AMT-involved 0.40); splits high-confidence (<=0.2885) from medium review-pool.
+# Writes data/evals/piece_id/dedup_manifest.json -- input for the deferred cleanliness pass.
+catalog-dedup-scan:
+    cd model && PYTHONUNBUFFERED=1 uv run python -m score_library.dedup_scan --note-cap 600 --top-k 8
+
 # Add net-new Mutopia keyboard pieces to the catalog: instrument-filter ->
 # content semantic dedup vs existing catalog -> self-consistency ingest ->
 # re-fingerprint. Run `just catalog-acquire-mutopia` first.
