@@ -59,3 +59,32 @@ def apply_segments(notes: list[PerfNote], segments: list[Segment]) -> list[PerfN
                 )
     out.sort(key=lambda n: n.onset)
     return out
+
+
+@dataclass(frozen=True)
+class NoteMutation:
+    """Substitute the pitch of the note whose onset is nearest to
+    target_onset by pitch_delta semitones, clamped to the MIDI range
+    [0, 127]."""
+    target_onset: float
+    pitch_delta: int
+
+
+def apply_note_mutations(notes: list[PerfNote], mutations: list[NoteMutation]) -> list[PerfNote]:
+    """Apply pitch mutations to the note(s) nearest each mutation's
+    target_onset.
+
+    Raises:
+        ValueError: notes is empty (nothing to mutate).
+    """
+    result = list(notes)
+    for mut in mutations:
+        if not result:
+            raise ValueError("cannot apply NoteMutation: note list is empty")
+        idx = min(range(len(result)), key=lambda i: abs(result[i].onset - mut.target_onset))
+        target = result[idx]
+        new_pitch = max(0, min(127, target.pitch + mut.pitch_delta))
+        result[idx] = PerfNote(
+            onset=target.onset, offset=target.offset, pitch=new_pitch, velocity=target.velocity
+        )
+    return result

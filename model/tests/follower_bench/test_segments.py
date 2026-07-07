@@ -5,7 +5,13 @@ from __future__ import annotations
 
 import pytest
 
-from follower_bench.segments import PerfNote, Segment, apply_segments
+from follower_bench.segments import (
+    NoteMutation,
+    PerfNote,
+    Segment,
+    apply_note_mutations,
+    apply_segments,
+)
 
 
 def test_apply_segments_identity_reproduces_input_notes() -> None:
@@ -40,3 +46,18 @@ def test_apply_segments_repeat_splice_duplicates_and_shifts_notes() -> None:
     assert (2.0, 62) in onset_pitch_pairs   # seg2: repeat pass, X replayed at seg2.dst_start=2.0
     assert (2.6, 64) in onset_pitch_pairs   # seg2: repeat pass
     assert (3.5, 65) in onset_pitch_pairs   # seg3: tail note shifted forward by the repeat's duration
+
+
+def test_apply_note_mutations_shifts_nearest_note_pitch_clamped() -> None:
+    notes = [
+        PerfNote(onset=0.0, offset=0.4, pitch=60, velocity=80),
+        PerfNote(onset=1.0, offset=1.4, pitch=126, velocity=80),
+        PerfNote(onset=2.0, offset=2.4, pitch=64, velocity=80),
+    ]
+    mutations = [NoteMutation(target_onset=1.05, pitch_delta=5)]
+    result = apply_note_mutations(notes, mutations)
+
+    assert result[0].pitch == 60
+    assert result[1].pitch == 127  # 126 + 5 clamped to 127
+    assert result[2].pitch == 64
+    assert result[1].onset == 1.0 and result[1].offset == 1.4 and result[1].velocity == 80
