@@ -66,3 +66,24 @@ def test_apply_note_mutations_shifts_nearest_note_pitch_clamped() -> None:
 def test_apply_note_mutations_raises_on_empty_notes() -> None:
     with pytest.raises(ValueError, match="empty"):
         apply_note_mutations([], [NoteMutation(target_onset=1.0, pitch_delta=1)])
+
+
+def test_apply_segments_jump_splice_omits_notes_in_the_skipped_range() -> None:
+    notes = [
+        PerfNote(onset=0.0, offset=0.4, pitch=60, velocity=80),   # before X, kept
+        PerfNote(onset=0.5, offset=0.9, pitch=61, velocity=80),   # before X, kept
+        PerfNote(onset=1.2, offset=1.6, pitch=62, velocity=80),   # inside the skipped [X=1.0, Z=2.5) gap, OMITTED
+        PerfNote(onset=2.0, offset=2.4, pitch=63, velocity=80),   # inside the skipped gap, OMITTED
+        PerfNote(onset=2.6, offset=3.0, pitch=64, velocity=80),   # after Z, kept and shifted
+    ]
+    x, z, t_min, t_max = 1.0, 2.5, 0.0, 3.5
+    seg1 = Segment(t_min, x, t_min, 1.0)          # play up to X
+    seg2 = Segment(z, t_max, seg1.dst_end, 1.0)   # skip [X, Z), continue from Z
+    result = apply_segments(notes, [seg1, seg2])
+
+    pitches = [n.pitch for n in result]
+    assert pitches == [60, 61, 64]  # 62 and 63 (inside the omitted gap) are dropped, not retained
+    # the tail note's onset is remapped through seg2's destination timeline, not its original source position
+    tail = result[-1]
+    assert tail.onset == pytest.approx(seg2.dst_start + (2.6 - z))
+    assert tail.onset != pytest.approx(2.6)  # confirms it was actually shifted, not left untouched
