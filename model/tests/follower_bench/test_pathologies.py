@@ -139,3 +139,27 @@ def test_build_plan_hesitation_inserts_a_same_position_pause() -> None:
     assert spliced.score_position_at(mid_pause_t) == pytest.approx(paused_pos)
     assert spliced.score_position_at(seg1.dst_end) == pytest.approx(paused_pos)
     assert spliced.score_position_at(seg2.dst_start) == pytest.approx(paused_pos)
+
+
+def test_build_plan_wrong_note_is_a_pitch_mutation_with_no_timeline_change() -> None:
+    alignment = _alignment()
+    plan = build_plan(alignment, "wrong_note", random.Random(0))
+    clean_traj = from_alignment(alignment)
+    t_min, t_max = alignment.performance_beats[0], alignment.performance_beats[-1]
+
+    assert len(plan.segments) == 1
+    seg = plan.segments[0]
+    assert seg.src_start == pytest.approx(t_min)
+    assert seg.src_end == pytest.approx(t_max)
+    assert seg.time_scale == pytest.approx(1.0)
+
+    assert len(plan.note_mutations) == 1
+    mutation = plan.note_mutations[0]
+    assert t_min <= mutation.target_onset <= t_max
+    assert mutation.pitch_delta != 0
+
+    assert len(plan.events) == 1
+    event = plan.events[0]
+    assert event.type == "wrong_note"
+    assert event.from_score_position == pytest.approx(event.to_score_position)
+    assert event.from_score_position == pytest.approx(clean_traj.score_position_at(mutation.target_onset))

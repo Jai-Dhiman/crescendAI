@@ -139,4 +139,19 @@ def build_plan(alignment: ClipAlignment, pathology_type: str, rng: random.Random
         )
         return ClipPlan(segments=(seg1, seg2), events=(event,))
 
+    if pathology_type == "wrong_note":
+        duration = t_max - t_min
+        p = t_min + rng.uniform(0.3, 0.7) * duration
+        delta = rng.choice(_WRONG_NOTE_PITCH_DELTAS)
+        pos = clean_traj.score_position_at(p)
+        event = PathologyEvent(
+            type="wrong_note", perf_time=p, from_score_position=pos, to_score_position=pos
+        )
+        mutation = NoteMutation(target_onset=p, pitch_delta=delta)
+        return ClipPlan(
+            segments=(Segment(t_min, t_max, t_min, 1.0),),
+            events=(event,),
+            note_mutations=(mutation,),
+        )
+
     raise NotImplementedError(f"pathology_type {pathology_type!r} not yet implemented")
