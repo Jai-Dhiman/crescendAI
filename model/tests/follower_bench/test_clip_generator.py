@@ -45,3 +45,8 @@ def test_generate_repeat_is_deterministic_and_has_the_back_jump() -> None:
     assert before == pytest.approx(event.from_score_position)
     assert after == pytest.approx(event.to_score_position)
     assert after < before
+
+
+def test_generate_propagates_missing_alignment_for_real_unaligned_piece() -> None:
+    with pytest.raises(AsapAlignmentMissingError):
+        generate(UNALIGNED_PIECE, "clean", seed=1)
