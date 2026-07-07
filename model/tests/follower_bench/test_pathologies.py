@@ -163,3 +163,28 @@ def test_build_plan_wrong_note_is_a_pitch_mutation_with_no_timeline_change() -> 
     assert event.type == "wrong_note"
     assert event.from_score_position == pytest.approx(event.to_score_position)
     assert event.from_score_position == pytest.approx(clean_traj.score_position_at(mutation.target_onset))
+
+
+def test_build_plan_tempo_swing_is_a_contiguous_piecewise_time_ramp() -> None:
+    alignment = _alignment()
+    plan = build_plan(alignment, "tempo_swing", random.Random(0))
+    clean_traj = from_alignment(alignment)
+    t_min, t_max = alignment.performance_beats[0], alignment.performance_beats[-1]
+
+    assert len(plan.segments) >= 4
+    segs = plan.segments
+    assert segs[0].src_start == pytest.approx(t_min)
+    assert segs[0].time_scale == pytest.approx(1.0)
+    assert segs[-1].src_end == pytest.approx(t_max)
+    assert segs[-1].time_scale == pytest.approx(1.0)
+
+    for prev, curr in zip(segs, segs[1:]):
+        assert curr.src_start == pytest.approx(prev.src_end)
+        assert curr.dst_start == pytest.approx(prev.dst_end)
+
+    assert any(s.time_scale != pytest.approx(1.0) for s in segs[1:-1])
+
+    assert len(plan.events) == 1
+    event = plan.events[0]
+    assert event.type == "tempo_swing"
+    assert event.from_score_position == pytest.approx(event.to_score_position)

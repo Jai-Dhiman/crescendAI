@@ -154,4 +154,26 @@ def build_plan(alignment: ClipAlignment, pathology_type: str, rng: random.Random
             note_mutations=(mutation,),
         )
 
-    raise NotImplementedError(f"pathology_type {pathology_type!r} not yet implemented")
+    if pathology_type == "tempo_swing":
+        x, y = _pick_two_points(alignment, rng)
+        pos_x = clean_traj.score_position_at(x)
+        n = _TEMPO_SWING_SUBSEGMENTS
+        scales = [
+            _TEMPO_SWING_SCALE_START + (_TEMPO_SWING_SCALE_END - _TEMPO_SWING_SCALE_START) * i / (n - 1)
+            for i in range(n)
+        ]
+        sub_bounds = [x + (y - x) * i / n for i in range(n + 1)]
+        segments = [Segment(t_min, x, t_min, 1.0)]
+        for i in range(n):
+            prev = segments[-1]
+            segments.append(Segment(sub_bounds[i], sub_bounds[i + 1], prev.dst_end, scales[i]))
+        tail_start = segments[-1].dst_end
+        segments.append(Segment(y, t_max, tail_start, 1.0))
+        event = PathologyEvent(
+            type="tempo_swing", perf_time=x, from_score_position=pos_x, to_score_position=pos_x
+        )
+        return ClipPlan(segments=tuple(segments), events=(event,))
+
+    raise NotImplementedError(
+        f"pathology_type {pathology_type!r} is in PATHOLOGY_TYPES but has no build branch"
+    )
