@@ -188,3 +188,9 @@ def test_build_plan_tempo_swing_is_a_contiguous_piecewise_time_ramp() -> None:
     event = plan.events[0]
     assert event.type == "tempo_swing"
     assert event.from_score_position == pytest.approx(event.to_score_position)
+
+
+def test_build_plan_rejects_unknown_pathology_type() -> None:
+    alignment = _alignment()
+    with pytest.raises(ValueError, match="Unknown pathology_type"):
+        build_plan(alignment, "does_not_exist", random.Random(0))
