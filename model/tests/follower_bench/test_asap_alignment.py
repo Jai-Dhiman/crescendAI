@@ -7,11 +7,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from follower_bench.asap_alignment import load_alignment
+import pytest
+
+from follower_bench.asap_alignment import AsapAlignmentMissingError, load_alignment
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 ASAP_ROOT = REPO_ROOT / "model/data/raw/asap-dataset"
 ALIGNED_PIECE = "Liszt/Transcendental_Etudes/1/LuoJ05M.mid"
+UNALIGNED_PIECE = "Beethoven/Piano_Sonatas/16-1/LuoJ03M.mid"
 
 
 def test_load_alignment_resolves_real_aligned_piece() -> None:
@@ -24,3 +27,8 @@ def test_load_alignment_resolves_real_aligned_piece() -> None:
     assert len(alignment.performance_beats) == len(alignment.midi_score_beats)
     assert len(alignment.performance_beats) == 92
     assert alignment.performance_beats[0] < alignment.performance_beats[-1]
+
+
+def test_load_alignment_rejects_real_unaligned_piece() -> None:
+    with pytest.raises(AsapAlignmentMissingError, match="score_and_performance_aligned"):
+        load_alignment(UNALIGNED_PIECE)
