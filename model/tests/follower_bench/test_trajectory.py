@@ -15,3 +15,13 @@ def test_score_position_at_interpolates_and_clamps() -> None:
     assert traj.score_position_at(-1.0) == pytest.approx(0.0)   # clamp below range
     assert traj.score_position_at(5.0) == pytest.approx(1.0)    # clamp above range
     assert traj.score_position_at(1.0) == pytest.approx(0.5)    # exactly on an anchor
+
+
+def test_is_monotonic_non_decreasing_true_for_ascending() -> None:
+    traj = TrueTrajectory(anchors=((0.0, 0.0), (1.0, 0.5), (2.0, 0.5), (3.0, 1.0)))
+    assert traj.is_monotonic_non_decreasing() is True
+
+
+def test_is_monotonic_non_decreasing_false_for_a_regression() -> None:
+    traj = TrueTrajectory(anchors=((0.0, 0.0), (1.0, 1.5), (2.0, 0.5), (3.0, 1.0)))
+    assert traj.is_monotonic_non_decreasing() is False
