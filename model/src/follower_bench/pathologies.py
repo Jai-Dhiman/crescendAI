@@ -103,4 +103,16 @@ def build_plan(alignment: ClipAlignment, pathology_type: str, rng: random.Random
         )
         return ClipPlan(segments=(seg1, seg2, seg3), events=(event,))
 
+    if pathology_type == "jump":
+        x, z = _pick_two_points(alignment, rng)
+        seg1 = Segment(t_min, x, t_min, 1.0)
+        seg2 = Segment(z, t_max, seg1.dst_end, 1.0)
+        event = PathologyEvent(
+            type="jump",
+            perf_time=seg1.dst_end,
+            from_score_position=clean_traj.score_position_at(x),
+            to_score_position=clean_traj.score_position_at(z),
+        )
+        return ClipPlan(segments=(seg1, seg2), events=(event,))
+
     raise NotImplementedError(f"pathology_type {pathology_type!r} not yet implemented")
