@@ -828,3 +828,147 @@ BLOCKED — and by what:
 parallel at any time (all independent). Defer timbre / pedal / G-F until the first rate exists.
 Known external risk: both MIREX tracks (#104/#105, Oct 1 deadline) compete for the same sessions —
 FRONT 7 is weeks of work and loses by default unless explicitly scheduled.
+
+## FRONT 7a UPDATE (#101, 2026-07-04): claim-supply probe = **NO_GO**. 7b–7d NOT STARTED.
+
+**Gate status change:** FRONT 7's signed onset-deviation-vs-score route is **supply-blocked**, the
+same failure mode as dynamics G-D. The keystone-front premise ("supply-rich: rush/drag is the most
+common teacher claim") is **FALSIFIED on the generator corpus.** No measurer was built (the front-5
+lesson held: the probe stopped the front before 7b).
+
+**What was measured (harness `model/src/claim_measurement/timing_supply/`, LLM extract → deterministic
+classify; truth path is not an LLM):**
+- **Corpus A — chopin_ballade_1** (the exact 162-doc / 94-perf front-5 corpus): 77 timing claims across
+  55 perfs. Subtype: **rubato 70 (91%) / evenness 5 (6%) / rush_drag 2 (3%) / note_value 0 / hesitation
+  0 / ambiguous 0.** In-scope for signed onset-deviation (`rush_drag`, whole_piece|bar) = **2 claims,
+  both `neutral` polarity** ("your timing is steady/solid"). **0 directional rush-or-drag. 0
+  bar-localized** (100% whole_piece — corroborates the 0.4% localization finding on a fresh dim).
+- **Corpus B — bach_invention_1 + bach_prelude_c_wtc1** (60-doc / 55-perf metronomic probe, prose-only,
+  run to de-confound "chopin is a rubato piece"): **2 timing claims total** (rush_drag 1 — again
+  `neutral` "grounded and steady, exactly what Bach asks for"; evenness 1). Metronomic repertoire does
+  NOT rescue directional supply; timing is barely salient (2/60 docs) when the pulse is unremarkable.
+- **Net across both corpora:** 222 docs, 79 timing claims, **3 `rush_drag` — all 3 `neutral`. Directional
+  rush-or-drag error claims = 0.** A signed statistic needs a signed claim; the corpus supplies none.
+
+**Root cause = the GENERATOR VOICE, not the piece or the dimension.** The two confounds resolve cleanly:
+(1) piece — Bach (metronomic) also yields ~0 directional supply, so it is not a Chopin-rubato artifact;
+(2) voice — `baseline_v1` is the warm/"celebrate-strengths" synthesizer, which produces *aspirational
+shaping* advice ("add rubato, let it breathe") and *steadiness praise*, never *error-correction* ("you
+rushed bar 12"). Directional error is the one thing a signed-onset-deviation-vs-score statistic
+adjudicates, and this teacher voice structurally does not make it. **Caveat for the paper:** this NO_GO
+is proven on the GENERATOR corpus (what the production system actually adjudicates), NOT on real human
+masterclass prose — a real teacher may make more "you rushed" claims. If the paper's claim is about the
+SYSTEM's faithfulness, the generator corpus is the right denominator and this is decisive; if it is
+about verifying human teaching broadly, the generator-voice caveat must be stated.
+
+**The supply that DOES exist is rubato (91%)** — a *shaping/spread* quantity (deviation magnitude &
+structure across a phrase), not a signed mean (rubato stretches then compresses → signed mean ≈ 0). This
+is the exact structural twin of dynamics (contrast 90% / level ~0). **Do not naively pivot to a
+"rubato-magnitude" statistic:** FRONT 6 already proved no deterministic *shaping* statistic validates
+against perception for dynamics (best partial ≤0.26); a rubato-shape statistic inherits that unproven-
+validity risk AND lacks a clean perception anchor. That is a research gamble, not a next step.
+
+**Timing gate status now:** perception route = degenerate (IOI-CV, GATE 2/3); score-relative route =
+**substrate-clean but supply-blocked (7a NO_GO)**. Both timing routes are now closed on the available
+corpus. 7b (measurer), 7c (G-A), 7d (tau) — NOT STARTED, correctly un-built.
+
+**Re-plan fork (strategic; the front does NOT auto-continue):**
+- (a) **Accept + reframe** — the paper's measured contribution becomes the *supply/validity gap map*
+  across dimensions (dynamics-level supply-blocked, dynamics-contrast validity-blocked, timing
+  supply-blocked, pedal AMT-lossy), i.e. "what teacher feedback is even verifiable," with legible
+  abstention as the result. This is the honest, already-earned finding.
+- (b) **Change the corpus, not the statistic** — generate-on-bundles with a teacher prompt that is
+  permitted to make directional error claims (or acquire real masterclass prose), then re-probe supply.
+  Tests whether the NO_GO is the voice (fixable) vs the pedagogy (fundamental).
+- (c) **New G-B front for a rubato-shape statistic** — high-risk per FRONT 6; only if (b) also fails.
+FRONT 8 (articulation / duration-ratio) is independent of this NO_GO and remains available.
+
+## FRONT 7a-bis UPDATE (#101, 2026-07-04): fork (b) ran — the blocker is the INPUT, not the voice.
+
+Ran fork (b) as a paired two-arm supply re-probe over the 17 chopin_ballade_1 performances that
+have real AMT bundles. Prompt held IDENTICAL and permissive across arms (explicitly allowed to name
+directional rush/drag); Sonnet held constant; only the INPUT varied:
+- **ARM A** = permissive prompt + the ORIGINAL scalar input (`muq_means["timing"] ~0.57`, no direction).
+- **ARM B** = permissive prompt + a CONSTRUCTION-KNOWN directional cue (7 rush / 7 drag / 3 steady;
+  4 bar-localized). Construction-known because a cheap self-relative onset signal is texture-confounded
+  (raw AMT `median(60/IOI)` gave "established ~375 BPM", −47..−75% drift = polyphony density, not tempo —
+  independent confirmation that a trustworthy directional signal needs the score-relative bar-map = 7b).
+
+| condition | input | rush_drag | rubato | directional supply |
+|---|---|---|---|---|
+| original (warm prompt, 162 docs) | scalar timing 0.57 | 0 | 70 | **0** |
+| ARM A (permissive, 17 docs) | scalar timing 0.57 | **0** | 0 | **0** |
+| ARM B (permissive, 17 docs) | + directional cue | **19** (7 rush/7 drag/5 neutral) | 0 | **19** (4 bar-localized) |
+
+Construct-match (injected direction vs extracted claim): **17/17 direction, 4/4 bar-localization.**
+
+**Diagnosis — H1 (voice) REJECTED, H2 (input) CONFIRMED, H3 (fundamental) REJECTED.** Making the prompt
+permissive changes nothing (Arm A = original = 0): the teacher is HONEST and will not fabricate a
+direction from a scalar quality score. Add a real directional signal and directional claims appear
+immediately (0 → 19), correctly signed and located. The FRONT-7 NO_GO was never the statistic, the claim
+taxonomy, or the voice — **the production teacher's input carries no timing direction.**
+
+**What this does to FRONT 7:** it is not dead; its center of gravity moves from "is there supply?" to a
+PIPELINE change — compute score-relative onset deviation (7b's measurer) and feed it to the teacher, and
+directional (verifiable) claims flow. **But three caveats reshape the paper goal, and must be stated:**
+1. **Circularity.** If the SAME measurer both feeds the teacher and adjudicates it, the "faithfulness
+   rate" is near-tautological — the teacher parrots the fed signal (construct-match already 17/17). The
+   meaningful evaluation shifts from "is the claim true?" to "does the teacher DISTORT the signal it was
+   given (wrong magnitude / mislocated / dropped)?" — a signal-fidelity question, not a discovery one.
+2. **Construction-known, not real.** Arm B used INVENTED directions. This proves plumbing + voice
+   capability, NOT that real performances carry directional errors worth reporting, nor that a real 7b
+   measurer would find them. The 17 real performances' true directional timing remains unmeasured.
+3. **Model + n.** Sonnet-as-teacher (not production glm-4.7-flash; held constant so A-vs-B is clean but
+   transfer assumed); n=17, single piece.
+
+**Refined fork (the real decision now):**
+- (b1) **Build 7b for its own sake** — the score-relative onset measurer, validated by 7c G-A
+  (construction-known tempo-warp), becomes the paper's SYSTEM contribution: "a score-anchored directional
+  timing signal that, wired into the teacher, unlocks verifiable directional feedback absent by default,"
+  with the honest signal-fidelity (not discovery-faithfulness) framing. Real deliverable, but accept the
+  circularity reframing of caveat 1.
+- (a) **Accept + reframe** (unchanged) — fold 7a + 7a-bis into the supply/validity gap map; the finding
+  "directional timing feedback is input-limited, not voice- or verifier-limited" is itself a clean paper
+  result and needs no more building.
+- FRONT 8 (articulation) remains independent and available.
+
+Harness: `model/src/claim_measurement/timing_supply/{build_teacher_inputs.py, teacher_prompt.md}`;
+audit artifacts in `model/data/results/timing_supply_arm_{a,b}*.json` (gitignored).
+
+## FRONT 7b UPDATE (#101, 2026-07-05): measurer core + verifier integration LANDED (owner chose b1).
+
+Owner picked **build 7b**. The score-relative timing measurer now exists and is wired end-to-end
+through the FROZEN router; the remaining 7b work is the offline alignment PIPELINE that feeds it.
+
+**Shipped this session (TDD, verdict_dispatch untouched, 138 tests = 125 baseline + 13 new):**
+- `verifier/measurers/onset_deviation.py` — `OnsetDeviationMeasurer`: `d = mean(perf_onset -
+  score_onset)` ms, whole_piece + bar tiers; rush `d<0` / drag `d>0` (matches frozen polarity
+  contract: '-'=rush SUPPORTED iff d<0&|d|>tau; '+'=drag; neutral=steady iff |d|<=tau). error_bar
+  folds sampling + AMT onset-jitter + **alignment-uncertainty** in quadrature (weak alignment widens
+  the bar honestly). 7 unit tests.
+- Wired into `orchestrator._build_registry` under key `amt_score_relative_onset_deviation` (additive).
+  6 end-to-end `verify()` integration tests (inline taxonomy): rush→SUPPORTED, wrong-polarity→REFUTED,
+  below-tau→REFUTED, drag→SUPPORTED, neutral→SUPPORTED, **unaligned bundle→UNVERIFIABLE(substrate_
+  failure)** = legible abstention (timing without a score is unverifiable BY DESIGN, not REFUTED).
+
+**Key design decision (the crux — for whoever builds the pipeline): AFFINE detrend, not raw, not full
+warp.** Raw `perf_onset - score_seconds` is dominated by the global tempo difference (a real perf runs
+~1.5-2.2x off the score's nominal seconds) — that is NOT rush/drag. The measurer's `score_onset`
+CONTRACT is the score onset passed through a GLOBAL AFFINE fit `a*score_onset+b` (least squares over
+parangonar matches), so `perf_onset - score_onset` = the affine RESIDUAL = local rush/drag. It must NOT
+be the full monotone DTW warp (`anchors` / chroma follower) — that tracks local tempo and would ABSORB
+the rush/drag, collapsing d→0. Mirrors the shipped Rust `align_notes_from_warp` →
+`NoteAlignment.onset_deviation_ms` (affine detrend, note_align.rs), which is the LIVE-DO path; 7b is the
+offline analog.
+
+**Remaining 7b (offline pipeline — NOT the live DO; the heavy next slice):** an offline Python function
+(new, in `model/src/chroma_dtw_eval/` or `claim_measurement/`) that: parangonar-matches AMT perf notes
+to the score (`_match`, amt_regen.py:334, exists), fits the global affine (a,b), emits per matched note
+`score_onset = a*score_beat+b` (perf-time) + a `bar_number`, and writes a SCORE-ALIGNED bundle
+(`notes[*].score_onset`). `_build_pairs` (amt_regen.py:340) currently DISCARDS the per-note
+correspondence — must be replaced/forked to keep it. Score loader already supports variable-tempo/non-4/4
+(extended in #98; chopin_ballade_1 loadable). THEN: repoint the shipped `timing` dimension's
+`measurement` to the new key + unit `ms` + provisional tau (update the two dimension-count tests then);
+run 7c G-A (tempo-warp corruption through the REAL measurer, flip≥0.80 / shuffle≥0.20); 7d tau + construct
+validity (7a-bis already previewed construct-match 17/17). G-D timing rate still needs the prose→signal
+pipeline of 7a-bis fork-b caveat 1 (circularity: signal-fidelity, not discovery).
