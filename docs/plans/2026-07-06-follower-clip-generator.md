@@ -45,7 +45,7 @@ The dataset already exists in the primary checkout (the repo root you cloned fro
 
 Resolve the primary checkout's path **dynamically** — do not hardcode `.worktrees/issue-111-clip-generator`, since `/build` may run this plan from a different worktree than the one it was drafted in. `git rev-parse --git-common-dir` always resolves to the `.git` directory inside the primary checkout root, from any worktree, so its parent directory is the primary checkout root:
 
-- [ ] **Step 1: Create the symlink**
+- [x] **Step 1: Create the symlink**
 
 ```bash
 cd model
@@ -54,7 +54,7 @@ mkdir -p data/raw
 ln -s "$PRIMARY_ROOT/model/data/raw/asap-dataset" data/raw/asap-dataset
 ```
 
-- [ ] **Step 2: Verify — no test, direct inspection only**
+- [x] **Step 2: Verify — no test, direct inspection only**
 
 ```bash
 cd model
@@ -64,7 +64,7 @@ test -f "data/raw/asap-dataset/Beethoven/Piano_Sonatas/16-1/LuoJ03M.mid" && echo
 ```
 Expected: all three lines print. If `PRIMARY_ROOT` resolution finds a worktree checkout instead of the primary one (e.g. this plan is being run nested inside another worktree), re-derive it from `git worktree list --porcelain`'s first `worktree <path>` entry (the primary checkout is always listed first and is the only one without a `branch refs/heads/issue-...` line for this feature) and repeat Step 1.
 
-- [ ] **Step 3: No commit** — `data/raw/` is gitignored, so `git status` should show no new tracked files from this step. Do not `git add` anything here.
+- [x] **Step 3: No commit** — `data/raw/` is gitignored, so `git status` should show no new tracked files from this step. Do not `git add` anything here.
 
 ---
 
@@ -81,7 +81,7 @@ Expected: all three lines print. If `PRIMARY_ROOT` resolution finds a worktree c
 - Test: `model/tests/follower_bench/test_package.py`
 - Create: `model/tests/follower_bench/__init__.py` (empty — matches sibling test packages `tests/piece_id_eval/__init__.py` and `tests/chroma_dtw_eval/__init__.py`, which are also empty)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/follower_bench/test_package.py
@@ -95,14 +95,14 @@ def test_package_is_importable() -> None:
     assert follower_bench is not None
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_package.py -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'follower_bench'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Create `model/src/follower_bench/__init__.py`:
 
@@ -122,14 +122,14 @@ Edit `model/pyproject.toml`: in `[tool.hatch.build.targets.wheel]`, add `"src/fo
 packages = ["src/score_alignment", "src/audio_experiments", "src/model_improvement", "src/masterclass_experiments", "src/score_library", "src/exercise_corpus", "src/chroma_dtw_eval", "src/piece_id_eval", "src/follower_bench"]
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_package.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add src/follower_bench/__init__.py tests/follower_bench/__init__.py tests/follower_bench/test_package.py pyproject.toml && git commit -m "feat(follower-bench): scaffold follower_bench package (#111)"
