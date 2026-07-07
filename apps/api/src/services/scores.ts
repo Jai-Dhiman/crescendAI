@@ -27,12 +27,15 @@ export async function getPiece(ctx: ServiceContext, pieceId: string) {
 	return row[0];
 }
 
-// Render assets live under scores/v1/ in two formats: PD-clean Verovio MEI
-// (.mei, preferred) and legacy ASAP MusicXML (.mxl). Verovio renders both, so
-// we prefer the clean MEI and fall back to the MusicXML zip.
+// Render assets live under scores/v1/ in three tiers, served in preference order:
+// PD-clean Verovio MEI (.mei) and legacy ASAP MusicXML (.mxl) are both Verovio-
+// rendered (interactive: per-bar highlight + clip playback); LilyPond-engraved
+// Mutopia .svg is a pre-rendered, display-only fallback (CC-BY-SA, LOCAL-ONLY --
+// never seeded to prod R2). The score-worker detects the SVG and skips Verovio.
 const SCORE_FORMATS = [
 	{ ext: "mei", contentType: "application/mei+xml" },
 	{ ext: "mxl", contentType: "application/vnd.recordare.musicxml+zip" },
+	{ ext: "svg", contentType: "image/svg+xml" },
 ] as const;
 
 export async function getPieceData(env: Bindings, pieceId: string) {

@@ -13,6 +13,10 @@ interface CacheEntry {
 	measures: MeasureEntry[];
 	ir: import("./score-ir").ScoreIR;
 	pageSvgs: string[];
+	// True for pre-rendered standalone SVG pieces (LilyPond-engraved Mutopia
+	// sources). They have no Verovio measure index, so per-bar clip/highlight and
+	// clip playback are unavailable -- a display-only tier.
+	isStatic?: boolean;
 }
 
 type LoadResult = CacheEntry | "failed";
@@ -222,6 +226,32 @@ export async function loadPiece(
 	const isZip =
 		bytes.byteLength >= 4 &&
 		new DataView(bytes).getUint32(0, true) === ZIP_MAGIC;
+
+	// Standalone SVG (LilyPond-engraved Mutopia source): not Verovio-loadable.
+	// Serve it as a single display-only page with no measure index.
+	if (!isZip) {
+		const head = new TextDecoder().decode(bytes.slice(0, 2048));
+		if (
+			/<svg[\s>]/.test(head) &&
+			head.includes("http://www.w3.org/2000/svg") &&
+			!/<(mei|score-partwise|score-timewise|music)\b/i.test(head)
+		) {
+			return {
+				tk: new ToolkitClass(module),
+				measures: [],
+				ir: {
+					pieceId: pieceId ?? "",
+					verovioVersion: "",
+					pageWidth: VEROVIO_OPTS.pageWidth,
+					pages: [],
+					bars: [],
+					notes: {},
+				},
+				pageSvgs: [new TextDecoder().decode(bytes)],
+				isStatic: true,
+			};
+		}
+	}
 
 	const applyOpts = (t: VerovioTk) => {
 		t.setOptions(VEROVIO_OPTS);
@@ -497,9 +527,12 @@ if (typeof window === "undefined") {
 				return;
 			}
 
-			const { tk, measures, ir, pageSvgs } = result;
+			const { tk, measures, ir, pageSvgs, isStatic } = result;
 			if (msg.type === "get_clip") {
-				const svg = processRenderClipRequest(tk, measures, msg.startBar, msg.endBar);
+				// Static SVG pieces have no measure index -> serve the whole page (no clip).
+				const svg = isStatic
+					? (pageSvgs[0] ?? "")
+					: processRenderClipRequest(tk, measures, msg.startBar, msg.endBar);
 				(self as unknown as Worker).postMessage({ requestId: msg.requestId, payload: svg });
 			} else if (msg.type === "get_page") {
 				// If a custom pageWidth is supplied (e.g. from the sandbox's responsive-width logic),
@@ -529,7 +562,10 @@ if (typeof window === "undefined") {
 			} else if (msg.type === "get_ir") {
 				(self as unknown as Worker).postMessage({ requestId: msg.requestId, payload: ir });
 			} else if (msg.type === "get_clip_playback") {
-				const playback = await processGetClipPlaybackRequest(tk, measures, msg.startBar, msg.endBar);
+				// No playback for static SVG pieces (no note-position IR).
+				const playback = isStatic
+					? "failed"
+					: await processGetClipPlaybackRequest(tk, measures, msg.startBar, msg.endBar);
 				if (playback === "failed") {
 					(self as unknown as Worker).postMessage({
 						requestId: msg.requestId,

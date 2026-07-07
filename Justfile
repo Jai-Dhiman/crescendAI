@@ -122,6 +122,22 @@ seed-mei mode="local" filter="":
     done
     echo "Seeded $count .mei into $flag R2 (filter='{{filter}}')."
 
+# Seed the LilyPond-rendered Mutopia .svg display assets into LOCAL wrangler R2.
+# LOCAL-ONLY by design: these engravings are CC-BY-SA/CC-BY (not PD) -- there is
+# deliberately NO remote mode here (mirrors the CC-BY-NC ASAP .mxl local-only rule).
+seed-mutopia-svg filter="mutopia.":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    count=0
+    for f in model/scores/v1/*.svg; do
+        base="$(basename "$f")"
+        if [ -n "{{filter}}" ] && [[ "$base" != "{{filter}}"* ]]; then continue; fi
+        cd apps/api && wrangler r2 object put "crescendai-bucket/scores/v1/$base" \
+            --file="../../$f" --content-type "image/svg+xml" --local >/dev/null && cd ../..
+        count=$((count+1))
+    done
+    echo "Seeded $count .svg into LOCAL R2 (filter='{{filter}}')."
+
 # Generate the v2 piece-ID index (chroma + chord-events) from the score library
 fingerprint:
     cd model && uv run python -m score_library.cli fingerprint --scores-dir data/scores --output-dir data/fingerprints
@@ -217,6 +233,46 @@ build-catalog-mxl:
 # `just corpus-acquire-kernscores` first to populate the .krn clone.
 render-kern-mei:
     cd model && uv run python -m score_library.render_kern_assets
+
+# Render recognize-only Mutopia pieces (LilyPond .ly source, no clean MEI path) to
+# standalone whole-piece SVG via LilyPond -dcrop. Output: scores/v1/<pid>.svg, a
+# display-only tier the score-worker serves without Verovio. LOCAL-ONLY: Mutopia
+# engravings are CC-BY-SA/CC-BY (not PD) -- never seed these .svg to prod R2.
+# Requires `brew install lilypond` and the mutopia clone in ~/crescendai_corpus_staging.
+render-mutopia-svg:
+    cd model && uv run python -m score_library.mutopia_lilypond_svg
+
+# Render recognize-only MIDI-source catalog pieces (GiantMIDI performance MIDI,
+# PDMX score MIDI -- no clean MEI path) to INTERACTIVE .mxl via MuseScore 4
+# headless. Output: scores/v1/<pid>.mxl, the Verovio-loadable tier (per-bar
+# highlight + clip playback), preferred over a static SVG. Engine + -M import-
+# quantization config were locked by a real-scorehost bake-off (issue #97).
+# `source` is giantmidi|pdmx; `jobs` parallel MuseScore workers. Resumable
+# (skips pieces that already have a display asset; .skip sentinel for crashers).
+# Requires MuseScore 4.app + the source MIDIs in ~/crescendai_corpus_staging.
+# After rendering, run `just rebar-scores` then re-verify highlighting.
+render-midi-mxl source jobs="6":
+    cd model && uv run python -m score_library.midi_render --source {{ source }} --jobs {{ jobs }}
+
+# Re-bar every score JSON that has a paired engraved .mei OR .mxl so its bar grid
+# matches the displayed measures (total_bars == Verovio measure count, PPQ derived
+# per-piece from the JSON: kern=120, GiantMIDI=384, PDMX=480). Notes are preserved
+# exactly, so the piece-ID fingerprint is unchanged. Fixes live score-highlighting
+# alignment for repeat-heavy / mis-segmented pieces (~210/618 had a drifted grid).
+# Re-run `just fingerprint` is NOT required (note set unchanged) but harmless.
+rebar-scores backup_dir="":
+    cd model && uv run python -m score_library.rebar_from_mei \
+        --scores-dir data/scores --mei-dir scores/v1 \
+        {{ if backup_dir != "" { "--backup-dir " + backup_dir } else { "" } }}
+
+# Render a stratified sample of the renderable .mei through the REAL scorehost
+# Verovio worker (headed Chrome) and screenshot each. Pass a sample JSON (rows of
+# {pid,total_bars,key,ts,coll}) and an output dir. Proves in-browser display, not
+# just python verovio.loadData. Requires `just build-scorehost` first.
+verify-mei-display sample shots_dir:
+    cd apps/web && MEI_DIR="../../model/scores/v1" MEI_SAMPLE="{{sample}}" SHOTS_DIR="{{shots_dir}}" \
+        bunx playwright test --config playwright.scorehost.config.ts \
+        src/scorehost/mei-display.playwright.ts --headed --timeout=0 --reporter=line
 
 # Stage net-new KernScores canon collections (Hummel preludes, Bach Art of the
 # Fugue, Scriabin solo piano) as per-piece MIDI under
@@ -608,3 +664,10 @@ exercise-routing-ratchet:
 # Use --reply-timeout 180000 on a cold Workers AI stack (glm cold-start >90s).
 e2e-full-session *args:
     cd apps/evals && uv run python e2e_full_session.py --reply-timeout 180000 {{args}}
+
+# Disaster-recovery: regenerate per-piece score JSONs from the fingerprint
+# (piece_index.json = authoritative piece set) + staging source MIDIs, via
+# parse_score_midi. Covers ~92% (giantmidi/pdmx/mutopia with a clean piece_id<->
+# MIDI map); kern-family pieces recover from R2 or their ingest recipes. Resumable.
+regen-scores fingerprint jobs="8":
+    cd model && uv run python -m score_library.regen_scores --fingerprint {{ fingerprint }} --jobs {{ jobs }}
