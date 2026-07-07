@@ -103,19 +103,19 @@
   "dimensions": {
     "timing": {
       "status": "active",
-      "reference": "established_tempo",
-      "check": "signed_tempo_deviation",
+      "reference": "score_affine_detrend",
+      "check": "signed_onset_deviation_ms",
       "tolerance": {
-        "name": "signed_tempo_deviation",
-        "provisional": 8.0,
-        "unit": "percent",
-        "calibration_source": "#65/M1 error-bar study",
+        "name": "signed_onset_deviation_ms",
+        "provisional": 30.0,
+        "unit": "ms",
+        "calibration_source": "#101 FRONT 7d (pending); provisional = AMT onset-fidelity band (+-30ms, conventions doc)",
         "locked": false
       },
       "reliability_tier": 1,
-      "measurement": "amt_onsets_region_tempo_fit",
+      "measurement": "amt_score_relative_onset_deviation",
       "minimum_events": 8,
-      "notes": "Tolerance is a percent deviation from established_tempo over the region, NOT absolute onset-ms. This is robust to alignment jitter."
+      "notes": "FRONT 7 repoint (#101): signed mean onset deviation (ms) vs the global-affine-detrended score (d<0 rush, d>0 drag), truth by construction. Requires score-aligned bundles (score_align pipeline); unaligned bundles abstain as UNVERIFIABLE. Replaces the degenerate self-relative IOI-CV statistic."
     },
     "pedaling": {
       "status": "active",

@@ -40,22 +40,28 @@ def _make_timing_bundle(n_notes: int = 100, note_interval: float = 0.5) -> dict:
 
 
 def _make_rush_bundle() -> dict:
-    """Known-by-construction: bars 1-10 are markedly faster than the rest.
+    """Known-by-construction SCORE-ALIGNED bundle: bars 1-10 play 60ms ahead.
 
-    Measure table uses 1s/bar so bars 1-10 span 0-10s exactly.
-    Rush notes (0.35s IOI, 25 notes) occupy 0-8.4s — entirely within bars 1-10.
-    Rest notes (0.5s IOI, 80 notes) start at 10s — entirely outside bars 1-10.
-    Established tempo (median across all notes) = 120 BPM (0.5s IOI dominates).
-    Region BPM = 171 BPM -> d ~ -43% << tau=8% -> SUPPORTED.
+    FRONT 7 statistic: d = mean(perf_onset - score_onset) in ms. Notes carry
+    score_onset (the affine-detrended score prediction the offline score_align
+    pipeline emits). Measure table uses 1s/bar so bars 1-10 span 0-10s exactly.
+    Rush notes (19, 0.44-9.44s) sound 60ms EARLY vs their prediction
+    -> d = -60ms, |d| > tau=30ms -> SUPPORTED for polarity '-'.
+    Rest notes (80, from 10s) sit exactly on their prediction (bars 11+).
     """
-    n_rush = 25
-    n_rest = 80
-    rush_onsets = [i * 0.35 for i in range(n_rush)]        # 0..8.4s, all in bars 1-10
-    rest_onsets = [10.0 + i * 0.5 for i in range(n_rest)]  # 10..49.5s, bars 11+
-    notes = [
-        {"onset": t, "offset": t + 0.1, "pitch": 60, "velocity": 80}
-        for t in sorted(rush_onsets + rest_onsets)
+    rush_notes = [
+        {"onset": round(i * 0.5 - 0.060, 6), "offset": i * 0.5 + 0.1,
+         "pitch": 60, "velocity": 80, "score_onset": i * 0.5,
+         "bar_number": int(i * 0.5) + 1}
+        for i in range(1, 20)  # onsets 0.44..9.44s, all inside bars 1-10
     ]
+    rest_notes = [
+        {"onset": 10.0 + i * 0.5, "offset": 10.0 + i * 0.5 + 0.1,
+         "pitch": 60, "velocity": 80, "score_onset": 10.0 + i * 0.5,
+         "bar_number": 11 + int(i * 0.5)}
+        for i in range(80)  # 10..49.5s, bars 11+
+    ]
+    notes = sorted(rush_notes + rest_notes, key=lambda n: n["onset"])
     total_dur = max(n["onset"] for n in notes) + 1.0
     # 1s/bar so bars 1-10 = 0-10s (rush region), bars 11+ = rest region
     measure_table = [
