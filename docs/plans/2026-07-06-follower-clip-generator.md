@@ -2317,3 +2317,27 @@ Neither gap is on a critical path (auth/payments/irreversible-operation equivale
 [QUESTION] count: 0
 
 VERDICT: NEEDS_REWORK — Add an explicit setup step (before Task 2, likely folded into Task 1 or a new "Task 0") that copies or symlinks `model/data/raw/asap-dataset/` from the primary checkout into this worktree, since `data/raw` is gitignored and worktrees do not inherit untracked files — without it every task from Task 2 onward fails on `FileNotFoundError` instead of the plan's expected outcomes. Everything else surfaced ([RISK] items: the implementation-before-dedicated-test pattern in Tasks 2/9/14, the untested note-level omission behavior for jump/restart splices, the untested mid-pause trajectory flatness for hesitation, and the un-guarded tempo_swing fallthrough) is real but non-blocking — safe to proceed once the data-availability fix is made.
+
+---
+
+## Re-Challenge Review (2026-07-06)
+
+**Scope of this pass:** verify the newly added Task 0 (ASAP dataset symlink, dynamically resolved via `git rev-parse --git-common-dir`) actually resolves the sole prior `[BLOCKER]`. Direct verification performed against the real worktree and primary checkout (not re-derived from reading the plan text alone):
+
+1. `cd .worktrees/issue-111-clip-generator && git rev-parse --git-common-dir` → `/Users/jdhiman/Documents/crescendai/.git`; `dirname` of that → `/Users/jdhiman/Documents/crescendai`, the correct primary checkout root, confirmed independently against `git worktree list --porcelain` (primary listed first, no `branch refs/heads/issue-111-clip-generator` line).
+2. The primary checkout has the full dataset at `model/data/raw/asap-dataset/` (`asap_annotations.json`, 44.8MB; both fixture MIDIs present and non-empty).
+3. Ran Task 0's exact Step 1 and Step 2 commands live in the actual worktree (`.worktrees/issue-111-clip-generator/model`): `data/raw` did not yet contain `asap-dataset`; after `mkdir -p data/raw && ln -s "$PRIMARY_ROOT/model/data/raw/asap-dataset" data/raw/asap-dataset`, all three Step-2 existence checks printed the expected `OK` lines (`annotations OK`, `ALIGNED_PIECE OK`, `UNALIGNED_PIECE OK`).
+4. `git status --short data/raw` after creating the symlink produced empty output — confirms `data/raw` is genuinely gitignored in this worktree (the repo's `.gitignore` covers it via a top-level `data/` rule plus a `raw/` rule, not verbatim the "`data/raw`" line the plan's prose paraphrases — a wording nuance, not a functional gap) and the symlink will not get committed.
+5. Removed the test symlink afterward to leave the worktree exactly as `/build` will find it (no residue from this verification).
+6. Re-verified `model/pyproject.toml`'s current `packages` list is still byte-for-byte what Task 1's Step 3 shows before the edit — unchanged since the prior pass.
+
+**Conclusion:** the operational blocker is genuinely resolved. Task 0 is solo, runs before Group A, uses a dynamically-resolved path (not a hardcoded worktree name), fails loudly and gives a recovery path (`git worktree list --porcelain`) if `PRIMARY_ROOT` resolution ever lands on a non-primary checkout, and correctly avoids committing anything. No new blockers introduced by Task 0 itself — it is inspection-only, not TDD (correctly, per the plan's own admission: "There is no TDD test for this step").
+
+No new issues found beyond the four `[RISK]`s already on record from the prior pass (implementation-before-dedicated-test pattern in Tasks 2/9/14; untested note-level omission for jump/restart; untested mid-pause trajectory flatness for hesitation; un-guarded tempo_swing fallthrough) — all still stand as non-blocking, previously assessed in detail above.
+
+### Summary (re-challenge)
+[BLOCKER] count: 0
+[RISK]    count: 4 (carried over, unchanged)
+[QUESTION] count: 0
+
+VERDICT: PROCEED_WITH_CAUTION — Monitor during `/build`: (1) Tasks 2/9/14 ship a few validation branches ahead of their dedicated regression test (resolved 1-2 tasks later, not a correctness risk, just a stricter-TDD nit); (2) no test directly asserts note-level omission at the `apply_segments` level for jump/restart's dropped middle span (only indirectly covered via trajectory/property tests); (3) hesitation's mid-pause trajectory flatness is untested (only boundary values are asserted); (4) `build_plan`'s final `tempo_swing` branch is an unguarded fallthrough rather than an explicit `if` — safe today (7 types, 6 explicit checks) but would silently misclassify an 8th pathology type added without a matching branch.
