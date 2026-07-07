@@ -53,3 +53,24 @@ def test_build_trajectory_from_segments_identity_matches_clean_exactly() -> None
     for t, expected_pos in clean.anchors:
         assert spliced.score_position_at(t) == pytest.approx(expected_pos)
     assert spliced.is_monotonic_non_decreasing() is True
+
+
+from follower_bench.trajectory import DISCONTINUITY_EPS_S
+
+
+def test_build_trajectory_from_segments_jump_is_a_sharp_discontinuity() -> None:
+    clean = TrueTrajectory(anchors=((0.0, 0.0), (1.0, 0.5), (2.0, 1.0), (3.0, 1.5), (4.0, 2.0)))
+    x, z, t_min, t_max = 1.0, 3.0, 0.0, 4.0  # skip the middle [1.0, 3.0)
+    seg1 = Segment(t_min, x, t_min, 1.0)
+    seg2 = Segment(z, t_max, seg1.dst_end, 1.0)
+    spliced = build_trajectory_from_segments(clean, [seg1, seg2])
+
+    jump_perf_time = seg1.dst_end  # == x == 1.0
+    assert spliced.score_position_at(0.5) == pytest.approx(clean.score_position_at(0.5))
+    assert spliced.score_position_at(jump_perf_time) == pytest.approx(clean.score_position_at(x))
+    assert spliced.score_position_at(jump_perf_time + DISCONTINUITY_EPS_S) == pytest.approx(
+        clean.score_position_at(z)
+    )
+    later_dst_t = seg2.dst_start + 0.5
+    later_src_t = z + (later_dst_t - seg2.dst_start)
+    assert spliced.score_position_at(later_dst_t) == pytest.approx(clean.score_position_at(later_src_t))

@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from follower_bench.asap_alignment import ClipAlignment
 from follower_bench.segments import Segment
 
-DISCONTINUITY_EPS_S = 1e-3
+DISCONTINUITY_EPS_S = 1e-6
 
 
 @dataclass(frozen=True)
