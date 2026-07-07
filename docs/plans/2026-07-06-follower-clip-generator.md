@@ -148,7 +148,7 @@ cd model && git add src/follower_bench/__init__.py tests/follower_bench/__init__
 - Create: `model/src/follower_bench/asap_alignment.py`
 - Test: `model/tests/follower_bench/test_asap_alignment.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/follower_bench/test_asap_alignment.py
@@ -179,14 +179,14 @@ def test_load_alignment_resolves_real_aligned_piece() -> None:
     assert alignment.performance_beats[0] < alignment.performance_beats[-1]
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_asap_alignment.py -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'follower_bench.asap_alignment'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # model/src/follower_bench/asap_alignment.py
@@ -273,14 +273,14 @@ def load_alignment(
     )
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_asap_alignment.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add src/follower_bench/asap_alignment.py tests/follower_bench/test_asap_alignment.py && git commit -m "feat(follower-bench): load_alignment resolves a real aligned ASAP piece (#111)"
@@ -299,7 +299,7 @@ cd model && git add src/follower_bench/asap_alignment.py tests/follower_bench/te
 - Modify: `model/src/follower_bench/asap_alignment.py` (no code change needed — this test exercises existing Step-3 logic; if the test fails, fix the validation branch)
 - Modify: `model/tests/follower_bench/test_asap_alignment.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_asap_alignment.py`:
 
@@ -316,25 +316,25 @@ def test_load_alignment_rejects_real_unaligned_piece() -> None:
         load_alignment(UNALIGNED_PIECE)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_asap_alignment.py::test_load_alignment_rejects_real_unaligned_piece -q
 ```
 Expected: this specific test should already PASS given Task 2's implementation (the `score_and_performance_aligned` check already exists). If it unexpectedly FAILS, that means `Beethoven/Piano_Sonatas/16-1/LuoJ03M.mid`'s annotation entry does not have `score_and_performance_aligned: false` any more (dataset drift) — re-pick an unaligned piece via `uv run python3 -c "import json; d=json.load(open('data/raw/asap-dataset/asap_annotations.json')); print(next(k for k,v in d.items() if not v.get('score_and_performance_aligned')))"` and use that key instead, then re-run.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No production code change required (Task 2 already implemented the check). If Step 2 showed a FAIL, this step is: update `UNALIGNED_PIECE` in the test to whatever the re-run of the lookup command above prints, then move to Step 4.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_asap_alignment.py -q
 ```
 Expected: PASS (both tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add tests/follower_bench/test_asap_alignment.py && git commit -m "test(follower-bench): load_alignment rejects a real not-aligned ASAP piece (#111)"
@@ -352,7 +352,7 @@ cd model && git add tests/follower_bench/test_asap_alignment.py && git commit -m
 **Files:**
 - Modify: `model/tests/follower_bench/test_asap_alignment.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_asap_alignment.py`:
 
@@ -362,25 +362,25 @@ def test_load_alignment_rejects_unknown_piece_key() -> None:
         load_alignment("Nonexistent/Composer/piece/Nobody99X.mid")
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_asap_alignment.py::test_load_alignment_rejects_unknown_piece_key -q
 ```
 Expected: this test should already PASS given Task 2's implementation (the `entry is None` branch). Confirm it passes; this task exists to make the "unknown key" behavior an explicit, permanent regression test per the spec's success criterion ("A piece missing ASAP alignment is SKIPPED with a logged explicit reason ... never fabricated").
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No production code change required.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_asap_alignment.py -q
 ```
 Expected: PASS (all three tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add tests/follower_bench/test_asap_alignment.py && git commit -m "test(follower-bench): load_alignment rejects an unknown ASAP piece key (#111)"
@@ -399,7 +399,7 @@ cd model && git add tests/follower_bench/test_asap_alignment.py && git commit -m
 - Create: `model/src/follower_bench/segments.py`
 - Test: `model/tests/follower_bench/test_segments.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/follower_bench/test_segments.py
@@ -423,14 +423,14 @@ def test_apply_segments_identity_reproduces_input_notes() -> None:
     assert result == notes
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_segments.py -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'follower_bench.segments'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # model/src/follower_bench/segments.py
@@ -496,14 +496,14 @@ def apply_segments(notes: list[PerfNote], segments: list[Segment]) -> list[PerfN
     return out
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_segments.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add src/follower_bench/segments.py tests/follower_bench/test_segments.py && git commit -m "feat(follower-bench): apply_segments identity passthrough (#111)"
@@ -521,7 +521,7 @@ cd model && git add src/follower_bench/segments.py tests/follower_bench/test_seg
 **Files:**
 - Modify: `model/tests/follower_bench/test_segments.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_segments.py`. `Segment` arithmetic used to derive the expected onsets below: `seg1 = Segment(0.0, 2.0, 0.0, 1.0)` so `seg1.dst_end == 2.0`; `seg2 = Segment(1.0, 2.0, 2.0, 1.0)` so a source note at onset 1.0 maps to `new_onset = 2.0 + (1.0 - 1.0) * 1.0 = 2.0`, and one at onset 1.6 maps to `2.0 + (1.6 - 1.0) = 2.6`, and `seg2.dst_end == 3.0`; `seg3 = Segment(2.0, 3.0, 3.0, 1.0)` so the tail note at onset 2.5 maps to `3.0 + (2.5 - 2.0) = 3.5`:
 
@@ -549,25 +549,25 @@ def test_apply_segments_repeat_splice_duplicates_and_shifts_notes() -> None:
     assert (3.5, 65) in onset_pitch_pairs   # seg3: tail note shifted forward by the repeat's duration
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_segments.py::test_apply_segments_repeat_splice_duplicates_and_shifts_notes" -q
 ```
 Expected: this test should already PASS given Task 5's `apply_segments` implementation, since the algorithm is generic over any segment list. If it fails, the bug is in the test's hand-computed expected onsets, not the implementation — recompute them from the `Segment` arithmetic shown above and fix the assertions. Do not change `apply_segments` unless the failure is a real logic bug (e.g. off-by-one on the half-open boundary).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No production code change expected. If Step 2 revealed a genuine `apply_segments` bug (not a test arithmetic error), fix it in `model/src/follower_bench/segments.py` and re-run.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_segments.py -q
 ```
 Expected: PASS (both tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add tests/follower_bench/test_segments.py && git commit -m "test(follower-bench): apply_segments duplicates a repeat-span with shifted onsets (#111)"
@@ -586,7 +586,7 @@ cd model && git add tests/follower_bench/test_segments.py && git commit -m "test
 - Modify: `model/src/follower_bench/segments.py`
 - Modify: `model/tests/follower_bench/test_segments.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_segments.py`:
 
@@ -609,14 +609,14 @@ def test_apply_note_mutations_shifts_nearest_note_pitch_clamped() -> None:
     assert result[1].onset == 1.0 and result[1].offset == 1.4 and result[1].velocity == 80
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_segments.py::test_apply_note_mutations_shifts_nearest_note_pitch_clamped" -q
 ```
 Expected: FAIL — `ImportError: cannot import name 'NoteMutation' from 'follower_bench.segments'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Add to `model/src/follower_bench/segments.py`:
 
@@ -650,14 +650,14 @@ def apply_note_mutations(notes: list[PerfNote], mutations: list[NoteMutation]) -
     return result
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_segments.py -q
 ```
 Expected: PASS (all three tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add src/follower_bench/segments.py tests/follower_bench/test_segments.py && git commit -m "feat(follower-bench): apply_note_mutations substitutes nearest note's pitch (#111)"
@@ -675,7 +675,7 @@ cd model && git add src/follower_bench/segments.py tests/follower_bench/test_seg
 **Files:**
 - Modify: `model/tests/follower_bench/test_segments.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_segments.py`:
 
@@ -685,25 +685,25 @@ def test_apply_note_mutations_raises_on_empty_notes() -> None:
         apply_note_mutations([], [NoteMutation(target_onset=1.0, pitch_delta=1)])
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_segments.py::test_apply_note_mutations_raises_on_empty_notes" -q
 ```
 Expected: this test should already PASS given Task 7's implementation (the `if not result: raise ValueError(...)` guard). Confirm it passes; this task exists to make the empty-input guard a permanent regression test.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No production code change required.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_segments.py -q
 ```
 Expected: PASS (all four tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add tests/follower_bench/test_segments.py && git commit -m "test(follower-bench): apply_note_mutations rejects an empty note list (#111)"
@@ -722,7 +722,7 @@ cd model && git add tests/follower_bench/test_segments.py && git commit -m "test
 - Create: `model/src/follower_bench/trajectory.py`
 - Test: `model/tests/follower_bench/test_trajectory.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/follower_bench/test_trajectory.py
@@ -744,14 +744,14 @@ def test_score_position_at_interpolates_and_clamps() -> None:
     assert traj.score_position_at(1.0) == pytest.approx(0.5)    # exactly on an anchor
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_trajectory.py -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'follower_bench.trajectory'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # model/src/follower_bench/trajectory.py
@@ -839,14 +839,14 @@ def build_trajectory_from_segments(
     return TrueTrajectory(anchors=tuple(anchors))
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_trajectory.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add src/follower_bench/trajectory.py tests/follower_bench/test_trajectory.py && git commit -m "feat(follower-bench): TrueTrajectory.score_position_at interpolates and clamps (#111)"
@@ -864,7 +864,7 @@ cd model && git add src/follower_bench/trajectory.py tests/follower_bench/test_t
 **Files:**
 - Modify: `model/tests/follower_bench/test_trajectory.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_trajectory.py`:
 
@@ -879,25 +879,25 @@ def test_is_monotonic_non_decreasing_false_for_a_regression() -> None:
     assert traj.is_monotonic_non_decreasing() is False
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_trajectory.py::test_is_monotonic_non_decreasing_true_for_ascending" "tests/follower_bench/test_trajectory.py::test_is_monotonic_non_decreasing_false_for_a_regression" -q
 ```
 Expected: these should already PASS given Task 9's implementation. Confirm; this task exists to make the monotonicity check (used directly by the spec's clean-control success criterion) a permanent regression test.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No production code change required.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_trajectory.py -q
 ```
 Expected: PASS (all tests so far)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add tests/follower_bench/test_trajectory.py && git commit -m "test(follower-bench): is_monotonic_non_decreasing detects ordering violations (#111)"
@@ -915,7 +915,7 @@ cd model && git add tests/follower_bench/test_trajectory.py && git commit -m "te
 **Files:**
 - Modify: `model/tests/follower_bench/test_trajectory.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_trajectory.py`:
 
@@ -935,25 +935,25 @@ def test_from_alignment_matches_real_asap_beat_arrays_exactly() -> None:
     assert traj.is_monotonic_non_decreasing() is True
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_trajectory.py::test_from_alignment_matches_real_asap_beat_arrays_exactly" -q
 ```
 Expected: FAIL — `ImportError: cannot import name 'from_alignment' from 'follower_bench.trajectory'` (Task 9's Step 3 already wrote `from_alignment` into `trajectory.py`, so if Task 9 was completed as specified this import succeeds — in that case this specific test should go straight to PASS in Step 2; if it instead fails on the import, `from_alignment` was not yet added and must be added now).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 `from_alignment` was already implemented in Task 9's Step 3 (`trajectory.py` already contains it). No further code change is needed; this task exists to add the real-fixture regression test.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_trajectory.py -q
 ```
 Expected: PASS (all tests so far)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add tests/follower_bench/test_trajectory.py && git commit -m "test(follower-bench): from_alignment matches real ASAP beat arrays exactly (#111)"
@@ -971,7 +971,7 @@ cd model && git add tests/follower_bench/test_trajectory.py && git commit -m "te
 **Files:**
 - Modify: `model/tests/follower_bench/test_trajectory.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_trajectory.py`:
 
@@ -989,25 +989,25 @@ def test_build_trajectory_from_segments_identity_matches_clean_exactly() -> None
     assert spliced.is_monotonic_non_decreasing() is True
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_trajectory.py::test_build_trajectory_from_segments_identity_matches_clean_exactly" -q
 ```
 Expected: this should already PASS given Task 9's implementation of `build_trajectory_from_segments`. Confirm; this task exists to add the identity-segment regression test explicitly (the "clean" pathology depends on this exact behavior).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No production code change required.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_trajectory.py -q
 ```
 Expected: PASS (all tests so far)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add tests/follower_bench/test_trajectory.py && git commit -m "test(follower-bench): build_trajectory_from_segments identity matches clean exactly (#111)"
@@ -1025,7 +1025,7 @@ cd model && git add tests/follower_bench/test_trajectory.py && git commit -m "te
 **Files:**
 - Modify: `model/tests/follower_bench/test_trajectory.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_trajectory.py`:
 
@@ -1056,25 +1056,25 @@ def test_build_trajectory_from_segments_jump_is_a_sharp_discontinuity() -> None:
     assert spliced.score_position_at(later_dst_t) == pytest.approx(clean.score_position_at(later_src_t))
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_trajectory.py::test_build_trajectory_from_segments_jump_is_a_sharp_discontinuity" -q
 ```
 Expected: this should already PASS given Task 9's implementation. Confirm; this task exists to lock in the exact-discontinuity-width behavior as a permanent regression test, since it is the mechanism every non-clean pathology's ground truth depends on.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No production code change required.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_trajectory.py -q
 ```
 Expected: PASS (all tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add tests/follower_bench/test_trajectory.py && git commit -m "test(follower-bench): build_trajectory_from_segments jump is a sharp discontinuity (#111)"
@@ -1093,7 +1093,7 @@ cd model && git add tests/follower_bench/test_trajectory.py && git commit -m "te
 - Create: `model/src/follower_bench/pathologies.py`
 - Test: `model/tests/follower_bench/test_pathologies.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/follower_bench/test_pathologies.py
@@ -1130,14 +1130,14 @@ def test_build_plan_clean_is_one_identity_segment_no_events() -> None:
     assert plan.note_mutations == ()
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_pathologies.py -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'follower_bench.pathologies'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # model/src/follower_bench/pathologies.py
@@ -1214,14 +1214,14 @@ def build_plan(alignment: ClipAlignment, pathology_type: str, rng: random.Random
     raise NotImplementedError(f"pathology_type {pathology_type!r} not yet implemented")
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_pathologies.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add src/follower_bench/pathologies.py tests/follower_bench/test_pathologies.py && git commit -m "feat(follower-bench): build_plan clean control is one identity segment (#111)"
@@ -1240,7 +1240,7 @@ cd model && git add src/follower_bench/pathologies.py tests/follower_bench/test_
 - Modify: `model/src/follower_bench/pathologies.py`
 - Modify: `model/tests/follower_bench/test_pathologies.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_pathologies.py`:
 
@@ -1273,14 +1273,14 @@ def test_build_plan_repeat_describes_the_back_jump() -> None:
     assert event.to_score_position < event.from_score_position  # jumped backward in score position
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_pathologies.py::test_build_plan_repeat_describes_the_back_jump" -q
 ```
 Expected: FAIL — `NotImplementedError: pathology_type 'repeat' not yet implemented`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Add to `model/src/follower_bench/pathologies.py`, above the `_bounds` docstring-adjacent constants near the top (module-level, after `PATHOLOGY_TYPES`):
 
@@ -1318,14 +1318,14 @@ Replace the `raise NotImplementedError(...)` line in `build_plan` with:
     raise NotImplementedError(f"pathology_type {pathology_type!r} not yet implemented")
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_pathologies.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add src/follower_bench/pathologies.py tests/follower_bench/test_pathologies.py && git commit -m "feat(follower-bench): build_plan repeat describes the back-jump (#111)"
@@ -1344,7 +1344,7 @@ cd model && git add src/follower_bench/pathologies.py tests/follower_bench/test_
 - Modify: `model/src/follower_bench/pathologies.py`
 - Modify: `model/tests/follower_bench/test_pathologies.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_pathologies.py`:
 
@@ -1372,14 +1372,14 @@ def test_build_plan_jump_describes_the_forward_skip() -> None:
     assert event.to_score_position > event.from_score_position  # jumped forward, omitting the middle
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_pathologies.py::test_build_plan_jump_describes_the_forward_skip" -q
 ```
 Expected: FAIL — `NotImplementedError: pathology_type 'jump' not yet implemented`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `model/src/follower_bench/pathologies.py`, add this branch above the final `raise NotImplementedError`:
 
@@ -1397,14 +1397,14 @@ In `model/src/follower_bench/pathologies.py`, add this branch above the final `r
         return ClipPlan(segments=(seg1, seg2), events=(event,))
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_pathologies.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add src/follower_bench/pathologies.py tests/follower_bench/test_pathologies.py && git commit -m "feat(follower-bench): build_plan jump describes the forward skip (#111)"
@@ -1423,7 +1423,7 @@ cd model && git add src/follower_bench/pathologies.py tests/follower_bench/test_
 - Modify: `model/src/follower_bench/pathologies.py`
 - Modify: `model/tests/follower_bench/test_pathologies.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_pathologies.py`:
 
@@ -1451,14 +1451,14 @@ def test_build_plan_restart_jumps_back_to_an_earlier_point() -> None:
     assert event.to_score_position < event.from_score_position
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_pathologies.py::test_build_plan_restart_jumps_back_to_an_earlier_point" -q
 ```
 Expected: FAIL — `NotImplementedError: pathology_type 'restart' not yet implemented`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `model/src/follower_bench/pathologies.py`, add this branch above the final `raise NotImplementedError`:
 
@@ -1476,14 +1476,14 @@ In `model/src/follower_bench/pathologies.py`, add this branch above the final `r
         return ClipPlan(segments=(seg1, seg2), events=(event,))
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_pathologies.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add src/follower_bench/pathologies.py tests/follower_bench/test_pathologies.py && git commit -m "feat(follower-bench): build_plan restart jumps back to an earlier point (#111)"
@@ -1502,7 +1502,7 @@ cd model && git add src/follower_bench/pathologies.py tests/follower_bench/test_
 - Modify: `model/src/follower_bench/pathologies.py`
 - Modify: `model/tests/follower_bench/test_pathologies.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_pathologies.py`:
 
@@ -1529,14 +1529,14 @@ def test_build_plan_hesitation_inserts_a_same_position_pause() -> None:
     assert event.from_score_position == pytest.approx(clean_traj.score_position_at(seg1.src_end))
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_pathologies.py::test_build_plan_hesitation_inserts_a_same_position_pause" -q
 ```
 Expected: FAIL — `NotImplementedError: pathology_type 'hesitation' not yet implemented`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Add these module-level constants near `PATHOLOGY_TYPES` in `model/src/follower_bench/pathologies.py`:
 
@@ -1561,14 +1561,14 @@ Add this branch above the final `raise NotImplementedError`:
         return ClipPlan(segments=(seg1, seg2), events=(event,))
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_pathologies.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add src/follower_bench/pathologies.py tests/follower_bench/test_pathologies.py && git commit -m "feat(follower-bench): build_plan hesitation inserts a same-position pause (#111)"
@@ -1587,7 +1587,7 @@ cd model && git add src/follower_bench/pathologies.py tests/follower_bench/test_
 - Modify: `model/src/follower_bench/pathologies.py`
 - Modify: `model/tests/follower_bench/test_pathologies.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_pathologies.py`:
 
@@ -1616,14 +1616,14 @@ def test_build_plan_wrong_note_is_a_pitch_mutation_with_no_timeline_change() -> 
     assert event.from_score_position == pytest.approx(clean_traj.score_position_at(mutation.target_onset))
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_pathologies.py::test_build_plan_wrong_note_is_a_pitch_mutation_with_no_timeline_change" -q
 ```
 Expected: FAIL — `NotImplementedError: pathology_type 'wrong_note' not yet implemented`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Add this module-level constant near `PATHOLOGY_TYPES` in `model/src/follower_bench/pathologies.py`:
 
@@ -1650,14 +1650,14 @@ Add this branch above the final `raise NotImplementedError`:
         )
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_pathologies.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add src/follower_bench/pathologies.py tests/follower_bench/test_pathologies.py && git commit -m "feat(follower-bench): build_plan wrong_note is a pitch mutation, no timeline change (#111)"
@@ -1676,7 +1676,7 @@ cd model && git add src/follower_bench/pathologies.py tests/follower_bench/test_
 - Modify: `model/src/follower_bench/pathologies.py`
 - Modify: `model/tests/follower_bench/test_pathologies.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_pathologies.py`:
 
@@ -1709,14 +1709,14 @@ def test_build_plan_tempo_swing_is_a_contiguous_piecewise_time_ramp() -> None:
     assert event.from_score_position == pytest.approx(event.to_score_position)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_pathologies.py::test_build_plan_tempo_swing_is_a_contiguous_piecewise_time_ramp" -q
 ```
 Expected: FAIL — `NotImplementedError: pathology_type 'tempo_swing' not yet implemented`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Add these module-level constants near `PATHOLOGY_TYPES` in `model/src/follower_bench/pathologies.py`:
 
@@ -1750,14 +1750,14 @@ Replace the final `raise NotImplementedError(...)` line in `build_plan` with:
     return ClipPlan(segments=tuple(segments), events=(event,))
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_pathologies.py -q
 ```
 Expected: PASS (all pathology-type tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add src/follower_bench/pathologies.py tests/follower_bench/test_pathologies.py && git commit -m "feat(follower-bench): build_plan tempo_swing is a contiguous piecewise time ramp (#111)"
@@ -1775,7 +1775,7 @@ cd model && git add src/follower_bench/pathologies.py tests/follower_bench/test_
 **Files:**
 - Modify: `model/tests/follower_bench/test_pathologies.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_pathologies.py`:
 
@@ -1786,25 +1786,25 @@ def test_build_plan_rejects_unknown_pathology_type() -> None:
         build_plan(alignment, "does_not_exist", random.Random(0))
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_pathologies.py::test_build_plan_rejects_unknown_pathology_type" -q
 ```
 Expected: this should already PASS given the `if pathology_type not in PATHOLOGY_TYPES: raise ValueError(...)` guard written in Task 14's Step 3. Confirm; this task exists to make it a permanent regression test.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No production code change required.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_pathologies.py -q
 ```
 Expected: PASS (all tests so far)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add tests/follower_bench/test_pathologies.py && git commit -m "test(follower-bench): build_plan rejects an unknown pathology_type (#111)"
@@ -1822,7 +1822,7 @@ cd model && git add tests/follower_bench/test_pathologies.py && git commit -m "t
 **Files:**
 - Modify: `model/tests/follower_bench/test_pathologies.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_pathologies.py`:
 
@@ -1842,25 +1842,25 @@ def test_build_plan_rejects_zero_duration_alignment() -> None:
         build_plan(degenerate, "repeat", random.Random(0))
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_pathologies.py::test_build_plan_rejects_zero_duration_alignment" -q
 ```
 Expected: this should already PASS given `_bounds`'s `if t_max <= t_min: raise ValueError(...)` guard written in Task 14's Step 3. Confirm; this task exists to make it a permanent regression test with a directly-constructed degenerate `ClipAlignment` (no real ASAP fixture is degenerate, so this must be synthesized).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No production code change required.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_pathologies.py -q
 ```
 Expected: PASS (all tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add tests/follower_bench/test_pathologies.py && git commit -m "test(follower-bench): build_plan rejects a zero-duration alignment (#111)"
@@ -1879,7 +1879,7 @@ cd model && git add tests/follower_bench/test_pathologies.py && git commit -m "t
 - Create: `model/src/follower_bench/clip_generator.py`
 - Test: `model/tests/follower_bench/test_clip_generator.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/follower_bench/test_clip_generator.py
@@ -1911,14 +1911,14 @@ def test_generate_clean_is_monotonic_and_matches_asap_exactly() -> None:
         assert clip.true_trajectory.score_position_at(perf_beat) == pytest.approx(score_beat)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_clip_generator.py -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'follower_bench.clip_generator'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # model/src/follower_bench/clip_generator.py
@@ -2007,14 +2007,14 @@ def generate(asap_piece: str, pathology_type: str, seed: int) -> SynthClip:
     )
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_clip_generator.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add src/follower_bench/clip_generator.py tests/follower_bench/test_clip_generator.py && git commit -m "feat(follower-bench): generate() clean control matches ASAP exactly (#111)"
@@ -2032,7 +2032,7 @@ cd model && git add src/follower_bench/clip_generator.py tests/follower_bench/te
 **Files:**
 - Modify: `model/tests/follower_bench/test_clip_generator.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_clip_generator.py`:
 
@@ -2059,25 +2059,25 @@ def test_generate_repeat_is_deterministic_and_has_the_back_jump() -> None:
     assert after < before  # confirmed backward jump
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_clip_generator.py::test_generate_repeat_is_deterministic_and_has_the_back_jump" -q
 ```
 Expected: this should already PASS given Task 23's `generate()` implementation composed with the already-verified `build_plan("repeat", ...)` and `build_trajectory_from_segments`. Confirm; this task exists to lock the end-to-end determinism + discontinuity-timing contract as a permanent regression test.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No production code change required.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_clip_generator.py -q
 ```
 Expected: PASS (both tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add tests/follower_bench/test_clip_generator.py && git commit -m "test(follower-bench): generate() repeat is deterministic with the back-jump at perf_time (#111)"
@@ -2095,7 +2095,7 @@ cd model && git add tests/follower_bench/test_clip_generator.py && git commit -m
 **Files:**
 - Modify: `model/tests/follower_bench/test_clip_generator.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_clip_generator.py`:
 
@@ -2105,25 +2105,25 @@ def test_generate_propagates_missing_alignment_for_real_unaligned_piece() -> Non
         generate(UNALIGNED_PIECE, "clean", seed=1)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_clip_generator.py::test_generate_propagates_missing_alignment_for_real_unaligned_piece" -q
 ```
 Expected: this should already PASS given Task 23's `generate()` calling `load_alignment` first with no `try/except` swallowing the exception. Confirm; this task exists to make the spec's central "never fabricate, always raise/skip" contract a permanent regression test at the public `generate()` boundary (not just inside `asap_alignment.py`).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No production code change required.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_clip_generator.py -q
 ```
 Expected: PASS (all tests so far)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add tests/follower_bench/test_clip_generator.py && git commit -m "test(follower-bench): generate() propagates AsapAlignmentMissingError, never fabricates (#111)"
@@ -2141,7 +2141,7 @@ cd model && git add tests/follower_bench/test_clip_generator.py && git commit -m
 **Files:**
 - Modify: `model/tests/follower_bench/test_clip_generator.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `model/tests/follower_bench/test_clip_generator.py`:
 
@@ -2172,25 +2172,25 @@ def test_generate_preserves_asap_correspondence_before_the_injected_event(pathol
     )
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest "tests/follower_bench/test_clip_generator.py::test_generate_preserves_asap_correspondence_before_the_injected_event" -q
 ```
 Expected: this should already PASS for all 6 parametrized cases given the existing `build_plan`/`build_trajectory_from_segments` implementations (every pathology's first segment is `Segment(t_min, ..., t_min, 1.0)` — an identity lead-in). Confirm all 6 pass; this task exists to make the spec's dedicated "Property test: in non-injected regions of any clip, the trajectory preserves the ASAP correspondence" success criterion an explicit, permanent, parametrized regression test spanning every pathology type in one place.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No production code change required. If any of the 6 parametrized cases fails, that is a real bug in the corresponding `build_plan` branch (not a test issue) — fix the branch in `model/src/follower_bench/pathologies.py` so its lead-in segment is a true identity replay of `[t_min, first_split_point)`, then re-run.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/ -q
 ```
 Expected: PASS — the full `follower_bench` test suite (all tasks) is green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd model && git add tests/follower_bench/test_clip_generator.py && git commit -m "test(follower-bench): property test -- non-injected regions preserve ASAP correspondence across all pathologies (#111)"
