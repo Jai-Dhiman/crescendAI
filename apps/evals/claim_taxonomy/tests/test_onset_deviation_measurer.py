@@ -128,3 +128,29 @@ def test_error_bar_grows_with_alignment_uncertainty() -> None:
         engine=SubstrateErrorEngine(seed=42))
     assert hi.error_bar > lo.error_bar
     assert math.isfinite(lo.error_bar)
+
+
+def test_whole_piece_abstains_on_same_set_lsq_frame() -> None:
+    # Pipeline bundles declare their reference frame; whole_piece mean-d over a
+    # same-set LSQ frame is zero by construction (#101 2026-07-07 real-batch
+    # finding), so the measurer must abstain legibly instead of reporting d~0.
+    pairs = [(i * 0.5 - 0.04, i * 0.5) for i in range(20)]
+    bundle = _aligned_bundle(pairs)
+    bundle["score_align"] = {"schema": "v2", "reference_frame": "windowed_affine"}
+    with pytest.raises(UnverifiableError) as ei:
+        OnsetDeviationMeasurer().measure(
+            location="whole_piece", bundle=bundle, region=_region(),
+            engine=SubstrateErrorEngine(seed=42))
+    assert ei.value.reason_code == "degenerate_reference_frame"
+
+
+def test_bar_tier_still_measures_on_same_set_lsq_frame() -> None:
+    # The guard is whole_piece-only: bar/region d is a subset of each fit window
+    # and carries real signal.
+    pairs = [(i * 0.5 - 0.04, i * 0.5) for i in range(20)]
+    bundle = _aligned_bundle(pairs)
+    bundle["score_align"] = {"schema": "v2", "reference_frame": "windowed_affine"}
+    m = OnsetDeviationMeasurer().measure(
+        location={"bar_start": 1, "bar_end": 4}, bundle=bundle,
+        region=_region(start=0.0, end=10.0), engine=SubstrateErrorEngine(seed=42))
+    assert m.d == pytest.approx(-40.0, abs=1.0)

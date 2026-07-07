@@ -159,41 +159,92 @@ def test_annotate_score_onset_carries_rush_residual():
 
 
 def test_annotate_sets_bar_numbers_from_score_seconds():
-    score_onsets = [0.0, 1.0, 2.5, 4.5]
+    score_onsets = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.5]
     perf_onsets = [1.5 * s + 0.3 for s in score_onsets]
     bundle = _bundle_with_notes(perf_onsets)
-    annotate_bundle(bundle, _score_na(score_onsets), _match_entries([(i, i) for i in range(4)]))
-    assert [n["bar_number"] for n in bundle["notes"]] == [1, 1, 2, 3]
+    annotate_bundle(bundle, _score_na(score_onsets), _match_entries([(i, i) for i in range(8)]))
+    assert [n["bar_number"] for n in bundle["notes"]] == [1, 1, 1, 1, 2, 2, 2, 3]
 
 
 def test_annotate_leaves_unmatched_notes_bare_and_strips_stale_fields():
-    score_onsets = [0.0, 1.0, 2.0]
+    score_onsets = [0.5 * i for i in range(10)]
     perf_onsets = [2.0 * s for s in score_onsets]
     bundle = _bundle_with_notes(perf_onsets)
-    bundle["notes"][2]["score_onset"] = 123.0  # stale from a previous run
-    bundle["notes"][2]["bar_number"] = 99
-    matches = _match_entries([(0, 0), (1, 1)])  # note 2 unmatched this time
+    bundle["notes"][9]["score_onset"] = 123.0  # stale from a previous run
+    bundle["notes"][9]["bar_number"] = 99
+    matches = _match_entries([(i, i) for i in range(9)])  # note 9 unmatched this time
 
     annotate_bundle(bundle, _score_na(score_onsets), matches)
 
-    assert "score_onset" not in bundle["notes"][2]
-    assert "bar_number" not in bundle["notes"][2]
+    assert "score_onset" not in bundle["notes"][9]
+    assert "bar_number" not in bundle["notes"][9]
     assert "score_onset" in bundle["notes"][0]
 
 
 def test_annotate_writes_metadata_block():
-    score_onsets = [0.0, 1.0, 2.0, 3.0]
+    score_onsets = [0.25 * i for i in range(10)]
     perf_onsets = [2.0 * s + 1.0 for s in score_onsets]
     bundle = _bundle_with_notes(perf_onsets)
-    annotate_bundle(bundle, _score_na(score_onsets), _match_entries([(i, i) for i in range(4)]))
+    annotate_bundle(bundle, _score_na(score_onsets), _match_entries([(i, i) for i in range(10)]))
 
     meta = bundle["score_align"]
     assert meta["schema"] == SCORE_ALIGN_SCHEMA
-    assert meta["affine_a"] == pytest.approx(2.0)
-    assert meta["affine_b"] == pytest.approx(1.0)
-    assert meta["n_matched"] == 4
-    assert meta["n_notes"] == 4
+    assert meta["reference_frame"] == "windowed_affine"
+    assert meta["window_sec"] == pytest.approx(15.0)
+    assert meta["n_windows"] == 1  # all 10 notes fit one 15s window
+    assert meta["n_matched"] == 10
+    assert meta["n_annotated"] == 10
+    assert meta["n_notes"] == 10
     assert meta["residual_rms_ms"] == pytest.approx(0.0, abs=1e-6)
+    assert meta["median_abs_residual_ms"] == pytest.approx(0.0, abs=1e-6)
+
+
+def test_annotate_windowed_fit_tracks_tempo_change():
+    # Two tempo regimes split at the 15s perf-window boundary. A single global
+    # affine would leave large residuals; per-window fits leave ~none.
+    fast = [(i * 0.5, 2.0 * (i * 0.5) + 1.0) for i in range(14)]     # perf 1.0..14.0
+    slow = [(7.0 + i * 0.5, 1.5 * (7.0 + i * 0.5) + 6.0) for i in range(14)]  # perf 16.5..26.25
+    score_onsets = [s for s, _ in fast + slow]
+    perf_onsets = [p for _, p in fast + slow]
+    bundle = _bundle_with_notes(perf_onsets)
+    annotate_bundle(
+        bundle, _score_na(score_onsets), _match_entries([(i, i) for i in range(28)])
+    )
+
+    meta = bundle["score_align"]
+    assert meta["n_windows"] == 2
+    assert meta["n_annotated"] == 28
+    for n in bundle["notes"]:
+        assert abs(n["onset"] - n["score_onset"]) < 1e-6
+
+
+def test_annotate_skips_notes_in_sparse_windows():
+    # 10 notes in window 1, only 3 in window 2 (< MIN_WINDOW_EVENTS=8): the
+    # sparse window's notes stay unannotated rather than getting a junk frame.
+    dense = [(i * 0.25, 2.0 * (i * 0.25)) for i in range(10)]        # perf 0..4.5
+    sparse = [(10.0 + i, 2.0 * (10.0 + i)) for i in range(3)]        # perf 20..24
+    score_onsets = [s for s, _ in dense + sparse]
+    perf_onsets = [p for _, p in dense + sparse]
+    bundle = _bundle_with_notes(perf_onsets)
+    annotate_bundle(
+        bundle, _score_na(score_onsets), _match_entries([(i, i) for i in range(13)])
+    )
+
+    meta = bundle["score_align"]
+    assert meta["n_matched"] == 13
+    assert meta["n_annotated"] == 10
+    assert all("score_onset" in n for n in bundle["notes"][:10])
+    assert all("score_onset" not in n for n in bundle["notes"][10:])
+
+
+def test_annotate_raises_when_no_window_fittable():
+    score_onsets = [0.0, 1.0, 2.0]  # 3 matches < MIN_WINDOW_EVENTS everywhere
+    perf_onsets = [2.0 * s for s in score_onsets]
+    bundle = _bundle_with_notes(perf_onsets)
+    with pytest.raises(ScoreAlignError, match="no window"):
+        annotate_bundle(
+            bundle, _score_na(score_onsets), _match_entries([(i, i) for i in range(3)])
+        )
 
 
 # --- align_cli._score_map --------------------------------------------------------
@@ -216,7 +267,7 @@ def test_score_map_rebase_keeps_filenames():
 
 
 def test_align_bundle_file_rewrites_bundle(tmp_path, monkeypatch):
-    score_onsets = [0.0, 1.0, 2.0, 3.0]
+    score_onsets = [0.5 * i for i in range(10)]
     perf_onsets = [2.0 * s + 1.0 for s in score_onsets]
     bundle = _bundle_with_notes(perf_onsets)
     bundle_path = tmp_path / "vid.json"
@@ -236,15 +287,15 @@ def test_align_bundle_file_rewrites_bundle(tmp_path, monkeypatch):
 
     def fake_match(s_na, p_na):
         captured["perf_na"] = p_na
-        return _match_entries([(i, i) for i in range(4)])
+        return _match_entries([(i, i) for i in range(10)])
 
     monkeypatch.setattr(mod, "_match", fake_match)
 
     meta = align_bundle_file(bundle_path, score_path)
 
-    assert meta["n_matched"] == 4
+    assert meta["n_matched"] == 10
     on_disk = json.loads(bundle_path.read_text())
-    assert on_disk["score_align"]["affine_a"] == pytest.approx(2.0)
+    assert on_disk["score_align"]["residual_rms_ms"] == pytest.approx(0.0, abs=1e-6)
     assert all("score_onset" in n for n in on_disk["notes"])
     # perf note array must mirror extractor.py: beat_sec from the score loader,
     # so onset_beat == onset_sec / 0.5

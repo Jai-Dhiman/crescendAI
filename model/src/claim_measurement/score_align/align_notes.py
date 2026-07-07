@@ -5,17 +5,28 @@ correspondence it discards (that function reduces matches to anonymous monotone
 anchor arrays for the pseudo-truth bar map).
 
 CONTRACT (mirrors apps/evals .../measurers/onset_deviation.py): each matched note
-gains ``score_onset`` = a * score_sec + b IN PERFORMANCE TIME, where (a, b) is the
-least-squares fit over ALL matched notes. Raw score-seconds would be dominated by
-the global tempo gap (a real performance runs ~1.5-2.2x the score's nominal
-seconds); the full DTW warp would absorb the local rush/drag signal itself. Only
-the global affine leaves ``perf_onset - score_onset`` = directional rush/drag.
+gains ``score_onset`` = a_w * score_sec + b_w IN PERFORMANCE TIME, where (a_w, b_w)
+is a least-squares fit PER FIXED PERF-TIME WINDOW (default 15s, mirroring the live
+Rust per-chunk design). Raw score-seconds are dominated by the global tempo gap;
+a single WHOLE-PIECE affine was tried first and empirically invalidated on the 10
+real bundles (2026-07-07): rubato drift leaves residual RMS of SECONDS (Traumerei
+clean core: global 2.2s median -> windowed-30s 0.30s median), 1-2 orders above any
+plausible tau. The full DTW warp is the opposite failure (absorbs the rush/drag
+signal). The windowed local affine is the working middle.
+
+DEGENERACY (declared, not hidden): mean residual over the SAME notes an
+LSQ-with-intercept fit used is zero BY CONSTRUCTION, so a whole-piece mean-d on
+these fields is meaningless. The bundle's score_align.reference_frame field
+declares this; the measurer abstains on whole_piece for same-set-LSQ frames.
+Bar/region-tier d (a subset of each window) is the meaningful statistic.
+
 ``bar_number`` comes from the matched SCORE note's position in the bundle's
 measure_table (score seconds, pre-affine), so bar-tier claims resolve against
 score structure, not performance time.
 
-Unmatched notes carry neither field; the measurer skips them (and abstains
-legibly when nothing is aligned).
+Unmatched notes and notes in windows with <MIN_WINDOW_EVENTS matches (or a
+degenerate/backward window fit) carry neither field; the measurer skips them
+(and abstains legibly when nothing is aligned).
 """
 from __future__ import annotations
 
@@ -30,7 +41,10 @@ from chroma_dtw_eval.amt_regen import (
     _match,
 )
 
-SCORE_ALIGN_SCHEMA = "v1"
+SCORE_ALIGN_SCHEMA = "v2"
+REFERENCE_FRAME = "windowed_affine"  # same-set LSQ: whole-piece mean-d degenerate
+DEFAULT_WINDOW_SEC = 15.0  # mirrors the live Rust per-chunk affine (note_align.rs)
+MIN_WINDOW_EVENTS = 8
 MS = 1000.0
 
 
@@ -95,7 +109,35 @@ def bar_number_for_score_sec(measure_table: list[dict], score_sec: float) -> int
     return int(rows[max(idx, 0)]["bar_number"])
 
 
-def annotate_bundle(bundle: dict, score_na: np.ndarray, matches: list[dict]) -> dict:
+def _windowed_predictions(
+    perf: np.ndarray, score_sec: np.ndarray, window_sec: float
+) -> tuple[np.ndarray, int]:
+    """Per-fixed-perf-window affine predictions. Returns (predictions with NaN
+    for notes in unfittable windows, n_fitted_windows)."""
+    preds = np.full(perf.size, np.nan)
+    n_windows = 0
+    w0 = float(perf.min())
+    w_end = float(perf.max())
+    while w0 <= w_end:
+        mask = (perf >= w0) & (perf < w0 + window_sec)
+        w0 += window_sec
+        if int(mask.sum()) < MIN_WINDOW_EVENTS:
+            continue
+        try:
+            a, b = fit_affine(perf[mask], score_sec[mask])
+        except ScoreAlignError:
+            continue  # degenerate window (flat score span / backward fit): skip
+        preds[mask] = a * score_sec[mask] + b
+        n_windows += 1
+    return preds, n_windows
+
+
+def annotate_bundle(
+    bundle: dict,
+    score_na: np.ndarray,
+    matches: list[dict],
+    window_sec: float = DEFAULT_WINDOW_SEC,
+) -> dict:
     """Mutate `bundle` in place: per-note score_onset + bar_number, plus a
     score_align metadata block. Stale fields from a previous run are stripped
     first so unmatched notes never keep old correspondences."""
@@ -103,7 +145,12 @@ def annotate_bundle(bundle: dict, score_na: np.ndarray, matches: list[dict]) -> 
     pairs = matched_note_pairs(score_na, matches, len(notes))
     perf = np.array([float(notes[p]["onset"]) for p, _ in pairs])
     score_sec = np.array([float(score_na[s]["onset_sec"]) for _, s in pairs])
-    a, b = fit_affine(perf, score_sec)
+    preds, n_windows = _windowed_predictions(perf, score_sec, window_sec)
+    if n_windows == 0:
+        raise ScoreAlignError(
+            f"no window of {window_sec}s had >={MIN_WINDOW_EVENTS} fittable matches "
+            f"({len(pairs)} matches over {perf.max() - perf.min():.1f}s)"
+        )
 
     for n in notes:
         n.pop("score_onset", None)
@@ -111,19 +158,23 @@ def annotate_bundle(bundle: dict, score_na: np.ndarray, matches: list[dict]) -> 
 
     measure_table = bundle["measure_table"]
     residuals_ms = []
-    for (p_idx, _s_idx), perf_onset, s_sec in zip(pairs, perf, score_sec):
-        predicted = a * s_sec + b
+    for (p_idx, _s_idx), perf_onset, s_sec, predicted in zip(pairs, perf, score_sec, preds):
+        if np.isnan(predicted):
+            continue
         notes[p_idx]["score_onset"] = float(predicted)
         notes[p_idx]["bar_number"] = bar_number_for_score_sec(measure_table, s_sec)
         residuals_ms.append((perf_onset - predicted) * MS)
 
     bundle["score_align"] = {
         "schema": SCORE_ALIGN_SCHEMA,
-        "affine_a": a,
-        "affine_b": b,
+        "reference_frame": REFERENCE_FRAME,
+        "window_sec": float(window_sec),
+        "n_windows": n_windows,
         "n_matched": len(pairs),
+        "n_annotated": len(residuals_ms),
         "n_notes": len(notes),
         "residual_rms_ms": float(np.sqrt(np.mean(np.square(residuals_ms)))),
+        "median_abs_residual_ms": float(np.median(np.abs(residuals_ms))),
     }
     return bundle
 

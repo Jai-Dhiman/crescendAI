@@ -74,9 +74,10 @@ def main(argv: list[str] | None = None) -> int:
             continue
         results.append({
             "piece": piece, "bundle": bp.name, "status": "ok",
-            "n_matched": meta["n_matched"], "n_notes": meta["n_notes"],
-            "affine_a": round(meta["affine_a"], 4),
+            "n_matched": meta["n_matched"], "n_annotated": meta["n_annotated"],
+            "n_windows": meta["n_windows"], "n_notes": meta["n_notes"],
             "residual_rms_ms": round(meta["residual_rms_ms"], 1),
+            "median_abs_residual_ms": round(meta["median_abs_residual_ms"], 1),
         })
 
     for r in results:
