@@ -48,7 +48,8 @@ def test_timing_claim_supported_routes_correctly() -> None:
         "polarity": "-",
         "magnitude": None,
         "_measurement": {
-            "d": -14.0,
+            # FRONT 7 units: signed onset deviation in ms (tau=30 provisional)
+            "d": -45.0,
             "tau": registry["timing"]["tolerance"]["provisional"],
             "error_bar": 2.0,
             "event_count": 25,

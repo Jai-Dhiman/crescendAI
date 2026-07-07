@@ -6,16 +6,19 @@ score; dragging = behind. Consumes a SCORE-ALIGNED bundle in which each note car
 measured tempo SPREAD, not directional deviation.
 
 CONTRACT (the pipeline's responsibility, #101 7b): ``score_onset`` MUST be the
-GLOBAL-TEMPO-DETRENDED score prediction IN PERFORMANCE TIME -- i.e. the parangonar
-note match's score onset passed through a global AFFINE fit ``a * score_onset + b``
-(a,b = least squares over all matched notes), NOT the raw score-seconds. Raw
-``perf_onset - score_seconds`` is dominated by the global tempo difference (a real
-performance runs ~1.5-2.2x off the score's nominal seconds), which is NOT rush/drag.
-Equally, it must NOT be the full monotone DTW warp -- that follows local tempo and would
-absorb the very rush/drag we measure, collapsing d to ~0. Only the affine residual
-``perf_onset - (a*score_onset + b)`` is the directional rush/drag signal. This measurer
-subtracts and aggregates; the affine detrend happens upstream (mirrors the shipped Rust
-``align_notes_from_warp`` -> ``NoteAlignment.onset_deviation_ms``, note_align.rs).
+LOCALLY-DETRENDED score prediction IN PERFORMANCE TIME -- the parangonar note
+match's score onset passed through a per-window (default 15s) AFFINE fit
+``a_w * score_onset + b_w``, mirroring the live Rust per-chunk design
+(``align_notes_from_warp`` -> ``NoteAlignment.onset_deviation_ms``, note_align.rs).
+Raw ``perf_onset - score_seconds`` is dominated by the global tempo difference
+(~1.5-2.2x), which is NOT rush/drag. A single WHOLE-PIECE affine was the original
+contract and was empirically invalidated (#101 2026-07-07): rubato drift leaves
+multi-second residuals. Equally it must NOT be the full monotone DTW warp -- that
+follows local tempo and absorbs the very rush/drag we measure. This measurer
+subtracts and aggregates; the detrend happens upstream. Because the upstream frame
+is least-squares over the SAME notes, whole_piece d is zero by construction on
+pipeline bundles -- the measurer abstains there (SAME_SET_LSQ_FRAMES guard);
+bar/region tiers carry the signal.
 
 Statistic:  d = mean_over_matched_notes( (perf_onset - score_onset) * 1000 )  [ms]
   d < 0  -> perf onsets EARLY  -> rushing   (frozen route_verdict polarity "-")
@@ -45,6 +48,13 @@ from claim_taxonomy.verifier.substrate_error import SubstrateErrorEngine
 MINIMUM_EVENTS = 8
 MS = 1000.0
 
+# Reference frames whose residuals are LSQ-fit over the SAME notes being measured:
+# the whole-piece mean residual is zero BY CONSTRUCTION (an intercepted least-squares
+# fit has zero-mean residuals), so a whole_piece d on such a bundle is degenerate --
+# the IOI-CV failure mode reborn. Found empirically on the first real score_align
+# batch (#101, 2026-07-07). Bar/region tiers (a subset of each fit window) are fine.
+SAME_SET_LSQ_FRAMES = frozenset({"global_affine", "windowed_affine"})
+
 
 @dataclass
 class Measurement:
@@ -64,6 +74,15 @@ class OnsetDeviationMeasurer:
         region: ResolvedRegion,
         engine: SubstrateErrorEngine,
     ) -> Measurement:
+        frame = (bundle.get("score_align") or {}).get("reference_frame")
+        if location == "whole_piece" and frame in SAME_SET_LSQ_FRAMES:
+            raise UnverifiableError(
+                "degenerate_reference_frame",
+                f"whole_piece mean deviation is zero by construction under the "
+                f"{frame!r} frame (same-set least-squares residuals); "
+                "whole-piece rush/drag needs an independent reference",
+            )
+
         notes = bundle.get("notes") or []
         if not notes:
             raise UnverifiableError("substrate_failure", "bundle contains zero notes")

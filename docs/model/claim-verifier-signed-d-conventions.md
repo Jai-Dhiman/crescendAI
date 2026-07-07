@@ -972,3 +972,53 @@ correspondence — must be replaced/forked to keep it. Score loader already supp
 run 7c G-A (tempo-warp corruption through the REAL measurer, flip≥0.80 / shuffle≥0.20); 7d tau + construct
 validity (7a-bis already previewed construct-match 17/17). G-D timing rate still needs the prose→signal
 pipeline of 7a-bis fork-b caveat 1 (circularity: signal-fidelity, not discovery).
+
+---
+
+## FRONT 7b UPDATE 2 (#101, 2026-07-07): pipeline landed, global affine EMPIRICALLY INVALIDATED -> windowed frame + whole-piece degeneracy declared
+
+**Pipeline shipped** (`model/src/claim_measurement/score_align/`): fork of `_build_pairs` keeping the
+per-note parangonar correspondence; annotates the cached bundles with `score_onset` + `bar_number`
+(pure post-processing on stored AMT notes — no AMT server needed; CLI idempotent via
+`score_align.schema`, per-clip timeout-guarded).
+
+**Finding 1 — the whole-piece GLOBAL affine of the 7b core contract does not survive real data.**
+First real batch (10 bundles): residual RMS 3.0-48.7 SECONDS, tempo ratios up to a=16.5. Diagnosis on
+the cleanest clip (Traumerei, 330 matches): matches are GOOD (1% backward jumps, 100% consistent with
+the accepted pseudo-truth anchors) — the residual is RUBATO. A real performance's tempo breathes;
+against one global line that integrates to seconds (clean-core median |res| 2.2s), two orders above
+any plausible tau. Per-window refit collapses it: windowed-30s median 297ms (7x), windowed-15s is the
+shipped frame (mirrors the live Rust per-chunk affine, note_align.rs).
+
+**Finding 2 — whole-piece mean-d is degenerate BY CONSTRUCTION under any same-set LSQ frame.**
+LSQ-with-intercept residuals over the fitted notes have mean EXACTLY zero, so `d(whole_piece) = 0`
+identically on pipeline bundles — the IOI-CV degeneracy reborn one abstraction up (7c's controls
+would have caught it; running real data first caught it sooner). Encoding: the DEGENERACY IS A
+PIPELINE PROPERTY, so the bundle declares `score_align.reference_frame = "windowed_affine"` and the
+measurer abstains at whole_piece for `SAME_SET_LSQ_FRAMES` with reason_code
+`degenerate_reference_frame` (construction-known hand-annotated bundles keep measuring). Bar/region
+tiers are subsets of each window — they carry the real signal.
+
+**Consequences for the front (re-planned):**
+- The 7b statistic is BAR/REGION-tier score-relative onset deviation. Whole-piece directional timing
+  needs a DIFFERENT statistic (e.g. trend of per-window tempo ratios a_w, or an out-of-sample /
+  score-beat-grid reference) — design that WITH 7c controls, not before.
+- Noise floor: windowed-15s residuals on real bundles are the empirical per-note sigma for 7d tau
+  calibration; tau=30ms provisional is likely too tight for bar-tier claims on this substrate
+  (bar-mean sigma ~60-100ms at 8-30 notes/bar). 7c corruption sensitivity will set the honest floor.
+- Timing dim REPOINTED in the taxonomy (measurement `amt_score_relative_onset_deviation`, tolerance
+  30ms provisional `locked:false`); frozen `verdict_dispatch` untouched; the two behavioral timing
+  tests now run on score-aligned construction-known bundles.
+
+**UPDATE-2 addendum (same session): anchor gate + the substrate verdict.** Gating matches to the
+accepted pseudo-truth anchor envelope (+-1.5s) improves 9/10 clips ~40% (waltz 1.57->0.90s,
+pathetique 2.03->0.85s median) but the floor stays 0.85-1.9s everywhere except Traumerei (0.23s,
+already clean). Etude op10no4 is METRONOMIC and still 1.43s -> the residual is per-note MATCH ERROR,
+not rubato: parangonar+AMT per-note correspondence on real YouTube audio is +-1s-coarse (consistent
+with GATE-1's +-1.5s tolerance). CONSEQUENCES: (1) bar-tier timing claims on REAL audio are
+substrate-blocked on 9/10 clips (bar-mean sigma >> any honest tau); Traumerei-class alignment
+(~230ms note / ~50-80ms bar-mean) is the existence proof of the usable regime. (2) 7c G-A runs on
+RENDERED construction-known audio (clean AMT) — unaffected. (3) The real-audio rate inherits a new
+dependency: **#108's continuity-penalized symbolic matcher replacing parangonar inside this offline
+pipeline** (its day-0 probe already beat parangonar's global matchers, which scatter with no local
+constraint). The #101 paper path and the #108 product path CONVERGE at the matcher.
