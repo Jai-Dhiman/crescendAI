@@ -104,3 +104,38 @@ def test_build_plan_restart_jumps_back_to_an_earlier_point() -> None:
     assert event.from_score_position == pytest.approx(clean_traj.score_position_at(seg1.src_end))
     assert event.to_score_position == pytest.approx(clean_traj.score_position_at(seg2.src_start))
     assert event.to_score_position < event.from_score_position
+
+
+from follower_bench.trajectory import build_trajectory_from_segments
+
+
+def test_build_plan_hesitation_inserts_a_same_position_pause() -> None:
+    alignment = _alignment()
+    plan = build_plan(alignment, "hesitation", random.Random(0))
+    clean_traj = from_alignment(alignment)
+    t_min, t_max = alignment.performance_beats[0], alignment.performance_beats[-1]
+
+    assert len(plan.segments) == 2
+    seg1, seg2 = plan.segments
+    assert seg1.src_start == pytest.approx(t_min)
+    assert seg2.src_start == pytest.approx(seg1.src_end)
+    assert seg2.src_end == pytest.approx(t_max)
+    pause = seg2.dst_start - seg1.dst_end
+    assert 1.0 <= pause <= 3.0
+
+    assert len(plan.events) == 1
+    event = plan.events[0]
+    assert event.type == "hesitation"
+    assert event.perf_time == pytest.approx(seg1.dst_end)
+    assert event.from_score_position == pytest.approx(event.to_score_position)
+    assert event.from_score_position == pytest.approx(clean_traj.score_position_at(seg1.src_end))
+
+    # WATCH-ITEM (challenge review): the ground-truth trajectory must stay
+    # FLAT at the paused score position for the whole pause, not merely at
+    # its boundaries. Sample the MIDDLE of the destination-time pause gap.
+    spliced = build_trajectory_from_segments(clean_traj, list(plan.segments))
+    paused_pos = clean_traj.score_position_at(seg1.src_end)
+    mid_pause_t = (seg1.dst_end + seg2.dst_start) / 2.0
+    assert spliced.score_position_at(mid_pause_t) == pytest.approx(paused_pos)
+    assert spliced.score_position_at(seg1.dst_end) == pytest.approx(paused_pos)
+    assert spliced.score_position_at(seg2.dst_start) == pytest.approx(paused_pos)

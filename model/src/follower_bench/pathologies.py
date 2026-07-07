@@ -127,4 +127,16 @@ def build_plan(alignment: ClipAlignment, pathology_type: str, rng: random.Random
         )
         return ClipPlan(segments=(seg1, seg2), events=(event,))
 
+    if pathology_type == "hesitation":
+        duration = t_max - t_min
+        p = t_min + rng.uniform(0.3, 0.7) * duration
+        pause = rng.uniform(_HESITATION_PAUSE_MIN_S, _HESITATION_PAUSE_MAX_S)
+        seg1 = Segment(t_min, p, t_min, 1.0)
+        seg2 = Segment(p, t_max, seg1.dst_end + pause, 1.0)
+        pos = clean_traj.score_position_at(p)
+        event = PathologyEvent(
+            type="hesitation", perf_time=seg1.dst_end, from_score_position=pos, to_score_position=pos
+        )
+        return ClipPlan(segments=(seg1, seg2), events=(event,))
+
     raise NotImplementedError(f"pathology_type {pathology_type!r} not yet implemented")
