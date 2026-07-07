@@ -90,4 +90,17 @@ def build_plan(alignment: ClipAlignment, pathology_type: str, rng: random.Random
 
     clean_traj = from_alignment(alignment)
 
+    if pathology_type == "repeat":
+        x, y = _pick_two_points(alignment, rng)
+        seg1 = Segment(t_min, y, t_min, 1.0)
+        seg2 = Segment(x, y, seg1.dst_end, 1.0)
+        seg3 = Segment(y, t_max, seg2.dst_end, 1.0)
+        event = PathologyEvent(
+            type="repeat",
+            perf_time=seg1.dst_end,
+            from_score_position=clean_traj.score_position_at(y),
+            to_score_position=clean_traj.score_position_at(x),
+        )
+        return ClipPlan(segments=(seg1, seg2, seg3), events=(event,))
+
     raise NotImplementedError(f"pathology_type {pathology_type!r} not yet implemented")
