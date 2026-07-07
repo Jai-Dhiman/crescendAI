@@ -115,4 +115,16 @@ def build_plan(alignment: ClipAlignment, pathology_type: str, rng: random.Random
         )
         return ClipPlan(segments=(seg1, seg2), events=(event,))
 
+    if pathology_type == "restart":
+        r, y = _pick_two_points(alignment, rng)
+        seg1 = Segment(t_min, y, t_min, 1.0)
+        seg2 = Segment(r, t_max, seg1.dst_end, 1.0)
+        event = PathologyEvent(
+            type="restart",
+            perf_time=seg1.dst_end,
+            from_score_position=clean_traj.score_position_at(y),
+            to_score_position=clean_traj.score_position_at(r),
+        )
+        return ClipPlan(segments=(seg1, seg2), events=(event,))
+
     raise NotImplementedError(f"pathology_type {pathology_type!r} not yet implemented")

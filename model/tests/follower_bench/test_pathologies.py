@@ -81,3 +81,26 @@ def test_build_plan_jump_describes_the_forward_skip() -> None:
     assert event.from_score_position == pytest.approx(clean_traj.score_position_at(seg1.src_end))
     assert event.to_score_position == pytest.approx(clean_traj.score_position_at(seg2.src_start))
     assert event.to_score_position > event.from_score_position
+
+
+def test_build_plan_restart_jumps_back_to_an_earlier_point() -> None:
+    alignment = _alignment()
+    plan = build_plan(alignment, "restart", random.Random(0))
+    clean_traj = from_alignment(alignment)
+    t_min, t_max = alignment.performance_beats[0], alignment.performance_beats[-1]
+
+    assert len(plan.segments) == 2
+    seg1, seg2 = plan.segments
+    assert seg1.src_start == pytest.approx(t_min)
+    assert seg1.dst_start == pytest.approx(t_min)
+    assert seg2.src_start < seg1.src_end
+    assert seg2.dst_start == pytest.approx(seg1.dst_end)
+    assert seg2.src_end == pytest.approx(t_max)
+
+    assert len(plan.events) == 1
+    event = plan.events[0]
+    assert event.type == "restart"
+    assert event.perf_time == pytest.approx(seg1.dst_end)
+    assert event.from_score_position == pytest.approx(clean_traj.score_position_at(seg1.src_end))
+    assert event.to_score_position == pytest.approx(clean_traj.score_position_at(seg2.src_start))
+    assert event.to_score_position < event.from_score_position
