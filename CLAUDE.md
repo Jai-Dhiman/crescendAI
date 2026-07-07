@@ -113,7 +113,6 @@ gh issue close N --reason completed --comment "Closed by <PR# or commit>"
 
 ## Coding Standards
 
-- ALWAYS use model: "Sonnet 4.6" when creating and using subagents for search, reivew, or subagent driven development
 - Explicit exception handling over silent fallbacks
 - No backup files when making fixes
 - No emojis unless explicitly requested
@@ -131,4 +130,4 @@ gh issue close N --reason completed --comment "Closed by <PR# or commit>"
 
 ## Swift in `apps/ios/`
 
-codedb (see global CLAUDE.md) does not index Swift. Use Grep/Read directly for files under `apps/ios/`.
+Use Serena (`mcp__serena__*`, backed by sourcekit-lsp) for Swift symbol lookups; fall back to Grep/Read for files under `apps/ios/` if the language server misbehaves.
