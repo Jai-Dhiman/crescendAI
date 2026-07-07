@@ -7,7 +7,9 @@ import pytest
 
 from follower_bench.asap_alignment import AsapAlignmentMissingError, load_alignment
 from follower_bench.clip_generator import generate
-from follower_bench.trajectory import DISCONTINUITY_EPS_S
+from follower_bench.trajectory import DISCONTINUITY_EPS_S, from_alignment
+
+NON_CLEAN_PATHOLOGY_TYPES = ("repeat", "jump", "restart", "hesitation", "wrong_note", "tempo_swing")
 
 ALIGNED_PIECE = "Liszt/Transcendental_Etudes/1/LuoJ05M.mid"
 UNALIGNED_PIECE = "Beethoven/Piano_Sonatas/16-1/LuoJ03M.mid"
@@ -50,3 +52,19 @@ def test_generate_repeat_is_deterministic_and_has_the_back_jump() -> None:
 def test_generate_propagates_missing_alignment_for_real_unaligned_piece() -> None:
     with pytest.raises(AsapAlignmentMissingError):
         generate(UNALIGNED_PIECE, "clean", seed=1)
+
+
+@pytest.mark.parametrize("pathology_type", NON_CLEAN_PATHOLOGY_TYPES)
+def test_generate_preserves_asap_correspondence_before_the_injected_event(pathology_type: str) -> None:
+    clip = generate(ALIGNED_PIECE, pathology_type, seed=3)
+    alignment = load_alignment(ALIGNED_PIECE)
+    clean_traj = from_alignment(alignment)
+
+    assert len(clip.event_labels) == 1
+    first_event_time = clip.event_labels[0].perf_time
+
+    sample_time = first_event_time / 2.0
+    assert sample_time > alignment.performance_beats[0]
+    assert clip.true_trajectory.score_position_at(sample_time) == pytest.approx(
+        clean_traj.score_position_at(sample_time)
+    )
