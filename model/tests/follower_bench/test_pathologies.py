@@ -194,3 +194,18 @@ def test_build_plan_rejects_unknown_pathology_type() -> None:
     alignment = _alignment()
     with pytest.raises(ValueError, match="Unknown pathology_type"):
         build_plan(alignment, "does_not_exist", random.Random(0))
+
+
+from follower_bench.asap_alignment import ClipAlignment
+
+
+def test_build_plan_rejects_zero_duration_alignment() -> None:
+    degenerate = ClipAlignment(
+        asap_piece="fake/degenerate.mid",
+        performance_midi_path=_alignment().performance_midi_path,
+        score_midi_path=_alignment().score_midi_path,
+        performance_beats=(1.0, 1.0, 1.0, 1.0),
+        midi_score_beats=(0.0, 0.5, 1.0, 1.5),
+    )
+    with pytest.raises(ValueError, match="zero-duration"):
+        build_plan(degenerate, "repeat", random.Random(0))
