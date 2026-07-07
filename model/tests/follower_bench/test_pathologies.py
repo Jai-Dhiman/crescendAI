@@ -8,7 +8,7 @@ import random
 import pytest
 
 from follower_bench.asap_alignment import load_alignment
-from follower_bench.pathologies import PATHOLOGY_TYPES, build_plan
+from follower_bench.pathologies import build_plan
 
 ALIGNED_PIECE = "Liszt/Transcendental_Etudes/1/LuoJ05M.mid"
 
@@ -188,6 +188,7 @@ def test_build_plan_tempo_swing_is_a_contiguous_piecewise_time_ramp() -> None:
     event = plan.events[0]
     assert event.type == "tempo_swing"
     assert event.from_score_position == pytest.approx(event.to_score_position)
+    assert event.from_score_position == pytest.approx(clean_traj.score_position_at(segs[0].src_end))
 
 
 def test_build_plan_rejects_unknown_pathology_type() -> None:
