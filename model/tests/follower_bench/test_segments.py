@@ -61,3 +61,8 @@ def test_apply_note_mutations_shifts_nearest_note_pitch_clamped() -> None:
     assert result[1].pitch == 127  # 126 + 5 clamped to 127
     assert result[2].pitch == 64
     assert result[1].onset == 1.0 and result[1].offset == 1.4 and result[1].velocity == 80
+
+
+def test_apply_note_mutations_raises_on_empty_notes() -> None:
+    with pytest.raises(ValueError, match="empty"):
+        apply_note_mutations([], [NoteMutation(target_onset=1.0, pitch_delta=1)])
