@@ -22,6 +22,7 @@ All work happens inside `model/`. All commands below assume `cd model` first (pa
 ## Task Groups
 
 ```
+Task 0 (solo, blocks everything else): environment setup — ASAP dataset symlink
 Group A (solo):                    Task 1
 Group B (parallel with D, depends on A):  Task 2, Task 3, Task 4      (asap_alignment.py, sequential within group)
 Group D (parallel with B, depends on A):  Task 5, Task 6, Task 7, Task 8   (segments.py, sequential within group)
@@ -31,6 +32,39 @@ Group F (depends on E):            Task 23 .. Task 26                  (clip_gen
 ```
 
 Tasks within the same file are sequential (same-file edits cannot run as parallel subagents). Group B and Group D touch disjoint files (`asap_alignment.py` vs `segments.py`) and have no import dependency on each other, so they run in parallel. Group C imports from both B's and D's modules, so it waits for both.
+
+---
+
+### Task 0: Environment setup — make the ASAP dataset available in this worktree
+
+**Group:** solo, blocks everything else (runs before Task 1 / Group A)
+
+**This is environment setup, not a code artifact.** `model/data/raw` is gitignored (`model/.gitignore` contains `data/raw`), and git worktrees do not inherit untracked/ignored files. Every task from Task 2 onward reads real fixtures from `model/data/raw/asap-dataset/` (`asap_annotations.json` plus the `ALIGNED_PIECE`/`UNALIGNED_PIECE` MIDIs). Without this step those tasks fail with `FileNotFoundError` instead of exercising the behavior under test. There is no TDD test for this step — it is a prerequisite, verified by direct inspection, not a unit test.
+
+The dataset already exists in the primary checkout (the repo root you cloned from, not this worktree) at `model/data/raw/asap-dataset/`. Symlink it into this worktree rather than copying it (ASAP is large; a copy would duplicate that data and drift from the primary copy). The symlink target lives under `model/data/raw/`, which is gitignored, so the symlink itself is never committed.
+
+Resolve the primary checkout's path **dynamically** — do not hardcode `.worktrees/issue-111-clip-generator`, since `/build` may run this plan from a different worktree than the one it was drafted in. `git rev-parse --git-common-dir` always resolves to the `.git` directory inside the primary checkout root, from any worktree, so its parent directory is the primary checkout root:
+
+- [ ] **Step 1: Create the symlink**
+
+```bash
+cd model
+PRIMARY_ROOT="$(dirname "$(git rev-parse --git-common-dir)")"
+mkdir -p data/raw
+ln -s "$PRIMARY_ROOT/model/data/raw/asap-dataset" data/raw/asap-dataset
+```
+
+- [ ] **Step 2: Verify — no test, direct inspection only**
+
+```bash
+cd model
+test -f data/raw/asap-dataset/asap_annotations.json && echo "annotations OK"
+test -f "data/raw/asap-dataset/Liszt/Transcendental_Etudes/1/LuoJ05M.mid" && echo "ALIGNED_PIECE OK"
+test -f "data/raw/asap-dataset/Beethoven/Piano_Sonatas/16-1/LuoJ03M.mid" && echo "UNALIGNED_PIECE OK"
+```
+Expected: all three lines print. If `PRIMARY_ROOT` resolution finds a worktree checkout instead of the primary one (e.g. this plan is being run nested inside another worktree), re-derive it from `git worktree list --porcelain`'s first `worktree <path>` entry (the primary checkout is always listed first and is the only one without a `branch refs/heads/issue-...` line for this feature) and repeat Step 1.
+
+- [ ] **Step 3: No commit** — `data/raw/` is gitignored, so `git status` should show no new tracked files from this step. Do not `git add` anything here.
 
 ---
 
@@ -2173,3 +2207,113 @@ cd model && uv run pytest tests/follower_bench/ -v
 ```
 
 Do not touch `model/data/`, `model/src/piece_id_eval/`, or any other existing package — this plan's diff is scoped entirely to `model/src/follower_bench/`, `model/tests/follower_bench/`, and the single `pyproject.toml` line from Task 1.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise Challenge.** Right problem, direct path. No labeled score-follower data exists; manufacturing it from ASAP's already-verified beat alignment via mechanical splicing (rather than a bespoke per-pathology trajectory model) is the simplest approach that stays exact by construction. Confirmed against the actual repo: `model/data/raw/asap-dataset/asap_annotations.json` exists in the primary checkout, the `Liszt/Transcendental_Etudes/1/LuoJ05M.mid` entry has 92 index-aligned `performance_beats`/`midi_score_beats` pairs with `score_and_performance_aligned: true`, and `Beethoven/Piano_Sonatas/16-1/LuoJ03M.mid` has `score_and_performance_aligned: false` — both "verified facts" in the plan check out exactly (down to the 40.7s / 92-beat claim: `41.742708 - 0.99375 ≈ 40.75s`). No existing code in `model/src/` already does this (checked `piece_id_eval`, `chroma_dtw_eval` — neither builds pathology-injected clips), so this is genuinely new, not a duplicate of existing coverage.
+
+**Scope Check.** Scope matches the spec exactly: MIDI-space only, no audio/AMT/metric/follower/harness, no disk serialization, no batch driver — all correctly deferred to #112-#116 per the design doc's explicit "Not in scope" list and "Alternatives considered" section. 5 new files, 1 modified line — well under the 8-file/2-service complexity-smell threshold. The hardest problem (keeping the spliced note stream and the spliced ground-truth trajectory from drifting apart) is not avoided — it's solved head-on by driving both off the identical `Segment` list, which is the plan's central design decision and is followed through consistently in every task.
+
+**Twelve-Month Alignment.**
+```
+CURRENT STATE                          THIS PLAN                        12-MONTH IDEAL
+No labeled pathology data;         →   follower_bench: deterministic  →  Full EPIC #108 pipeline:
+score-follower work (#108) has         MIDI-space clip generator with     synthetic + eventually real
+no ground truth to build against       exact splice-derived ground         pathology-injected clips,
+                                        truth (7 pathology types)          audio rendering, AMT, metric,
+                                                                            follower, harness — all
+                                                                            consuming this substrate
+```
+Moves cleanly toward the ideal; no tech debt identified that conflicts with it.
+
+**Alternatives Check.** Spec documents 3 alternatives with rejection reasons (synthetic hesitation ramps / probabilistic tempo curves; disk serialization inside `generate()`; a batch corpus-generation script). Satisfies this requirement — no `[QUESTION]` needed.
+
+### Engineering Pass
+
+**Architecture / data flow.**
+```
+generate(asap_piece, pathology_type, seed)
+   ├── load_alignment(asap_piece)         → ClipAlignment (raises AsapAlignmentMissingError / FileNotFoundError)
+   ├── build_plan(alignment, type, rng)   → ClipPlan (Segments + PathologyEvents [+ NoteMutation])
+   ├── _load_perf_notes(path)             → partitura.load_performance_midi(...).note_array()
+   ├── apply_segments + apply_note_mutations → spliced notes
+   └── build_trajectory_from_segments(from_alignment(alignment), plan.segments) → TrueTrajectory
+                                          ↓
+                                    error path: exceptions propagate uncaught to the caller
+                                    (by design — spec's "never fabricate, always raise/skip" contract)
+```
+Verified `partitura.load_performance_midi(...).note_array()` against the real fixture MIDI: field names are exactly `onset_sec, duration_sec, onset_tick, duration_tick, pitch, velocity, track, channel, id` as the plan's "Verified facts" section and Task 23's `_load_perf_notes` claim. Also verified the two time bases the design depends on are actually consistent: the fixture's note onsets (0.87s–42.86s) and its `performance_beats` (0.99s–41.74s) sit in the same absolute-second coordinate system (beats span a subset of the note range, as expected for beat-tracked annotations vs. raw note onsets) — this is the one presumption that could have silently broken the whole design and it holds.
+
+**Module Depth Audit.**
+- `asap_alignment.py` — interface: `load_alignment()` + `ClipAlignment` + `AsapAlignmentMissingError`. Hides JSON parsing, path resolution, 4-way validation. DEEP.
+- `trajectory.py` — interface: `TrueTrajectory` (2 methods) + `from_alignment()` + `build_trajectory_from_segments()`. Hides piecewise-linear interpolation, clamping, and the anchor-carryover/discontinuity-epsilon arithmetic that keeps the trajectory exact through splices. DEEP.
+- `segments.py` — interface: `PerfNote`, `Segment` (+`.dst_end`), `NoteMutation`, `apply_segments()`, `apply_note_mutations()` — 5 exports over ~50 LOC of fairly direct list-comprehension arithmetic. Interface size is close to implementation size. Borderline SHALLOW, but justified: these are the foundational data types every other module imports, and splitting them further would just move the same arithmetic around. Not blocking.
+- `pathologies.py` — interface: `PATHOLOGY_TYPES`, `PathologyEvent`, `ClipPlan`, `build_plan()`. Hides the 7-branch dispatch and seeded splice-point selection (~150 LOC). DEEP.
+- `clip_generator.py` — interface: `SynthClip`, `generate()`. Hides MIDI loading and composition of the other four modules. DEEP.
+
+**Code Quality / Failure Modes.** No catch-all exception handling anywhere — every raised exception is specific (`FileNotFoundError`, `AsapAlignmentMissingError`, `ValueError`) and propagates uncaught, matching CLAUDE.md's "explicit exception handling over silent fallbacks." One silent-failure risk found in `build_plan` (Task 20): the final branch is an un-guarded `else`-by-omission — the code drops straight from the `hesitation`/`wrong_note` checks into tempo_swing-building code with no `if pathology_type == "tempo_swing":` guard, relying on the fact that `PATHOLOGY_TYPES` currently has exactly 7 members and 6 are explicitly matched above it. If an 8th pathology type is ever appended to `PATHOLOGY_TYPES` without adding a matching `if` branch, `build_plan` would silently build a tempo_swing-shaped plan for it instead of raising — a real silent-failure path, mitigated only by the fact that adding a type would presumably come with its own task/test. See `[RISK]` below.
+
+**Test Philosophy.** All tests exercise public interfaces only (`load_alignment`, `apply_segments`/`apply_note_mutations`, `TrueTrajectory` methods, `build_plan`, `generate`) against real committed ASAP fixtures or synthetic-but-direct dataclass construction — no mocking of internal collaborators anywhere, and no shape-only tests (every test asserts on computed values, not just presence/type). This is a real strength and matches the repo's existing `piece_id_eval`/`chroma_dtw_eval` conventions.
+
+**Vertical Slice Audit.** Most tasks are clean one-test/one-implementation/one-commit slices. However, three tasks bundle more implementation than their own task's test covers, with the remaining behavior only locked in as tests several tasks later:
+- Task 2 implements `load_alignment` with 4 validation branches (entry-not-found, not-aligned, insufficient-beats/length-mismatch, missing MIDI files) but its own test only exercises the happy path; the other branches ship with zero test coverage until Tasks 3 and 4.
+- Task 9 implements `score_position_at`, `is_monotonic_non_decreasing`, `from_alignment`, AND `build_trajectory_from_segments` (including the discontinuity-epsilon logic) in one commit, but its own test only exercises `score_position_at`; the other three are untested until Tasks 10-13.
+- Task 14 implements the `PATHOLOGY_TYPES`-membership `ValueError` guard and the zero-duration `ValueError` guard in the same commit as the "clean" branch, but those guards are untested until Tasks 21 and 22.
+
+This is the mirror image of the named "missing implementation" anti-pattern (test now, implementation later) — here it's implementation now, dedicated test later. It doesn't fit either forbidden pattern in the letter (no task defers its own test to a future task; each task's own behavior is tested in that task), but it does mean each of these three commits temporarily ships untested branches, which cuts against CLAUDE.md's "strict TDD, watch-it-fail discipline." Given these are small, deterministic, pure-function guard clauses that are naturally written together and get test coverage within the same task group before Group boundaries close, I'm rating this `[RISK]` rather than `[BLOCKER]` — but flagging it because a stricter reading of the plan skill's vertical-slice rule would require it.
+
+**Test Coverage Gaps.**
+```
+[+] segments.py
+    │
+    ├── apply_segments()
+    │   ├── [TESTED] ★★  identity passthrough — Task 5
+    │   ├── [TESTED] ★★  duplicate a repeated span — Task 6
+    │   └── [GAP]        a segment list with an OMITTED source range (jump/restart's
+    │                     dropped middle) is never directly asserted at the note level —
+    │                     only indirectly implied by the jump/restart trajectory tests
+    │                     and the Task 26 property test, neither of which counts notes
+    │
+    └── apply_note_mutations()
+        ├── [TESTED] ★★  nearest-note substitution, clamped — Task 7
+        └── [TESTED] ★★  empty-notes ValueError — Task 8
+
+[+] trajectory.py
+    └── build_trajectory_from_segments()
+        ├── [TESTED] ★★  identity (clean) — Task 12
+        ├── [TESTED] ★★★ src-discontinuous jump, sharp transition — Task 13
+        └── [GAP]        a DESTINATION-time gap with CONTIGUOUS source (the
+                          hesitation shape) is never directly tested; reading the
+                          `contiguous` check (compares src_start/src_end only) shows
+                          it correctly falls into the "no discontinuity offset" branch,
+                          so the trajectory stays flat through the pause — but this
+                          isn't asserted anywhere, only Task 18's from==to score
+                          position at the event boundary, not mid-pause sampling
+```
+Neither gap is on a critical path (auth/payments/irreversible-operation equivalent) — this is offline synthetic-data generation — so both are `[RISK]`, not `[BLOCKER]`.
+
+**Failure Modes.** Every raised exception is specific and uncaught; no transaction boundaries apply (pure in-memory computation, no writes). Task 22's synthetic degenerate `ClipAlignment` is the only way to hit the zero-duration guard since no real ASAP entry is degenerate — correctly identified in the plan as needing direct construction rather than a real fixture.
+
+**Operational blocker (found by direct verification, not in the plan's own claims).** `model/data/raw` is entirely gitignored in this repo (`model/.gitignore` contains `data/raw`, with only `data/raw/room_irs/README.md` tracked). Git worktrees do not share untracked/ignored files with the primary checkout. I verified directly: the primary checkout at `/Users/jdhiman/Documents/crescendai/model/data/raw/asap-dataset/` has the full ASAP dataset (annotations file + both fixture pieces' MIDI files), but `/Users/jdhiman/Documents/crescendai/.worktrees/issue-111-clip-generator/model/data/raw/` has no `asap-dataset` directory at all. Every task from Task 2 onward depends on real files under this path (`asap_annotations.json`, the fixture MIDIs) — none of them will find it. This is exactly the gotcha already recorded in this project's own memory (`project_worktree_fullstack_gotchas.md`: "copy WASM pkg/ + gitignored data from primary" when running a worktree's full stack) — it was known, and the plan doesn't carry it forward. As written, Task 2's test will fail with `FileNotFoundError: ASAP annotations file not found`, not the plan's stated expected `ModuleNotFoundError`, and every subsequent task fails the same way. `[BLOCKER]`.
+
+### Presumption Inventory
+
+| ASSUMPTION | VERDICT | REASON |
+|---|---|---|
+| ASAP annotations JSON schema (`performance_beats`, `midi_score_beats`, `score_and_performance_aligned`) matches the plan's description | SAFE | Verified directly against the real file for both fixture pieces. |
+| `partitura.load_performance_midi(...).note_array()` field names (`onset_sec`, `duration_sec`, `pitch`, `velocity`, ...) | SAFE | Verified by running it against the real fixture MIDI in this repo's `uv` environment. |
+| Note-stream absolute time base and annotation `performance_beats` absolute time base are the same coordinate system | SAFE | Verified: note onsets (0.87s-42.86s) and performance_beats (0.99s-41.74s) overlap consistently, beats nested inside the note range as expected. |
+| The isolated worktree has the ASAP dataset available under `model/data/raw/asap-dataset/` | RISKY | Verified FALSE — `data/raw` is gitignored and the worktree's copy is empty; no plan step copies it in. |
+| `model/pyproject.toml`'s current `packages` list is exactly what Task 1 shows before the edit | SAFE | Verified byte-for-byte against the real file. |
+| `build_plan`'s final branch will only ever be reached by `tempo_swing` | RISKY | True today (7 types, 6 explicit `if`s), but structurally an un-guarded fallthrough rather than an explicit check — silent misclassification risk if `PATHOLOGY_TYPES` grows without a matching branch. |
+
+### Summary
+[BLOCKER] count: 1
+[RISK]    count: 4
+[QUESTION] count: 0
+
+VERDICT: NEEDS_REWORK — Add an explicit setup step (before Task 2, likely folded into Task 1 or a new "Task 0") that copies or symlinks `model/data/raw/asap-dataset/` from the primary checkout into this worktree, since `data/raw` is gitignored and worktrees do not inherit untracked files — without it every task from Task 2 onward fails on `FileNotFoundError` instead of the plan's expected outcomes. Everything else surfaced ([RISK] items: the implementation-before-dedicated-test pattern in Tasks 2/9/14, the untested note-level omission behavior for jump/restart splices, the untested mid-pause trajectory flatness for hesitation, and the un-guarded tempo_swing fallthrough) is real but non-blocking — safe to proceed once the data-availability fix is made.
