@@ -32,3 +32,8 @@ def test_load_alignment_resolves_real_aligned_piece() -> None:
 def test_load_alignment_rejects_real_unaligned_piece() -> None:
     with pytest.raises(AsapAlignmentMissingError, match="score_and_performance_aligned"):
         load_alignment(UNALIGNED_PIECE)
+
+
+def test_load_alignment_rejects_unknown_piece_key() -> None:
+    with pytest.raises(AsapAlignmentMissingError, match="not found"):
+        load_alignment("Nonexistent/Composer/piece/Nobody99X.mid")
