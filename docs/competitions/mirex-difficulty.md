@@ -1,8 +1,8 @@
 # Task 1 — MIREX 2026 Music Performance Difficulty Prediction
 
-> **Status:** LIVING — Phase 1 kill-gate CLEARED (2026-07-04): symbolic-from-AMT features are render-stable → approach GREENLIT. GH issue: #104 (`Jai-Dhiman/crescendAI`).
-> **Current state:** Feature extractor + Kendall tau-c merged (TDD, green). Phase 1 cross-render stability ran on 28 MAESTRO composers → **all 4 features cross-render Spearman > 0.9 → PASS** (refutes the A4 soundfont-fragility fear for onset/pitch features). See "Phase 1 results" below.
-> **Next step:** Phase 3 (ordinal ranker on PSyllabus/CIPI, then tau-c gate vs trivial baselines) — **UNBLOCKED 2026-07-04**: captains granted dataset access + answered all open Qs (see "Captain answers"). Feature extractor + tau-c reusable now; tau-c parity-locked to the confirmed official scorer.
+> **Status:** LIVING — Phase 1 (render-stability) + Phase 3a (difficulty signal) BOTH CLEARED. Symbolic-from-AMT ranks difficulty and beats trivial baselines. GH issue: #104 (`Jai-Dhiman/crescendAI`).
+> **Current state:** Feature extractor + tau-c + PSyllabus loader merged (TDD, green). Phase 1: all 4 features cross-render ρ>0.9 (2026-07-04). Phase 3a (2026-07-09): per-feature tau-c vs grade on 7,899 PSyllabus MIDIs → **pitch_lz 0.70/0.73, entropy 0.61/0.63** beat the trivial baselines; **polyphony dropped (0.01, no signal); note_count is a strong baseline (0.68/0.70) the ranker must clearly beat.** See "Phase 3a results".
+> **Next step:** Phase 3b — trained composer-disjoint ordinal ranker on {pitch_lz, entropy, range, note_count, + reuse velocity/timing} → integer output; gate = beat note_count-alone tau-c by a clear margin (target ~0.77+).
 
 ## Task spec (verified from the MIREX 2026 task page, last-modified 2026-07-01)
 
@@ -79,6 +79,47 @@ statistics and are correspondingly more robust (all ≥ 0.988 cross-render).
 
 Raw per-segment values: `model/data/results/mirex_phase1_cross_render.json` (primary tree).
 
+## Phase 3a results — does the difficulty signal exist? (RUN 2026-07-09)
+
+**Verdict: SIGNAL CONFIRMED. Pitch-sequence complexity ranks difficulty and beats the trivial baselines → build the ranker (Phase 3b). Drop polyphony.**
+
+Harness: `phase3_feature_signal.py`. Each of the 7,901 PSyllabus whole-piece MIDIs →
+our features + trivial baselines, Kendall tau-c (scipy variant='c') vs the ground-truth
+grade (ps 0..10). 7,899 usable (2 empty/near-empty MIDIs caught + reported, 0 silent
+drops). tau-c reported over the full set and on a held-out **composer-disjoint** test
+split (1,599 pieces, no composer shared with train).
+
+| Signal | tau-c (full, n=7899) | tau-c (composer-disjoint test, n=1599) | kind |
+|---|---|---|---|
+| **pitch_lz_complexity** | **0.701** | **0.732** | feature |
+| pitch_entropy | 0.614 | 0.629 | feature |
+| pitch_range | 0.505 | 0.556 | feature |
+| polyphony | 0.010 | 0.009 | feature — **DEAD** |
+| note_count | 0.675 | 0.703 | baseline |
+| duration | 0.434 | 0.406 | baseline |
+| mean_pitch | 0.017 | 0.047 | baseline |
+
+Findings:
+- **Signal exists and is strong.** pitch_lz_complexity (0.70 / 0.73) is the best single
+  signal and beats the best trivial baseline note_count (0.675 / 0.70). 0.70–0.73 already
+  sits in the published audio-SOTA band (tau-c 0.77–0.78, arXiv:2403.03947) — from ONE
+  feature on clean MIDI. Confirms A6 (pitch-LZ + entropy are the strong pair).
+- **Drop polyphony.** tau-c ≈ 0.01. Verified NOT a bug: its values are well-spread
+  (min 1.18, median 1.85, max 3.02, std 0.46) — it just has no monotonic tie to
+  difficulty. Musically sensible: vertical chord density ≠ difficulty (a grade-2 chordal
+  hymn vs a grade-9 single-line étude invert it). Difficulty lives in the pitch *sequence*,
+  not its thickness. Removed from the difficulty feature set (kept in `difficulty_features`
+  as a general-purpose feature; just not used for difficulty).
+- **note_count is a strong baseline (0.675 / 0.70) — the bar to clear is HIGH, not trivial.**
+  Harder pieces have more notes (length × density), so quantity alone ranks difficulty well.
+  The single-feature margin over it is thin (LZ 0.70 vs 0.675). **Phase 3b must show the
+  combined ranker beats note_count-alone by a clear margin** (target ~0.77+), else the
+  features aren't earning their keep over "count the notes." note_count is a legitimate
+  inference-time feature (count aria-amt notes), so the ranker uses it too — the honest
+  comparison is trained-ranker vs note_count-alone.
+
+Raw table: `model/data/results/mirex_phase3_feature_signal.json`.
+
 ## Chosen approach (post-research)
 
 **Reproduce RubricNet's hand-crafted recipe on our AMT output** — NOT adapt our deep pairwise head (killed: A1). Rationale: hand-crafted features match deep encoders (A7), the strong features are pitch/onset-based = AMT's reliable part (A5/A6), and it's cheap + interpretable. MuQ audio fusion is a deferred differentiation probe (A11).
@@ -88,7 +129,8 @@ Raw per-segment values: `model/data/results/mirex_phase1_cross_render.json` (pri
 - **P0 — Unblock (background, NON-blocking).** Email captains for the 4 still-open items above; file CIPI/PSyllabus Zenodo requests for later real-data reproduction. Does NOT gate P1/P2. Task mechanics already confirmed from the public page.
 - **P1 — De-risk A4 FIRST. ✅ DONE 2026-07-04 — PASS (all 4 features cross-render ρ > 0.9).** See "Phase 1 results" above. Note: MAESTRO audio was NOT local (only MIDI); recovered by streaming the first 30s of each WAV from the remote MAESTRO zip via remotezip range reads (`phase1_cross_render.py`).
 - **P2 — Feature extractor. ✅ DONE 2026-07-04 (TDD, 21 tests).** `difficulty_features.py`: pitch-entropy, pitch-set Lempel-Ziv (LZ76 integer count), polyphony (onset chord-density — offset-free by design), pitch-range. Duration features EXCLUDED. *Deferred (CIPI-gated):* per-feature tau-c on CIPI MIDI vs RubricNet Table 2. NB polyphony is the onset-cluster proxy, not a true concurrent-voice count, precisely to avoid AMT-unreliable offsets.
-- **P3 — Ranker + metric + honest splits.** Kendall tau-c ✅ DONE — Stuart's tau-c (rectangular correction) added to `apps/evals/model/skill_eval/analyze.py` as `kendall_tau_c` (8 TDD tests, swappable for the official scorer). REMAINING (CIPI-gated): ordinal ranker (LightGBM LambdaRank / RubricNet-style) -> difficulty scalar + Acc-n + macro-MSE; two splits (canonical CIPI 60/20/20 AND composer-disjoint); baselines note-count/duration/mean-pitch. *Verify/GATE:* feature-ranker tau-c > trivial-baseline tau-c on BOTH splits AND tau-c ~0.6+.
+- **P3a — Feature-signal preview. ✅ DONE 2026-07-09.** tau-c ✅ (scipy variant='c', parity-locked). PSyllabus loader ✅ (`psyllabus.py`, 7 tests). Per-feature signal measured on 7,899 MIDIs (see "Phase 3a results"): pitch_lz/entropy/range have signal, polyphony DROPPED, note_count is a strong baseline.
+- **P3b — Trained ranker (NEXT).** Ordinal ranker (LightGBM LambdaRank / RubricNet-style) on {pitch_lz, entropy, range, note_count, + reuse velocity/timing from `midi_measures`} → **integer** output (fine grid). Composer-disjoint split (`composer_disjoint_split`, ready). Report tau-c + Acc-n + macro-MSE. *Verify/GATE:* ranker tau-c > note_count-alone tau-c (0.70 test) by a clear margin, target ~0.77+.
 - **P4 — (only if P3 passes) fusion probe.** Frozen MuQ (layers 9-12, 24kHz) as 2nd stream, late-fused with symbolic ranker. *Verify:* fusion > best single stream. The lane to exceed SOTA.
 
 ## Cost & odds
