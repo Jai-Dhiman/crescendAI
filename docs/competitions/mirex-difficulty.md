@@ -1,8 +1,8 @@
 # Task 1 — MIREX 2026 Music Performance Difficulty Prediction
 
-> **Status:** LIVING — Phase 1 (render-stability) + Phase 3a (difficulty signal) BOTH CLEARED. Symbolic-from-AMT ranks difficulty and beats trivial baselines. GH issue: #104 (`Jai-Dhiman/crescendAI`).
-> **Current state:** Feature extractor + tau-c + PSyllabus loader merged (TDD, green). Phase 1: all 4 features cross-render ρ>0.9 (2026-07-04). Phase 3a (2026-07-09): per-feature tau-c vs grade on 7,899 PSyllabus MIDIs → **pitch_lz 0.70/0.73, entropy 0.61/0.63** beat the trivial baselines; **polyphony dropped (0.01, no signal); note_count is a strong baseline (0.68/0.70) the ranker must clearly beat.** See "Phase 3a results".
-> **Next step:** Phase 3b — trained composer-disjoint ordinal ranker on {pitch_lz, entropy, range, note_count, + reuse velocity/timing} → integer output; gate = beat note_count-alone tau-c by a clear margin (target ~0.77+).
+> **Status:** LIVING — Phase 1 (render-stability) + Phase 3a (signal) + **Phase 3b (trained ranker, the #104 commit-gate)** ALL CLEARED. Symbolic-from-AMT ranks difficulty and beats the strong note_count baseline by a clear margin. GH issue: #104 (`Jai-Dhiman/crescendAI`).
+> **Current state:** Feature extractor + tau-c + PSyllabus loader merged (TDD, green). Phase 1: all 4 features cross-render ρ>0.9. Phase 3a: per-feature signal confirmed (pitch_lz 0.70/0.73). **Phase 3b (2026-07-09): trained composer-disjoint 5-fold LGBMRegressor → tau-c 0.7229 ± 0.019, beating note_count-ALONE 0.6703 by +0.053 on every fold (GATE PASS). LambdaRank collapsed to 0.47 (regressor is the head). All 7 features earn their keep.** See "Phase 3b results".
+> **Next step:** #104 commit-gate CLEARED. 0.723 is clear-of-baseline but below the ~0.77 audio-SOTA stretch → closing the gap needs richer symbolic features or the P4 MuQ-audio fusion stream, not more tuning. Decide: fork-then-converge into a submission Docker vs pivot to Track B (#105).
 
 ## Task spec (verified from the MIREX 2026 task page, last-modified 2026-07-01)
 
@@ -120,6 +120,61 @@ Findings:
 
 Raw table: `model/data/results/mirex_phase3_feature_signal.json`.
 
+## Phase 3b results — trained composer-disjoint ranker, the #104 commit-gate (RUN 2026-07-09)
+
+**Verdict: GATE PASS. A trained model beats note_count-ALONE by a clear, every-fold margin (tau-c 0.723 vs 0.670, +0.053). The symbolic-from-AMT stream is worth building. Caveat: the ~0.77 stretch target is NOT met — 0.723 is a solid clear-of-baseline number, not audio-SOTA.**
+
+Harness: `phase3b_ranker.py`. All 7,899 usable PSyllabus whole-piece MIDIs → 7 features
+(the 3 surviving Phase-3a pitch features + note_count + reused velocity/timing proxies from
+`expert_anchor/midi_measures.py`) → **composer-disjoint 5-fold** (sklearn `GroupKFold`,
+groups=composer; no composer straddles a fold — the A9 generalization protocol). Two model
+heads trained per fold; tau-c is scipy `variant='c'`.
+
+| Model | mean tau-c (5-fold) | std | notes |
+|---|---|---|---|
+| **LGBMRegressor (L2)** | **0.7229** | 0.0192 | the winning head; native grade-scale output |
+| LGBMRanker (lambdarank) | 0.4714 | 0.0394 | **collapsed — see below** |
+| note_count-ALONE (baseline) | 0.6703 | 0.0244 | the bar to clear |
+
+Per-fold (regressor beats note_count on **every** fold):
+
+| fold | regressor | note_count | margin | n_test |
+|---|---|---|---|---|
+| 0 | 0.6960 | 0.6312 | +0.065 | 1580 |
+| 1 | 0.7335 | 0.6761 | +0.057 | 1580 |
+| 2 | 0.7035 | 0.6554 | +0.048 | 1580 |
+| 3 | 0.7394 | 0.6907 | +0.049 | 1580 |
+| 4 | 0.7420 | 0.6980 | +0.044 | 1579 |
+
+Regressor grade-scale metrics: **Acc±1 = 0.720, macro-MSE = 2.45** (grade output rounded +
+clamped to 0..10; macro = averaged over grade classes so common grades don't dominate).
+
+Findings:
+- **The regressor wins; LambdaRank collapses (0.47, worse than the baseline).** Cause: one
+  ~6.3k-piece query group with relevance gain 2^grade (≈1024 for the rare grade-10 pieces)
+  makes NDCG obsess over placing the top handful correctly and ignore the bulk — pathological
+  for a *global* all-pairs metric like tau-c. L2 regression spreads error uniformly and ranks
+  the whole ordering. **The mission specced LambdaRank; had we built only that head the gate
+  would have FAILED spuriously.** Running both heads and picking the winner was load-bearing.
+- **All 7 features earn their keep (ablation, composer-disjoint 5-fold):** full 7 → **0.7229**;
+  drop dead `vel_mean` → 0.7207; drop all velocity/timing (pitch+note_count only) → 0.7093.
+  Dropping features monotonically *lowers* tau-c. This overturned a plausible prior: the
+  velocity/timing proxies score badly ALONE (`vel_mean` 0.05, `vel_disp` 0.18, `timing_ioi_cv`
+  0.23 — `vel_mean` is as dead as polyphony was) yet LightGBM extracts weak *interaction*
+  signal from them across 7,899 pieces, and that data volume prevents the overfit that hurt
+  the same features on a 400-piece subset (0.645, margin only +0.011). Keep all 7.
+- **0.723 clears the gate but not the 0.77 audio-SOTA band.** The trained multi-feature model
+  (0.723) barely exceeds Phase-3a's `pitch_lz`-alone number — the extra features add ~+0.02
+  over the single best feature on composer-disjoint generalization. Closing to 0.77 needs
+  richer symbolic features (fingering/hand-span/rhythm-complexity as in RubricNet's ~19) or
+  the P4 MuQ-audio fusion stream — not more tuning of these 4 real features.
+- **Integer-output requirement:** tau-c is rank-based, so the submission emits
+  round(regressor_grade_score × fine-grid); the reported tau-c is on the raw float prediction
+  (identical ranks, no tie-loss). Confirmed compatible with the captain-required integer format.
+
+Raw table + per-fold + importances: `model/data/results/mirex_phase3b_ranker.json`
+(features cached at `mirex_phase3b_features.json` for instant re-runs/ablation).
+
 ## Chosen approach (post-research)
 
 **Reproduce RubricNet's hand-crafted recipe on our AMT output** — NOT adapt our deep pairwise head (killed: A1). Rationale: hand-crafted features match deep encoders (A7), the strong features are pitch/onset-based = AMT's reliable part (A5/A6), and it's cheap + interpretable. MuQ audio fusion is a deferred differentiation probe (A11).
@@ -130,7 +185,7 @@ Raw table: `model/data/results/mirex_phase3_feature_signal.json`.
 - **P1 — De-risk A4 FIRST. ✅ DONE 2026-07-04 — PASS (all 4 features cross-render ρ > 0.9).** See "Phase 1 results" above. Note: MAESTRO audio was NOT local (only MIDI); recovered by streaming the first 30s of each WAV from the remote MAESTRO zip via remotezip range reads (`phase1_cross_render.py`).
 - **P2 — Feature extractor. ✅ DONE 2026-07-04 (TDD, 21 tests).** `difficulty_features.py`: pitch-entropy, pitch-set Lempel-Ziv (LZ76 integer count), polyphony (onset chord-density — offset-free by design), pitch-range. Duration features EXCLUDED. *Deferred (CIPI-gated):* per-feature tau-c on CIPI MIDI vs RubricNet Table 2. NB polyphony is the onset-cluster proxy, not a true concurrent-voice count, precisely to avoid AMT-unreliable offsets.
 - **P3a — Feature-signal preview. ✅ DONE 2026-07-09.** tau-c ✅ (scipy variant='c', parity-locked). PSyllabus loader ✅ (`psyllabus.py`, 7 tests). Per-feature signal measured on 7,899 MIDIs (see "Phase 3a results"): pitch_lz/entropy/range have signal, polyphony DROPPED, note_count is a strong baseline.
-- **P3b — Trained ranker (NEXT).** Ordinal ranker (LightGBM LambdaRank / RubricNet-style) on {pitch_lz, entropy, range, note_count, + reuse velocity/timing from `midi_measures`} → **integer** output (fine grid). Composer-disjoint split (`composer_disjoint_split`, ready). Report tau-c + Acc-n + macro-MSE. *Verify/GATE:* ranker tau-c > note_count-alone tau-c (0.70 test) by a clear margin, target ~0.77+.
+- **P3b — Trained ranker. ✅ DONE 2026-07-09 — GATE PASS.** `phase3b_ranker.py`: 7 features (pitch_lz/entropy/range + note_count + velocity/timing) → composer-disjoint 5-fold GroupKFold → **LGBMRegressor tau-c 0.7229 ± 0.019** beats note_count-ALONE (0.6703) by +0.053 every fold; Acc±1 0.720, macro-MSE 2.45. LGBMRanker/lambdarank tried and LOST (0.47) — regressor is the head. Integer-output compatible. See "Phase 3b results". *Stretch (0.77) NOT met* → richer features or P4 fusion.
 - **P4 — (only if P3 passes) fusion probe.** Frozen MuQ (layers 9-12, 24kHz) as 2nd stream, late-fused with symbolic ranker. *Verify:* fusion > best single stream. The lane to exceed SOTA.
 
 ## Cost & odds
