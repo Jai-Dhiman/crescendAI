@@ -2,7 +2,7 @@
 
 > **Status:** LIVING — Phase 1 (render-stability) + Phase 3a (signal) + **Phase 3b (trained ranker, the #104 commit-gate)** ALL CLEARED. Symbolic-from-AMT ranks difficulty and beats the strong note_count baseline by a clear margin. GH issue: #104 (`Jai-Dhiman/crescendAI`).
 > **Current state:** Feature extractor + tau-c + PSyllabus loader merged (TDD, green). Phase 1: all 4 features cross-render ρ>0.9. Phase 3a: per-feature signal confirmed (pitch_lz 0.70/0.73). **Phase 3b (2026-07-09): trained composer-disjoint 5-fold LGBMRegressor → tau-c 0.7229 ± 0.019, beating note_count-ALONE 0.6703 by +0.053 on every fold (GATE PASS). LambdaRank collapsed to 0.47 (regressor is the head). All 7 features earn their keep.** See "Phase 3b results".
-> **Next step:** #104 commit-gate CLEARED and the symbolic ceiling FOUND (2026-07-12). Richer features lifted tau-c 0.725→**0.764** (Phase 3c), which sits ON the label-noise ceiling (inter-syllabus 0.749–0.767, Phase 3d). Model/objective and data levers are both saturated. The ~0.77 "SOTA" IS the label wall, not a target we're missing. Remaining high-value work is NOT more features — it is measuring the aria-amt-on-audio domain gap (the real submission risk; all pieces have youtube_link + aria-amt is local), then decide submission-Docker vs Track B (#105).
+> **Next step:** #104 commit-gate CLEARED; both walls now MEASURED (2026-07-12). (1) Symbolic ceiling: richer features lifted clean-MIDI tau-c 0.725→**0.764** (Phase 3c), sitting ON the label-noise ceiling (0.749-0.767, Phase 3d); model/data levers saturated. (2) **AMT domain gap ~0.09** (Phase 3e pilot, n=43): our aria-amt on real audio drops tau-c 0.883→0.792 on-subset, projecting full-task ~0.67 deployed — the gap is BIGGER than the whole feature gain and is the dominant submission risk. Decision point: closing the gap is a TRANSCRIBER problem (train-on-AMT-feature augmentation / AMT-robust feature selection / better AMT), not features/model. Options: (a) build the submission Docker accepting ~0.67-0.72, (b) invest in AMT-robustness, (c) pivot to Track B (#105).
 
 ## Task spec (verified from the MIREX 2026 task page, last-modified 2026-07-01)
 
@@ -225,6 +225,39 @@ the clean-MIDI -> aria-amt-on-audio drop (all 7,901 pieces carry a `youtube_link
 
 Raw: `mirex_phase3c_explore.json` (killed mid-greedy; kitchen-sink + per-feature from log),
 `mirex_phase3d_label_ceiling.json`, feature cache `mirex_phase3c_features.json`.
+
+## Phase 3e results — the AMT domain gap (clean MIDI -> aria-amt on audio) (RUN 2026-07-12)
+
+**Verdict: the transcription gap is REAL and ~0.09 tau-c on a 43-piece pilot -- LARGER than the entire feature-engineering gain (+0.041). Deploying on audio is the dominant remaining risk: projected full-task tau-c drops from clean 0.764 toward ~0.67, near the note_count baseline. This is the actual submission number's ceiling, and it is not a feature or label problem -- it is our transcriber.**
+
+Harness: `phase3e_amt_gap.py` (staged: prep -> transcribe -> compare). 44 grade-stratified
+PSyllabus pieces (4/grade, 0..10), 43 downloaded (1 YouTube 403), audio -> our **aria-amt**
+(the same model the MIREX Docker would run) -> the 37-feature superset, vs the same features
+from the clean PSyllabus MIDI. aria-amt caps at 30s/chunk, so each piece was sliced into 30s
+WAV chunks (493 total), transcribed, and stitched back with time offsets (the whole-piece
+aggregation the mission requires). Ran locally on CPU in a dedicated Python-3.11 aria-amt venv
+(the numba-compatible config; 3.13 fails to resolve aria-amt -> librosa -> numba).
+
+| full-clean-trained model, tested on the 43-piece subset | tau-c |
+|---|---|
+| on CLEAN-MIDI features | 0.883 |
+| on our-aria-amt features | 0.792 |
+| **GAP (clean - amt)** | **~0.090** |
+
+aria-amt/clean note-count median ratio = 1.04 (no gross over/under-transcription).
+
+Per-feature transcription survival (clean<->amt Spearman across the 43 pieces):
+- **survives well** (rho > 0.8): n_pitch_classes 0.92, win_pitch_entropy_p90 0.90, pitch_class_entropy 0.88, pitch_entropy 0.88, notes_per_sec 0.85, onset_clusters_per_sec 0.85, interval_entropy 0.84, fast_note_fraction 0.82, pitch_lz 0.81, ioi_lz 0.80.
+- **degrades most** (rho < 0.65): win_interval_mean_p90 0.48, median_ioi 0.53, vel_disp 0.56, vel_range 0.58, frac_chord_span_gt16 0.62, mean_chord_span 0.64. Makes sense: velocity is AMT-*estimated*, and chord-span/fine-window features need precise simultaneity that AMT onset jitter blurs.
+
+Caveats (do NOT over-read the pilot):
+- **n=43 is small** -- the gap is noisy (~+/-0.03-0.05) and the subset's absolute tau-c (clean 0.883) is inflated vs the full task's 0.764 because 4-per-grade stratification is a coarser, easier ranking than the full 7,899. The GAP (same pieces, clean vs amt) is the meaningful quantity, not the absolutes.
+- **The gap conflates transcription error with performance difference** -- the YouTube recording is a *different* performance than the one PSyllabus transcribed, so 0.09 is an UPPER bound on the pure transcription cost. (It is also the realistic deployment condition: MIREX test audio is likewise arbitrary performances.)
+- The robust features (pitch-class entropy, pitch_lz, note density) are the ones to lean on for a submission; the AMT-fragile velocity/chord-span features should be down-weighted or dropped for the audio path.
+
+Implication: a submission built on this stream would likely score ~0.67-0.72, gated FIRST by the aria-amt gap, then by label noise. Closing the gap is a TRANSCRIBER problem (better AMT, train-on-AMT-features augmentation, or AMT-robust feature selection), not a feature-design or model problem.
+
+Raw: `mirex_phase3e_amt_gap.json`. Audio/venv scratch deleted post-run (reproducible via `phase3e_amt_gap.py --stage prep` + the aria-amt venv); results JSON retained.
 
 ## Chosen approach (post-research)
 
