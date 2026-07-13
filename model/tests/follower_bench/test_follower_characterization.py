@@ -36,3 +36,22 @@ def test_follow_fails_to_relock_after_a_jump() -> None:
     estimated_position = estimated.score_position_at(probe_time)
 
     assert abs(estimated_position - true_position) > DIVERGENCE_THRESHOLD_BEATS
+
+
+def test_follow_fails_to_relock_after_a_repeat() -> None:
+    clip = generate(ALIGNED_PIECE, "repeat", seed=13)
+    alignment = load_alignment(ALIGNED_PIECE)
+    score_notes = load_score_notes_from_midi(alignment.score_midi_path)
+
+    result = follow(list(clip.notes), score_notes, ContinuityPrior(skip_penalty=DEFAULT_SKIP_PENALTY))
+    estimated = TrueTrajectory(
+        anchors=tuple((m.perf_time, m.score_position) for m in result.matches)
+    )
+
+    assert len(clip.event_labels) == 1
+    probe_time = clip.event_labels[0].perf_time + PROBE_DELAY_S
+
+    true_position = clip.true_trajectory.score_position_at(probe_time)
+    estimated_position = estimated.score_position_at(probe_time)
+
+    assert abs(estimated_position - true_position) > DIVERGENCE_THRESHOLD_BEATS
