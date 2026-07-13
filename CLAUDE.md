@@ -65,6 +65,16 @@ Uses `just` (justfile) for dev commands. Install: `brew install just`.
 - `docs/specs/` and `docs/plans/` are deleted by `/ship`. Anything that needs to outlive the merge belongs in `docs/apps/`, `docs/model/`, or `docs/architecture.md`.
 - `MEMORY.md` is for **durable facts only** (decisions, preferences, gotchas, architecture). Active-work entries belong in GitHub issues, not memory.
 
+### Data hygiene (untracked disk under `model/data/`)
+
+`model/data/` is gitignored, so large scratch never shows in a diff and accumulates until the disk fills (has happened — a mid-run ENOSPC). Experiments that download or generate large data (audio/WAV, transcriptions, extracted embeddings, throwaway model venvs, feature caches) MUST resolve that data at `/ship` or `/handoff`:
+
+- **Reproducible** (downloaded audio, chunked audio, AMT MIDIs, scratch venvs, feature caches) → **delete**; keep only the small results JSON. Record the regen command in the harness script.
+- **Expensive / non-reproducible** (curated corpora, hours-of-GPU embeddings) → **offload to R2 then delete local**: `rclone copy model/data/<path> r2:crescendai-bucket/<prefix>`, add a `status: offloaded` entry to `model/data/manifests/r2_offload.json` (so `paths.ensure_local()` can rehydrate), then `rm -rf` the local copy. See `model/scripts/r2_offload_step.sh` and the offload table in `model/CLAUDE.md`.
+- Prefer writing large scratch to the session scratchpad dir (auto-isolated) over `model/data/` when it never needs to persist.
+
+`rclone` is configured with an `r2` remote; the bucket is `crescendai-bucket`. `/ship` Step 4.6 and `/handoff` Step 3 enforce this.
+
 ### Labels in use
 
 - `epic:agentic-teacher` — agentic teacher redesign sub-issues
