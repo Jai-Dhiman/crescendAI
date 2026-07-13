@@ -82,3 +82,18 @@ def test_continuity_prior_refuses_a_teleport_that_would_unlock_more_matches() ->
     # stops after the correct local match instead.
     assert len(with_prior_result.matches) == 2
     assert max(with_prior_gaps) == 2.0
+
+
+def test_follow_auto_detects_a_semitone_transpose() -> None:
+    # Score: C4 D4 E4 F4 G4 (60,62,64,65,67) at positions 0..4.
+    score_notes = [ScoreNote(pitch=p, position=float(i)) for i, p in enumerate([60, 62, 64, 65, 67])]
+    # Perf: every note is score pitch + 1 semitone (transpose = +1).
+    perf_notes = [
+        PerfNote(onset=float(i), offset=float(i) + 0.5, pitch=p + 1, velocity=80)
+        for i, p in enumerate([60, 62, 64, 65, 67])
+    ]
+
+    result = follow(perf_notes, score_notes, ContinuityPrior(skip_penalty=0.5))
+
+    assert result.transpose_semitones == 1
+    assert len(result.matches) == 5
