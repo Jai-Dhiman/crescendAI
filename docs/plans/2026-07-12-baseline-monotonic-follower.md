@@ -21,13 +21,30 @@ Group D (sequential, depends on Task 8; all touch the same characterization test
 
 Task 6 depends on Task 7 only in file-ordering (same file, sequential). Group C (Task 8) can be dispatched in parallel with Group B since it touches `score_notes.py` + a new characterization test file, not the golden-fixture test file. Group D must wait for Task 8 (needs `load_score_notes_from_midi`).
 
+**Prerequisite / environment setup (before Group C):** Tasks 8-11 and the
+22 pre-existing #111 tests (`test_asap_alignment.py`, `test_clip_generator.py`,
+`test_pathologies.py`, `test_trajectory.py`) require the ASAP dataset at
+`data/raw/asap-dataset`. It is provisioned as a symlink to the canonical
+`data/raw/asap` clone (content-identical) — already done in this worktree.
+If it is ever absent (e.g. a fresh worktree), recreate it idempotently from
+the repo root:
+
+```bash
+[ -e model/data/raw/asap-dataset ] || ln -s asap model/data/raw/asap-dataset
+```
+
+(Run from repo root; a worktree's `model/data/raw/asap-dataset` symlink
+points at the main checkout's `model/data/raw/asap`, per `model/CLAUDE.md`'s
+offload table.) With the symlink in place, `uv run python -m pytest
+tests/follower_bench/` reports 33 passed (verified in this worktree).
+
 ---
 
 ### Task 1: Golden fixture loader (harness)
 
 **Group:** 0 (harness, must run first)
 
-**Behavior being verified:** Loading the real, already-on-disk WASM fixture (`apps/api/src/wasm/score-analysis/tests/fixtures/bach_inv1_chunk0.json`) through a new follower_bench-native adapter produces exactly 82 `PerfNote`s and 458 `ScoreNote`s, with the documented boundary values (first perf onset 0.70s, last perf onset 14.92s, first score note pitch 60 at position 0.0).
+**Behavior being verified:** Loading the real, already-on-disk WASM fixture (`apps/api/src/wasm/score-analysis/tests/fixtures/bach_inv1_chunk0.json`) through a new follower_bench-native adapter produces exactly 82 `PerfNote`s and 458 `ScoreNote`s, with the documented boundary values (first perf onset 0.70s, last perf onset 14.92s, first score note pitch 60 at position 0.1875 — verified directly against the fixture's `score_bars[0].notes[0].onset_seconds`).
 
 **Interface under test:** `load_golden_fixture_notes(json_path: Path) -> tuple[list[PerfNote], list[ScoreNote]]`
 
@@ -65,7 +82,7 @@ def test_load_golden_fixture_notes_matches_day0_spike_counts() -> None:
     assert perf_notes[-1].onset == pytest.approx(14.92)
 
     assert score_notes[0].pitch == 60
-    assert score_notes[0].position == pytest.approx(0.0)
+    assert score_notes[0].position == pytest.approx(0.1875)
 ```
 
 - [ ] **Step 2: Run test — verify it FAILS**
@@ -1088,8 +1105,233 @@ git commit -m "test(follower-bench): characterize follow()'s expected failure to
 ```bash
 cd model && uv run python -m pytest tests/follower_bench/ -v
 ```
-Expected: all tests pass, including the pre-existing #111 tests
+Expected: with the ASAP dataset symlink in place (see the Prerequisite /
+environment setup note above Group C), the pre-existing #111 suite
 (`test_asap_alignment.py`, `test_clip_generator.py`, `test_package.py`,
-`test_pathologies.py`, `test_segments.py`, `test_trajectory.py`) alongside
-the new files added by this plan (`test_score_notes.py`, `test_follower.py`,
-`test_follower_golden_fixture.py`, `test_follower_characterization.py`).
+`test_pathologies.py`, `test_segments.py`, `test_trajectory.py`) is a
+33-passing baseline in this worktree — confirmed, not merely predicted.
+Tasks 8-11 build on top of that baseline: after this plan's new files
+(`test_score_notes.py`, `test_follower.py`, `test_follower_golden_fixture.py`,
+`test_follower_characterization.py`) are added, the full suite should pass
+in its entirety.
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise Challenge.** Right problem, real pain: epic #108's later work
+(#118 jump-aware, #119 HMM, #120 WASM port) genuinely has no committed
+baseline to extend or regression-test against — the day-0 spike's source
+is lost. This plan is a spec-driven reimplementation against recovered
+acceptance numbers, not gold-plating. No simpler framing beats "reimplement
+the DP against the recovered numbers" — the alternative (skip straight to
+#118's jump-aware follower) would leave #118 without a monotonic baseline
+to diff against, which is exactly the gap this issue exists to close.
+
+**Scope Check.** Matches the spec goal exactly: two new modules
+(`score_notes.py`, `follower.py`), four test files, no drift beyond what
+`docs/specs/2026-07-12-baseline-monotonic-follower-design.md` describes.
+6 files touched, 2 new modules — under the "8 files / 2 services" complexity
+smell threshold. The hardest problem (the continuity-penalized DP
+recurrence and its interaction with the transpose search) is being solved
+directly, not avoided — Tasks 2-5's synthetic tests specifically target the
+DP's trickiest edge case (the free-leading-skip vs. charged-internal-skip
+distinction that prevents "free anchor reset").
+
+**Twelve-Month Alignment.**
+```
+CURRENT STATE                  THIS PLAN                    12-MONTH IDEAL
+follower_bench has #111's  →   adds follow() + a committed →  #118 jump-aware
+clip/pathology harness but     monotonic baseline,             follower extends/
+no follower under test         characterization tests          regression-tests
+(day-0 spike lost)              documenting its limits          against this baseline
+```
+Moves toward the ideal; no tech debt created that conflicts with it — the
+spec explicitly scopes jump-awareness, HMM, and WASM port out to sibling
+issues rather than smuggling them in here.
+
+**Alternatives Check.** The spec does not enumerate alternative DP
+formulations (e.g., a banded/windowed DP, a greedy nearest-pitch matcher)
+kept as `[QUESTION]` per the skill's default — but this is low-stakes since
+the day-0 spike already empirically validated this exact algorithm class
+(symbolic fitting-DP) against the audio-chroma alternative (12x lift), so
+re-litigating algorithm choice here would be redundant with #108's already-
+settled decision.
+
+### Engineering Pass
+
+**Architecture.** Data flow: `load_golden_fixture_notes` /
+`load_score_notes_from_midi` → `follow()` (DP + transpose search) →
+`teleport_gaps()` (post-hoc diagnostic). Traced against the actual fixture
+and actual `partitura` API (see verification below) — the approach matches
+how the code works, not an assumed shape. `follower_bench.segments.PerfNote`
+and `follower_bench.trajectory.TrueTrajectory` are reused unmodified exactly
+as the spec claims (read `segments.py`/`trajectory.py` directly — the field
+names line up with no adapter needed). No security-relevant data flow (no
+SQL/shell/LLM-prompt injection surface — pure numeric DP over local files).
+No N+1/fan-out concerns — the DP is O(N·M) run at most 5 times (bounded,
+82×458 on the golden fixture).
+
+**Module Depth.** `score_notes.py`: 3 exports (`ScoreNote`,
+`load_golden_fixture_notes`, `load_score_notes_from_midi`), hides real
+bar/tick-iteration and partitura note-array indexing — DEEP. `follower.py`:
+6 exports, hides an O(N·M) two-layer DP table + backtracking run per
+transpose candidate — DEEP. Matches the spec's own verdicts; no shallow
+modules introduced.
+
+**Code Quality / Test Philosophy / Vertical Slice.** All tests exercise
+public interfaces only (`follow()`, `teleport_gaps()`, the two loaders) —
+no internal-collaborator mocking, no DP-table inspection. Each task is one
+test → one (possibly no-op, explicitly justified) implementation → one
+commit; Tasks 4/5/7/9/10/11 correctly flag "no implementation change
+expected" as characterization/ablation tests of already-built behavior
+rather than deferred implementation — this is a legitimate TDD pattern here
+(the point of a characterization test is that the code doesn't change), not
+horizontal slicing.
+
+**Verification performed this review (not just re-reading the plan's
+claims):**
+1. Loaded the real fixture directly: confirmed 82 `perf_notes`
+   (onset 0.70s→14.92s) and 458 total `score_bars[*].notes` — matches the
+   plan's counts exactly.
+2. Implemented Task 2-5's exact DP code from the plan's code blocks in a
+   scratch script and ran it against the real fixture with
+   `skip_penalty=0.5`: got `transpose=-1, matches=62, teleport_count(>2.0s)=0,
+   max_gap=0.1875` — an exact match to Task 6's claimed numbers. With
+   `NO_PRIOR`: got `matches=65, teleport_count=5, max_gap=16.6875` — matches
+   Task 7's claimed `16.69` (rounding). **The DP algorithm and its claimed
+   golden-fixture numbers are real, not fabricated or optimistic
+   extrapolation.**
+3. Checked `partitura`'s actual API: `pa.load_score_midi(path)` returns a
+   `partitura.score.Score`, and `Score.note_array()` works directly
+   (verified against a real MIDI file on disk) and does include an
+   `onset_beat` field alongside `pitch` — Task 8's implementation is
+   API-compatible with the installed `partitura` version.
+4. **Checked Task 1's harness test against the actual fixture bytes** —
+   see BLOCKER below.
+5. **Checked whether the ASAP dataset Tasks 8-11 depend on is present
+   locally** — see BLOCKER below.
+
+**Test Coverage.**
+```
+[+] model/src/follower_bench/score_notes.py
+    │
+    ├── load_golden_fixture_notes()
+    │   ├── [TESTED] ★★  counts + boundary values — Task 1 (BUT: one
+    │   │                assertion is factually wrong against real data,
+    │   │                see BLOCKER 1)
+    │   └── [GAP]        FileNotFoundError path — docstring documents it,
+    │                    no test exercises it (RISK, non-critical: this is
+    │                    a research harness, not a user-facing path)
+    │
+    └── load_score_notes_from_midi()
+        └── [TESTED] ★★  real ASAP score, sortedness, boundary — Task 8
+                         (BUT: cannot execute in this environment, see
+                         BLOCKER 2)
+
+[+] model/src/follower_bench/follower.py
+    │
+    ├── follow()
+    │   ├── [TESTED] ★★★ basic match + unmatched — Task 2
+    │   ├── [TESTED] ★★★ continuity-prior teleport refusal — Task 4
+    │   ├── [TESTED] ★★★ transpose auto-detection — Task 5
+    │   ├── [TESTED] ★★★ golden-fixture reproduction — Task 6
+    │   └── [TESTED] ★★★ NO_PRIOR ablation regression — Task 7
+    │
+    └── teleport_gaps()
+        └── [TESTED] ★★  consecutive-match deltas — Task 3
+```
+
+**Failure Modes.** All failure modes here are research-harness-appropriate
+(loud `FileNotFoundError`/`ValueError`/`AsapAlignmentMissingError`, no
+silent fallbacks) and consistent with CLAUDE.md's "explicit exception
+handling over silent fallbacks" rule. No async operations, no database
+writes, no partial-state/rollback concerns — this module is pure,
+deterministic, and stateless.
+
+---
+
+**[BLOCKER 1]** (confidence: 10/10) — Task 1's golden-fixture test asserts
+`score_notes[0].position == pytest.approx(0.0)`, but the real fixture's
+first score note (`score_bars[0].notes[0]`, pitch 60) has
+`onset_seconds: 0.1875`, not `0.0` (verified directly: `python3 -c
+"import json; d=json.load(open('apps/api/src/wasm/score-analysis/tests/
+fixtures/bach_inv1_chunk0.json')); print(d['score_bars'][0]['notes'][0])"`
+→ `{'pitch': 60, ..., 'onset_seconds': 0.1875, ...}`). The pitch assertion
+(60) is correct; the position assertion is not. This test as written will
+FAIL at Step 4 ("verify it PASSES") against real data, contradicting the
+plan's claim that this was "verified this session" (Verification
+Architecture section: "verified this session: 82 perf_notes with onsets
+0.70s-14.92s, 458 total notes... an exact match"). The note-count and
+perf-note-boundary numbers ARE verified correct — only the
+`score_notes[0].position` boundary value is wrong. **Fix:** change the
+assertion to `pytest.approx(0.1875)` in Task 1's test code block before
+building.
+
+**[BLOCKER 2]** (confidence: 9/10) — The ASAP dataset that Task 8's test
+and Tasks 9-11's characterization tests depend on
+(`data/raw/asap-dataset/`, referenced via `asap_alignment.DEFAULT_ASAP_ROOT`)
+is **not present in this worktree** (`ls data/raw/asap-dataset` →
+"No such file or directory"). This is not a new problem this plan
+introduces — running the existing #111 suite right now already shows 22
+pre-existing failures, all `FileNotFoundError: ASAP annotations file not
+found`, across `test_asap_alignment.py`, `test_clip_generator.py`,
+`test_pathologies.py`, `test_trajectory.py` (only 11 pass). But the plan's
+Task 8 test (`load_score_notes_from_midi` against
+`Liszt/Transcendental_Etudes/1/LuoJ05M.mid`) and Tasks 9-11's three
+characterization tests all call `load_alignment()` / `clip_generator.generate()`
+against this same missing data, and the plan's own "Final verification"
+section asserts "all tests pass, including the pre-existing #111 tests" —
+a claim that is currently false and unaddressed anywhere in the plan. Group
+C and Group D (4 of 11 tasks, plus the load-bearing characterization tests
+that are the plan's second acceptance criterion alongside the golden
+fixture) cannot be verified to pass without first acquiring the ASAP
+dataset (`git clone https://github.com/CPJKU/asap-dataset.git` into
+`data/raw/asap-dataset`, per `model/CLAUDE.md`'s offload table's own regen
+instructions for this exact path). This is a plain `git clone`, not the R2
+`rclone` offload path the user explicitly said to leave alone — so
+acquiring it does not conflict with that instruction — but the plan
+neither mentions this prerequisite nor includes a step to acquire it.
+**Fix:** add an explicit setup step (before Group C) that clones ASAP into
+`data/raw/asap-dataset` if absent, or descope Tasks 8-11 to a separate
+follow-up if ASAP acquisition is out of scope for this session, and correct
+the Final Verification section's claim to reflect the current (currently
+false) 22-pre-existing-failure baseline.
+
+**[RISK]** (confidence: 5/10) — Task 8's assumption that `partitura`'s
+`onset_beat` (from `Score.note_array()`) is on the exact same beat scale as
+ASAP's `midi_score_beats` annotations (used by `TrueTrajectory` and
+Tasks 9-11's probe comparisons) is plausible but unverified in this review
+— it could not be checked without the ASAP dataset (BLOCKER 2). If the
+scales differ (e.g., a pickup-measure offset or a different beat-zero
+convention), Tasks 9-11's `DIVERGENCE_THRESHOLD_BEATS` comparisons could
+silently compare mismatched units. Fallback: once ASAP is available, spot-
+check `load_score_notes_from_midi(alignment.score_midi_path)` positions
+against a handful of `alignment.midi_score_beats` anchors before trusting
+the characterization tests' probe logic.
+
+**[OBS]** — The DP recurrence, transpose search, and golden-fixture/
+ablation numbers were independently re-derived from the plan's exact code
+blocks in this review (not merely re-read) and matched the plan's claims
+exactly. This is the strongest part of the plan — the algorithm work is
+sound and the historical-number reproduction claims are genuine, not
+optimistic rounding.
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `score_notes[0].position == 0.0` on the golden fixture | RISKY (confirmed wrong) | First note's `onset_seconds` is 0.1875, verified directly against the fixture (BLOCKER 1) |
+| Golden-fixture DP numbers (62/82, transpose ±1, 0 teleports; NO_PRIOR 65 matches, 5 teleports, max 16.69s) | SAFE | Independently re-implemented and re-run against the real fixture in this review; matched exactly |
+| `partitura.load_score_midi(...).note_array()` returns `onset_beat`/`pitch` fields directly on the `Score` object | SAFE | Verified against a real MIDI file with the installed partitura version |
+| ASAP dataset (`data/raw/asap-dataset`) is present/acquirable for Tasks 8-11 | RISKY (confirmed absent) | Directory does not exist; 22 pre-existing #111 tests already fail for this reason (BLOCKER 2) |
+| `partitura` `onset_beat` units match ASAP's `midi_score_beats` scale | VALIDATE | Could not verify without the ASAP dataset; plausible but unconfirmed (RISK above) |
+| No new user-facing security/scaling surface (pure local-file DP) | SAFE | Read all touched files; no SQL/shell/LLM/network I/O introduced |
+
+### Summary
+
+[BLOCKER] count: 2
+[RISK]    count: 2
+[QUESTION] count: 1
+
+VERDICT: NEEDS_REWORK — (1) Task 1's `score_notes[0].position == pytest.approx(0.0)` assertion is factually wrong against the real fixture (actual value 0.1875) and will fail as written; (2) Tasks 8-11 depend on the ASAP dataset at `data/raw/asap-dataset`, which is absent from this worktree (confirmed: 22 pre-existing #111 tests already fail for the same reason) and the plan has no step to acquire it, making Group C/D unexecutable and the Final Verification section's "all tests pass" claim currently false.
