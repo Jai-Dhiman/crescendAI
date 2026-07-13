@@ -52,7 +52,7 @@ tests/follower_bench/` reports 33 passed (verified in this worktree).
 - Create: `model/src/follower_bench/score_notes.py`
 - Test: `model/tests/follower_bench/test_score_notes.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/follower_bench/test_score_notes.py
@@ -85,14 +85,14 @@ def test_load_golden_fixture_notes_matches_day0_spike_counts() -> None:
     assert score_notes[0].position == pytest.approx(0.1875)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_score_notes.py -v
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'follower_bench.score_notes'` (or `ImportError: cannot import name 'load_golden_fixture_notes'`).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # model/src/follower_bench/score_notes.py
@@ -155,14 +155,14 @@ def load_golden_fixture_notes(json_path: Path) -> tuple[list[PerfNote], list[Sco
     return perf_notes, score_notes
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_score_notes.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/follower_bench/score_notes.py model/tests/follower_bench/test_score_notes.py
@@ -183,7 +183,7 @@ git commit -m "feat(follower-bench): load_golden_fixture_notes reproduces day-0 
 - Create: `model/src/follower_bench/follower.py`
 - Test: `model/tests/follower_bench/test_follower.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/follower_bench/test_follower.py
@@ -222,14 +222,14 @@ def test_follow_matches_notes_in_score_order_and_skips_unmatchable_notes() -> No
     assert score_indices == sorted(score_indices)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower.py -v
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'follower_bench.follower'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # model/src/follower_bench/follower.py
@@ -392,14 +392,14 @@ def follow(
     return best_result
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/follower_bench/follower.py model/tests/follower_bench/test_follower.py
@@ -420,7 +420,7 @@ git commit -m "feat(follower-bench): follow() basic fitting-DP matches notes in 
 - Modify: `model/src/follower_bench/follower.py`
 - Modify: `model/tests/follower_bench/test_follower.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_teleport_gaps_returns_consecutive_match_position_deltas() -> None:
@@ -447,14 +447,14 @@ from follower_bench.follower import EstimatedTrajectory, MatchedNote, teleport_g
 
 (replaces the Task 2 import line, adding `EstimatedTrajectory, MatchedNote, teleport_gaps`)
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower.py -v
 ```
 Expected: FAIL — `ImportError: cannot import name 'teleport_gaps'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Append to `model/src/follower_bench/follower.py`:
 
@@ -472,14 +472,14 @@ def teleport_gaps(trajectory: EstimatedTrajectory) -> list[float]:
     ]
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/follower_bench/follower.py model/tests/follower_bench/test_follower.py
@@ -500,7 +500,7 @@ git commit -m "feat(follower-bench): teleport_gaps reports consecutive-match pos
 - Modify: `model/src/follower_bench/follower.py` (no change expected — this task should pass against Task 2's implementation as written; if it does not, fix `_align_at_transpose` per Step 3 below)
 - Modify: `model/tests/follower_bench/test_follower.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_continuity_prior_refuses_a_teleport_that_would_unlock_more_matches() -> None:
@@ -540,7 +540,7 @@ def test_continuity_prior_refuses_a_teleport_that_would_unlock_more_matches() ->
 
 Add `ContinuityPrior` to the test file's existing `follower_bench.follower` import line (already importing `NO_PRIOR, follow` from Task 2 and `EstimatedTrajectory, MatchedNote, teleport_gaps` from Task 3).
 
-- [ ] **Step 2: Run test — verify it FAILS or confirms the behavior is already correct**
+- [x] **Step 2: Run test — verify it FAILS or confirms the behavior is already correct**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower.py -v
@@ -557,20 +557,20 @@ best_val`) being checked in the wrong order relative to `skip_score`'s
 code exactly (skip_score, then skip_perf, then match, each only
 overwriting the running best on its own comparator).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Only needed if Step 2 failed; the fix is localized to
 `_align_at_transpose`'s transition ordering/comparators in `follower.py`.
 No new public interface.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/follower_bench/follower.py model/tests/follower_bench/test_follower.py
@@ -590,7 +590,7 @@ git commit -m "test(follower-bench): continuity prior refuses a teleport that wo
 **Files:**
 - Modify: `model/tests/follower_bench/test_follower.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_follow_auto_detects_a_semitone_transpose() -> None:
@@ -608,7 +608,7 @@ def test_follow_auto_detects_a_semitone_transpose() -> None:
     assert len(result.matches) == 5
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower.py -v
@@ -621,20 +621,20 @@ and the outer search are correct. Run it to confirm — if it fails, the bug
 is in the outer `follow()` selection loop (`key = (len(result.matches),
 -abs(t))` comparison), not in `_align_at_transpose`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 If Step 2 revealed a bug in the outer search's `key` comparison or
 `transpose_candidates` default, fix it directly in `follow()` in
 `follower.py`. No new public interface.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/follower_bench/follower.py model/tests/follower_bench/test_follower.py
@@ -654,7 +654,7 @@ git commit -m "test(follower-bench): follow() auto-detects a semitone transpose 
 **Files:**
 - Create: `model/tests/follower_bench/test_follower_golden_fixture.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/follower_bench/test_follower_golden_fixture.py
@@ -702,7 +702,7 @@ def test_follow_reproduces_day0_spike_on_golden_fixture() -> None:
     assert teleport_count == 0
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS or confirms the already-verified result**
+- [x] **Step 2: Run test — verify it FAILS or confirms the already-verified result**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower_golden_fixture.py -v
@@ -721,7 +721,7 @@ Expected: PASS, with `DEFAULT_SKIP_PENALTY = 0.5` exactly as set in Task 2
    `EXPECTED_MATCH_COUNT` into a tolerance band without first
    understanding why the verified number changed.
 
-- [ ] **Step 3: Fix only if Step 2 failed**
+- [x] **Step 3: Fix only if Step 2 failed**
 
 If Step 2 failed for reason 1 above, fix `follower.py` to match Task
 2-5's code exactly. If for reason 2, document the actual observed
@@ -729,14 +729,14 @@ values and the adjusted constant with a one-line comment above
 `DEFAULT_SKIP_PENALTY` explaining the deviation from the planning-time
 verification.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower_golden_fixture.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/follower_bench/follower.py model/tests/follower_bench/test_follower_golden_fixture.py
@@ -756,7 +756,7 @@ git commit -m "test(follower-bench): follow() reproduces day-0 spike transpose +
 **Files:**
 - Modify: `model/tests/follower_bench/test_follower_golden_fixture.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_no_prior_regresses_to_multiple_teleports_on_golden_fixture() -> None:
@@ -772,7 +772,7 @@ def test_no_prior_regresses_to_multiple_teleports_on_golden_fixture() -> None:
 
 Add `NO_PRIOR` to the file's existing `follower_bench.follower` import line.
 
-- [ ] **Step 2: Run test — verify it PASSES as verified during planning**
+- [x] **Step 2: Run test — verify it PASSES as verified during planning**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower_golden_fixture.py -v
@@ -789,19 +789,19 @@ skip-cost application in `follower.py` (this would indicate the prior
 isn't wired into the recurrence correctly, a real bug, not a tuning
 issue). Re-diff against Task 2's exact code first.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Only needed if Step 2 failed; the fix is localized to
 `_align_at_transpose`'s skip-transition cost application.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower_golden_fixture.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/follower_bench/follower.py model/tests/follower_bench/test_follower_golden_fixture.py
@@ -822,7 +822,7 @@ git commit -m "test(follower-bench): continuity prior is load-bearing -- NO_PRIO
 - Modify: `model/src/follower_bench/score_notes.py`
 - Modify: `model/tests/follower_bench/test_score_notes.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_load_score_notes_from_midi_matches_real_asap_score() -> None:
@@ -841,14 +841,14 @@ def test_load_score_notes_from_midi_matches_real_asap_score() -> None:
 
 Add the new import (`load_score_notes_from_midi`) to `test_score_notes.py`'s existing import line, alongside `load_golden_fixture_notes`.
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_score_notes.py -v
 ```
 Expected: FAIL — `ImportError: cannot import name 'load_score_notes_from_midi'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Append to `model/src/follower_bench/score_notes.py` (add `import partitura as pa` to the top-of-file imports alongside the existing `json`/`dataclasses`/`pathlib` imports):
 
@@ -866,14 +866,14 @@ def load_score_notes_from_midi(path: Path) -> list[ScoreNote]:
     return notes
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_score_notes.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/follower_bench/score_notes.py model/tests/follower_bench/test_score_notes.py
@@ -893,7 +893,7 @@ git commit -m "feat(follower-bench): load_score_notes_from_midi loads real ASAP 
 **Files:**
 - Create: `model/tests/follower_bench/test_follower_characterization.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/follower_bench/test_follower_characterization.py
@@ -936,7 +936,7 @@ def test_follow_fails_to_relock_after_a_jump() -> None:
     assert abs(estimated_position - true_position) > DIVERGENCE_THRESHOLD_BEATS
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS or confirms the expected failure exists**
+- [x] **Step 2: Run test — verify it FAILS or confirms the expected failure exists**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower_characterization.py -v
@@ -952,21 +952,21 @@ investigation shows the test construction itself is flawed (e.g. the
 jump distance is too small to be a meaningful pathology), never to force
 a pass without understanding why.
 
-- [ ] **Step 3: No implementation change expected**
+- [x] **Step 3: No implementation change expected**
 
 This task only adds a test proving already-implemented (Groups 0/A/B)
 behavior. If Step 2 required an adjustment, document it here; otherwise
 this step is empty by design (the point of a characterization test is
 that the code under test does not change).
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower_characterization.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/tests/follower_bench/test_follower_characterization.py
@@ -986,7 +986,7 @@ git commit -m "test(follower-bench): characterize follow()'s expected failure to
 **Files:**
 - Modify: `model/tests/follower_bench/test_follower_characterization.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_follow_fails_to_relock_after_a_repeat() -> None:
@@ -1008,7 +1008,7 @@ def test_follow_fails_to_relock_after_a_repeat() -> None:
     assert abs(estimated_position - true_position) > DIVERGENCE_THRESHOLD_BEATS
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS or confirms the expected failure exists**
+- [x] **Step 2: Run test — verify it FAILS or confirms the expected failure exists**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower_characterization.py -v
@@ -1018,19 +1018,19 @@ pathology (a backward score jump, structurally impossible for a
 monotonic-by-construction follower to represent — the divergence here
 should be, if anything, easier to trigger than the `jump` case).
 
-- [ ] **Step 3: No implementation change expected**
+- [x] **Step 3: No implementation change expected**
 
 Empty by design unless Step 2 investigation reveals a test construction
 flaw (see Task 9 Step 3's guidance).
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower_characterization.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/tests/follower_bench/test_follower_characterization.py
@@ -1050,7 +1050,7 @@ git commit -m "test(follower-bench): characterize follow()'s expected failure to
 **Files:**
 - Modify: `model/tests/follower_bench/test_follower_characterization.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_follow_fails_to_relock_after_a_restart() -> None:
@@ -1072,26 +1072,26 @@ def test_follow_fails_to_relock_after_a_restart() -> None:
     assert abs(estimated_position - true_position) > DIVERGENCE_THRESHOLD_BEATS
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS or confirms the expected failure exists**
+- [x] **Step 2: Run test — verify it FAILS or confirms the expected failure exists**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower_characterization.py -v
 ```
 Expected: same reasoning as Tasks 9-10, applied to `restart`.
 
-- [ ] **Step 3: No implementation change expected**
+- [x] **Step 3: No implementation change expected**
 
 Empty by design unless Step 2 investigation reveals a test construction
 flaw.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 uv run python -m pytest tests/follower_bench/test_follower_characterization.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/tests/follower_bench/test_follower_characterization.py
