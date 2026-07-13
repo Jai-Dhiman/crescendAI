@@ -10,15 +10,17 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+import partitura as pa
+
 from follower_bench.segments import PerfNote
 
 
 @dataclass(frozen=True)
 class ScoreNote:
     """One score note event: MIDI pitch and its position in the score's
-    own timeline. `position` is an opaque monotonic label -- seconds for
-    a fixed-tempo score render, beats for a partitura-loaded score MIDI --
-    follow() never interprets its unit, only compares/reports it."""
+    own timeline. `position` is in seconds in both cases -- a fixed-tempo
+    score render and a partitura-loaded score MIDI -- follow() never
+    interprets its unit, only compares/reports it."""
     pitch: int
     position: float
 
@@ -55,3 +57,18 @@ def load_golden_fixture_notes(json_path: Path) -> tuple[list[PerfNote], list[Sco
     ]
 
     return perf_notes, score_notes
+
+
+def load_score_notes_from_midi(path: Path) -> list[ScoreNote]:
+    """Load a score MIDI file's notes via partitura, sorted by onset time
+    in seconds. `position` is in score-MIDI seconds -- the same unit as
+    follower_bench.trajectory.TrueTrajectory's anchors (which come from
+    ASAP's midi_score_beats, themselves beat TIMES in score-MIDI seconds)
+    and the same unit as load_golden_fixture_notes' positions -- so
+    characterization tests can compare follow()'s output directly against a
+    clip's true_trajectory."""
+    ppart = pa.load_performance_midi(str(path))
+    note_array = ppart.note_array()
+    notes = [ScoreNote(pitch=int(row["pitch"]), position=float(row["onset_sec"])) for row in note_array]
+    notes.sort(key=lambda n: n.position)
+    return notes

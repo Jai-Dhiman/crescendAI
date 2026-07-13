@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from follower_bench.score_notes import load_golden_fixture_notes
+from follower_bench.score_notes import load_golden_fixture_notes, load_score_notes_from_midi
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 GOLDEN_FIXTURE_PATH = (
@@ -30,3 +30,17 @@ def test_load_golden_fixture_notes_matches_day0_spike_counts() -> None:
 def test_load_golden_fixture_notes_raises_on_missing_file() -> None:
     with pytest.raises(FileNotFoundError):
         load_golden_fixture_notes(Path("/nonexistent/path/does-not-exist.json"))
+
+
+def test_load_score_notes_from_midi_matches_real_asap_score() -> None:
+    from follower_bench.asap_alignment import load_alignment
+    from follower_bench.score_notes import load_score_notes_from_midi
+
+    alignment = load_alignment("Liszt/Transcendental_Etudes/1/LuoJ05M.mid")
+    score_notes = load_score_notes_from_midi(alignment.score_midi_path)
+
+    assert len(score_notes) > 0
+    positions = [n.position for n in score_notes]
+    assert positions == sorted(positions)
+    assert positions[0] >= 0.0
+    assert positions[-1] <= alignment.midi_score_beats[-1] + 1.0
