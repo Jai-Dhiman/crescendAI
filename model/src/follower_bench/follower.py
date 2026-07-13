@@ -155,3 +155,16 @@ def follow(
             best_result, best_key = result, key
     assert best_result is not None
     return best_result
+
+
+def teleport_gaps(trajectory: EstimatedTrajectory) -> list[float]:
+    """Return the score_position delta between each pair of consecutively
+    matched notes (always >= 0, since matches are monotonic non-decreasing
+    in score_index by construction). A large gap indicates the alignment
+    wandered forward to a coincidental match rather than following the
+    performance continuously -- see docs/specs/2026-07-12-baseline-
+    monotonic-follower-design.md for how this is used for grading."""
+    return [
+        b.score_position - a.score_position
+        for a, b in zip(trajectory.matches, trajectory.matches[1:])
+    ]
