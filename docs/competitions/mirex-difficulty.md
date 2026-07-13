@@ -2,7 +2,7 @@
 
 > **Status:** LIVING — Phase 1 (render-stability) + Phase 3a (signal) + **Phase 3b (trained ranker, the #104 commit-gate)** ALL CLEARED. Symbolic-from-AMT ranks difficulty and beats the strong note_count baseline by a clear margin. GH issue: #104 (`Jai-Dhiman/crescendAI`).
 > **Current state:** Feature extractor + tau-c + PSyllabus loader merged (TDD, green). Phase 1: all 4 features cross-render ρ>0.9. Phase 3a: per-feature signal confirmed (pitch_lz 0.70/0.73). **Phase 3b (2026-07-09): trained composer-disjoint 5-fold LGBMRegressor → tau-c 0.7229 ± 0.019, beating note_count-ALONE 0.6703 by +0.053 on every fold (GATE PASS). LambdaRank collapsed to 0.47 (regressor is the head). All 7 features earn their keep.** See "Phase 3b results".
-> **Next step:** #104 commit-gate CLEARED. 0.723 is clear-of-baseline but below the ~0.77 audio-SOTA stretch → closing the gap needs richer symbolic features or the P4 MuQ-audio fusion stream, not more tuning. Decide: fork-then-converge into a submission Docker vs pivot to Track B (#105).
+> **Next step:** #104 commit-gate CLEARED and the symbolic ceiling FOUND (2026-07-12). Richer features lifted tau-c 0.725→**0.764** (Phase 3c), which sits ON the label-noise ceiling (inter-syllabus 0.749–0.767, Phase 3d). Model/objective and data levers are both saturated. The ~0.77 "SOTA" IS the label wall, not a target we're missing. Remaining high-value work is NOT more features — it is measuring the aria-amt-on-audio domain gap (the real submission risk; all pieces have youtube_link + aria-amt is local), then decide submission-Docker vs Track B (#105).
 
 ## Task spec (verified from the MIREX 2026 task page, last-modified 2026-07-01)
 
@@ -174,6 +174,57 @@ Findings:
 
 Raw table + per-fold + importances: `model/data/results/mirex_phase3b_ranker.json`
 (features cached at `mirex_phase3b_features.json` for instant re-runs/ablation).
+
+## Phase 3c/3d results — pushing past 0.723 and finding the wall (RUN 2026-07-12)
+
+**Verdict: the wall is LABEL NOISE, and richer features took us right up to it. Feature engineering lifted tau-c 0.725 -> 0.764 (+0.039); model/objective changes add nothing; the corpus is not the limit. 0.764 sits at the inter-rater agreement ceiling (split-half 0.749 / pairwise 0.767). Further gains are label-noise-limited and low-yield. The one axis still unmeasured is the aria-amt-on-audio domain gap, which is a DROP risk, not headroom.**
+
+An independent adversarial review (codex/gpt-5.6-sol) converged with our own feature list and
+flagged the key blind spot: whole-piece means wash out the hardest passage that often sets the
+grade. We built a 37-feature superset (`phase3c_explore.py`) adding, on the AMT-reliable
+onset/pitch/velocity substrate only: rhythm/density (notes_per_sec, onset_clusters_per_sec,
+median_ioi, IOI entropy/LZ), chord WIDTH (span p90/max + frequency of stretches >7/>12/>16
+semitones — distinct from the dead polyphony DENSITY), melodic intervals/leaps, pitch-class
+entropy, a robust p5-p95 pitch span, and **sliding 5s-window peaks** (p90/max local density,
+complexity, chord-span — codex's "the grade lives in the hardest bar" idea).
+
+**Feature ceiling (composer-disjoint 5-fold, all honest — kitchen-sink uses ALL 37 with no
+per-fold selection, so no selection-bias inflation):**
+
+| Feature set | tau-c |
+|---|---|
+| current-7 (Phase 3b) | 0.7249 |
+| **kitchen-sink (all 37)** | **0.7643** |
+
+**Model/objective lever is exhausted** (37 features, 5-fold): L2 0.7638, L1 0.7622, Huber 0.7652,
+Poisson 0.7630, 2x-trees 0.7635, deeper 0.7629 — all within +/-0.003 (< the 0.018 fold std). No
+loss or capacity change beats ~0.764. (Confirms codex #9: L2 was not leaving tau-c on the table.)
+
+**Not data-gated** (learning curve, current-7, fixed composer-disjoint test): 10% -> 0.684,
+25% -> 0.688, 50% -> 0.705, 75% -> 0.712, 100% -> 0.712. Flat past 75% (+0.0007) — doubling the
+corpus buys nothing on this feature set.
+
+**Label-noise ceiling** (`phase3d_label_ceiling.py`, inter-syllabus agreement on the SAME piece;
+each work's `related_entries` records the grade up to 11 syllabi gave it): only 29% of the 2,501
+multi-graded works get the exact same grade across syllabi, 43% disagree by >=2. The tau-c an
+independent model can hope to reach:
+- pairwise inter-syllabus (predict one arbitrary rater) = **0.767**
+- split-half panel reliability (one independent panel vs another) = **0.749**
+- Spearman-Brown full-panel step-up (reproducibility of the consensus `ps`) = 0.857
+- single-syllabus-vs-`ps` = 0.89, but CIRCULAR (`ps` is derived from that syllabus; AMEB 0.947) — an upper bound only.
+
+**Diagnosis.** We are at the pairwise/split-half ceiling (~0.75-0.77) and at 0.764. The published
+"audio-SOTA 0.77-0.78" is NOT a target we're failing to reach — it is this same label ceiling.
+Theoretical headroom remains from 0.764 toward the ~0.857 full-panel reproducibility, but that
+regime means predicting the consensus BETTER than an individual rater panel does, from a lossy
+audio-derived feature proxy — label-noise-dominated and low-yield. **The dominant gate is label
+noise, confirmed four ways (features saturate, model saturates, data saturates, labels self-
+disagree at ~0.76).** The remaining high-value experiment is NOT more features: it is measuring
+the clean-MIDI -> aria-amt-on-audio drop (all 7,901 pieces carry a `youtube_link`; aria-amt weights
++ server are local), because that gap could move the real submission number more than any feature.
+
+Raw: `mirex_phase3c_explore.json` (killed mid-greedy; kitchen-sink + per-feature from log),
+`mirex_phase3d_label_ceiling.json`, feature cache `mirex_phase3c_features.json`.
 
 ## Chosen approach (post-research)
 
