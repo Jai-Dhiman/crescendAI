@@ -5,7 +5,7 @@ the real-fixture reproduction test and test_follower_characterization.py
 for the required-to-fail pathology tests."""
 from __future__ import annotations
 
-from follower_bench.follower import EstimatedTrajectory, MatchedNote, NO_PRIOR, follow, teleport_gaps
+from follower_bench.follower import ContinuityPrior, EstimatedTrajectory, MatchedNote, NO_PRIOR, follow, teleport_gaps
 from follower_bench.score_notes import ScoreNote
 from follower_bench.segments import PerfNote
 
@@ -47,3 +47,38 @@ def test_teleport_gaps_returns_consecutive_match_position_deltas() -> None:
     gaps = teleport_gaps(trajectory)
 
     assert gaps == [2.0, 18.0]
+
+
+def test_continuity_prior_refuses_a_teleport_that_would_unlock_more_matches() -> None:
+    # Score: idx0 pitch60@0 (true match for perf0), idx1 pitch62@1 (distractor),
+    # idx2 pitch60@2 (the correct, NEARBY match for perf1 -- but nothing useful
+    # follows it), idx3-9 filler pitches perf2/perf3 can't match, idx10
+    # pitch60@10 (a coincidental FAR match for perf1), idx11 pitch61@11 and
+    # idx12 pitch63@12 (the true continuation, immediately after idx10 -- only
+    # reachable by taking the far match first).
+    score_pitches = [60, 62, 60, 70, 71, 72, 73, 74, 75, 76, 60, 61, 63]
+    score_notes = [ScoreNote(pitch=p, position=float(i)) for i, p in enumerate(score_pitches)]
+    perf_notes = [
+        PerfNote(onset=0.0, offset=0.5, pitch=60, velocity=80),
+        PerfNote(onset=1.0, offset=1.5, pitch=60, velocity=80),
+        PerfNote(onset=2.0, offset=2.5, pitch=61, velocity=80),
+        PerfNote(onset=3.0, offset=3.5, pitch=63, velocity=80),
+    ]
+
+    no_prior_result = follow(perf_notes, score_notes, NO_PRIOR, transpose_candidates=(0,))
+    no_prior_gaps = teleport_gaps(no_prior_result)
+
+    prior = ContinuityPrior(skip_penalty=0.5)
+    with_prior_result = follow(perf_notes, score_notes, prior, transpose_candidates=(0,))
+    with_prior_gaps = teleport_gaps(with_prior_result)
+
+    # Without the prior: the DP takes the far trade (4 matches total,
+    # jumping from score_index 2 to score_index 11 -- a gap of 9.0).
+    assert len(no_prior_result.matches) == 4
+    assert max(no_prior_gaps) == 9.0
+
+    # With the prior: the far trade costs more (8 skipped notes * 0.5 =
+    # 4.0) than the 2 extra matches it would unlock (+2.0), so the DP
+    # stops after the correct local match instead.
+    assert len(with_prior_result.matches) == 2
+    assert max(with_prior_gaps) == 2.0
