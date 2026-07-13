@@ -12,7 +12,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from follower_bench.follower import DEFAULT_SKIP_PENALTY, ContinuityPrior, follow, teleport_gaps
+from follower_bench.follower import (
+    DEFAULT_SKIP_PENALTY,
+    NO_PRIOR,
+    ContinuityPrior,
+    follow,
+    teleport_gaps,
+)
 from follower_bench.score_notes import load_golden_fixture_notes
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -41,3 +47,14 @@ def test_follow_reproduces_day0_spike_on_golden_fixture() -> None:
     gaps = teleport_gaps(result)
     teleport_count = sum(1 for g in gaps if g > TELEPORT_THRESHOLD_S)
     assert teleport_count == 0
+
+
+def test_no_prior_regresses_to_multiple_teleports_on_golden_fixture() -> None:
+    perf_notes, score_notes = load_golden_fixture_notes(GOLDEN_FIXTURE_PATH)
+
+    result = follow(perf_notes, score_notes, NO_PRIOR)
+
+    gaps = teleport_gaps(result)
+    teleport_count = sum(1 for g in gaps if g > TELEPORT_THRESHOLD_S)
+    assert teleport_count >= 1
+    assert max(gaps, default=0.0) > 5.0  # same order of magnitude as the day-0 spike's 6.9s max, not exact
