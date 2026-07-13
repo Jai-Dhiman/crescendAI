@@ -6,8 +6,8 @@ a lost implementation and are not independently re-derivable -- see
 docs/specs/2026-07-12-baseline-monotonic-follower-design.md's Open
 Questions for the tolerance rationale. The structural claims (transpose
 auto-detection, zero teleports WITH the prior, at least one teleport
-WITHOUT it) are asserted exactly; the match count is asserted within a
-tolerance band."""
+WITHOUT it) are asserted exactly; the match count is also asserted
+exactly (62), not within a tolerance band."""
 from __future__ import annotations
 
 from pathlib import Path

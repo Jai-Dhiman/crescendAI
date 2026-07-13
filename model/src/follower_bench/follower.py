@@ -87,6 +87,9 @@ def _align_at_transpose(
 
             # leave perf note i unmatched, cost 0
             cand = B[i - 1][j]
+            # >= (not >) intentionally biases ties toward skip_perf over skip_score:
+            # prefer leaving a note unmatched over an equal-cost score skip. This is
+            # load-bearing for teleport refusal -- do not "clean up" to strict >.
             if cand >= best_val:
                 best_val, best_move = cand, ("skip_perf", i - 1, j)
 
@@ -109,6 +112,9 @@ def _align_at_transpose(
     while i > 0:
         move = back[i][j]
         if move is None:
+            # Unreachable by construction: back[i][0] is always assigned for
+            # i >= 1, and the skip_perf `>=` transition guarantees best_move
+            # is always set. Kept as defensive guard against future changes.
             break
         kind, pi, pj = move
         if kind == "match":

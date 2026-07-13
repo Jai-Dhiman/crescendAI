@@ -15,7 +15,7 @@ from follower_bench.score_notes import load_score_notes_from_midi
 from follower_bench.trajectory import TrueTrajectory
 
 ALIGNED_PIECE = "Liszt/Transcendental_Etudes/1/LuoJ05M.mid"
-DIVERGENCE_THRESHOLD_BEATS = 2.0
+DIVERGENCE_THRESHOLD_S = 2.0
 PROBE_DELAY_S = 3.0
 
 
@@ -35,7 +35,7 @@ def test_follow_fails_to_relock_after_a_jump() -> None:
     true_position = clip.true_trajectory.score_position_at(probe_time)
     estimated_position = estimated.score_position_at(probe_time)
 
-    assert abs(estimated_position - true_position) > DIVERGENCE_THRESHOLD_BEATS
+    assert abs(estimated_position - true_position) > DIVERGENCE_THRESHOLD_S
 
 
 def test_follow_fails_to_relock_after_a_repeat() -> None:
@@ -54,7 +54,7 @@ def test_follow_fails_to_relock_after_a_repeat() -> None:
     true_position = clip.true_trajectory.score_position_at(probe_time)
     estimated_position = estimated.score_position_at(probe_time)
 
-    assert abs(estimated_position - true_position) > DIVERGENCE_THRESHOLD_BEATS
+    assert abs(estimated_position - true_position) > DIVERGENCE_THRESHOLD_S
 
 
 def test_follow_fails_to_relock_after_a_restart() -> None:
@@ -76,4 +76,4 @@ def test_follow_fails_to_relock_after_a_restart() -> None:
     true_position = clip.true_trajectory.score_position_at(probe_time)
     estimated_position = estimated.score_position_at(probe_time)
 
-    assert abs(estimated_position - true_position) > DIVERGENCE_THRESHOLD_BEATS
+    assert abs(estimated_position - true_position) > DIVERGENCE_THRESHOLD_S
