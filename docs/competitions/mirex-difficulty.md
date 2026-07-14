@@ -2,7 +2,31 @@
 
 > **Status:** LIVING — Phase 1 (render-stability) + Phase 3a (signal) + **Phase 3b (trained ranker, the #104 commit-gate)** ALL CLEARED. Symbolic-from-AMT ranks difficulty and beats the strong note_count baseline by a clear margin. GH issue: #104 (`Jai-Dhiman/crescendAI`).
 > **Current state:** Feature extractor + tau-c + PSyllabus loader merged (TDD, green). Phase 1: all 4 features cross-render ρ>0.9. Phase 3a: per-feature signal confirmed (pitch_lz 0.70/0.73). **Phase 3b (2026-07-09): trained composer-disjoint 5-fold LGBMRegressor → tau-c 0.7229 ± 0.019, beating note_count-ALONE 0.6703 by +0.053 on every fold (GATE PASS). LambdaRank collapsed to 0.47 (regressor is the head). All 7 features earn their keep.** See "Phase 3b results".
-> **Next step:** #104 commit-gate CLEARED; both walls now MEASURED (2026-07-12). (1) Symbolic ceiling: richer features lifted clean-MIDI tau-c 0.725→**0.764** (Phase 3c), sitting ON the label-noise ceiling (0.749-0.767, Phase 3d); model/data levers saturated. (2) **AMT domain gap ~0.09** (Phase 3e pilot, n=43): our aria-amt on real audio drops tau-c 0.883→0.792 on-subset, projecting full-task ~0.67 deployed — the gap is BIGGER than the whole feature gain and is the dominant submission risk. Decision point: closing the gap is a TRANSCRIBER problem (train-on-AMT-feature augmentation / AMT-robust feature selection / better AMT), not features/model. Options: (a) build the submission Docker accepting ~0.67-0.72, (b) invest in AMT-robustness, (c) pivot to Track B (#105).
+> **Next step (DECIDED 2026-07-13):** run the **P4 MuQ-audio difficulty probe** — the one untested lever that (a) has a higher potential ceiling than symbolic features and (b) operates on the waveform directly, so it BYPASSES the ~0.09 aria-amt gap entirely. It is decisive: if MuQ-audio beats the symbolic 0.764 it is a real edge + dodges the dominant risk; if it also plateaus ~0.76 we have confirmed a genuine ceiling and should ship the simple symbolic version. Timeline: MIREX submissions close **2026-10-01** (~11 weeks) — ample runway for one focused probe before committing. Track B (#105/#107) is the SAFE-submission fallback (system built, ~0.74 head, easy pass, no moat). See "Strategic reassessment".
+>
+> **Prior state (both walls MEASURED 2026-07-12):** (1) Symbolic ceiling: richer features lifted clean-MIDI tau-c 0.725→**0.764** (Phase 3c), model/data levers saturated. (2) **AMT domain gap ~0.09** (Phase 3e pilot n=43): aria-amt on real audio drops tau-c 0.883→0.792 on-subset, projecting full-task ~0.67 deployed.
+
+## Strategic reassessment (2026-07-13) — the "wall" is softer than Phase 3d first read
+
+Phase 3d called 0.764 "at the label-noise wall (0.767)." That over-read a SINGLE ceiling; three
+were conflated:
+- inter-**exam-board** agreement (predict one arbitrary syllabus) = **0.767**;
+- reliability of the **consensus `ps`** we actually train against (Spearman-Brown) = **~0.857**;
+- single-syllabus-vs-`ps` = 0.89 (circular, upper bound only).
+
+We eval against the consensus, whose reliability is ~0.85 — so there is real headroom above 0.764
+that Phase 3d under-weighted. AND the 0.76 is a property of OUR proxy (cross-institution syllabus
+averaging is a noisy label construction); the MIREX private test is a coherent expert annotation
+whose reliability is UNKNOWN and plausibly higher. Counter-evidence it might be a FEATURE (not label)
+wall: RubricNet hits the same ~0.77 on CIPI (different, cleaner labels) — if it were pure PSyllabus
+label noise, cleaner labels should score higher. Symbolic FEATURES may cap ~0.77 regardless of labels.
+
+We cannot distinguish label-wall from feature-wall with symbolic features alone. The MuQ-audio probe
+(P4) is the experiment that separates them AND sidesteps the AMT gap — hence it is now the priority,
+not a deferred "fusion" nicety. NB the parallel: Track B independently hit a ~0.73-0.74 frozen-encoder
+wall too, hinting a broad frozen-encoder plateau in this band.
+
+## Chosen approach (post-research)
 
 ## Task spec (verified from the MIREX 2026 task page, last-modified 2026-07-01)
 
@@ -270,7 +294,7 @@ Raw: `mirex_phase3e_amt_gap.json`. Audio/venv scratch deleted post-run (reproduc
 - **P2 — Feature extractor. ✅ DONE 2026-07-04 (TDD, 21 tests).** `difficulty_features.py`: pitch-entropy, pitch-set Lempel-Ziv (LZ76 integer count), polyphony (onset chord-density — offset-free by design), pitch-range. Duration features EXCLUDED. *Deferred (CIPI-gated):* per-feature tau-c on CIPI MIDI vs RubricNet Table 2. NB polyphony is the onset-cluster proxy, not a true concurrent-voice count, precisely to avoid AMT-unreliable offsets.
 - **P3a — Feature-signal preview. ✅ DONE 2026-07-09.** tau-c ✅ (scipy variant='c', parity-locked). PSyllabus loader ✅ (`psyllabus.py`, 7 tests). Per-feature signal measured on 7,899 MIDIs (see "Phase 3a results"): pitch_lz/entropy/range have signal, polyphony DROPPED, note_count is a strong baseline.
 - **P3b — Trained ranker. ✅ DONE 2026-07-09 — GATE PASS.** `phase3b_ranker.py`: 7 features (pitch_lz/entropy/range + note_count + velocity/timing) → composer-disjoint 5-fold GroupKFold → **LGBMRegressor tau-c 0.7229 ± 0.019** beats note_count-ALONE (0.6703) by +0.053 every fold; Acc±1 0.720, macro-MSE 2.45. LGBMRanker/lambdarank tried and LOST (0.47) — regressor is the head. Integer-output compatible. See "Phase 3b results". *Stretch (0.77) NOT met* → richer features or P4 fusion.
-- **P4 — (only if P3 passes) fusion probe.** Frozen MuQ (layers 9-12, 24kHz) as 2nd stream, late-fused with symbolic ranker. *Verify:* fusion > best single stream. The lane to exceed SOTA.
+- **P4 — MuQ-audio difficulty probe (NEXT — the decided priority, 2026-07-13).** Extract frozen MuQ embeddings (layers 9-12, 24kHz) for the PSyllabus pieces (audio, no aria-amt), train a light head to predict grade, composer-disjoint 5-fold tau-c. *Verify/GATE:* (a) does MuQ-audio tau-c beat the symbolic 0.764? and (b) does it hold on the SAME 43-piece audio subset used in Phase 3e (i.e. no AMT gap, since MuQ reads audio directly)? Beating 0.764 = real edge + AMT-gap bypass → build submission on it. Plateau ~0.76 = confirmed ceiling → ship the simple symbolic version. Then optionally late-fuse MuQ+symbolic. Reuse the MuQ embedding infra (`extract_muq_embeddings.py` / embed server); PSyllabus audio via the `phase3e_amt_gap.py --stage prep` YouTube path.
 
 ## Cost & odds
 
