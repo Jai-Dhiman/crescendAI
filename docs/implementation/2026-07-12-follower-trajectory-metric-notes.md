@@ -42,3 +42,6 @@ Decisions, deviations, and tradeoffs made during build. Read this before running
 - Added AggregateScore + aggregate_by_pathology to metric.py. Commit 0969f23f (note: a transient commit-timing race produced a phantom SHA 4e34d093 in one implementer notification; real HEAD is 0969f23f, verified additive-only, Task 1-5 untouched, 6 passed).
 - Code review NEEDS_FIXES (1 IMPORTANT): the "events exist but none succeeded" branch (relock_success_rate=0.0, median_relock_latency_s=inf) was correct but untested. Fixed with commit 101eac28 adding 2 tests (all-inf group + empty-input -> {}). Full file 8 passed. metric.py untouched by the fix.
 - MINOR left as-is (non-blocking): AggregateScore.median_abs_error_beats is median-of-per-clip-medians (documented in function docstring); field name reused from TrajectoryScore is a defensible aggregation choice.
+
+## Task 7: trajectory_from_matches adapter
+- Added trajectory_from_matches + `from follower_bench.follower import MatchedNote` (type-only, module stays follower-agnostic — no follow/ContinuityPrior/DEFAULT_SKIP_PENALTY import). Commit e23a2f37. Load-bearing sort (unsorted input). No empty guard yet (Task 8). PASS + APPROVED. 9 passed.
