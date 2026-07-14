@@ -25,3 +25,6 @@ Decisions, deviations, and tradeoffs made during build. Read this before running
 
 ## Task 3: inf relock latency (jump)
 - Test-only, green-by-construction. Commit b0285e73. metric.py untouched. Uses "jump" per amendment. PASS + APPROVED.
+
+## Task 4: finite relock latency (repeat, forced reconnect)
+- Test-only, green-by-construction. Commit 4a4ca282. metric.py untouched. Complements Task 3's inf branch. PASS + APPROVED.
