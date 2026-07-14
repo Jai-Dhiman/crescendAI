@@ -37,3 +37,8 @@ Decisions, deviations, and tradeoffs made during build. Read this before running
 
 ## Task 5: false-jump detection (fixed teleport gap)
 - Test-only, green-by-construction. Commit 9d37d5b3. metric.py untouched. Uses teleport_time = t_mid + 1e-3. PASS + APPROVED.
+
+## Task 6: aggregate_by_pathology (+ coverage fix)
+- Added AggregateScore + aggregate_by_pathology to metric.py. Commit 0969f23f (note: a transient commit-timing race produced a phantom SHA 4e34d093 in one implementer notification; real HEAD is 0969f23f, verified additive-only, Task 1-5 untouched, 6 passed).
+- Code review NEEDS_FIXES (1 IMPORTANT): the "events exist but none succeeded" branch (relock_success_rate=0.0, median_relock_latency_s=inf) was correct but untested. Fixed with commit 101eac28 adding 2 tests (all-inf group + empty-input -> {}). Full file 8 passed. metric.py untouched by the fix.
+- MINOR left as-is (non-blocking): AggregateScore.median_abs_error_beats is median-of-per-clip-medians (documented in function docstring); field name reused from TrajectoryScore is a defensible aggregation choice.
