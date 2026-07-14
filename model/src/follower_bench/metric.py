@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from follower_bench.clip_generator import SynthClip
+from follower_bench.follower import MatchedNote
 from follower_bench.trajectory import TrueTrajectory
 
 SAMPLE_HZ = 20.0
@@ -151,3 +152,10 @@ def aggregate_by_pathology(scores: Iterable[TrajectoryScore]) -> dict[str, Aggre
             total_false_jumps=sum(s.false_jump_count for s in group),
         )
     return result
+
+
+def trajectory_from_matches(matches: tuple[MatchedNote, ...]) -> TrueTrajectory:
+    """Adapt a follower's EstimatedTrajectory.matches into a
+    TrueTrajectory, so score_clip stays follower-agnostic."""
+    anchors = tuple(sorted((m.perf_time, m.score_position) for m in matches))
+    return TrueTrajectory(anchors=anchors)

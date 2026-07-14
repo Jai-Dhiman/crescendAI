@@ -10,6 +10,7 @@ import math
 import pytest
 
 from follower_bench.clip_generator import generate
+from follower_bench.follower import MatchedNote
 from follower_bench.metric import (
     FALSE_JUMP_BEATS,
     SAMPLE_HZ,
@@ -17,6 +18,7 @@ from follower_bench.metric import (
     TrajectoryScore,
     aggregate_by_pathology,
     score_clip,
+    trajectory_from_matches,
 )
 from follower_bench.trajectory import TrueTrajectory
 
@@ -206,3 +208,15 @@ def test_aggregate_by_pathology_all_inf_group_reports_zero_success_and_inf_media
 
 def test_aggregate_by_pathology_empty_input_returns_empty_dict() -> None:
     assert aggregate_by_pathology(()) == {}
+
+
+def test_trajectory_from_matches_sorts_anchors_by_perf_time() -> None:
+    matches = (
+        MatchedNote(perf_index=2, score_index=1, perf_time=1.0, score_position=0.6),
+        MatchedNote(perf_index=0, score_index=0, perf_time=0.2, score_position=0.1),
+        MatchedNote(perf_index=1, score_index=2, perf_time=0.5, score_position=0.4),
+    )
+
+    traj = trajectory_from_matches(matches)
+
+    assert traj.anchors == ((0.2, 0.1), (0.5, 0.4), (1.0, 0.6))
