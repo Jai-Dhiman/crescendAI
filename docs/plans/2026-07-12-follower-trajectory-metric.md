@@ -802,3 +802,119 @@ git add model/tests/follower_bench/test_metric.py && git commit -m "test(followe
 - **Automated check:** `cd model && uv run pytest tests/follower_bench/test_metric.py` (and the full `tests/follower_bench/` suite must stay green — verified at the end of Task 8).
 - **Real-follower integration:** verified in Task 8.
 - **Harness:** none needed beyond the tests (per spec — no golden fixture files; #111's `generate()` supplies real clips).
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise Challenge.** Real pain, verified against actual code: `model/tests/follower_bench/test_follower_characterization.py` (read in full) has three near-identical 20-line blocks (`test_follow_fails_to_relock_after_a_jump/repeat/restart`) that hand-roll `TrueTrajectory(anchors=tuple((m.perf_time, m.score_position) for m in result.matches))` and a bespoke "probe at `event.perf_time + 3.0`, assert divergence > 2.0" check. This is exactly the pattern the spec names as needing a reusable scorer for #118. The plan does not touch that file (spec says "no other files change"), so the duplication survives this issue — that's an intentional scope cut, not an oversight, but it means the payoff (retiring the bespoke assertions) is deferred to whenever #118 or a follow-up actually swaps them onto `trajectory_from_matches`/`score_clip`. Worth a one-line follow-up note, not a blocker.
+
+**Existing coverage.** `TrueTrajectory.score_position_at` (interpolate+clamp) and `is_monotonic_non_decreasing` already exist in `trajectory.py` and are correctly reused rather than reinvented — no duplication of interpolation logic.
+
+**Scope Check.** Two files, three new symbols (`TrajectoryScore`, `AggregateScore`, plus the module) — well under the 8-file/2-class complexity trigger. The hardest problem (relock-latency search across an event-relative window, with correct `inf` semantics) is not avoided — Tasks 3/4 specifically target the inf/finite split. No scope drift from the spec: File Changes table, constants, and function signatures in the plan match the spec exactly.
+
+**12-Month Alignment.** Current state: two point solutions (`clip_generator.generate` ground truth, `follower.follow` estimate) with no scorer between them, characterized only by ad hoc test assertions. This plan: adds the scorer as the one seam both #115 (already shipped) and #118 (next) attach to. 12-month ideal: a benchmark harness that runs any follower over #111's clip corpus and reports `aggregate_by_pathology` tables as regression gates. This plan is a direct, non-debt-incurring step toward that — no rework implied for #118 to adopt it.
+
+**Alternatives Check.**
+```
+[QUESTION] — The spec documents no alternative to grid-sampling + score_position_at
+             interpolation (e.g., comparing at each estimate/truth anchor's own event
+             boundary, or a DTW-style alignment cost instead of a fixed-grid position
+             error). The spec's "why sample on a grid" paragraph justifies the chosen
+             approach on its own merits but doesn't record what was rejected. Low
+             stakes here (the approach is standard and well-reasoned), so this is
+             informational, not a blocker.
+```
+
+### Engineering Pass
+
+**Architecture.** Data flow is linear and matches the actual code read in full: `clip_generator.generate()` → `SynthClip.true_trajectory` (verified: `TrueTrajectory` from `trajectory.py`, anchors are `(perf_time_seconds, position)` pairs) + `follower.follow()` → `EstimatedTrajectory.matches` (verified: `MatchedNote(perf_index, score_index, perf_time, score_position)` in `follower.py`) → `trajectory_from_matches()` adapts matches to `TrueTrajectory` → `score_clip()` compares on a grid → `aggregate_by_pathology()` rolls up. No security surface (no user input, no I/O beyond existing MIDI loads already covered by `clip_generator`/`asap_alignment`). No N+1 or fan-out risk — grid size is bounded by `SAMPLE_HZ * clip_duration` (~600-1200 samples for the reference piece), computed once per `score_clip` call.
+
+**Unit-alignment verification (the plan's own Open Question, checked against source, not assumed).** Read `score_notes.py` and `asap_alignment.py` in full: `MatchedNote.score_position` comes from `ScoreNote.position`, and `load_score_notes_from_midi`'s docstring states directly: *"`position` is in score-MIDI seconds — the same unit as `follower_bench.trajectory.TrueTrajectory`'s anchors (which come from ASAP's `midi_score_beats`, themselves beat TIMES in score-MIDI seconds)."* So the plan's assumption holds — but the actual shared unit is **score-MIDI seconds, not beats**, despite the field being named `midi_score_beats` and the plan/spec's constants being named `POSITION_TOL_BEATS` / `FALSE_JUMP_BEATS` and documented as "half a beat" / "one score-beat." This is a pre-existing naming legacy from #111/#115 (not introduced by this plan), and it doesn't cause a functional bug (both sides of every comparison share the same actual unit, so the metric is self-consistent) — but the plan propagates the misleading "beats" framing into new module constants and their docstrings without flagging the mismatch.
+```
+[RISK] (confidence: 7/10) — POSITION_TOL_BEATS=0.5 and FALSE_JUMP_BEATS=1.0 are
+       documented (spec Open Questions) as "half a beat" / "one score-beat," but the
+       actual shared unit between TrueTrajectory anchors and MatchedNote.score_position
+       is score-MIDI seconds (per load_score_notes_from_midi's own docstring), not
+       musical beats. Not a functional bug — self-consistent within the metric — but
+       a future reader tuning POSITION_TOL_BEATS by ear ("half a beat feels right")
+       will be tuning the wrong quantity by an unknown tempo-dependent factor. Fallback:
+       none needed to ship; recommend a one-line comment in metric.py's docstring
+       clarifying the actual unit is score-MIDI-seconds (inherited naming), not beats.
+```
+
+**Grid-step rounding vs. Task 1's latency bound.** `_sample_grid`'s step size is `duration / round(duration * sample_hz)`, which is provably >= `1/sample_hz` whenever rounding goes down (confirmed numerically against the actual `ALIGNED_PIECE`/seed=13 repeat clip: duration=60.522s → step=0.0500185s > 1/20=0.05s exactly). Task 1 asserts `latency < 1.0 / SAMPLE_HZ` with zero slack against that. I ran the actual scenario: measured latency for this exact seed is 0.0137s, ~3.6x under the 0.05s bound — so the test passes comfortably today, this is not a live bug. But the bound is not mathematically guaranteed by construction; it happens to hold for this specific seed/piece by a wide margin.
+```
+[RISK] (confidence: 4/10) — Task 1's `assert 0.0 <= latency < 1.0 / SAMPLE_HZ` has
+       no formal guarantee (grid step can exceed 1/SAMPLE_HZ by ~0.2% due to
+       round()'s rounding-down cases) and empirically passes only because the
+       specific seed=13 event happens to land far from a grid boundary. If a future
+       task changes ALIGNED_PIECE, the seed, or SAMPLE_HZ, this exact assertion could
+       flake without warning. Verified passing today by direct calculation (measured
+       latency 0.0137s vs bound 0.05s) — no action required now. Fallback if it ever
+       flakes: loosen to `latency <= step_size` or `latency < 2.0 / SAMPLE_HZ`.
+```
+
+**Module Depth Audit.**
+- `model/src/follower_bench/metric.py` — Interface: 2 frozen dataclasses (5 and 6 fields) + 3 functions (`score_clip`, `aggregate_by_pathology`, `trajectory_from_matches`), all with narrow signatures. Implementation: ~150 LOC hiding grid construction, interpolation-based error/lock-rate computation, event-relative relock search with inf/finite branching, truth-monotonicity-guarded false-jump detection, and per-group aggregation with correct inf-exclusion semantics. **Verdict: DEEP** — matches the spec's own claim, confirmed by reading the full implementation in the plan.
+- `model/tests/follower_bench/test_metric.py` — test file, depth verdict N/A (correctly not scored as a module).
+
+**Code Quality.** No catch-all exception handling anywhere in the plan. `trajectory_from_matches` raises `ValueError` explicitly on empty input rather than silently producing a broken `TrueTrajectory` — matches CLAUDE.md's "explicit exception handling over silent fallbacks" and "no silent failures" standard. `SAMPLE_HZ`/`POSITION_TOL_BEATS`/`FALSE_JUMP_BEATS` are single-sourced module constants also exposed as `score_clip` kwargs — no magic-number duplication. `from __future__ import annotations`, frozen dataclasses throughout — matches CLAUDE.md style.
+
+**Test Philosophy Audit.** All 9 tests call only `score_clip` / `aggregate_by_pathology` / `trajectory_from_matches` (Task 9 additionally drives the real `follower.follow()`, per spec's explicit design to keep `metric.py` follower-agnostic while still integration-testing it). No internal collaborator is mocked anywhere — every test uses real `clip_generator.generate()` output or hand-built `TrueTrajectory`/`MatchedNote` value objects, consistent with "no mocking of internal collaborators." No shape-only tests: every assertion checks a computed numeric/behavioral outcome (exact error values, lock rate, inf-vs-finite latency, grouping+aggregation math), not merely that a field exists.
+
+**Vertical Slice Audit.** All 9 tasks are single test → single implementation (or explicit no-op justified by prior task's general-purpose code) → single commit. Tasks 2-5 and 7's "no production code change expected" steps are legitimate TDD-green-by-construction slices (each writes one new test against already-general code from Task 1/6/7), not horizontal slicing — each still runs its own red→green→commit cycle rather than batching tests. No task defers implementation to a later task.
+
+**Test Coverage Gaps.**
+```
+[+] model/src/follower_bench/metric.py
+    │
+    ├── score_clip()
+    │   ├── [TESTED] ★★★ identity (perfect score, near-zero relock) — Task 1
+    │   ├── [TESTED] ★★  constant-offset exact error / degraded lock rate — Task 2
+    │   ├── [TESTED] ★★  relock inf when never recovers — Task 3
+    │   ├── [TESTED] ★★  relock finite when recovers — Task 4
+    │   ├── [TESTED] ★★  false-jump detection on monotonic clip — Task 5
+    │   ├── [GAP]        multiple position-changing events in one clip (all current
+    │   │                pathologies inject exactly one event per clip per
+    │   │                pathologies.py's build_plan — confirmed by reading it in
+    │   │                full — so this path is untestable with today's clip
+    │   │                generator, not a gap this plan introduces)
+    │   └── [GAP]        estimate with anchors entirely outside clip's true time span
+    │                    (clamp behavior at both boundaries) — not directly tested,
+    │                    though Task 2's constant-offset case exercises clamped
+    │                    interpolation indirectly
+    │
+    ├── aggregate_by_pathology()
+    │   └── [TESTED] ★★★ grouping + all 5 stat computations incl. inf-exclusion and
+    │                    zero-event vacuous-1.0 case — Task 6
+    │
+    └── trajectory_from_matches()
+        ├── [TESTED] ★★  sorts anchors by perf_time regardless of input order — Task 7
+        └── [TESTED] ★★  raises ValueError on empty matches — Task 8
+
+[+] integration
+    └── [TESTED] ★★★ real follower.follow() -> trajectory_from_matches -> score_clip,
+                     clean clip locks well + repeat clip never relocks — Task 9
+```
+The "multiple events per clip" gap is a real limitation of the *test corpus* (`pathologies.py`'s `build_plan`, confirmed by reading it in full — every pathology type produces exactly one `PathologyEvent`), not a defect in `score_clip`'s implementation, which already loops over `clip.event_labels` generically. Not a blocker: the code path is written generically and will work correctly whenever #111's generator grows multi-event clips.
+
+**Failure Modes.** `trajectory_from_matches`'s empty-input `ValueError` is the only new failure path in the module, and it's loud (raised, not caught) — no silent failures. `score_clip`/`aggregate_by_pathology` have no I/O, no async, no partial-write state — pure functions over immutable inputs, so there is no mid-execution corruption scenario to guard against.
+
+### Presumption Inventory
+
+| ASSUMPTION | VERDICT | REASON |
+|---|---|---|
+| `MatchedNote.score_position` and `TrueTrajectory` anchors share the same unit | SAFE | Verified via `load_score_notes_from_midi`'s docstring in `score_notes.py`: both are score-MIDI seconds. Naming ("beats") is misleading but the values are consistent. |
+| Every pathology type's `SynthClip.event_labels` has exactly one position-changing event (or zero for `clean`) | SAFE | Verified by reading `pathologies.py`'s `build_plan` in full — every branch returns `events=(event,)` or `events=()`. |
+| `follower.follow()`'s `matches` are already perf-time-sorted, making `trajectory_from_matches`'s explicit sort defensive rather than load-bearing | SAFE | Verified by reading `_align_at_transpose` in full — the backtrace walks `i` monotonically decreasing then reverses, so output is already perf-index-ordered. The plan's explicit `sorted(...)` is a correct, harmless safety net, not dead code (protects against a future follower implementation that doesn't guarantee this). |
+| `clip.true_trajectory.anchors` always has >= 2 anchors so `_sample_grid`/`score_position_at` never index into an empty list | SAFE | `asap_alignment.load_alignment` enforces `MIN_BEATS = 4` matched beat pairs before a `ClipAlignment` is ever constructed; `from_alignment` zips those 1:1 into `TrueTrajectory.anchors`. |
+| Task 1's `relock_latencies_s[0] < 1.0 / SAMPLE_HZ` bound holds for the chosen seed/piece | VALIDATE → confirmed SAFE by direct numeric check (measured latency 0.0137s vs. bound 0.05s) | Bound is not formally guaranteed by grid-step math (see RISK above) but empirically holds with wide margin for this exact test case. |
+| `POSITION_TOL_BEATS`/`FALSE_JUMP_BEATS` are meaningfully described as "beats" | RISKY (naming only, not functional) | Actual shared unit is score-MIDI seconds; see RISK finding above. Does not affect correctness, only future tunability/readability. |
+
+### Summary
+[BLOCKER] count: 0
+[RISK]    count: 2
+[QUESTION] count: 1
+
+VERDICT: PROCEED_WITH_CAUTION — (1) POSITION_TOL_BEATS/FALSE_JUMP_BEATS are documented as "beats" but the actual shared unit between TrueTrajectory and MatchedNote is score-MIDI seconds (pre-existing naming legacy, not a functional bug — recommend a one-line docstring clarification in metric.py, not a plan change); (2) Task 1's exact relock-latency bound (`< 1.0/SAMPLE_HZ`) has no formal margin against grid-step rounding, though verified numerically to pass today with wide margin for the chosen seed/piece — watch for flakiness only if ALIGNED_PIECE/seed/SAMPLE_HZ ever changes.
