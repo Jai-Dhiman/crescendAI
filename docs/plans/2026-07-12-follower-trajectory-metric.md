@@ -264,7 +264,7 @@ git add model/tests/follower_bench/test_metric.py && git commit -m "test(followe
 
 **Group:** A (depends on Task 2)
 
-**Behavior being verified:** An estimate that matches truth exactly up to a `repeat` event's `perf_time` and then freezes (never continues) never comes back within `position_tol_beats` of truth — the north-star #115 characterization ("a monotonic follower re-locks after a forward jump but never after a backward repeat/restart"), now expressed as `relock_latencies_s == (math.inf,)`.
+**Behavior being verified:** An estimate that matches truth exactly up to a `jump` event's `perf_time` and then freezes (never continues) never comes back within `position_tol_beats` of truth, because truth leaps forward and never revisits `from_score_position` — expressed as `relock_latencies_s == (math.inf,)`. (BUILD AMENDMENT: `jump`, not `repeat` — see the note below; the shipped follower actually recovers on `repeat`/`restart`.)
 
 **Interface under test:** `score_clip`
 
@@ -275,13 +275,15 @@ git add model/tests/follower_bench/test_metric.py && git commit -m "test(followe
 
 ```python
 def test_score_clip_relock_latency_is_inf_when_estimate_never_recovers() -> None:
-    clip = generate(ALIGNED_PIECE, "repeat", seed=13)
+    clip = generate(ALIGNED_PIECE, "jump", seed=13)
     event = clip.event_labels[0]
     assert event.from_score_position != event.to_score_position
 
     # Freeze the estimate at whatever it was tracking right at the event's
-    # perf_time -- a stand-in for a monotonic follower that cannot
-    # represent the backward jump and simply stops progressing.
+    # perf_time -- a stand-in for a follower that stops progressing at a
+    # forward jump and never catches up to the leapt-ahead score position
+    # (truth moves forward and never revisits from_score_position, so the
+    # frozen estimate never re-enters tolerance -> relock latency is inf).
     frozen_anchors = tuple(
         (t, p) for t, p in clip.true_trajectory.anchors if t <= event.perf_time
     )
@@ -293,7 +295,7 @@ def test_score_clip_relock_latency_is_inf_when_estimate_never_recovers() -> None
     assert score.relock_latencies_s[0] == math.inf
 ```
 
-If seed=13 does not produce a frozen position far enough from the clip's final score position for this to hold (unlikely given `_pick_two_points` places the repeat's `from_score_position` at 55-75% of the piece, well short of the end), try nearby seeds — see `test_follower_characterization.py`'s precedent for empirical seed selection on this exact piece.
+BUILD AMENDMENT (empirically verified during build): the plan originally used `"repeat"` here, on the belief that a monotonic follower "never re-locks after a backward repeat." That belief is FALSE for this metric and this follower — a `repeat`/`restart` clip's truth trajectory replays FORWARD back through the frozen estimate's `from_score_position`, so a frozen estimate registers a (correct) *finite* relock (~14-22s), and the shipped follower genuinely recovers on `repeat`/`restart` in ~5-7s (error decays monotonically to lock and stays locked for ~75% of the post-event region). The pathology that genuinely never recovers under this metric is `"jump"` (a forward skip: truth leaps ahead and never revisits `from_score_position`, so a frozen estimate → `inf` for every seed 1-300 tested; the real follower → `inf` too). Task 3 and Task 9 therefore use `"jump"` for the never-recovers assertion. `metric.py` is correct and unchanged — this is a test-vehicle correction only.
 
 - [ ] **Step 2: Run test — verify it FAILS**
 
@@ -720,11 +722,11 @@ git add model/tests/follower_bench/test_metric.py && git commit -m "test(followe
 
 ---
 
-### Task 9: Real-follower integration — `follower.follow()` scores well on a clean clip and never re-locks on a repeat clip
+### Task 9: Real-follower integration — `follower.follow()` scores well on a clean clip and never re-locks on a jump clip
 
 **Group:** A (depends on Task 8)
 
-**Behavior being verified:** The shipped baseline follower (#115), scored through `trajectory_from_matches` + `score_clip`, reproduces its own characterization as a *number*: a high `lock_rate` on a `clean` clip, and `math.inf` relock latency on a `repeat` clip's backward event. This also empirically validates that `MatchedNote.score_position` and `TrueTrajectory`'s anchors share the same score-beats unit — if they didn't, the `clean`-clip `lock_rate` would collapse, failing this test loudly rather than silently mis-scoring.
+**Behavior being verified:** The shipped baseline follower (#115), scored through `trajectory_from_matches` + `score_clip`, reproduces its own characterization as a *number*: a high `lock_rate` on a `clean` clip, and `math.inf` relock latency on a `jump` clip's forward-skip event (the follower can never catch up to a leapt-ahead score position). This also empirically validates that `MatchedNote.score_position` and `TrueTrajectory`'s anchors share the same score-MIDI-seconds unit — if they didn't, the `clean`-clip `lock_rate` would collapse, failing this test loudly rather than silently mis-scoring. (BUILD AMENDMENT: originally `repeat`; the shipped follower actually recovers on `repeat`/`restart` in ~5-7s, so only `jump` yields the `inf` never-recovers signal.)
 
 **Interface under test:** `score_clip` + `trajectory_from_matches`, driven by the real `follower.follow()`
 
@@ -748,12 +750,17 @@ def test_real_follower_locks_well_on_clean_and_never_relocks_on_repeat() -> None
     clean_score = score_clip(clean_estimated, clean_clip)
     assert clean_score.lock_rate > LOCK_RATE_FLOOR
 
-    repeat_clip = generate(ALIGNED_PIECE, "repeat", seed=13)
-    repeat_result = follow(list(repeat_clip.notes), score_notes, prior)
-    repeat_estimated = trajectory_from_matches(repeat_result.matches)
-    repeat_score = score_clip(repeat_estimated, repeat_clip)
-    assert len(repeat_score.relock_latencies_s) == 1
-    assert repeat_score.relock_latencies_s[0] == math.inf
+    # BUILD AMENDMENT: use "jump" (forward skip) not "repeat" for the
+    # never-recovers case. Empirically the shipped follower DOES recover
+    # after a backward repeat/restart (~5-7s, then stays locked), so a
+    # repeat clip yields a finite relock latency; only a forward jump the
+    # follower can never catch up to yields inf.
+    jump_clip = generate(ALIGNED_PIECE, "jump", seed=1)
+    jump_result = follow(list(jump_clip.notes), score_notes, prior)
+    jump_estimated = trajectory_from_matches(jump_result.matches)
+    jump_score = score_clip(jump_estimated, jump_clip)
+    assert len(jump_score.relock_latencies_s) == 1
+    assert jump_score.relock_latencies_s[0] == math.inf
 ```
 
 Add these imports to the top of `test_metric.py`:

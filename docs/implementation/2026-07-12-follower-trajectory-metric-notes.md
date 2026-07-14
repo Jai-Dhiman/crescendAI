@@ -12,3 +12,13 @@ Decisions, deviations, and tradeoffs made during build. Read this before running
 - Test-only. Commit 2bf7def5. No metric.py change needed (Task 1 score_clip already general).
 - Reviewer mutation-tested (broke lock-rate comparison, confirmed test catches it, reverted). Working tree verified clean afterward.
 - APPROVED. MINOR: the false_jump_count==0 assertion is a sanity check (analytically guaranteed 0 under a monotonic constant shift), not a targeted false-jump test.
+
+## BUILD AMENDMENT (Tasks 3 & 9): plan's "never recovers on repeat" was empirically FALSE
+- Task 3 implementer hit a genuine plan defect (BLOCKED), independently verified by the controller.
+- Finding: the plan assumed a monotonic follower never re-locks after a backward `repeat`/`restart`. FALSE for this metric + shipped follower:
+  - Frozen estimate on `repeat`/`restart` -> FINITE relock (~14-22s), because truth replays FORWARD back through the frozen `from_score_position`. (0/300 seeds gave inf.)
+  - Real follower on `repeat` seed=13 -> lock_rate 0.647, relock 5.47s FINITE; on `restart` seed=1 -> 6.49s FINITE. Error decays monotonically to lock and STAYS locked ~75-78% of the post-event region -> genuine sustained recovery, not a spurious crossing.
+  - `jump` (forward skip) -> inf for BOTH frozen and real follower (truth leaps ahead, never revisits from_score_position). This is the true never-recovers pathology.
+- #115's `test_follow_fails_to_relock_after_a_repeat` only probes divergence at a fixed +3s (transient), consistent with a ~5-7s recovery; it never asserted permanent failure over the full clip. The "fails_to_relock" name is about the 3s window, not the whole clip.
+- RESOLUTION: `metric.py` is CORRECT and unchanged. Amended Tasks 3 & 9 to use `"jump"` instead of `"repeat"` for the inf/never-recovers assertion. Plan file code blocks + prose updated with BUILD AMENDMENT notes. This is a test-vehicle correction only, verified end-to-end before dispatch.
+- Latent metric note (not a bug): relock-latency is a clean never-recover signal for forward-divergence (jump). For backward repeat/restart the follower recovers, so relock is finite — which is the correct, truthful measurement.
