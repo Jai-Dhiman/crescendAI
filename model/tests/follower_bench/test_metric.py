@@ -10,7 +10,7 @@ import math
 import pytest
 
 from follower_bench.clip_generator import generate
-from follower_bench.metric import SAMPLE_HZ, score_clip
+from follower_bench.metric import FALSE_JUMP_BEATS, SAMPLE_HZ, score_clip
 from follower_bench.trajectory import TrueTrajectory
 
 ALIGNED_PIECE = "Liszt/Transcendental_Etudes/1/LuoJ05M.mid"
@@ -90,3 +90,30 @@ def test_score_clip_relock_latency_is_finite_when_estimate_recovers() -> None:
     latency = score.relock_latencies_s[0]
     assert math.isfinite(latency)
     assert latency <= n_seconds + 1.0 / SAMPLE_HZ
+
+
+def test_score_clip_false_jump_count_detects_a_backward_teleport() -> None:
+    clip = generate(ALIGNED_PIECE, "clean", seed=1)
+    true = clip.true_trajectory
+    assert true.is_monotonic_non_decreasing() is True
+
+    mid_idx = len(true.anchors) // 2
+    t_mid, pos_mid = true.anchors[mid_idx]
+    # BUILD AMENDMENT: gap must be < one grid step (1/SAMPLE_HZ = 0.05s) so
+    # the whole backward drop lands in a single consecutive-sample step.
+    # score_position_at is piecewise-LINEAR, so a 0.3s gap (the plan's
+    # original value) smooths the 3.0-unit drop across ~6 grid samples of
+    # ~0.5 each -- below the FALSE_JUMP_BEATS=1.0 per-step threshold, so no
+    # false jump fires. 1e-3 concentrates it into one step (verified: dt in
+    # {1e-6, 1e-3, 0.025} all yield count>=1; 0.3 yields 0). metric.py is
+    # correct and unchanged -- this is a test-input correction only.
+    teleport_time = t_mid + 1e-3
+    teleport_pos = pos_mid - (FALSE_JUMP_BEATS + 2.0)
+
+    estimated = TrueTrajectory(
+        anchors=true.anchors[: mid_idx + 1] + ((teleport_time, teleport_pos),)
+    )
+
+    score = score_clip(estimated, clip)
+
+    assert score.false_jump_count >= 1
