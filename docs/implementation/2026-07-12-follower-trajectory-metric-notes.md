@@ -34,3 +34,6 @@ Decisions, deviations, and tradeoffs made during build. Read this before running
 - Plan placed the backward teleport anchor at t_mid + 0.3s. But score_position_at is piecewise-LINEAR: over 0.3s (~6 grid samples at 0.05s) the 3.0-unit drop smooths to ~0.5/step, all below the FALSE_JUMP_BEATS=1.0 per-consecutive-sample threshold -> false_jump_count=0.
 - Verified: dt=0.3 -> 0; dt in {1e-6, 1e-3, 0.025} -> count>=1 (max(3f,3(1-f))>=1.5>1.0 for any grid alignment).
 - RESOLUTION: metric.py CORRECT and unchanged. Amended Task 5 test to use teleport_time = t_mid + 1e-3 (< one grid step) so the drop is a single step. Test-input correction only.
+
+## Task 5: false-jump detection (fixed teleport gap)
+- Test-only, green-by-construction. Commit 9d37d5b3. metric.py untouched. Uses teleport_time = t_mid + 1e-3. PASS + APPROVED.
