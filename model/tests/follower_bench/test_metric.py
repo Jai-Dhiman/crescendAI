@@ -9,8 +9,9 @@ import math
 
 import pytest
 
+from follower_bench.asap_alignment import load_alignment
 from follower_bench.clip_generator import generate
-from follower_bench.follower import MatchedNote
+from follower_bench.follower import DEFAULT_SKIP_PENALTY, ContinuityPrior, MatchedNote, follow
 from follower_bench.metric import (
     FALSE_JUMP_BEATS,
     SAMPLE_HZ,
@@ -20,6 +21,7 @@ from follower_bench.metric import (
     score_clip,
     trajectory_from_matches,
 )
+from follower_bench.score_notes import load_score_notes_from_midi
 from follower_bench.trajectory import TrueTrajectory
 
 ALIGNED_PIECE = "Liszt/Transcendental_Etudes/1/LuoJ05M.mid"
@@ -225,3 +227,25 @@ def test_trajectory_from_matches_sorts_anchors_by_perf_time() -> None:
 def test_trajectory_from_matches_raises_on_empty_matches() -> None:
     with pytest.raises(ValueError):
         trajectory_from_matches(())
+
+
+LOCK_RATE_FLOOR = 0.5
+
+
+def test_real_follower_locks_well_on_clean_and_never_relocks_on_jump() -> None:
+    alignment = load_alignment(ALIGNED_PIECE)
+    score_notes = load_score_notes_from_midi(alignment.score_midi_path)
+    prior = ContinuityPrior(skip_penalty=DEFAULT_SKIP_PENALTY)
+
+    clean_clip = generate(ALIGNED_PIECE, "clean", seed=1)
+    clean_result = follow(list(clean_clip.notes), score_notes, prior)
+    clean_estimated = trajectory_from_matches(clean_result.matches)
+    clean_score = score_clip(clean_estimated, clean_clip)
+    assert clean_score.lock_rate > LOCK_RATE_FLOOR
+
+    jump_clip = generate(ALIGNED_PIECE, "jump", seed=1)
+    jump_result = follow(list(jump_clip.notes), score_notes, prior)
+    jump_estimated = trajectory_from_matches(jump_result.matches)
+    jump_score = score_clip(jump_estimated, jump_clip)
+    assert len(jump_score.relock_latencies_s) == 1
+    assert jump_score.relock_latencies_s[0] == math.inf
