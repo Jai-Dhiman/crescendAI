@@ -10,7 +10,14 @@ import math
 import pytest
 
 from follower_bench.clip_generator import generate
-from follower_bench.metric import FALSE_JUMP_BEATS, SAMPLE_HZ, score_clip
+from follower_bench.metric import (
+    FALSE_JUMP_BEATS,
+    SAMPLE_HZ,
+    AggregateScore,
+    TrajectoryScore,
+    aggregate_by_pathology,
+    score_clip,
+)
 from follower_bench.trajectory import TrueTrajectory
 
 ALIGNED_PIECE = "Liszt/Transcendental_Etudes/1/LuoJ05M.mid"
@@ -117,3 +124,52 @@ def test_score_clip_false_jump_count_detects_a_backward_teleport() -> None:
     score = score_clip(estimated, clip)
 
     assert score.false_jump_count >= 1
+
+
+def test_aggregate_by_pathology_groups_scores_and_computes_stats() -> None:
+    repeat_scores = (
+        TrajectoryScore(
+            pathology_type="repeat",
+            median_abs_error_beats=0.1,
+            max_abs_error_beats=0.3,
+            lock_rate=0.8,
+            relock_latencies_s=(2.0,),
+            false_jump_count=0,
+        ),
+        TrajectoryScore(
+            pathology_type="repeat",
+            median_abs_error_beats=0.3,
+            max_abs_error_beats=0.5,
+            lock_rate=0.6,
+            relock_latencies_s=(math.inf,),
+            false_jump_count=1,
+        ),
+    )
+    clean_score = TrajectoryScore(
+        pathology_type="clean",
+        median_abs_error_beats=0.0,
+        max_abs_error_beats=0.0,
+        lock_rate=1.0,
+        relock_latencies_s=(),
+        false_jump_count=0,
+    )
+
+    result = aggregate_by_pathology(repeat_scores + (clean_score,))
+
+    assert set(result.keys()) == {"repeat", "clean"}
+
+    repeat_agg = result["repeat"]
+    assert repeat_agg.n_clips == 2
+    assert repeat_agg.median_abs_error_beats == pytest.approx(0.2)
+    assert repeat_agg.mean_lock_rate == pytest.approx(0.7)
+    assert repeat_agg.relock_success_rate == pytest.approx(0.5)
+    assert repeat_agg.median_relock_latency_s == pytest.approx(2.0)
+    assert repeat_agg.total_false_jumps == 1
+
+    clean_agg = result["clean"]
+    assert clean_agg.n_clips == 1
+    assert clean_agg.median_abs_error_beats == pytest.approx(0.0)
+    assert clean_agg.mean_lock_rate == pytest.approx(1.0)
+    assert clean_agg.relock_success_rate == pytest.approx(1.0)
+    assert clean_agg.median_relock_latency_s == pytest.approx(0.0)
+    assert clean_agg.total_false_jumps == 0

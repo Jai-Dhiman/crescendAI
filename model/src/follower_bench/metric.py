@@ -23,6 +23,7 @@ from __future__ import annotations
 import math
 import statistics
 from dataclasses import dataclass
+from typing import Iterable
 
 from follower_bench.clip_generator import SynthClip
 from follower_bench.trajectory import TrueTrajectory
@@ -104,3 +105,49 @@ def score_clip(
         relock_latencies_s=tuple(relock_latencies_s),
         false_jump_count=false_jump_count,
     )
+
+
+@dataclass(frozen=True)
+class AggregateScore:
+    """Per-pathology-type rollup of TrajectoryScores."""
+    n_clips: int
+    median_abs_error_beats: float
+    mean_lock_rate: float
+    relock_success_rate: float
+    median_relock_latency_s: float
+    total_false_jumps: int
+
+
+def aggregate_by_pathology(scores: Iterable[TrajectoryScore]) -> dict[str, AggregateScore]:
+    """Group scores by pathology_type and compute per-group stats.
+    relock_success_rate is 1.0 for a group with zero position-changing
+    events (vacuously perfect); median_relock_latency_s excludes
+    math.inf entries, is 0.0 for a group with zero events, and is
+    math.inf for a group that had events but none succeeded."""
+    by_type: dict[str, list[TrajectoryScore]] = {}
+    for score in scores:
+        by_type.setdefault(score.pathology_type, []).append(score)
+
+    result: dict[str, AggregateScore] = {}
+    for pathology_type, group in by_type.items():
+        all_latencies = [lat for s in group for lat in s.relock_latencies_s]
+        finite_latencies = [lat for lat in all_latencies if math.isfinite(lat)]
+
+        if not all_latencies:
+            relock_success_rate = 1.0
+            median_relock_latency_s = 0.0
+        else:
+            relock_success_rate = len(finite_latencies) / len(all_latencies)
+            median_relock_latency_s = (
+                statistics.median(finite_latencies) if finite_latencies else math.inf
+            )
+
+        result[pathology_type] = AggregateScore(
+            n_clips=len(group),
+            median_abs_error_beats=statistics.median(s.median_abs_error_beats for s in group),
+            mean_lock_rate=statistics.mean(s.lock_rate for s in group),
+            relock_success_rate=relock_success_rate,
+            median_relock_latency_s=median_relock_latency_s,
+            total_false_jumps=sum(s.false_jump_count for s in group),
+        )
+    return result
