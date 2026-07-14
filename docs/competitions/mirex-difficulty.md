@@ -283,6 +283,63 @@ Implication: a submission built on this stream would likely score ~0.67-0.72, ga
 
 Raw: `mirex_phase3e_amt_gap.json`. Audio/venv scratch deleted post-run (reproducible via `phase3e_amt_gap.py --stage prep` + the aria-amt venv); results JSON retained.
 
+## Phase 4 results — the MuQ-audio difficulty probe (RUN 2026-07-13)
+
+**Verdict: NO audio edge. A frozen MuQ linear probe TIES note-count and LOSES to symbolic — including the transcribed aria-amt path it was meant to beat. The decisive P4 experiment settles the audio-vs-symbolic question against audio. Ship the symbolic version; do not pursue a MuQ submission.**
+
+Harness: `phase4_muq_probe.py` (staged prep -> embed -> eval). The exact Phase-3e 44-piece
+grade-stratified set (so the aria-amt transcriptions line up for a true like-for-like) ->
+YouTube audio (24kHz mono, all 44 downloaded) -> **frozen MuQ-large-msd-iter, layers 9-12
+mean-aggregated** -> [T, 1024] frame embeddings -> pooled over time to a piece vector (mean, or
+mean+std concat = 2048-d). Light head = **RidgeCV, the SAME head for every representation**, so
+the comparison isolates the representation, not head capacity. Protocol = in-subset
+composer-disjoint grouped 5-fold, repeated over 5 seeds (a stability band is essential at this n).
+
+Because MuQ embeddings only exist for the downloaded subset (embedding all 7,899 YouTube audios
+is not cheap), the honest like-for-like is IN-SUBSET 5-fold for ALL THREE representations on the
+identical pieces + identical folds. The Phase-3e 0.883/0.792 are a DIFFERENT protocol (head
+trained on all 7,899) and are context only, NOT head-to-head with MuQ.
+
+| representation (identical 43 pieces, composer-disjoint 5-fold x 5 seeds, RidgeCV head) | tau-c |
+|---|---|
+| clean-symbolic (37-d) | **0.783 +/- 0.026** |
+| aria-amt-symbolic (37-d) | **0.726 +/- 0.032** |
+| **MuQ-audio (meanstd, 2048-d)** | **0.697 +/- 0.021** |
+| note_count (floor) | 0.697 |
+
+- MuQ - full-task symbolic 0.764 = **-0.059**. MuQ - clean-symbolic (in-subset) = **-0.081**.
+  MuQ - aria-amt-symbolic (in-subset) = **-0.030**.
+- **MuQ does not even beat the transcribed symbolic path.** The P4 premise was that reading the
+  waveform directly would dodge the ~0.09 aria-amt gap. But symbolic AFTER paying that gap (0.726)
+  still beats frozen MuQ (0.697). The audio path has no advantage to trade for the transcription cost.
+- **MuQ ties note_count** (0.697 vs 0.697): a frozen MuQ linear probe ranks difficulty no better
+  than counting notes.
+- `meanstd` (0.697) > `mean` (0.665): per-frame std (dynamic variation) carries signal the time-mean
+  discards. Even the better pooling only ties the floor.
+
+**Data-starvation ruled out (PCA disambiguation).** The obvious objection to a null at n=43 is that
+a 2048-d probe is starved by ~34 training samples. Tested directly: PCA(k) + RidgeCV under the same
+folds, k in {2,4,8,16,32}. Every k, both pools stay 0.64-0.69 -- at or BELOW the note_count floor.
+If a difficulty direction existed in frozen MuQ but was starved, a k=2..8 projection (k << n) would
+surface it; it does not. Full-dim RidgeCV (0.7045) slightly beats every PCA truncation, so the faint
+signal is diffuse, not concentrated -- and never exceeds note-count. The null is REAL, not small-n.
+The internal control confirms it: clean/amt symbolic hit 0.72-0.78 under the identical small-n
+RidgeCV protocol, so the harness CAN extract difficulty from a good representation -- MuQ is the limit.
+
+**Caveat (stated, not hedged):** this null is specific to FROZEN MuQ + LINEAR probe + layers 9-12 +
+whole-piece mean/std pooling. It does NOT prove an end-to-end FINE-TUNED audio encoder cannot beat
+symbolic. But fine-tuning is a far larger bet (all 7,899 audios + GPU training), off this cheap
+probe's critical path, and the broad frozen-encoder plateau (~0.73-0.74, independently hit by Track B
+#105/#107) argues against near-term payoff. The frozen probe was the right cheap decider, and it says no.
+
+**Decision:** ship the simple symbolic version (Phase 3c, clean-MIDI 0.764; deployed ~0.67-0.72
+after the aria-amt gap). Do NOT scale the MuQ download/embed (the only reason to -- starvation -- is
+refuted). Track B (#105/#107) remains the safe-submission fallback. MIREX submissions close 2026-10-01.
+
+Raw: `mirex_phase4_muq_probe.json`. Audio (875MB wav) + MuQ frame cache deleted post-run
+(reproducible via `phase4_muq_probe.py --stage prep` + `--stage embed`); pooled piece vectors
+(tiny) + manifest + results JSON retained.
+
 ## Chosen approach (post-research)
 
 **Reproduce RubricNet's hand-crafted recipe on our AMT output** — NOT adapt our deep pairwise head (killed: A1). Rationale: hand-crafted features match deep encoders (A7), the strong features are pitch/onset-based = AMT's reliable part (A5/A6), and it's cheap + interpretable. MuQ audio fusion is a deferred differentiation probe (A11).
@@ -294,7 +351,7 @@ Raw: `mirex_phase3e_amt_gap.json`. Audio/venv scratch deleted post-run (reproduc
 - **P2 — Feature extractor. ✅ DONE 2026-07-04 (TDD, 21 tests).** `difficulty_features.py`: pitch-entropy, pitch-set Lempel-Ziv (LZ76 integer count), polyphony (onset chord-density — offset-free by design), pitch-range. Duration features EXCLUDED. *Deferred (CIPI-gated):* per-feature tau-c on CIPI MIDI vs RubricNet Table 2. NB polyphony is the onset-cluster proxy, not a true concurrent-voice count, precisely to avoid AMT-unreliable offsets.
 - **P3a — Feature-signal preview. ✅ DONE 2026-07-09.** tau-c ✅ (scipy variant='c', parity-locked). PSyllabus loader ✅ (`psyllabus.py`, 7 tests). Per-feature signal measured on 7,899 MIDIs (see "Phase 3a results"): pitch_lz/entropy/range have signal, polyphony DROPPED, note_count is a strong baseline.
 - **P3b — Trained ranker. ✅ DONE 2026-07-09 — GATE PASS.** `phase3b_ranker.py`: 7 features (pitch_lz/entropy/range + note_count + velocity/timing) → composer-disjoint 5-fold GroupKFold → **LGBMRegressor tau-c 0.7229 ± 0.019** beats note_count-ALONE (0.6703) by +0.053 every fold; Acc±1 0.720, macro-MSE 2.45. LGBMRanker/lambdarank tried and LOST (0.47) — regressor is the head. Integer-output compatible. See "Phase 3b results". *Stretch (0.77) NOT met* → richer features or P4 fusion.
-- **P4 — MuQ-audio difficulty probe (NEXT — the decided priority, 2026-07-13).** Extract frozen MuQ embeddings (layers 9-12, 24kHz) for the PSyllabus pieces (audio, no aria-amt), train a light head to predict grade, composer-disjoint 5-fold tau-c. *Verify/GATE:* (a) does MuQ-audio tau-c beat the symbolic 0.764? and (b) does it hold on the SAME 43-piece audio subset used in Phase 3e (i.e. no AMT gap, since MuQ reads audio directly)? Beating 0.764 = real edge + AMT-gap bypass → build submission on it. Plateau ~0.76 = confirmed ceiling → ship the simple symbolic version. Then optionally late-fuse MuQ+symbolic. Reuse the MuQ embedding infra (`extract_muq_embeddings.py` / embed server); PSyllabus audio via the `phase3e_amt_gap.py --stage prep` YouTube path.
+- **P4 — MuQ-audio difficulty probe. ✅ DONE 2026-07-13 — GATE FAIL (no audio edge).** Frozen MuQ-large (layers 9-12, 24kHz) on the same 44-piece audio set, RidgeCV probe, composer-disjoint 5-fold x 5 seeds. **MuQ 0.697 TIES note_count (0.697) and LOSES to clean-symbolic (0.783, -0.081) AND aria-amt-symbolic (0.726, -0.030)** — so it does not even beat the transcribed symbolic path it was meant to bypass. PCA(k=2..32) sweep rules out small-n starvation (all k <= floor). See "Phase 4 results". **Decision: ship symbolic; no MuQ submission; Track B (#105) is the fallback.** Fine-tuned audio (not frozen) is unrefuted but off critical path.
 
 ## Cost & odds
 
