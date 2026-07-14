@@ -69,3 +69,24 @@ def test_score_clip_relock_latency_is_inf_when_estimate_never_recovers() -> None
 
     assert len(score.relock_latencies_s) == 1
     assert score.relock_latencies_s[0] == math.inf
+
+
+def test_score_clip_relock_latency_is_finite_when_estimate_recovers() -> None:
+    clip = generate(ALIGNED_PIECE, "repeat", seed=13)
+    event = clip.event_labels[0]
+    n_seconds = 2.0
+    reconnect_time = event.perf_time + n_seconds
+
+    pre = [(t, p) for t, p in clip.true_trajectory.anchors if t <= event.perf_time]
+    post = [(t, p) for t, p in clip.true_trajectory.anchors if t >= reconnect_time]
+    reconnect_pos = clip.true_trajectory.score_position_at(reconnect_time)
+    estimated = TrueTrajectory(
+        anchors=tuple(pre) + ((reconnect_time, reconnect_pos),) + tuple(post)
+    )
+
+    score = score_clip(estimated, clip)
+
+    assert len(score.relock_latencies_s) == 1
+    latency = score.relock_latencies_s[0]
+    assert math.isfinite(latency)
+    assert latency <= n_seconds + 1.0 / SAMPLE_HZ
