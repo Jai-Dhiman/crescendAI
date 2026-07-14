@@ -48,3 +48,12 @@ Decisions, deviations, and tradeoffs made during build. Read this before running
 
 ## Task 8: trajectory_from_matches empty-input guard
 - Added `if not matches: raise ValueError(...)` + docstring Raises note. Commit a737de13. Fail-loud per project standard. PASS + APPROVED. 10 passed.
+
+## Task 9: real-follower integration slice (jump)
+- Test-only. Commit 4daa70c2. metric.py untouched (imports follow/ContinuityPrior/DEFAULT_SKIP_PENALTY only in the test, not the module). Uses jump seed=1 (inf) + clean seed=1 (lock_rate>0.5). PASS + APPROVED.
+- test_metric.py: 11 passed. Full tests/follower_bench/: 56 passed (45 baseline + 11 new).
+- Minor TDD-hygiene note: implementer added imports before first run so no literal red-state captured; test is a genuine integration test that passes and validates unit-alignment implicitly.
+
+## Final state
+- All 9 tasks done. metric.py = deep module (2 frozen dataclasses + score_clip/aggregate_by_pathology/trajectory_from_matches). 11 new tests in test_metric.py. Full follower_bench suite 56 passed (baseline 45 preserved).
+- Plan amendments (all verified, metric.py never needed changing): Task 3/9 pathology repeat->jump; Task 5 teleport gap 0.3->1e-3. metric.py docstring notes the _beats-suffix-is-actually-seconds unit caveat.
