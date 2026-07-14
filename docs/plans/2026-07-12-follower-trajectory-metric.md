@@ -36,7 +36,7 @@ Group A (sequential — every task edits `model/src/follower_bench/metric.py` an
 - Create: `model/src/follower_bench/metric.py`
 - Create: `model/tests/follower_bench/test_metric.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/tests/follower_bench/test_metric.py
@@ -75,14 +75,14 @@ def test_score_clip_identity_estimate_is_a_perfect_score() -> None:
     assert 0.0 <= latency < 1.0 / SAMPLE_HZ
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'follower_bench.metric'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # model/src/follower_bench/metric.py
@@ -184,14 +184,14 @@ def score_clip(
     )
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/follower_bench/metric.py model/tests/follower_bench/test_metric.py && git commit -m "feat(follower-bench): score_clip identity case (issue #113)"
@@ -210,7 +210,7 @@ git add model/src/follower_bench/metric.py model/tests/follower_bench/test_metri
 **Files:**
 - Modify: `model/tests/follower_bench/test_metric.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # append to model/tests/follower_bench/test_metric.py, alongside the existing imports:
@@ -234,25 +234,25 @@ def test_score_clip_constant_offset_estimate_reports_exact_offset_as_error() -> 
 
 Add `from follower_bench.trajectory import TrueTrajectory` to the top-level imports in `test_metric.py`.
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py::test_score_clip_constant_offset_estimate_reports_exact_offset_as_error -q
 ```
 Expected: FAIL if `_sample_grid` or the lock-rate/error computation has an off-by-one or boundary-clamping bug (the assertions require an *exact* match, not just "some" degradation) — `NameError: name 'TrueTrajectory' is not defined` until the import is added, then an `AssertionError` if the grid/interpolation math is wrong.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No production code change is expected: Task 1's `score_clip` is already a general grid-sampling comparison (it does not special-case the identity input), so this test exercises the same code with a new, independently-computable scenario. If the assertions fail, fix `_sample_grid` / the error computation in `model/src/follower_bench/metric.py` so this test's exact values hold without breaking Task 1's test.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py -q
 ```
 Expected: PASS (both tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/tests/follower_bench/test_metric.py && git commit -m "test(follower-bench): score_clip constant-offset error/lock-rate case (issue #113)"
@@ -271,7 +271,7 @@ git add model/tests/follower_bench/test_metric.py && git commit -m "test(followe
 **Files:**
 - Modify: `model/tests/follower_bench/test_metric.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_score_clip_relock_latency_is_inf_when_estimate_never_recovers() -> None:
@@ -297,25 +297,25 @@ def test_score_clip_relock_latency_is_inf_when_estimate_never_recovers() -> None
 
 BUILD AMENDMENT (empirically verified during build): the plan originally used `"repeat"` here, on the belief that a monotonic follower "never re-locks after a backward repeat." That belief is FALSE for this metric and this follower — a `repeat`/`restart` clip's truth trajectory replays FORWARD back through the frozen estimate's `from_score_position`, so a frozen estimate registers a (correct) *finite* relock (~14-22s), and the shipped follower genuinely recovers on `repeat`/`restart` in ~5-7s (error decays monotonically to lock and stays locked for ~75% of the post-event region). The pathology that genuinely never recovers under this metric is `"jump"` (a forward skip: truth leaps ahead and never revisits `from_score_position`, so a frozen estimate → `inf` for every seed 1-300 tested; the real follower → `inf` too). Task 3 and Task 9 therefore use `"jump"` for the never-recovers assertion. `metric.py` is correct and unchanged — this is a test-vehicle correction only.
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py::test_score_clip_relock_latency_is_inf_when_estimate_never_recovers -q
 ```
 Expected: FAIL if the relock search loop in `score_clip` has a bug that lets it return a finite (spuriously "successful") latency instead of exhausting to `math.inf` — this is the first test in the suite to exercise an estimate that genuinely never re-locks, since Task 1's identity case always relocks near-instantly.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No production code change is expected — Task 1's relock search loop already returns `math.inf` when no grid sample at/after `event.perf_time` is within tolerance. If this fails, fix the loop in `score_clip` (`model/src/follower_bench/metric.py`) so it does not terminate early or misidentify a match.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py -q
 ```
 Expected: PASS (all three tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/tests/follower_bench/test_metric.py && git commit -m "test(follower-bench): score_clip inf relock latency for a non-recovering estimate (issue #113)"
@@ -334,7 +334,7 @@ git add model/tests/follower_bench/test_metric.py && git commit -m "test(followe
 **Files:**
 - Modify: `model/tests/follower_bench/test_metric.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_score_clip_relock_latency_is_finite_when_estimate_recovers() -> None:
@@ -358,25 +358,25 @@ def test_score_clip_relock_latency_is_finite_when_estimate_recovers() -> None:
     assert latency <= n_seconds + 1.0 / SAMPLE_HZ
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py::test_score_clip_relock_latency_is_finite_when_estimate_recovers -q
 ```
 Expected: FAIL if the relock search does not terminate at the first in-tolerance sample at/after `event.perf_time` (e.g. it keeps searching past the reconnect point, or measures latency from the wrong origin).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No production code change is expected — this exercises the same search loop from Task 1/3 with a scenario guaranteed by construction to hit an exact match at `reconnect_time`. If it fails, fix the loop's break condition or latency computation (`latency = t - event.perf_time`) in `model/src/follower_bench/metric.py`.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py -q
 ```
 Expected: PASS (all four tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/tests/follower_bench/test_metric.py && git commit -m "test(follower-bench): score_clip finite relock latency for a recovering estimate (issue #113)"
@@ -395,7 +395,7 @@ git add model/tests/follower_bench/test_metric.py && git commit -m "test(followe
 **Files:**
 - Modify: `model/tests/follower_bench/test_metric.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_score_clip_false_jump_count_detects_a_backward_teleport() -> None:
@@ -427,25 +427,25 @@ def test_score_clip_false_jump_count_detects_a_backward_teleport() -> None:
 
 Add `FALSE_JUMP_BEATS` to the `from follower_bench.metric import (...)` line at the top of `test_metric.py`.
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py::test_score_clip_false_jump_count_detects_a_backward_teleport -q
 ```
 Expected: FAIL if the false-jump backward-move comparison or the truth-monotonicity guard in `score_clip` is wrong (e.g. comparing the wrong pair of consecutive samples, or not guarding on truth's own direction at all).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No production code change is expected — Task 1's false-jump loop already compares consecutive grid samples and guards on `true_positions[i] >= true_positions[i - 1]`. If it fails, fix that loop in `model/src/follower_bench/metric.py`.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py -q
 ```
 Expected: PASS (all five tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/tests/follower_bench/test_metric.py && git commit -m "test(follower-bench): score_clip false-jump detection on a monotonic clip (issue #113)"
@@ -465,7 +465,7 @@ git add model/tests/follower_bench/test_metric.py && git commit -m "test(followe
 - Modify: `model/src/follower_bench/metric.py`
 - Modify: `model/tests/follower_bench/test_metric.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_aggregate_by_pathology_groups_scores_and_computes_stats() -> None:
@@ -519,14 +519,14 @@ def test_aggregate_by_pathology_groups_scores_and_computes_stats() -> None:
 
 Update the top-of-file import in `test_metric.py` to also pull in `AggregateScore`, `TrajectoryScore`, `aggregate_by_pathology` from `follower_bench.metric`.
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py::test_aggregate_by_pathology_groups_scores_and_computes_stats -q
 ```
 Expected: FAIL — `ImportError: cannot import name 'AggregateScore' from 'follower_bench.metric'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # add to model/src/follower_bench/metric.py
@@ -582,14 +582,14 @@ def aggregate_by_pathology(scores: Iterable[TrajectoryScore]) -> dict[str, Aggre
 
 Move the `from typing import Iterable` import to the top-of-file import block alongside the existing `math`/`statistics`/`dataclasses` imports rather than inline.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py -q
 ```
 Expected: PASS (all six tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/follower_bench/metric.py model/tests/follower_bench/test_metric.py && git commit -m "feat(follower-bench): aggregate_by_pathology (issue #113)"
@@ -609,7 +609,7 @@ git add model/src/follower_bench/metric.py model/tests/follower_bench/test_metri
 - Modify: `model/src/follower_bench/metric.py`
 - Modify: `model/tests/follower_bench/test_metric.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_trajectory_from_matches_sorts_anchors_by_perf_time() -> None:
@@ -626,14 +626,14 @@ def test_trajectory_from_matches_sorts_anchors_by_perf_time() -> None:
 
 Add `from follower_bench.follower import MatchedNote` and `trajectory_from_matches` (to the `follower_bench.metric` import line) at the top of `test_metric.py`.
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py::test_trajectory_from_matches_sorts_anchors_by_perf_time -q
 ```
 Expected: FAIL — `ImportError: cannot import name 'trajectory_from_matches' from 'follower_bench.metric'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # add to model/src/follower_bench/metric.py, at the bottom.
@@ -653,14 +653,14 @@ def trajectory_from_matches(matches: tuple[MatchedNote, ...]) -> TrueTrajectory:
 
 Move the `from follower_bench.follower import MatchedNote` import to the top-of-file import block. This deliberately omits the empty-input guard — Task 8 adds it with its own failing test.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py -q
 ```
 Expected: PASS (all seven tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/follower_bench/metric.py model/tests/follower_bench/test_metric.py && git commit -m "feat(follower-bench): trajectory_from_matches adapter (issue #113)"
@@ -679,7 +679,7 @@ git add model/src/follower_bench/metric.py model/tests/follower_bench/test_metri
 **Files:**
 - Modify: `model/tests/follower_bench/test_metric.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_trajectory_from_matches_raises_on_empty_matches() -> None:
@@ -687,14 +687,14 @@ def test_trajectory_from_matches_raises_on_empty_matches() -> None:
         trajectory_from_matches(())
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py::test_trajectory_from_matches_raises_on_empty_matches -q
 ```
 Expected: FAIL — `Failed: DID NOT RAISE <class 'ValueError'>`. Task 7's `trajectory_from_matches` has no empty-input guard, so `trajectory_from_matches(())` currently returns `TrueTrajectory(anchors=())` silently instead of raising.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # model/src/follower_bench/metric.py -- replace the trajectory_from_matches
@@ -715,14 +715,14 @@ def trajectory_from_matches(matches: tuple[MatchedNote, ...]) -> TrueTrajectory:
     return TrueTrajectory(anchors=anchors)
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py -q
 ```
 Expected: PASS (all eight tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/tests/follower_bench/test_metric.py && git commit -m "test(follower-bench): trajectory_from_matches rejects empty matches (issue #113)"
@@ -741,7 +741,7 @@ git add model/tests/follower_bench/test_metric.py && git commit -m "test(followe
 **Files:**
 - Modify: `model/tests/follower_bench/test_metric.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 LOCK_RATE_FLOOR = 0.5
@@ -780,18 +780,18 @@ from follower_bench.score_notes import load_score_notes_from_midi
 
 This is the only place `follower_bench.follower`'s `follow`/`ContinuityPrior`/`DEFAULT_SKIP_PENALTY` are imported in this test file (the metric module itself never imports them).
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py::test_real_follower_locks_well_on_clean_and_never_relocks_on_repeat -q
 ```
 Expected: FAIL — `NameError: name 'ContinuityPrior' is not defined` until the imports are added; if it still fails after adding imports, it means either the unit-alignment assumption (`MatchedNote.score_position` vs. `TrueTrajectory` anchors, both score-beats) does not hold, or seed=13's repeat event does happen to re-lock before the clip ends (unexpected given `test_follower_characterization.py`'s existing divergence evidence for this exact seed) — in either case this is a real finding, not a plan bug: report it rather than loosening the assertion.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No production code change is expected in `model/src/follower_bench/metric.py` — this test only composes the already-shipped `follower.follow()` (#115) with `trajectory_from_matches` and `score_clip` (Tasks 1-8). Add the imports listed in Step 1.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run pytest tests/follower_bench/test_metric.py -q
@@ -803,7 +803,7 @@ cd model && uv run pytest tests/follower_bench/ -q
 ```
 Expected: PASS — the full `tests/follower_bench/` suite stays green (54 passed: the 45 pre-existing tests observed before this plan, plus this plan's 9 new tests in `test_metric.py`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/tests/follower_bench/test_metric.py && git commit -m "test(follower-bench): real-follower integration slice for score_clip (issue #113)"
