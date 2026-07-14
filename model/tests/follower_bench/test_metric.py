@@ -11,11 +11,15 @@ import pytest
 
 from follower_bench.asap_alignment import load_alignment
 from follower_bench.clip_generator import generate
-from follower_bench.follower import DEFAULT_SKIP_PENALTY, ContinuityPrior, MatchedNote, follow
+from follower_bench.follower import (
+    DEFAULT_SKIP_PENALTY,
+    ContinuityPrior,
+    MatchedNote,
+    follow,
+)
 from follower_bench.metric import (
     FALSE_JUMP_BEATS,
     SAMPLE_HZ,
-    AggregateScore,
     TrajectoryScore,
     aggregate_by_pathology,
     score_clip,
@@ -39,7 +43,10 @@ def test_score_clip_identity_estimate_is_a_perfect_score() -> None:
     assert score.false_jump_count == 0
 
     assert len(clip.event_labels) == 1
-    assert clip.event_labels[0].from_score_position != clip.event_labels[0].to_score_position
+    assert (
+        clip.event_labels[0].from_score_position
+        != clip.event_labels[0].to_score_position
+    )
     assert len(score.relock_latencies_s) == 1
     latency = score.relock_latencies_s[0]
     assert 0.0 <= latency < 1.0 / SAMPLE_HZ
@@ -179,7 +186,9 @@ def test_aggregate_by_pathology_groups_scores_and_computes_stats() -> None:
     assert clean_agg.total_false_jumps == 0
 
 
-def test_aggregate_by_pathology_all_inf_group_reports_zero_success_and_inf_median() -> None:
+def test_aggregate_by_pathology_all_inf_group_reports_zero_success_and_inf_median() -> (
+    None
+):
     scores = (
         TrajectoryScore(
             pathology_type="jump",
