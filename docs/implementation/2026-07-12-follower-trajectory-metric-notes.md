@@ -22,3 +22,6 @@ Decisions, deviations, and tradeoffs made during build. Read this before running
 - #115's `test_follow_fails_to_relock_after_a_repeat` only probes divergence at a fixed +3s (transient), consistent with a ~5-7s recovery; it never asserted permanent failure over the full clip. The "fails_to_relock" name is about the 3s window, not the whole clip.
 - RESOLUTION: `metric.py` is CORRECT and unchanged. Amended Tasks 3 & 9 to use `"jump"` instead of `"repeat"` for the inf/never-recovers assertion. Plan file code blocks + prose updated with BUILD AMENDMENT notes. This is a test-vehicle correction only, verified end-to-end before dispatch.
 - Latent metric note (not a bug): relock-latency is a clean never-recover signal for forward-divergence (jump). For backward repeat/restart the follower recovers, so relock is finite — which is the correct, truthful measurement.
+
+## Task 3: inf relock latency (jump)
+- Test-only, green-by-construction. Commit b0285e73. metric.py untouched. Uses "jump" per amendment. PASS + APPROVED.
