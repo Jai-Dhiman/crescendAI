@@ -173,3 +173,36 @@ def test_aggregate_by_pathology_groups_scores_and_computes_stats() -> None:
     assert clean_agg.relock_success_rate == pytest.approx(1.0)
     assert clean_agg.median_relock_latency_s == pytest.approx(0.0)
     assert clean_agg.total_false_jumps == 0
+
+
+def test_aggregate_by_pathology_all_inf_group_reports_zero_success_and_inf_median() -> None:
+    scores = (
+        TrajectoryScore(
+            pathology_type="jump",
+            median_abs_error_beats=5.0,
+            max_abs_error_beats=12.0,
+            lock_rate=0.2,
+            relock_latencies_s=(math.inf,),
+            false_jump_count=0,
+        ),
+        TrajectoryScore(
+            pathology_type="jump",
+            median_abs_error_beats=6.0,
+            max_abs_error_beats=15.0,
+            lock_rate=0.1,
+            relock_latencies_s=(math.inf,),
+            false_jump_count=2,
+        ),
+    )
+
+    result = aggregate_by_pathology(scores)
+
+    jump_agg = result["jump"]
+    assert jump_agg.n_clips == 2
+    assert jump_agg.relock_success_rate == pytest.approx(0.0)
+    assert jump_agg.median_relock_latency_s == math.inf
+    assert jump_agg.total_false_jumps == 2
+
+
+def test_aggregate_by_pathology_empty_input_returns_empty_dict() -> None:
+    assert aggregate_by_pathology(()) == {}
