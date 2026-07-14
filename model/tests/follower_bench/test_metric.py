@@ -11,6 +11,7 @@ import pytest
 
 from follower_bench.clip_generator import generate
 from follower_bench.metric import SAMPLE_HZ, score_clip
+from follower_bench.trajectory import TrueTrajectory
 
 ALIGNED_PIECE = "Liszt/Transcendental_Etudes/1/LuoJ05M.mid"
 
@@ -31,3 +32,19 @@ def test_score_clip_identity_estimate_is_a_perfect_score() -> None:
     assert len(score.relock_latencies_s) == 1
     latency = score.relock_latencies_s[0]
     assert 0.0 <= latency < 1.0 / SAMPLE_HZ
+
+
+def test_score_clip_constant_offset_estimate_reports_exact_offset_as_error() -> None:
+    clip = generate(ALIGNED_PIECE, "clean", seed=1)
+    offset = 2.0
+    shifted = TrueTrajectory(
+        anchors=tuple((t, p + offset) for t, p in clip.true_trajectory.anchors)
+    )
+
+    score = score_clip(shifted, clip)
+
+    assert score.median_abs_error_beats == pytest.approx(offset)
+    assert score.max_abs_error_beats == pytest.approx(offset)
+    assert score.lock_rate == pytest.approx(0.0)
+    assert score.false_jump_count == 0
+    assert score.relock_latencies_s == ()
