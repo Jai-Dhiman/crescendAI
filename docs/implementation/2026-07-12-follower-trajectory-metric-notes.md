@@ -45,3 +45,6 @@ Decisions, deviations, and tradeoffs made during build. Read this before running
 
 ## Task 7: trajectory_from_matches adapter
 - Added trajectory_from_matches + `from follower_bench.follower import MatchedNote` (type-only, module stays follower-agnostic — no follow/ContinuityPrior/DEFAULT_SKIP_PENALTY import). Commit e23a2f37. Load-bearing sort (unsorted input). No empty guard yet (Task 8). PASS + APPROVED. 9 passed.
+
+## Task 8: trajectory_from_matches empty-input guard
+- Added `if not matches: raise ValueError(...)` + docstring Raises note. Commit a737de13. Fail-loud per project standard. PASS + APPROVED. 10 passed.
