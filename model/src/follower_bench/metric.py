@@ -156,6 +156,14 @@ def aggregate_by_pathology(scores: Iterable[TrajectoryScore]) -> dict[str, Aggre
 
 def trajectory_from_matches(matches: tuple[MatchedNote, ...]) -> TrueTrajectory:
     """Adapt a follower's EstimatedTrajectory.matches into a
-    TrueTrajectory, so score_clip stays follower-agnostic."""
+    TrueTrajectory, so score_clip stays follower-agnostic.
+
+    Raises:
+        ValueError: matches is empty (a follower that matched nothing
+            cannot be scored -- fail loud, not a silent zero-length
+            trajectory).
+    """
+    if not matches:
+        raise ValueError("cannot build TrueTrajectory from empty matches")
     anchors = tuple(sorted((m.perf_time, m.score_position) for m in matches))
     return TrueTrajectory(anchors=anchors)

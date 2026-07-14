@@ -220,3 +220,8 @@ def test_trajectory_from_matches_sorts_anchors_by_perf_time() -> None:
     traj = trajectory_from_matches(matches)
 
     assert traj.anchors == ((0.2, 0.1), (0.5, 0.4), (1.0, 0.6))
+
+
+def test_trajectory_from_matches_raises_on_empty_matches() -> None:
+    with pytest.raises(ValueError):
+        trajectory_from_matches(())
