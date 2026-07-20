@@ -144,3 +144,31 @@ def test_backward_jump_relocks_after_a_repeat() -> None:
     assert [m.score_index for m in mono.matches] == [0, 1, 2, 3]
     idx = [m.score_index for m in mono.matches]
     assert idx == sorted(idx)  # monotonic, no jump
+
+
+def test_forward_jump_relocks_after_a_skipped_passage() -> None:
+    # Score: bar1 C4,D4 (60@0,62@1); a long filler bar2 of 8 notes the perf
+    # never plays (pitches 70..77 @ 2..9); bar3 G4,A4 (67@10,69@11).
+    pitches = [60, 62, 70, 71, 72, 73, 74, 75, 76, 77, 67, 69]
+    score_notes = [ScoreNote(pitch=p, position=float(i)) for i, p in enumerate(pitches)]
+    bars = bar_boundary_columns([n.position for n in score_notes], [0.0, 2.0, 10.0])  # (0, 2, 10)
+    # Perf: bar1 then bar3 -- the 8-note bar2 is skipped.
+    perf_notes = [
+        PerfNote(onset=0.0, offset=0.5, pitch=60, velocity=80),
+        PerfNote(onset=1.0, offset=1.5, pitch=62, velocity=80),
+        PerfNote(onset=2.0, offset=2.5, pitch=67, velocity=80),
+        PerfNote(onset=3.0, offset=3.5, pitch=69, velocity=80),
+    ]
+
+    # Cheap forward jump -> leaps over the 8-note gap to bar 3.
+    prior = ContinuityPrior(skip_penalty=0.5, jump_fwd_penalty=0.5)
+    result = follow(perf_notes, score_notes, prior, bar_boundaries=bars, transpose_candidates=(0,))
+    assert len(result.matches) == 4
+    assert [m.score_index for m in result.matches] == [0, 1, 10, 11]
+
+    # No forward jump (inf, the default): skipping 8 notes (cost 4.0) to gain
+    # 2 matches (+2.0) is refused, so perf notes 2,3 stay unmatched.
+    strict = ContinuityPrior(skip_penalty=0.5)  # jump penalties default to inf
+    mono = follow(perf_notes, score_notes, strict, bar_boundaries=bars, transpose_candidates=(0,))
+    assert [m.score_index for m in mono.matches] == [0, 1]
+    assert mono.unmatched_perf_indices == (2, 3)

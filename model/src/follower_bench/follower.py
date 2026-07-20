@@ -147,10 +147,20 @@ def _align_at_transpose(
 def _relax_row_jumps(row, row_back, i, m, bar_boundaries, prior) -> None:
     """Apply at most the single best bar-boundary score-pointer jump to
     row i of the DP (a same-row relocation that consumes no perf note),
-    then re-propagate skip_score forward from the jumped cell. At most one
-    jump per row keeps traceback acyclic (a jump's source is always a cell
-    reached by normal transitions). Backward branch only in this task."""
+    then re-propagate skip_score forward from the jumped cell. Backward
+    (source after target = repeat/restart) and forward (source before
+    target = skip) branches carry independent penalties. At most one jump
+    per row keeps traceback acyclic."""
     neg_inf = -math.inf
+
+    # prefix max + argmax over row[0..j]
+    pref_val = [neg_inf] * (m + 1)
+    pref_arg = [0] * (m + 1)
+    best, best_j = neg_inf, 0
+    for j in range(m + 1):
+        if row[j] > best:
+            best, best_j = row[j], j
+        pref_val[j], pref_arg[j] = best, best_j
 
     # suffix max + argmax over row[j..m]
     suf_val = [neg_inf] * (m + 2)
@@ -166,6 +176,10 @@ def _relax_row_jumps(row, row_back, i, m, bar_boundaries, prior) -> None:
         if not (0 <= jb <= m):
             continue
         cand, src = neg_inf, None
+        if jb - 1 >= 0 and prior.jump_fwd_penalty < math.inf:
+            c = pref_val[jb - 1] - prior.jump_fwd_penalty
+            if c > cand:
+                cand, src = c, pref_arg[jb - 1]
         if jb + 1 <= m and prior.jump_back_penalty < math.inf:
             c = suf_val[jb + 1] - prior.jump_back_penalty
             if c > cand:
