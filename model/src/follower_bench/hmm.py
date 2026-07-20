@@ -326,3 +326,11 @@ def follow_hmm(amt_notes, score_notes, params, bar_boundaries=None,
             )
     assert best is not None
     return best
+
+
+def alignment_logprob(amt_notes, score_notes, params, transpose, bar_boundaries=None):
+    """The log marginal likelihood (logsumexp over all alignment paths) of the
+    perf notes under the score at the given transpose. Exposed so the no-free-
+    skip property is directly testable: a spurious note costs ~log(p_ins)."""
+    _, logZ = _forward_backward(amt_notes, score_notes, params, transpose, bar_boundaries)
+    return logZ

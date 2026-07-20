@@ -96,3 +96,18 @@ def test_column_posteriors_sum_to_one_per_step_monotonic_and_with_jumps() -> Non
             for k, p in enumerate([60, 62, 64, 65, 60, 62])]
     _rows_sum_to_one(column_posteriors(perf, score, MONO, transpose=0))
     _rows_sum_to_one(column_posteriors(perf, score, JUMPS, transpose=0, bar_boundaries=bars))
+
+
+from follower_bench.hmm import alignment_logprob
+
+
+def test_inserting_a_spurious_note_costs_about_log_p_ins() -> None:
+    score = [ScoreNote(pitch=p, position=float(i)) for i, p in enumerate([60, 62, 64, 65, 67])]
+    perf = [PerfNote(onset=float(k), offset=float(k) + 0.5, pitch=p, velocity=80)
+            for k, p in enumerate([60, 62, 64, 65, 67])]
+    base = alignment_logprob(perf, score, MONO, transpose=0)
+    # Insert one clearly-spurious note (pitch 7, matches nothing) between notes.
+    perf_ins = perf[:3] + [PerfNote(onset=2.5, offset=2.9, pitch=7, velocity=80)] + perf[3:]
+    with_ins = alignment_logprob(perf_ins, score, MONO, transpose=0)
+    drop = base - with_ins
+    assert math.isclose(drop, -math.log(MONO.p_ins), rel_tol=0.05), drop
