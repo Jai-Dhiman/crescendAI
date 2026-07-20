@@ -31,6 +31,7 @@ class ClipAlignment:
     score_midi_path: Path
     performance_beats: tuple[float, ...]
     midi_score_beats: tuple[float, ...]
+    midi_score_downbeats: tuple[float, ...] = ()
 
 
 def load_alignment(
@@ -67,6 +68,7 @@ def load_alignment(
             f"{len(perf_beats)} performance_beats vs {len(score_beats)} midi_score_beats "
             f"(need >= {MIN_BEATS} matched pairs)"
         )
+    score_downbeats = entry.get("midi_score_downbeats") or []
     performance_midi_path = asap_root / asap_piece
     if not performance_midi_path.exists():
         raise FileNotFoundError(f"ASAP performance MIDI not found: {performance_midi_path}")
@@ -79,4 +81,5 @@ def load_alignment(
         score_midi_path=score_midi_path,
         performance_beats=tuple(float(b) for b in perf_beats),
         midi_score_beats=tuple(float(b) for b in score_beats),
+        midi_score_downbeats=tuple(float(b) for b in score_downbeats),
     )

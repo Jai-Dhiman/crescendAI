@@ -37,3 +37,13 @@ def test_load_alignment_rejects_real_unaligned_piece() -> None:
 def test_load_alignment_rejects_unknown_piece_key() -> None:
     with pytest.raises(AsapAlignmentMissingError, match="not found"):
         load_alignment("Nonexistent/Composer/piece/Nobody99X.mid")
+
+
+def test_load_alignment_exposes_score_downbeats() -> None:
+    from follower_bench.asap_alignment import load_alignment
+    alignment = load_alignment("Bach/Fugue/bwv_846/Shi05M.mid")
+    # downbeats are score-MIDI seconds, sorted ascending, a subset of the beat grid
+    assert len(alignment.midi_score_downbeats) >= 4
+    dbs = list(alignment.midi_score_downbeats)
+    assert dbs == sorted(dbs)
+    assert all(db in alignment.midi_score_beats for db in dbs)
