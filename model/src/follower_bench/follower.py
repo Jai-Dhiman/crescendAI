@@ -42,6 +42,7 @@ class MatchedNote:
     score_index: int
     perf_time: float
     score_position: float
+    confidence: float | None = None  # HMM follower (#119) fills this; additive path leaves None
 
 
 @dataclass(frozen=True)
