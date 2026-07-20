@@ -111,3 +111,36 @@ def test_bar_boundary_columns_downbeat_between_notes_and_dedups() -> None:
     # Duplicate/again-zero downbeats collapse to a sorted unique tuple.
     positions = [0.0, 1.5, 3.0]
     assert bar_boundary_columns(positions, [0.0, 2.0, 2.0]) == (0, 2)
+
+
+def test_backward_jump_relocks_after_a_repeat() -> None:
+    # Score: bar1 = C4,D4 (60@0,62@1); bar2 = E4,F4 (64@2,65@3). Bars start
+    # at score-seconds 0.0 and 2.0 -> columns (0, 2).
+    score_notes = [ScoreNote(pitch=p, position=float(i)) for i, p in enumerate([60, 62, 64, 65])]
+    bars = bar_boundary_columns([n.position for n in score_notes], [0.0, 2.0])
+    # Perf: bar1, bar2, then REPEAT bar1.
+    perf_notes = [
+        PerfNote(onset=0.0, offset=0.5, pitch=60, velocity=80),
+        PerfNote(onset=1.0, offset=1.5, pitch=62, velocity=80),
+        PerfNote(onset=2.0, offset=2.5, pitch=64, velocity=80),
+        PerfNote(onset=3.0, offset=3.5, pitch=65, velocity=80),
+        PerfNote(onset=4.0, offset=4.5, pitch=60, velocity=80),
+        PerfNote(onset=5.0, offset=5.5, pitch=62, velocity=80),
+    ]
+
+    # Cheap backward jump -> the replay is followed back to bar 1.
+    prior = ContinuityPrior(skip_penalty=0.5, jump_back_penalty=0.5)
+    result = follow(perf_notes, score_notes, prior, bar_boundaries=bars, transpose_candidates=(0,))
+    assert len(result.matches) == 6
+    assert [m.score_index for m in result.matches] == [0, 1, 2, 3, 0, 1]
+    # a backward step in score position exists (the jump)
+    assert any(b.score_position < a.score_position
+               for a, b in zip(result.matches, result.matches[1:]))
+    assert result.unmatched_perf_indices == ()
+
+    # Expensive backward jump -> no jump is profitable, stays monotonic.
+    strict = ContinuityPrior(skip_penalty=0.5, jump_back_penalty=10.0)
+    mono = follow(perf_notes, score_notes, strict, bar_boundaries=bars, transpose_candidates=(0,))
+    assert [m.score_index for m in mono.matches] == [0, 1, 2, 3]
+    idx = [m.score_index for m in mono.matches]
+    assert idx == sorted(idx)  # monotonic, no jump
