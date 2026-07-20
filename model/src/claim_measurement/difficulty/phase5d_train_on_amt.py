@@ -188,16 +188,32 @@ def _feature_matrix(rows, feats, cols_names):
     return X[:, idx]
 
 
+def _complete_segs() -> set[str]:
+    """seg_ids whose EVERY 30s wav chunk has a transcribed .mid (partial pieces excluded --
+    a truncated stitch would corrupt whole-piece features)."""
+    import collections
+    wav = collections.Counter(p.stem.rsplit("__", 1)[0] for p in CHUNK_DIR.glob("*__*.wav"))
+    mid = collections.Counter(p.stem.rsplit("__", 1)[0] for p in AMT_DIR.glob("*__*.mid"))
+    return {s for s, n in wav.items() if n > 0 and mid.get(s, 0) == n}
+
+
 def stage_eval():
     manifest = json.loads(MANIFEST.read_text())
+    complete = _complete_segs()
 
-    # TRAIN: stitched rendered-audio AMT features
-    train_rows = []
-    for m in manifest:
-        notes = _stitch_train(m["seg_id"])
-        if notes and len(notes) >= 5:
-            train_rows.append({"grade": m["grade"], "composer": m["composer"],
-                               **candidate_features(notes)})
+    # TRAIN: complete pieces only -> BOTH rendered-amt features and clean-MIDI features (matched set,
+    # so amt-vs-clean isolates the train DISTRIBUTION, not the training-set SIZE).
+    amt_rows, clean_match_rows = [], []
+    with zipfile.ZipFile(MID_ZIP) as zf:
+        for m in manifest:
+            if m["seg_id"] not in complete:
+                continue
+            amt_notes = _stitch_train(m["seg_id"])
+            clean_notes = notes_from_midi_bytes(zf.read(m["midi_name"]))
+            if not (amt_notes and len(amt_notes) >= 5 and len(clean_notes) >= 5):
+                continue
+            amt_rows.append({"grade": m["grade"], **candidate_features(amt_notes)})
+            clean_match_rows.append({"grade": m["grade"], **candidate_features(clean_notes)})
     # TEST: the 43 real-audio AMT pieces (Phase 3e)
     test = json.loads(TEST_MANIFEST.read_text())
     test_rows = []
@@ -206,46 +222,64 @@ def stage_eval():
         if notes and len(notes) >= 5:
             test_rows.append({"grade": m["grade"], **candidate_features(notes)})
 
-    feats = [k for k in train_rows[0] if k not in ("grade", "composer")]
-    ytr = np.array([r["grade"] for r in train_rows], int)
+    feats = [k for k in amt_rows[0] if k != "grade"]
+    y_train = np.array([r["grade"] for r in amt_rows], int)
     yte = np.array([r["grade"] for r in test_rows], int)
-    print(f"train (rendered-amt): {len(train_rows)}   test (real-amt-43): {len(test_rows)}", flush=True)
+    n = len(amt_rows)
+    is_pilot = n < len(manifest) * 0.9
+    print(f"train pieces (COMPLETE): {n}/{len(manifest)}"
+          f"{'  [PILOT -- transcription still running]' if is_pilot else ''}"
+          f"   test (real-amt-43): {len(test_rows)}", flush=True)
 
-    # clean-trained reference on the SAME feature sets (phase3c full-clean cache)
+    # clean-trained on the FULL 7,899 (the deployment baseline that gave 0.792)
     records, _ = load_records(LABELS, MID_ZIP)
-    clean_rows, _ = load_or_extract(records, use_cache=True)
+    clean_full_rows, _ = load_or_extract(records, use_cache=True)
+    ycl_full = np.array([r["grade"] for r in clean_full_rows], int)
 
     subsets = {"full_37": feats, "robust_11": ROBUST, "parsimonious_6": PARSIMONIOUS}
     res = {}
     for name, cols in subsets.items():
-        Xtr = _feature_matrix(train_rows, feats, cols)
+        Xamt = _feature_matrix(amt_rows, feats, cols)
+        Xcl_m = _feature_matrix(clean_match_rows, feats, cols)
         Xte = _feature_matrix(test_rows, feats, cols)
-        Xcl = _feature_matrix(clean_rows, feats, cols)
-        ycl = np.array([r["grade"] for r in clean_rows], int)
-        amt_trained = tau_c(_lgbm().fit(Xtr, ytr).predict(Xte), yte)
-        clean_trained = tau_c(_lgbm().fit(Xcl, ycl).predict(Xte), yte)
-        res[name] = {"n_features": len(cols), "amt_trained_tau_c": amt_trained,
-                     "clean_trained_tau_c": clean_trained,
-                     "gain_from_amt_training": (amt_trained - clean_trained)
-                     if (amt_trained and clean_trained) else None}
-        print(f"  [{name}] ({len(cols)}f)  amt-trained={amt_trained}  "
-              f"clean-trained={clean_trained}  gain={res[name]['gain_from_amt_training']}", flush=True)
+        Xcl_f = _feature_matrix(clean_full_rows, feats, cols)
+        amt_trained = tau_c(_lgbm().fit(Xamt, y_train).predict(Xte), yte)
+        clean_matched = tau_c(_lgbm().fit(Xcl_m, y_train).predict(Xte), yte)   # same N, clean
+        clean_full = tau_c(_lgbm().fit(Xcl_f, ycl_full).predict(Xte), yte)     # 7,899 clean
+        res[name] = {"n_features": len(cols), "n_train": n,
+                     "amt_trained_tau_c": amt_trained,
+                     "clean_trained_matchedN_tau_c": clean_matched,
+                     "clean_trained_full7899_tau_c": clean_full,
+                     "distribution_gain_amt_vs_cleanMatched": (amt_trained - clean_matched)
+                     if (amt_trained and clean_matched) else None}
+        print(f"  [{name}] ({len(cols)}f, n_train={n})  amt={amt_trained}  "
+              f"clean-matchedN={clean_matched}  clean-full7899={clean_full}  "
+              f"dist-gain={res[name]['distribution_gain_amt_vs_cleanMatched']}", flush=True)
 
     best = max(res, key=lambda k: res[k]["amt_trained_tau_c"] or -1)
     verdict = {
-        "clean_trained_baseline": CLEAN_TRAINED_AMT_BASELINE,
+        "is_pilot": is_pilot, "n_train": n,
+        "clean_trained_full7899_baseline": CLEAN_TRAINED_AMT_BASELINE,
         "best_subset": best,
         "best_amt_trained_tau_c": res[best]["amt_trained_tau_c"],
-        "train_on_amt_helps": bool(any((r["gain_from_amt_training"] or 0) > 0.01 for r in res.values())),
+        # does matching the train distribution (amt) beat clean at the SAME N?
+        "train_on_amt_helps_distribution": bool(any(
+            (r["distribution_gain_amt_vs_cleanMatched"] or 0) > 0.01 for r in res.values())),
+        # does amt-trained (at this N) reach the full-clean deployment baseline?
+        "amt_trained_reaches_full_baseline": bool(
+            (res[best]["amt_trained_tau_c"] or 0) >= CLEAN_TRAINED_AMT_BASELINE),
     }
-    OUT.write_text(json.dumps({"n_train": len(train_rows), "n_test": len(test_rows),
+    OUT.write_text(json.dumps({"n_train": n, "n_test": len(test_rows), "is_pilot": is_pilot,
                                "results": res, "verdict": verdict}, indent=2, default=float))
-    print("\n=== PHASE 5d: TRAIN-ON-AMT ===")
-    print(f"  clean-trained baseline on amt-43 (Phase 3e) = {CLEAN_TRAINED_AMT_BASELINE}")
+    print("\n=== PHASE 5d: TRAIN-ON-AMT" + ("  [PILOT]" if is_pilot else "") + " ===")
+    print(f"  test = 43 real-audio aria-amt pieces;  full-7899-clean baseline = {CLEAN_TRAINED_AMT_BASELINE}")
     for name, r in res.items():
-        print(f"    {name:16s} amt-trained={r['amt_trained_tau_c']}  "
-              f"clean-trained={r['clean_trained_tau_c']}  gain={r['gain_from_amt_training']}")
-    print(f"  train-on-AMT helps (any subset > +0.01): {verdict['train_on_amt_helps']}")
+        print(f"    {name:16s} amt(n={r['n_train']})={r['amt_trained_tau_c']}  "
+              f"clean-matchedN={r['clean_trained_matchedN_tau_c']}  "
+              f"clean-full={r['clean_trained_full7899_tau_c']}  "
+              f"dist-gain={r['distribution_gain_amt_vs_cleanMatched']}")
+    print(f"  train-on-AMT helps (distribution, matched N): {verdict['train_on_amt_helps_distribution']}")
+    print(f"  amt-trained reaches full-clean baseline 0.792: {verdict['amt_trained_reaches_full_baseline']}")
     print(f"  wrote {OUT}")
 
 

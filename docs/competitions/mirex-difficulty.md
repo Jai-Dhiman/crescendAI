@@ -455,19 +455,39 @@ MusicXML, a MIREX-suggested set). Harness `phase5e_cross_dataset.py`, features v
 Raw: `mirex_phase5e_cross_dataset.json`. Mikrokosmos data: `data/raw/mikrokosmos` (re-download from
 github PRamoneda/Mikrokosmos-difficulty). Feature cache: `mirex_phase5e_mikrokosmos_features.json`.
 
-### Phase 5d — train-on-AMT augmentation (IN PROGRESS, started 2026-07-19)
+### Phase 5d — train-on-AMT augmentation (PILOT n=75, RUN 2026-07-20; full run stopped)
 
-The only remaining lever that moves the DEPLOYED (aria-amt) number, not the clean ceiling. Train ON
-aria-amt features so train matches test: render 594 clean MIDIs -> audio (fluidsynth MuseScore_General)
--> slice 30s -> aria-amt -> features; train LGBM; test on the SAME 43 real-audio aria-amt pieces
-(Phase 3e). Gate: does amt-trained beat clean-trained (0.792) on the amt-43 test? Also evaluates the
-robust-11 and parsimonious-6 subsets (the chosen submission direction, given the 5e overfitting warning).
+**Verdict: train-on-AMT does NOT close the deployment gap -- it is neutral-to-slightly-negative, and STRUCTURALLY cannot beat the clean baseline. The one lever that could move the deployed number does not.**
 
-Harness `phase5d_train_on_amt.py` (prep render+slice / external aria-amt transcribe / eval).
-Toolchain verified: aria-amt builds under `uv run --python 3.11 --script extract_amt_midi.py`,
-transcribes ~16s/chunk on MPS (sane output: 201 notes, pc_entropy 3.48). 594-piece run ~= 6,000 chunks
-~= 27h transcription (resumable). Disk-bounded (full wavs deleted after slicing; 147GB free).
-**Results pending the transcription run.**
+Idea: train ON aria-amt features so train matches the test distribution. Render clean MIDIs ->
+fluidsynth audio -> slice 30s -> aria-amt -> features; train LGBM; test on the SAME 43 real-audio
+aria-amt pieces (Phase 3e). The key control is matched N: amt-trained vs clean-trained on the SAME
+pieces, so the comparison isolates the train DISTRIBUTION, not training-set SIZE.
+
+Transcription ran 3x slower than the smoke (~60s/chunk sustained, not 16s -- denser mid-grade pieces +
+MPS thermal throttle), so the 594-piece run projected to ~2 days. Evaluated a **pilot on the first 75
+complete pieces** (all 11 grades) and stopped the full run (structural argument below made it low-EV).
+
+| subset | amt-trained (n=75) | clean-trained, SAME 75 | clean-trained, full 7,899 |
+|---|---|---|---|
+| full-37 | 0.685 | 0.691 | 0.797 |
+| robust-11 | 0.701 | 0.707 | 0.790 |
+| parsimonious-6 | 0.706 | 0.725 | 0.802 |
+
+- **Distribution effect (amt vs clean, matched N) = -0.006 to -0.019** -- neutral-to-negative. Matching
+  the AMT noise in training does NOT recover accuracy; the noise hurts about as much as the match helps.
+- **The dominant effect is training-set SIZE, not distribution:** clean-full-7899 (~0.79-0.80) >>
+  clean-matched-75 (~0.69-0.72). That ~0.10 gap is pure data volume; it dwarfs the +/-0.01 distribution term.
+- **Structural conclusion:** the deployment baseline (0.792) is trained on all 7,899 clean pieces.
+  Train-on-AMT can only ever train on the few hundred pieces you can afford to transcribe (~60s/chunk),
+  so it is data-starved BY CONSTRUCTION -- and the distribution-match benefit that was supposed to
+  compensate is ~0. It cannot beat the clean baseline. This is a structural argument, not just small-n.
+- **Sixth converging result:** the deployment gap is a raw transcription-QUALITY problem, not a
+  train/test-distribution-matching problem. Closing it needs a better transcriber, not augmentation.
+- Caveat: pilot n=75; the full 594 run would tighten the numbers but the structural argument holds.
+
+Raw: `mirex_phase5d_train_on_amt.json`. Kept the 409 pilot AMT chunks (`data/results/train_on_amt/amt_mid`,
+1.7MB) + manifest; deleted the 4.6GB render/slice chunks (reproducible via `--stage prep`).
 
 ## Chosen approach (post-research)
 
