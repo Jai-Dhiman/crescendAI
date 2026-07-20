@@ -64,3 +64,21 @@ def test_follow_hmm_backward_jump_relocks_after_a_repeat() -> None:
     mono = follow_hmm(perf, score, MONO, bar_boundaries=bars, transpose_candidates=(0,))
     idx = [m.score_index for m in mono.matches]
     assert idx == sorted(idx)
+
+
+def test_follow_hmm_forward_jump_relocks_after_a_skipped_passage() -> None:
+    # bar1 C4,D4 (60,62); a 20-note filler bar the perf never plays (70..); bar3 G4,A4 (67,69).
+    pitches = [60, 62] + list(range(70, 90)) + [67, 69]  # 2 + 20 + 2 = 24 notes
+    score = [ScoreNote(pitch=p, position=float(i)) for i, p in enumerate(pitches)]
+    # downbeats at note-start seconds 0.0 (bar1), 2.0 (filler), 22.0 (bar3) -> columns (0, 2, 22)
+    bars = bar_boundary_columns([s.position for s in score], [0.0, 2.0, 22.0])
+    assert bars == (0, 2, 22)
+    perf = [PerfNote(onset=float(k), offset=float(k) + 0.5, pitch=p, velocity=80)
+            for k, p in enumerate([60, 62, 67, 69])]
+
+    hit = follow_hmm(perf, score, JUMPS, bar_boundaries=bars, transpose_candidates=(0,))
+    assert [m.score_index for m in hit.matches] == [0, 1, 22, 23]
+
+    mono = follow_hmm(perf, score, MONO, bar_boundaries=bars, transpose_candidates=(0,))
+    assert [m.score_index for m in mono.matches] == [0, 1]
+    assert mono.unmatched_perf_indices == (2, 3)
