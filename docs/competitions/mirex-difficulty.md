@@ -455,6 +455,20 @@ MusicXML, a MIREX-suggested set). Harness `phase5e_cross_dataset.py`, features v
 Raw: `mirex_phase5e_cross_dataset.json`. Mikrokosmos data: `data/raw/mikrokosmos` (re-download from
 github PRamoneda/Mikrokosmos-difficulty). Feature cache: `mirex_phase5e_mikrokosmos_features.json`.
 
+### Phase 5d — train-on-AMT augmentation (IN PROGRESS, started 2026-07-19)
+
+The only remaining lever that moves the DEPLOYED (aria-amt) number, not the clean ceiling. Train ON
+aria-amt features so train matches test: render 594 clean MIDIs -> audio (fluidsynth MuseScore_General)
+-> slice 30s -> aria-amt -> features; train LGBM; test on the SAME 43 real-audio aria-amt pieces
+(Phase 3e). Gate: does amt-trained beat clean-trained (0.792) on the amt-43 test? Also evaluates the
+robust-11 and parsimonious-6 subsets (the chosen submission direction, given the 5e overfitting warning).
+
+Harness `phase5d_train_on_amt.py` (prep render+slice / external aria-amt transcribe / eval).
+Toolchain verified: aria-amt builds under `uv run --python 3.11 --script extract_amt_midi.py`,
+transcribes ~16s/chunk on MPS (sane output: 201 notes, pc_entropy 3.48). 594-piece run ~= 6,000 chunks
+~= 27h transcription (resumable). Disk-bounded (full wavs deleted after slicing; 147GB free).
+**Results pending the transcription run.**
+
 ## Chosen approach (post-research)
 
 **Reproduce RubricNet's hand-crafted recipe on our AMT output** — NOT adapt our deep pairwise head (killed: A1). Rationale: hand-crafted features match deep encoders (A7), the strong features are pitch/onset-based = AMT's reliable part (A5/A6), and it's cheap + interpretable. MuQ audio fusion is a deferred differentiation probe (A11).
