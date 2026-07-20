@@ -22,8 +22,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from follower_bench.asap_alignment import DEFAULT_ANNOTATIONS_PATH, load_alignment
+from follower_bench.calibration import calibration_stats
 from follower_bench.clip_generator import generate
 from follower_bench.follower import DEFAULT_SKIP_PENALTY, ContinuityPrior, bar_boundary_columns, follow
+from follower_bench.hmm import HmmParams, follow_hmm
 from follower_bench.metric import aggregate_by_pathology, score_clip, trajectory_from_matches
 from follower_bench.pathologies import PATHOLOGY_TYPES
 from follower_bench.score_notes import load_score_notes_from_midi
@@ -51,6 +53,7 @@ class RunOutcome:
     score: object | None  # metric.TrajectoryScore
     error: str | None
     elapsed_s: float
+    calibration: object | None = None  # calibration.CalibrationStats when --hmm; None on the additive path
 
 
 def sample_performances(per_composer: int, annotations_path: Path = DEFAULT_ANNOTATIONS_PATH) -> list[str]:
@@ -74,23 +77,43 @@ def sample_performances(per_composer: int, annotations_path: Path = DEFAULT_ANNO
     return chosen
 
 
+def _follow_for_cell(use_hmm, amt_notes, score_notes, prior, hmm_params, bar_boundaries, transpose_candidates):
+    """Route one cell to the additive DP (default) or the #119 HMM decoder.
+    transpose_candidates defaults to follow()/follow_hmm's own default when None."""
+    if use_hmm:
+        if transpose_candidates is None:
+            return follow_hmm(amt_notes, score_notes, hmm_params, bar_boundaries=bar_boundaries)
+        return follow_hmm(amt_notes, score_notes, hmm_params, bar_boundaries=bar_boundaries,
+                          transpose_candidates=transpose_candidates)
+    if transpose_candidates is None:
+        return follow(amt_notes, score_notes, prior, bar_boundaries=bar_boundaries)
+    return follow(amt_notes, score_notes, prior, bar_boundaries=bar_boundaries,
+                  transpose_candidates=transpose_candidates)
+
+
 def _run_cell(performance: str, pathology: str, seed: int, score_notes: list,
-              bar_boundaries: tuple[int, ...], jump_back_penalty: float, jump_fwd_penalty: float) -> RunOutcome:
+              bar_boundaries: tuple[int, ...], jump_back_penalty: float, jump_fwd_penalty: float,
+              use_hmm: bool = False, hmm_params: HmmParams | None = None) -> RunOutcome:
     prior = ContinuityPrior(skip_penalty=DEFAULT_SKIP_PENALTY,
                             jump_back_penalty=jump_back_penalty,
                             jump_fwd_penalty=jump_fwd_penalty)
+    if hmm_params is None:
+        hmm_params = HmmParams(p_jump_back=0.02, p_jump_fwd=0.01)
     t0 = time.perf_counter()
     try:
         clip = generate(performance, pathology, seed)
-        est = follow(list(clip.notes), score_notes, prior, bar_boundaries=bar_boundaries)
+        est = _follow_for_cell(use_hmm, list(clip.notes), score_notes, prior, hmm_params, bar_boundaries, None)
         est_traj = trajectory_from_matches(est.matches)
         score = score_clip(est_traj, clip)
-        return RunOutcome(performance, pathology, seed, score, None, time.perf_counter() - t0)
+        # HMM path only: measure confidence calibration for this cell (needs matches).
+        calibration = calibration_stats(est.matches, clip) if (use_hmm and est.matches) else None
+        return RunOutcome(performance, pathology, seed, score, None, time.perf_counter() - t0, calibration)
     except Exception as exc:  # loud: recorded, never silently dropped
-        return RunOutcome(performance, pathology, seed, None, f"{type(exc).__name__}: {exc}", time.perf_counter() - t0)
+        return RunOutcome(performance, pathology, seed, None, f"{type(exc).__name__}: {exc}",
+                          time.perf_counter() - t0, None)
 
 
-def _run_performance(task: tuple[str, list[int], int | None, float, float]) -> tuple[list[RunOutcome], dict | None]:
+def _run_performance(task: tuple[str, list[int], int | None, float, float, bool]) -> tuple[list[RunOutcome], dict | None]:
     """Load one performance's score MIDI once, compute its bar-boundary
     columns from the ASAP downbeats, then run all its (pathology, seed)
     cells. Returns (outcomes, skip_record-or-None). Pickle-safe top-level
@@ -99,7 +122,7 @@ def _run_performance(task: tuple[str, list[int], int | None, float, float]) -> t
     max_score_notes is set, a performance whose score MIDI exceeds it is
     recorded as an explicit skip (the #118 iteration-speed cap). jump
     penalties default to inf upstream, giving the monotonic baseline."""
-    perf, seeds, max_score_notes, jump_back_penalty, jump_fwd_penalty = task
+    perf, seeds, max_score_notes, jump_back_penalty, jump_fwd_penalty, use_hmm = task
     try:
         alignment = load_alignment(perf)
         score_notes = load_score_notes_from_midi(alignment.score_midi_path)
@@ -114,13 +137,15 @@ def _run_performance(task: tuple[str, list[int], int | None, float, float]) -> t
         cell_seeds = [seeds[0]] if pathology == "clean" else seeds
         for seed in cell_seeds:
             outcomes.append(_run_cell(perf, pathology, seed, score_notes,
-                                      bar_boundaries, jump_back_penalty, jump_fwd_penalty))
+                                      bar_boundaries, jump_back_penalty, jump_fwd_penalty,
+                                      use_hmm=use_hmm))
     return outcomes, None
 
 
 def run_gap_report(
     performances: list[str], seeds: list[int], workers: int = 1, max_score_notes: int | None = None,
     jump_back_penalty: float = math.inf, jump_fwd_penalty: float = math.inf,
+    use_hmm: bool = False,
 ) -> dict:
     """Run every (performance, pathology, seed) cell, score it, and
     aggregate per pathology. Parallelizes over performances when
@@ -131,7 +156,7 @@ def run_gap_report(
     baseline) enable the #118 bar-boundary jumps."""
     outcomes: list[RunOutcome] = []
     skipped: list[dict] = []
-    tasks = [(perf, seeds, max_score_notes, jump_back_penalty, jump_fwd_penalty) for perf in performances]
+    tasks = [(perf, seeds, max_score_notes, jump_back_penalty, jump_fwd_penalty, use_hmm) for perf in performances]
     if workers > 1:
         from multiprocessing import Pool
         with Pool(workers) as pool:
@@ -209,6 +234,14 @@ def _format_report(result: dict, evaluation: dict, wall_s: float) -> str:
     lines.append("-" * len(hdr))
     lines.append(f"OVERALL: {'PASS' if evaluation['overall_pass'] else 'FAIL'} "
                  f"(jump = known gap #118, excluded from pass/fail)")
+    calibrated = [o.calibration for o in result["ok"] if o.calibration is not None]
+    if calibrated:
+        import statistics as _st
+        median_rho = _st.median(c.spearman_rho for c in calibrated)
+        median_err = _st.median(c.overall_median_error for c in calibrated)
+        lines.append("")
+        lines.append(f"HMM CALIBRATION (n={len(calibrated)} cells): "
+                     f"median spearman_rho={median_rho:.3f}  median overall_err={median_err:.3f} beats")
     if result["failed"]:
         lines.append("")
         lines.append(f"FAILED RUNS ({len(result['failed'])}):")
@@ -222,8 +255,9 @@ def _format_report(result: dict, evaluation: dict, wall_s: float) -> str:
     return "\n".join(lines)
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description="Follower Phase-0 gap report (#117)")
+def _add_cli_args(ap: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    """Register every gap_report CLI argument (shared by main() and the routing
+    tests so the --hmm flag is introspectable without invoking a full run)."""
     ap.add_argument("--per-composer", type=int, default=5, help="max performances sampled per composer")
     ap.add_argument("--seeds", type=int, default=5, help="pathology seeds per performance (clean runs once)")
     ap.add_argument("--workers", type=int, default=8, help="parallel worker processes")
@@ -234,8 +268,16 @@ def main() -> None:
                     help="enable #118 backward (repeat/restart) bar-boundary jumps at this penalty (default: off/inf)")
     ap.add_argument("--jump-fwd-penalty", type=float, default=None,
                     help="enable #118 forward (skip) bar-boundary jumps at this penalty (default: off/inf)")
+    ap.add_argument("--hmm", action="store_true",
+                    help="use the #119 Viterbi-HMM decoder instead of the additive DP")
     ap.add_argument("--trackio", action="store_true", help="log the baseline to Trackio")
     ap.add_argument("--out", type=Path, default=None, help="write the text report to this path")
+    return ap
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="Follower Phase-0 gap report (#117)")
+    _add_cli_args(ap)
     args = ap.parse_args()
 
     performances = sample_performances(args.per_composer)
@@ -246,6 +288,7 @@ def main() -> None:
         performances, seeds, workers=args.workers, max_score_notes=args.max_score_notes,
         jump_back_penalty=args.jump_back_penalty if args.jump_back_penalty is not None else math.inf,
         jump_fwd_penalty=args.jump_fwd_penalty if args.jump_fwd_penalty is not None else math.inf,
+        use_hmm=args.hmm,
     )
     wall = time.perf_counter() - t0
     evaluation = evaluate_bar(result["aggregates"])
