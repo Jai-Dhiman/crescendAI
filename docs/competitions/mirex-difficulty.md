@@ -371,6 +371,31 @@ number = full-clean-trained model tested on the 43 aria-amt pieces.
 
 Raw: `mirex_phase5a_robust_features.json`.
 
+### Phase 5b — Aria symbolic-embedding probe (RUN 2026-07-19)
+
+**Verdict: NO edge. Frozen Aria (512-d symbolic-FM embedding) ties/slightly-loses to 37 hand-crafted features (0.744 vs 0.749 on the same 600 pieces) and does not beat 0.764. Even the RIGHT-modality foundation model finds no difficulty signal beyond hand-crafted features -> strong evidence for a representation/feature wall, not a bad-feature-choice problem.**
+
+Harness: `phase5b_aria_probe.py`. The right-modality sequel to the MuQ null (Phase 4): Aria is a
+symbolic FM (pretrained ~820K MIDIs). 600 grade-strided PSyllabus pieces -> frozen Aria "embedding"
+variant (512-d global, EOS-pooled over 300-note chunks) -> RidgeCV probe. SAME RidgeCV head for Aria
+and the 37-feature symbolic baseline, composer-disjoint 5-fold x 5 seeds.
+
+| representation (n=600, RidgeCV head, same folds) | tau-c |
+|---|---|
+| symbolic 37-feat | 0.7493 +/- 0.0044 |
+| Aria embedding (512-d) | 0.7435 +/- 0.0078 |
+| reference: symbolic full-task (7,899) | 0.764 |
+
+- Aria - symbolic (same sample) = -0.006 (loses, within noise). Aria - 0.764 = -0.020.
+- Parallels the MuQ null: neither an audio FM (MuQ) nor a symbolic FM (Aria) beats hand-crafted
+  features. The 0.76 band is a property of the TASK/representation, not our feature engineering.
+- Caveat: frozen + linear probe + the 512-d "embedding" variant. A fine-tuned Aria or the 1536-d base
+  variant / sequence-level features are unrefuted -- but the cheap frozen decider says no edge (same
+  logic as Phase 4).
+
+Raw: `mirex_phase5b_aria_probe.json`. Aria embeddings cached at `data/results/aria_probe/emb`
+(reproducible via `phase5b_aria_probe.py --stage embed`).
+
 ### Phase 5c — consensus / multi-syllabus label modeling (RUN 2026-07-19)
 
 **Verdict: NULL as a submission lever, and the diagnostic points to a FEATURE wall (not a label wall). Reliability-weighting and denoised targets don't beat 0.764; and a cleaner (multi-syllabus-mean) target is HARDER to predict from the 37 features, not easier -- so averaging out label noise does not raise the ceiling. This walks back the "consensus reliability 0.857 = big headroom" hope.**
