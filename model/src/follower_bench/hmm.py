@@ -50,10 +50,12 @@ def _logs(params: HmmParams) -> tuple[float, float, float, float, float, float, 
 
 def _viterbi_at_transpose(amt_notes, score_notes, params, transpose, bar_boundaries=None):
     """Max-product Viterbi over the perf-note x score-note grid. Returns
-    (V, back). Monotonic (match/insertion/deletion) unless bar_boundaries is
-    given with a finite jump prob (jump edges added in the jump block below)."""
+    (V, back). Adds row-advancing bar-boundary jump-into-match edges when
+    bar_boundaries is given and a jump prob is finite."""
     n, m = len(amt_notes), len(score_notes)
     lm, lc, li, ld, la, ljb, ljf = _logs(params)
+    boundaries = tuple(b for b in (bar_boundaries or ()) if 0 <= b <= m)
+    jumps_enabled = bool(boundaries) and (ljb > NEG_INF or ljf > NEG_INF)
 
     def emit(i, j):  # perf i-1 vs score j-1
         return lm if (score_notes[j - 1].pitch + transpose) == amt_notes[i - 1].pitch else lc
@@ -77,7 +79,58 @@ def _viterbi_at_transpose(amt_notes, score_notes, params, transpose, bar_boundar
                 best, mv = cand, ("match", i - 1, j - 1)
             V[i][j] = best
             back[i][j] = mv
+        if jumps_enabled:
+            _relax_row_jumps_viterbi(V, back, i, m, boundaries, la, ld, ljb, ljf, emit)
     return V, back
+
+
+def _relax_row_jumps_viterbi(V, back, i, m, boundaries, la, ld, ljb, ljf, emit):
+    """Add the single best jump-into-match edge for each bar boundary in row i
+    (a jump consuming perf note i-1 as a match on the bar's first note), then
+    re-propagate deletions left-to-right so a jump can be followed by skips.
+    Sources come from row i-1: backward = source column > target (repeat/
+    restart, cost ljb), forward = source column < target (skip, cost ljf)."""
+    prev = V[i - 1]
+    # prefix max+arg over prev[0..s], suffix max+arg over prev[s..m]
+    pref_val = [NEG_INF] * (m + 1)
+    pref_arg = [0] * (m + 1)
+    bv, ba = NEG_INF, 0
+    for s in range(m + 1):
+        if prev[s] > bv:
+            bv, ba = prev[s], s
+        pref_val[s], pref_arg[s] = bv, ba
+    suf_val = [NEG_INF] * (m + 2)
+    suf_arg = [0] * (m + 2)
+    bv, ba = NEG_INF, m
+    for s in range(m, -1, -1):
+        if prev[s] > bv:
+            bv, ba = prev[s], s
+        suf_val[s], suf_arg[s] = bv, ba
+    for b in boundaries:
+        target = b + 1  # match the bar's first note (index b) -> pointer at b+1
+        if not (1 <= target <= m):
+            continue
+        cand, src = NEG_INF, None
+        if ljb > NEG_INF and b + 1 <= m:      # backward: source s > b
+            c = suf_val[b + 1] + ljb
+            if c > cand:
+                cand, src = c, suf_arg[b + 1]
+        if ljf > NEG_INF and b - 1 >= 0:      # forward: source s < b
+            c = pref_val[b - 1] + ljf
+            if c > cand:
+                cand, src = c, pref_arg[b - 1]
+        if src is None:
+            continue
+        cand = cand + la + emit(i, target)
+        if cand > V[i][target]:
+            V[i][target] = cand
+            back[i][target] = ("jump", i - 1, src)
+    # re-propagate deletions so a jump landing can be followed by skips
+    for j in range(1, m + 1):
+        c = V[i][j - 1] + ld
+        if c > V[i][j]:
+            V[i][j] = c
+            back[i][j] = ("del", i, j - 1)
 
 
 def _traceback(back, n, best_j, amt_notes, score_notes, conf=None):
