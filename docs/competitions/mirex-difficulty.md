@@ -340,6 +340,37 @@ Raw: `mirex_phase4_muq_probe.json`. Audio (875MB wav) + MuQ frame cache deleted 
 (reproducible via `phase4_muq_probe.py --stage prep` + `--stage embed`); pooled piece vectors
 (tiny) + manifest + results JSON retained.
 
+## Phase 5 — continuous-improvement slate (STARTED 2026-07-19)
+
+With ~11 weeks of runway, a 5-experiment slate past the Phase-4 null. Reframe: the SUBMISSION
+number (~0.67-0.72) is gated FIRST by the aria-amt gap (~0.09), THEN by label noise -- not by the
+clean-MIDI 0.764. So the slate splits into "close the AMT gap" (5a, 5d) and "find new signal / raise
+the clean ceiling" (5b Aria probe, 5c consensus labels, 5e CIPI cross-dataset).
+
+### Phase 5a — AMT-robust feature selection (RUN 2026-07-19)
+
+**Verdict: NEAR-NULL on accuracy. Restricting to transcription-robust features does NOT lift the deployed (aria-amt) number -- it stays ~0.79 for all subsets, within n=43 noise. Confirms from the other side that the AMT gap is a TRANSCRIBER problem, not a feature-choice problem (5d attacks it properly).**
+
+Harness: `phase5a_robust_features.py`. Reused the Phase-3e per-feature clean<->amt survival rho to
+define subsets, trained LGBM on the full 7,899 clean set (phase3c cache), and measured the deployed
+number = full-clean-trained model tested on the 43 aria-amt pieces.
+
+| feature set | clean 5-fold | deploy clean-43 | deploy AMT-43 | gap |
+|---|---|---|---|---|
+| FULL (37) | 0.764 | 0.883 | 0.792 | 0.090 |
+| ROBUST rho>0.80 (11) | 0.746 | 0.842 | 0.792 | 0.050 |
+| ROBUST rho>0.75 (18) | 0.758 | 0.883 | 0.800 | 0.083 |
+
+- The 11-feature set HALVES the gap (0.090->0.050) but only because its clean-43 side DROPS to 0.842
+  -- the deployed AMT-43 number is unchanged (0.792). Shrinking the gap by lowering the clean side is
+  not a deployment win.
+- All subsets land at AMT-43 ~0.79-0.80; the +0.007 for ROBUST075 is inside the n=43 +/-0.03-0.05 band.
+- One real (non-accuracy) win: the 11-feature robust set matches the full deployed number with 1/3 the
+  features -- a parsimony/robustness argument for the submission, not a score gain.
+- **Underpowered:** n=43 cannot resolve a ~0.007 effect. Revisit with 5d's larger transcribed set.
+
+Raw: `mirex_phase5a_robust_features.json`.
+
 ## Chosen approach (post-research)
 
 **Reproduce RubricNet's hand-crafted recipe on our AMT output** — NOT adapt our deep pairwise head (killed: A1). Rationale: hand-crafted features match deep encoders (A7), the strong features are pitch/onset-based = AMT's reliable part (A5/A6), and it's cheap + interpretable. MuQ audio fusion is a deferred differentiation probe (A11).
