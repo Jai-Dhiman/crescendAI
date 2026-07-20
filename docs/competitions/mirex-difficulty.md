@@ -371,6 +371,34 @@ number = full-clean-trained model tested on the 43 aria-amt pieces.
 
 Raw: `mirex_phase5a_robust_features.json`.
 
+### Phase 5c — consensus / multi-syllabus label modeling (RUN 2026-07-19)
+
+**Verdict: NULL as a submission lever, and the diagnostic points to a FEATURE wall (not a label wall). Reliability-weighting and denoised targets don't beat 0.764; and a cleaner (multi-syllabus-mean) target is HARDER to predict from the 37 features, not easier -- so averaging out label noise does not raise the ceiling. This walks back the "consensus reliability 0.857 = big headroom" hope.**
+
+Harness: `phase5c_consensus_labels.py`. 32% of PSyllabus pieces (2,500) carry >=2 syllabus grades in
+`related_entries`; among those 43% disagree by >=2. Composer-disjoint 5-fold LGBM on the 37 features.
+
+| variant | tau-c |
+|---|---|
+| baseline (ps, unweighted) | 0.7636 |
+| weight by n_syllabi | 0.7644 (+0.0008) |
+| weight by sqrt(n_syllabi) | 0.7642 (+0.0006) |
+| train on mean(related), eval ps | 0.7627 (-0.0009) |
+| multi-syllabus subset: train+eval ps | 0.7602 |
+| multi-syllabus subset: train+eval mean(related) | 0.7106 |
+
+- Reliability weighting + denoised target = pure noise (all within +/-0.001).
+- **Diagnostic:** if the ceiling were fixable consensus noise, the cleaner mean target should rank
+  EASIER; instead it ranks HARDER (0.71 vs 0.76). The features already capture what the consensus
+  offers -- averaging syllabi adds nothing. (Caveat: integer ps vs continuous mean have different
+  tie structure, affecting absolute tau-c; the -0.05 is partly an artifact, but the direction still
+  refutes "cleaner labels -> higher score.")
+- **Strategic update:** evidence now converges on a **feature wall ~0.76**, consistent with RubricNet
+  also capping ~0.77 on CIPI's cleaner labels. Raises the value of 5b (new representation) + 5e (CIPI
+  cleaner-label test); lowers the value of further label modeling.
+
+Raw: `mirex_phase5c_consensus.json`. Keyed feature cache: `mirex_phase5c_features.json`.
+
 ## Chosen approach (post-research)
 
 **Reproduce RubricNet's hand-crafted recipe on our AMT output** — NOT adapt our deep pairwise head (killed: A1). Rationale: hand-crafted features match deep encoders (A7), the strong features are pitch/onset-based = AMT's reliable part (A5/A6), and it's cheap + interpretable. MuQ audio fusion is a deferred differentiation probe (A11).
