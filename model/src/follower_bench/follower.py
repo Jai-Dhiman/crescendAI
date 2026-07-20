@@ -90,7 +90,9 @@ def _align_at_transpose(
                 best_val, best_move = cand, ("skip_score", i, j - 1)
 
             cand = B[i - 1][j]
-            # >= (not >) intentionally biases ties toward skip_perf over skip_score.
+            # >= (not >) intentionally biases ties toward skip_perf over skip_score:
+            # prefer leaving a note unmatched over an equal-cost score skip. This is
+            # load-bearing for teleport refusal -- do not "clean up" to strict >.
             if cand >= best_val:
                 best_val, best_move = cand, ("skip_perf", i - 1, j)
 
