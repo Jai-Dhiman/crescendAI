@@ -735,3 +735,72 @@ cd model && git add src/follower_bench/gap_report.py && git commit -m "feat(foll
 ## Post-build: `/autoresearch`
 
 After all tasks are committed and green, `/autoresearch` sweeps `--jump-back-penalty` and `--jump-fwd-penalty` against the #113 metric on the capped subset, maximizing repeat/restart/jump relock subject to the hard constraint **clean/tempo_swing/wrong_note/hesitation false_jumps == 0**. The winning penalties become the follower's defaults for the production path (a follow-up wiring, tracked separately). This plan delivers the mechanism + the two tunable knobs; it does not hard-code final penalty values.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise.** Right problem, right framing. The #117 gap report empirically localized the failure to monotonicity (repeat/restart median relock 59.5s; jump relock_success 0.22), and this plan attacks exactly that with the minimal mechanism (bar-boundary jumps) rather than a proxy. The hand-tuned DP is the correct "A" before the HMM "B" (#119) — it is cheaper, inspectable, and directly optimizable by the existing `/autoresearch` loop. No simpler framing yields the backward-follow capability.
+
+**Scope.** Tight. 5 source files, no new services/classes (two dataclass fields, one pure helper, one relaxation helper). Nothing to cut — each task earns its place. The hardest problem (representing and scoring a non-monotonic trajectory) is *solved by reuse*: the metric already sorts anchors by `perf_time`, so no metric changes were needed. That is the plan avoiding accidental scope, not avoiding the hard part.
+
+**12-Month Alignment.**
+```
+CURRENT                          THIS PLAN                         12-MONTH IDEAL
+monotonic follower, fails    →   +bar-boundary jumps (hand-    →   probabilistic HMM follower
+structural pathologies           tuned penalties, 2 knobs)          (#119), practice-robust
+```
+Moves toward the ideal. The two penalty knobs and the capped harness become the calibration substrate #119 reuses. No conflicting tech debt.
+
+**Alternatives.** The spec documents the chosen trade-off (deterministic hand-tuned over learned) and the one-jump-per-row / bar-boundary-only decisions with rationale. Adequate.
+
+### Engineering Pass
+
+**Architecture.** Verified against the actual code. Data flow: `gap_report._run_performance` → `bar_boundary_columns(positions, downbeats)` → `follow(..., bar_boundaries)` → `_align_at_transpose` (normal transitions → `_relax_row_jumps` → traceback with `"jump"`) → `EstimatedTrajectory.matches` → `trajectory_from_matches` (sorts anchors by `perf_time`, so a backward `score_position` step is preserved) → `score_clip`. No user input reaches SQL/shell/LLM. `math.inf` floats pickle cleanly across `multiprocessing.Pool`. The one-jump-per-row rule is what keeps traceback acyclic — verified by hand-tracing both synthetic examples (backward → `[0,1,2,3,0,1]` via a row-4 jump; forward → `[0,1,10,11]` via a row-2 jump).
+
+**Module Depth.**
+- `follow()` / `_align_at_transpose` — interface gains one optional arg; hides the entire jump DP. **DEEP.**
+- `_relax_row_jumps(row, back, i, m, bars, prior) -> None` — ~30 LOC hiding prefix/suffix maxima + single-best-jump selection + skip re-propagation behind a void mutator. **DEEP enough.**
+- `bar_boundary_columns` — 3-line pure adapter. **SHALLOW but justified** (isolated for unit-testability; keeps bisect math out of two call sites).
+- `ContinuityPrior`, `ClipAlignment` — data carriers, correctly extended with defaults.
+
+**Test Philosophy.** All tests exercise public interfaces (`follow`, `load_alignment`, `bar_boundary_columns`, the CLI). No internal mocking, no private-method assertions. Each jump test asserts *both* the positive (jump fires when cheap) and the guard (stays monotonic when expensive) — behavior, not shape. Verified each test fails before its impl (import error / `TypeError` on the new kwarg / assertion mismatch).
+
+**Vertical Slice.** No horizontal slicing. Tasks 1,2,3,5 are clean one-test/one-impl/one-commit. Task 0 is a Group-0 harness commit (allowed). Task 6 is integration wiring verified through the public CLI (see RISK below). No test-scaffolding tasks.
+
+**Failure Modes.** Pure in-memory DP; no persistence, no async, no transaction boundary. The gap report's existing loud skip/failure machinery is preserved. One silent-fallback gap noted below (RISK).
+
+### Findings
+
+[OBS] — `trajectory_from_matches` represents a backward jump as a near-vertical `score_position` ramp over a small time delta (anchors stay time-ordered because `perf_time` is strictly increasing). `score_position_at` interpolates it linearly; relock latency is measured correctly. No change needed — this is why the metric needed no edits.
+
+[OBS] — Pass condition is correctly **capped-subset (Task 0, jumps off) vs capped-subset (Task 6, jumps on)**, not the full 71-piece #117 table. Apples-to-apples. Keep the `--per-composer/--seeds/--max-score-notes` flags identical between the two runs.
+
+[RISK] (confidence: 6/10) — **Transpose × jump interaction.** With jumps enabled at low penalties, a wrong transpose could accrue coincidental matches via jumps and beat the correct transpose in `follow()`'s `(len(matches), -abs(t))` tie-break, or fire a spurious jump on a clean clip. Watch during `/autoresearch`: the gap run's **clean/tempo/wrong_note/hesitation false_jumps == 0** is the hard constraint that catches this. Fallback if it manifests: gate jumps behind a minimum contiguous-run length, or search jumps only within the transpose chosen by a first monotonic pass. (Spec Open Question already tracks this.)
+
+[RISK] (confidence: 6/10) — **Task 6 has no automated pytest**; its verification is a human-read CLI diff. The wiring (bar-boundary computation, prior construction, kwarg threading) could silently regress later. The DP itself is covered by Tasks 2/3 unit tests, so the exposure is limited to plumbing. Fallback: if desired, add one `_run_performance` smoke assertion on a short piece; not required to proceed.
+
+[RISK] (confidence: 5/10) — **Silent monotonic fallback on empty downbeats.** If a performance yields empty `bar_boundaries` while jump penalties are finite, `follow()` silently runs monotonic (`bool(()) is False`), degrading quality without a record — mildly against "explicit over silent." Verified all 1066 ASAP pieces have downbeats, so it will not fire on this benchmark. Fallback: record such performances in the skip list if it ever occurs. Optional.
+
+[RISK] (confidence: 5/10) — **Full-set validation cost.** Jump-aware adds a ~2-3x constant factor (extra per-row passes) atop the 9.5h monotonic full run. The plan correctly confines iteration to the capped subset; do not attempt a full-set jump-aware run without budgeting for it. No action for the build.
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `follow()` gains a 4th positional param without breaking callers | SAFE | All 12 callsites pass ≤3 positional args; `transpose_candidates` always by keyword. |
+| Metric needs no changes to score non-monotonic trajectories | SAFE | `trajectory_from_matches` sorts by `perf_time` (strictly increasing); backward `score_position` preserved. |
+| `midi_score_downbeats` present + bit-exact subset of beats | SAFE | Verified across all 1066 ASAP pieces (0 exceptions). |
+| Existing 56 tests + characterization "must-fail" tests stay green | SAFE | All call `follow()` without `bar_boundaries` → jumps off → identical monotonic behavior. |
+| `math.inf` floats survive `multiprocessing.Pool.map` pickling | SAFE | `float('inf')` is picklable. |
+| Default `inf` penalties reproduce the exact monotonic baseline | SAFE | `jumps_enabled` gate is `False` when penalties are `inf` or `bar_boundaries` falsy. |
+| Wrong transpose won't exploit jumps to regress clean false_jumps | VALIDATE | Depends on penalty magnitude; enforced by the gap run's clean-false_jumps==0 constraint during `/autoresearch`. |
+
+### Summary
+[BLOCKER] count: 0
+[RISK]    count: 4
+[QUESTION] count: 0
+
+VERDICT: PROCEED_WITH_CAUTION — monitor during /autoresearch: (1) clean/tempo/wrong_note/hesitation false_jumps must stay 0 as the hard constraint that catches any transpose×jump misbehavior; (2) Task 6 wiring is verified only by the CLI diff, so read the report carefully; (3) empty-downbeat pieces would fall back to monotonic silently (won't fire on ASAP, but note it); (4) keep the Task 0 and Task 6 gap-run flags identical for a fair per-pathology diff.
