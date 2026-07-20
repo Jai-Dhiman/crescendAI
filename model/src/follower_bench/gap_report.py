@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import time
 from collections import defaultdict
 from dataclasses import dataclass
@@ -22,7 +23,7 @@ from pathlib import Path
 
 from follower_bench.asap_alignment import DEFAULT_ANNOTATIONS_PATH, load_alignment
 from follower_bench.clip_generator import generate
-from follower_bench.follower import DEFAULT_SKIP_PENALTY, ContinuityPrior, follow
+from follower_bench.follower import DEFAULT_SKIP_PENALTY, ContinuityPrior, bar_boundary_columns, follow
 from follower_bench.metric import aggregate_by_pathology, score_clip, trajectory_from_matches
 from follower_bench.pathologies import PATHOLOGY_TYPES
 from follower_bench.score_notes import load_score_notes_from_midi
@@ -73,12 +74,15 @@ def sample_performances(per_composer: int, annotations_path: Path = DEFAULT_ANNO
     return chosen
 
 
-def _run_cell(performance: str, pathology: str, seed: int, score_notes: list) -> RunOutcome:
-    prior = ContinuityPrior(skip_penalty=DEFAULT_SKIP_PENALTY)
+def _run_cell(performance: str, pathology: str, seed: int, score_notes: list,
+              bar_boundaries: tuple[int, ...], jump_back_penalty: float, jump_fwd_penalty: float) -> RunOutcome:
+    prior = ContinuityPrior(skip_penalty=DEFAULT_SKIP_PENALTY,
+                            jump_back_penalty=jump_back_penalty,
+                            jump_fwd_penalty=jump_fwd_penalty)
     t0 = time.perf_counter()
     try:
         clip = generate(performance, pathology, seed)
-        est = follow(list(clip.notes), score_notes, prior)
+        est = follow(list(clip.notes), score_notes, prior, bar_boundaries=bar_boundaries)
         est_traj = trajectory_from_matches(est.matches)
         score = score_clip(est_traj, clip)
         return RunOutcome(performance, pathology, seed, score, None, time.perf_counter() - t0)
@@ -86,18 +90,16 @@ def _run_cell(performance: str, pathology: str, seed: int, score_notes: list) ->
         return RunOutcome(performance, pathology, seed, None, f"{type(exc).__name__}: {exc}", time.perf_counter() - t0)
 
 
-def _run_performance(task: tuple[str, list[int], int | None]) -> tuple[list[RunOutcome], dict | None]:
-    """Load one performance's score MIDI once, then run all its
-    (pathology, seed) cells. Returns (outcomes, skip_record-or-None).
-    Pickle-safe top-level function so multiprocessing.Pool can dispatch
-    it. `clean` is RNG-invariant so it runs once regardless of seed
-    count. When max_score_notes is set, a performance whose score MIDI
-    exceeds it is recorded as an explicit skip (NOT silently dropped) --
-    this is the #118 iteration-speed cap, since follow()'s
-    O(perf x score x transpose) DP blows up on long romantic works.
-    Every executed clip stays fully valid; only whole over-length
-    performances are excluded, and the excluded count is reported."""
-    perf, seeds, max_score_notes = task
+def _run_performance(task: tuple[str, list[int], int | None, float, float]) -> tuple[list[RunOutcome], dict | None]:
+    """Load one performance's score MIDI once, compute its bar-boundary
+    columns from the ASAP downbeats, then run all its (pathology, seed)
+    cells. Returns (outcomes, skip_record-or-None). Pickle-safe top-level
+    function so multiprocessing.Pool can dispatch it. `clean` is
+    RNG-invariant so it runs once regardless of seed count. When
+    max_score_notes is set, a performance whose score MIDI exceeds it is
+    recorded as an explicit skip (the #118 iteration-speed cap). jump
+    penalties default to inf upstream, giving the monotonic baseline."""
+    perf, seeds, max_score_notes, jump_back_penalty, jump_fwd_penalty = task
     try:
         alignment = load_alignment(perf)
         score_notes = load_score_notes_from_midi(alignment.score_midi_path)
@@ -106,25 +108,30 @@ def _run_performance(task: tuple[str, list[int], int | None]) -> tuple[list[RunO
     if max_score_notes is not None and len(score_notes) > max_score_notes:
         return [], {"performance": perf,
                     "reason": f"excluded by --max-score-notes cap ({len(score_notes)} > {max_score_notes})"}
+    bar_boundaries = bar_boundary_columns([n.position for n in score_notes], alignment.midi_score_downbeats)
     outcomes: list[RunOutcome] = []
     for pathology in PATHOLOGY_TYPES:
         cell_seeds = [seeds[0]] if pathology == "clean" else seeds
         for seed in cell_seeds:
-            outcomes.append(_run_cell(perf, pathology, seed, score_notes))
+            outcomes.append(_run_cell(perf, pathology, seed, score_notes,
+                                      bar_boundaries, jump_back_penalty, jump_fwd_penalty))
     return outcomes, None
 
 
 def run_gap_report(
-    performances: list[str], seeds: list[int], workers: int = 1, max_score_notes: int | None = None
+    performances: list[str], seeds: list[int], workers: int = 1, max_score_notes: int | None = None,
+    jump_back_penalty: float = math.inf, jump_fwd_penalty: float = math.inf,
 ) -> dict:
     """Run every (performance, pathology, seed) cell, score it, and
     aggregate per pathology. Parallelizes over performances when
     workers > 1. `clean` is RNG-invariant so it runs once per performance
-    regardless of seed count. `max_score_notes` (optional) excludes whole
-    performances whose score MIDI exceeds the cap, recorded as skips."""
+    regardless of seed count. `max_score_notes` excludes whole
+    performances whose score MIDI exceeds the cap (recorded as skips).
+    jump_back_penalty / jump_fwd_penalty (default inf = monotonic
+    baseline) enable the #118 bar-boundary jumps."""
     outcomes: list[RunOutcome] = []
     skipped: list[dict] = []
-    tasks = [(perf, seeds, max_score_notes) for perf in performances]
+    tasks = [(perf, seeds, max_score_notes, jump_back_penalty, jump_fwd_penalty) for perf in performances]
     if workers > 1:
         from multiprocessing import Pool
         with Pool(workers) as pool:
@@ -223,6 +230,10 @@ def main() -> None:
     ap.add_argument("--max-score-notes", type=int, default=None,
                     help="exclude performances whose score MIDI exceeds this many notes "
                          "(iteration-speed cap for #118; excluded perfs are reported, not silently dropped)")
+    ap.add_argument("--jump-back-penalty", type=float, default=None,
+                    help="enable #118 backward (repeat/restart) bar-boundary jumps at this penalty (default: off/inf)")
+    ap.add_argument("--jump-fwd-penalty", type=float, default=None,
+                    help="enable #118 forward (skip) bar-boundary jumps at this penalty (default: off/inf)")
     ap.add_argument("--trackio", action="store_true", help="log the baseline to Trackio")
     ap.add_argument("--out", type=Path, default=None, help="write the text report to this path")
     args = ap.parse_args()
@@ -231,7 +242,11 @@ def main() -> None:
     seeds = list(range(args.seeds))
     print(f"[gap-report] {len(performances)} performances x {len(PATHOLOGY_TYPES)} pathologies x {args.seeds} seeds ...")
     t0 = time.perf_counter()
-    result = run_gap_report(performances, seeds, workers=args.workers, max_score_notes=args.max_score_notes)
+    result = run_gap_report(
+        performances, seeds, workers=args.workers, max_score_notes=args.max_score_notes,
+        jump_back_penalty=args.jump_back_penalty if args.jump_back_penalty is not None else math.inf,
+        jump_fwd_penalty=args.jump_fwd_penalty if args.jump_fwd_penalty is not None else math.inf,
+    )
     wall = time.perf_counter() - t0
     evaluation = evaluate_bar(result["aggregates"])
     report = _format_report(result, evaluation, wall)
