@@ -111,3 +111,16 @@ def test_inserting_a_spurious_note_costs_about_log_p_ins() -> None:
     with_ins = alignment_logprob(perf_ins, score, MONO, transpose=0)
     drop = base - with_ins
     assert math.isclose(drop, -math.log(MONO.p_ins), rel_tol=0.05), drop
+
+
+def test_follow_hmm_attaches_calibrated_confidence_to_matches() -> None:
+    score = [ScoreNote(pitch=p, position=float(i)) for i, p in enumerate([60, 62, 64, 65, 67])]
+    perf = [PerfNote(onset=float(k), offset=float(k) + 0.5, pitch=p, velocity=80)
+            for k, p in enumerate([60, 62, 64, 65, 67])]
+    result = follow_hmm(perf, score, MONO, transpose_candidates=(0,))
+    assert len(result.matches) == 5
+    for m in result.matches:
+        assert m.confidence is not None
+        assert 0.0 <= m.confidence <= 1.0
+    # a clean, unambiguous run should be decoded confidently
+    assert min(m.confidence for m in result.matches) > 0.5

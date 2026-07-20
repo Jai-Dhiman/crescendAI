@@ -307,25 +307,33 @@ def column_posteriors(amt_notes, score_notes, params, transpose, bar_boundaries=
 def follow_hmm(amt_notes, score_notes, params, bar_boundaries=None,
                transpose_candidates=(-2, -1, 0, 1, 2)):
     """Align amt_notes to score_notes via a log-prob Viterbi-HMM, searching
-    transpose_candidates for the best shift (most matches, ties toward 0).
-    Confidence is attached in Task A7; here every match carries confidence=None."""
+    transpose_candidates for the best shift (most matches, ties toward 0). Each
+    match carries confidence = the forward-backward posterior mass on its
+    decoded column (in [0, 1])."""
     n, m = len(amt_notes), len(score_notes)
-    best = None
+    best_t = None
     best_key = None
+    best_back = None
+    best_bj = None
     for t in transpose_candidates:
         V, back = _viterbi_at_transpose(amt_notes, score_notes, params, t, bar_boundaries)
         bj = max(range(m + 1), key=lambda j: V[n][j])
-        matches, unmatched = _traceback(back, n, bj, amt_notes, score_notes)
+        matches, _ = _traceback(back, n, bj, amt_notes, score_notes)
         key = (len(matches), -abs(t))
         if best_key is None or key > best_key:
-            best_key = key
-            best = EstimatedTrajectory(
-                transpose_semitones=t,
-                matches=tuple(matches),
-                unmatched_perf_indices=tuple(unmatched),
-            )
-    assert best is not None
-    return best
+            best_key, best_t, best_back, best_bj = key, t, back, bj
+    assert best_t is not None
+    gamma, _ = _forward_backward(amt_notes, score_notes, params, best_t, bar_boundaries)
+
+    def conf(i, j):
+        return math.exp(gamma[i][j])
+
+    matches, unmatched = _traceback(best_back, n, best_bj, amt_notes, score_notes, conf=conf)
+    return EstimatedTrajectory(
+        transpose_semitones=best_t,
+        matches=tuple(matches),
+        unmatched_perf_indices=tuple(unmatched),
+    )
 
 
 def alignment_logprob(amt_notes, score_notes, params, transpose, bar_boundaries=None):
