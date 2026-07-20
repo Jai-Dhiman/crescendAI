@@ -164,6 +164,146 @@ def _traceback(back, n, best_j, amt_notes, score_notes, conf=None):
     return matches, unmatched
 
 
+def _lse2(a: float, b: float) -> float:
+    """logaddexp of two log-values, NaN/inf-safe."""
+    if a == NEG_INF:
+        return b
+    if b == NEG_INF:
+        return a
+    hi, lo = (a, b) if a >= b else (b, a)
+    return hi + math.log1p(math.exp(lo - hi))
+
+
+def _lse(values) -> float:
+    acc = NEG_INF
+    for v in values:
+        acc = _lse2(acc, v)
+    return acc
+
+
+def _forward_backward(amt_notes, score_notes, params, transpose, bar_boundaries=None):
+    """Sum-product alpha/beta over the same edges as _viterbi_at_transpose.
+    Returns (gamma, logZ): gamma[i][j] is log P(pointer at column j right after
+    consuming perf note i | all obs); logZ is the log marginal likelihood.
+    Deletions are folded into the transition into each emitting note (del-
+    closure), so sum_j exp(gamma[i][j]) == 1 for every i."""
+    n, m = len(amt_notes), len(score_notes)
+    lm, lc, li, ld, la, ljb, ljf = _logs(params)
+    boundaries = tuple(b for b in (bar_boundaries or ()) if 0 <= b <= m)
+    jumps_enabled = bool(boundaries) and (ljb > NEG_INF or ljf > NEG_INF)
+    bset = set(boundaries)
+
+    def emit(i, j):
+        return lm if (score_notes[j - 1].pitch + transpose) == amt_notes[i - 1].pitch else lc
+
+    def del_closure(row):
+        # D[j] = logsumexp_{j'<=j} row[j'] + (j-j')*ld
+        D = [NEG_INF] * (m + 1)
+        D[0] = row[0]
+        for j in range(1, m + 1):
+            D[j] = _lse2(row[j], D[j - 1] + ld)
+        return D
+
+    # ---- forward ----
+    alpha = [[NEG_INF] * (m + 1) for _ in range(n + 1)]
+    alpha[0][0] = 0.0
+    for j in range(1, m + 1):
+        alpha[0][j] = alpha[0][j - 1] + ld
+    for i in range(1, n + 1):
+        prev = alpha[i - 1]
+        D = del_closure(prev)
+        # raw prefix/suffix logsumexp over prev for jump sources
+        pref = [NEG_INF] * (m + 1)
+        acc = NEG_INF
+        for s in range(m + 1):
+            acc = _lse2(acc, prev[s])
+            pref[s] = acc
+        suf = [NEG_INF] * (m + 2)
+        acc = NEG_INF
+        for s in range(m, -1, -1):
+            acc = _lse2(acc, prev[s])
+            suf[s] = acc
+        row = alpha[i]
+        for j in range(0, m + 1):
+            terms = [D[j] + li]  # insertion at column j (dels then a noise note)
+            if j >= 1:
+                terms.append(D[j - 1] + la + emit(i, j))  # match into j
+            if jumps_enabled and j >= 1 and (j - 1) in bset:
+                b = j - 1
+                jt = []
+                if ljb > NEG_INF and b + 1 <= m:
+                    jt.append(ljb + suf[b + 1])   # backward sources s > b
+                if ljf > NEG_INF and b - 1 >= 0:
+                    jt.append(ljf + pref[b - 1])  # forward sources s < b
+                if jt:
+                    terms.append(_lse(jt) + la + emit(i, j))
+            row[j] = _lse(terms)
+    logZ = _lse(alpha[n])
+    if logZ == NEG_INF:
+        raise ValueError("HMM forward pass found no decodable path (logZ = -inf); "
+                         "check p_ins > 0 or the score/perf inputs")
+
+    # ---- backward ----
+    beta = [[NEG_INF] * (m + 1) for _ in range(n + 1)]
+    for j in range(m + 1):
+        beta[n][j] = 0.0
+    for i in range(n - 1, -1, -1):
+        nb = beta[i + 1]
+        # E_match[j2] = la + emit(i+1,j2) + nb[j2]; E_ins[j2] = li + nb[j2]
+        E_match = [NEG_INF] * (m + 1)
+        E_ins = [NEG_INF] * (m + 1)
+        for j2 in range(m + 1):
+            E_ins[j2] = li + nb[j2]
+            if j2 >= 1:
+                E_match[j2] = la + emit(i + 1, j2) + nb[j2]
+        # Cmatch[j] = logsumexp_{k>=0} k*ld + E_match[j+1+k]
+        Cmatch = [NEG_INF] * (m + 1)
+        for j in range(m - 1, -1, -1):
+            Cmatch[j] = _lse2(E_match[j + 1], Cmatch[j + 1] + ld)
+        # Cins[j] = logsumexp_{j2>=j} (j2-j)*ld + E_ins[j2]
+        Cins = [NEG_INF] * (m + 1)
+        Cins[m] = E_ins[m]
+        for j in range(m - 1, -1, -1):
+            Cins[j] = _lse2(E_ins[j], Cins[j + 1] + ld)
+        # jump-out contributions per source column j
+        jump_out = [NEG_INF] * (m + 1)
+        if jumps_enabled:
+            # E_jump_b = la + emit(i+1, b+1) + nb[b+1] for each boundary b with b+1<=m
+            ejb = {b: la + emit(i + 1, b + 1) + nb[b + 1] for b in boundaries if b + 1 <= m}
+            sb = sorted(ejb)
+            # backward: source j > b (cost ljb) -> boundaries below j
+            if ljb > NEG_INF:
+                run = NEG_INF
+                bi = 0
+                for j in range(m + 1):
+                    while bi < len(sb) and sb[bi] < j:
+                        run = _lse2(run, ejb[sb[bi]])
+                        bi += 1
+                    jump_out[j] = _lse2(jump_out[j], (ljb + run) if run != NEG_INF else NEG_INF)
+            # forward: source j < b (cost ljf) -> boundaries above j
+            if ljf > NEG_INF:
+                run = NEG_INF
+                bi = len(sb) - 1
+                for j in range(m, -1, -1):
+                    while bi >= 0 and sb[bi] > j:
+                        run = _lse2(run, ejb[sb[bi]])
+                        bi -= 1
+                    jump_out[j] = _lse2(jump_out[j], (ljf + run) if run != NEG_INF else NEG_INF)
+        for j in range(m + 1):
+            beta[i][j] = _lse([Cmatch[j], Cins[j], jump_out[j]])
+
+    gamma = [[alpha[i][j] + beta[i][j] - logZ for j in range(m + 1)] for i in range(n + 1)]
+    return gamma, logZ
+
+
+def column_posteriors(amt_notes, score_notes, params, transpose, bar_boundaries=None):
+    """Return the per-perf-note posterior over score columns as probabilities:
+    out[i][j] = P(pointer at column j right after consuming perf note i | obs).
+    Each row sums to ~1. Rows 1..n correspond to perf notes; row 0 is the start."""
+    gamma, _ = _forward_backward(amt_notes, score_notes, params, transpose, bar_boundaries)
+    return [[math.exp(g) for g in row] for row in gamma]
+
+
 def follow_hmm(amt_notes, score_notes, params, bar_boundaries=None,
                transpose_candidates=(-2, -1, 0, 1, 2)):
     """Align amt_notes to score_notes via a log-prob Viterbi-HMM, searching

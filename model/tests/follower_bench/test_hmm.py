@@ -15,7 +15,7 @@ def test_matched_note_confidence_defaults_none_and_accepts_a_value() -> None:
     assert m2.confidence == 0.75
 
 
-from follower_bench.hmm import HmmParams, follow_hmm
+from follower_bench.hmm import HmmParams, column_posteriors, follow_hmm
 from follower_bench.score_notes import ScoreNote
 from follower_bench.segments import PerfNote
 
@@ -82,3 +82,17 @@ def test_follow_hmm_forward_jump_relocks_after_a_skipped_passage() -> None:
     mono = follow_hmm(perf, score, MONO, bar_boundaries=bars, transpose_candidates=(0,))
     assert [m.score_index for m in mono.matches] == [0, 1]
     assert mono.unmatched_perf_indices == (2, 3)
+
+
+def _rows_sum_to_one(gamma) -> None:
+    for row in gamma:
+        assert math.isclose(sum(row), 1.0, abs_tol=1e-6), sum(row)
+
+
+def test_column_posteriors_sum_to_one_per_step_monotonic_and_with_jumps() -> None:
+    score = [ScoreNote(pitch=p, position=float(i)) for i, p in enumerate([60, 62, 64, 65])]
+    bars = bar_boundary_columns([s.position for s in score], [0.0, 2.0])
+    perf = [PerfNote(onset=float(k), offset=float(k) + 0.5, pitch=p, velocity=80)
+            for k, p in enumerate([60, 62, 64, 65, 60, 62])]
+    _rows_sum_to_one(column_posteriors(perf, score, MONO, transpose=0))
+    _rows_sum_to_one(column_posteriors(perf, score, JUMPS, transpose=0, bar_boundaries=bars))
