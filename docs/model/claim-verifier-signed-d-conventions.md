@@ -1022,3 +1022,66 @@ RENDERED construction-known audio (clean AMT) — unaffected. (3) The real-audio
 dependency: **#108's continuity-penalized symbolic matcher replacing parangonar inside this offline
 pipeline** (its day-0 probe already beat parangonar's global matchers, which scatter with no local
 constraint). The #101 paper path and the #108 product path CONVERGE at the matcher.
+
+---
+
+## FRONT 8 UPDATE (#101, 2026-07-19): dynamics level-cue supply probe — the front-5 gap is INPUT-side and PROMPTABLE (rate is signal-fidelity, not independent)
+
+Front 5 declared the dynamics *rate* UNMEASURABLE: the generator makes ~90% dynamic-CONTRAST
+claims and ~0 falsifiable whole-piece LOUDNESS-LEVEL claims, so the G-B-validated mean-velocity
+LEVEL statistic had nothing to score (a construct mismatch). Front 6 then killed the obvious rescue
+(no deterministic dynamic-CONTRAST statistic validates). Front 5 left ONE door un-run: is that
+supply gap the generator's VOICE (won't state overall loudness) or its INPUT (never *given* an
+overall-loudness signal)? — the front-7 question, asked for dynamics. This front ran it and the
+answer is INPUT: the gap is promptable.
+
+**Method — paired two-arm test (mirrors 7a-bis) over the SAME 17 `gd_bundles` performances.** Held
+the permissive-but-honest teacher prompt IDENTICAL across arms; only the per-performance INPUT
+differs, so the arms isolate exactly one variable.
+- **ARM A**: `muq_means` scalars only (the ORIGINAL production input).
+- **ARM B**: + a **MEASURED** overall-loudness cue derived from THIS bundle's mean AMT note velocity
+  (`d = mean_vel − 51.5`, direction vs tau 6.5; 9 loud / 8 balanced / 0 soft).
+
+**KEY DISTINCTION from the timing probe:** timing's ARM-B cue had to be INVENTED (raw AMT onsets are
+texture-confounded; a real directional signal needed 7b's score alignment). Dynamics' validated
+statistic is mean note VELOCITY — density-free and gain-robust on the raw bundle — so the ARM-B cue
+is a REAL self-relative measurement. **CONSEQUENCE (the honest caveat):** the SAME statistic both
+CUES and SCORES, so any resulting rate is a **signal-fidelity** rate (the measure feeds and
+adjudicates itself), NOT an independent faithfulness rate. Teacher generation + claim extraction are
+LLM (Sonnet); the truth label is the real `DynamicsMeasurer` + frozen `route_verdict` (tau 6.5) — the
+Path-#1 non-circularity rule holds for the *verdict*, not for the cue↔statistic loop.
+
+**Results (all measured; `model/data/results/dynamics_level_cue_supply.json`, `dyn_arm_{a,b}_rate.json`):**
+
+| quantity | ARM A (no cue) | ARM B (measured cue) | read |
+|---|---:|---:|---|
+| level@whole_piece claims | **0** (13 contrast) | **17** (+14 contrast) | **supply LIFT 0→17: the gap is promptable, not a voice block** |
+| committed (real router) | 0 | 14 (3 near_threshold abstain) | 3 near-boundary claims correctly quarantined |
+| faithfulness rate | UNMEASURABLE | **1.000** CI [1.000, 1.000] | signal-fidelity ceiling (circular) — NOT the headline |
+| polarity (committed) | — | + 8/8, neutral 6/6 SUPPORTED | spans two verdict classes (soft/− untested: 0 soft cues) |
+| sign-fidelity vs cue | — | **15/17 (0.88)** | teacher inflated 2/8 *balanced* cues to a loud (+) claim |
+
+**What this measures (and what it does not).** ARM A **reproduces front 5** on these 17 (0 falsifiable
+overall-loudness claims — the teacher is honest and won't invent a level uncued). ARM B shows the
+teacher WILL make grounded whole-piece loudness claims when given a measured signal. The **1.000 is a
+signal-fidelity ceiling, not an independent faithfulness rate** — expected by construction and NOT a
+paper headline. The genuinely measured contributions are: (1) **the dynamics-level supply gap is
+INPUT-side and promptable** (0→17), reframing front 5's "unmeasurable" as "unmeasurable *on the uncued
+production input*"; (2) **teacher sign-fidelity is 0.88, not 1.0** — even given a clean cue the voice
+inflated 2 balanced performances to a directional loud claim (a measured teacher-side distortion);
+(3) **the near-threshold dead-band worked** — both inflated claims had true |d|<tau and were abstained,
+not committed (0 REFUTED among committed is the abstention machinery doing its job, not luck).
+
+**G-D PASS = False**, for two independent reasons: n=14 committed < 30 (only 17 bundles are
+transcribed; ≥30 needs more AMT transcription, ~57s/clip), AND the rate is signal-fidelity, not
+independent. A gate-passing INDEPENDENT dynamics-level rate still requires an **independent loudness
+signal** to break the cue↔statistic circularity (e.g. ground-truth MIDI velocity, or a human loudness
+label distinct from the scored statistic) — the same circularity caveat timing carries.
+
+**Net.** Dynamics-level moves from "validated statistic, no claims" (front 5) to "validated statistic,
+**claims are input-promptable**, independent rate still circularity-blocked." **Product consequence
+(concrete):** if CrescendAI feeds the teacher a measured overall-loudness input, the teacher emits
+whole-piece loudness claims the verifier CAN check — a cheap grounded-feedback surface, unlike
+dynamic-contrast (front 6: no valid statistic exists). Harnesses:
+`model/src/claim_measurement/dynamics_supply/{build_teacher_inputs,classify_supply}.py` +
+`teacher_prompt.md` (tests `test_dynamics_supply_{inputs,classify}.py`, 11 green).
