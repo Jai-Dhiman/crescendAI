@@ -1301,3 +1301,152 @@ forward and backward edge sets disagree and must be reconciled to mirror
 **Post-ship (NOT this plan):** `/autoresearch` tunes the seven `HmmParams`
 against `gap_report --hmm` on the capped subset for #118 parity + calibration
 rho >= ~0.3.
+
+---
+
+## Challenge Review
+
+Reviewer read: this plan in full, the linked spec, and all listed source files
+(`follower.py`, `metric.py`, `score_notes.py`, `trajectory.py`,
+`clip_generator.py`, `asap_alignment.py`, `segments.py`, `gap_report.py`,
+`test_follower.py`). Verified externally: `scipy.stats.spearmanr` imports (OK),
+61 existing `follower_bench` tests collect.
+
+### CEO Pass
+
+- **Premise — right problem, real pain?** Confirmed against code. The additive
+  DP's `skip_perf` really is free (`follower.py:96-97`: the `>=` tie-branch adds
+  `B[i-1][j]` with no penalty). So the spec's root-cause claim ("no free skip is
+  the load-bearing fix") is grounded in the actual code, not hand-waving. The
+  pain (repeat-cliff, no confidence signal) is real and measured (#118).
+- **Existing coverage / not reinventing.** `_relax_row_jumps` (the #118
+  same-row jump) is correctly identified and deliberately *replaced* (not
+  reused) by the row-advancing jump-into-match, with the reason stated
+  (posterior must be cycle-free). Sound.
+- **Scope.** Tight. 4 files touched (2 new, 2 modified), 2 new deep modules —
+  under the complexity-smell thresholds. Param tuning correctly deferred to a
+  separate post-ship autoresearch. No drift from spec.
+- **[OBS]** MVP-if-halved: Group A alone (HMM + confidence) is the core bet; B
+  (calibration measurement) and C (gap_report wiring) are the earning-their-keep
+  proof. All three are needed to satisfy the issue's "calibrated confidence"
+  success criterion, so nothing is cuttable without dropping a success bar.
+
+### Engineering Pass
+
+**Architecture — the forward-backward (A5), the highest-risk component.** I
+traced the sum-product recursions against the Viterbi edge set by hand:
+- Forward `match`/`insertion` correctly use the del-closure `D` of the previous
+  row (deletions folded into the transition *into* each emitting note); `jump`
+  correctly uses the *raw* prefix/suffix of the previous row (mirroring
+  `_relax_row_jumps_viterbi`, which sources jumps from raw `V[i-1]`). Consistent.
+- Backward `Cmatch[j] = lse(E_match[j+1], Cmatch[j+1]+ld)` expands to
+  `logsumexp_{k>=0} k*ld + E_match[j+1+k]` (verified) and `Cins` likewise —
+  these correctly mirror the forward's deletions-before-emission. The jump-out
+  running accumulators partition sources by `s>b` (backward) / `s<b` (forward),
+  exactly mirroring the forward's `suf[b+1]` / `pref[b-1]`. Edge sets match.
+- The unnormalized start distribution (`alpha[0][j]=j*ld`, geometric, not
+  summing to 1) does **not** break the sums-to-1 identity — that identity is
+  algebraic in the recursions given `logZ = lse(alpha[n])`, independent of start
+  normalization. Verified.
+Conclusion: the forward-backward is very likely correct, and `column_posteriors`
+sums-to-1 (A5) is a genuine guard. No blocker here, but it is the component most
+likely to need a reconcile pass — see the plan's own note (line 1296).
+
+**Module Depth.** `hmm` (interface: `HmmParams`, `follow_hmm`,
+`column_posteriors`, `alignment_logprob`; hides ~230 LOC of log-space Viterbi +
+DAG jumps + forward-backward) = **DEEP**. `calibration` (interface:
+`calibration_stats`; hides grid sampling + Spearman + risk-coverage) = **DEEP**.
+Both pass the depth audit.
+
+**Findings:**
+
+- `[RISK]` (confidence: 6/10) — **A8 additive-baseline assertion may be
+  tie-fragile.** The capstone asserts `10 not in add_idx and 11 not in add_idx`
+  for the shipped 5.0/8.0 additive `follow()`. The skipped region is 4 score
+  notes (cols 6->10): reaching bar 5 via monotonic `skip_score` costs
+  `4*0.5=2.0` and gains `+2.0` (two matches) — a genuine **reward tie** with
+  leaving them unmatched. The assertion currently holds only because tie-breaking
+  favors the smaller `best_j` and the load-bearing `>=` skip_perf bias
+  (`follower.py:96`) — i.e. it's correct-by-accident, not by margin. Fallback
+  (do this in A8, it does not weaken the assertion): **widen the skipped region**
+  to >=6 score notes so `skip_score` cost (>=3.0) strictly exceeds the `+2.0`
+  match gain AND stays above `jump_fwd=8.0` — then the additive path *provably*
+  cannot relock bar 5, and the capstone proves the mechanism by margin.
+
+- `[RISK]` (confidence: 6/10) — **A8's exact-vector HMM assertion is brittle and
+  tuning-coupled.** `hmm_idx == [0,1,2,3,4,5,0,1,2,3,4,5,10,11]` couples a unit
+  test to the hand-set default `HmmParams`. The mechanism it proves is: a
+  backward relock to bar 0 AND a forward relock to bar 5 both occur under one
+  param set. Prefer asserting those two properties (`0` reappears after the
+  first pass = backward relock; `{10,11} <= set(hmm_idx)` = forward relock)
+  rather than the full 14-element vector, so a later autoresearch re-tune of the
+  defaults doesn't spuriously break a unit test. Keep the exact-vector as a
+  comment if desired.
+
+- `[RISK]` (confidence: 5/10) — **A6 `rel_tol=0.02` is tight.** `drop ≈ -log(p_ins)
+  = 3.0`; the forward sum's confuse-path correction is `~exp(lc-li)=exp(-3.9)≈0.02`
+  per alternative placement, which can push the relative error toward the 0.02
+  bound. If it fails, loosen to `rel_tol=0.05` (still proves the ~`log(p_ins)`
+  drop) — do NOT switch to an insertion-only assertion, which would stop testing
+  the marginal.
+
+- `[RISK]` (confidence: 7/10) — **C1 threading is prose-only and untested
+  end-to-end.** Steps 3(d)/(e) describe threading `use_hmm` through the
+  multiprocessing task tuple + `run_gap_report` in prose. The two C1 tests cover
+  `_follow_for_cell` and the `--hmm` flag existence, but **nothing verifies
+  `use_hmm` actually propagates** through `run_gap_report -> _run_performance ->
+  _run_cell`. A mis-threaded tuple would silently run the additive path under
+  `--hmm`. Add one small test: `run_gap_report(..., use_hmm=True)` on a tiny
+  in-process case (workers=1, no ASAP) and assert the outcomes carry HMM
+  confidence — or at minimum assert the task tuple round-trips `use_hmm`.
+
+- `[RISK]` (confidence: 6/10) — **C1 calibration-line wiring is prose-only and
+  untested.** The `RunOutcome.calibration` field, its computation in `_run_cell`,
+  and its print in `_format_report` are described but have no test. Post-ship
+  autoresearch depends on `gap_report --hmm` emitting rho. Not a build-blocker
+  (tests pass without it), but flag it so the build agent implements it and adds
+  a smoke assertion rather than treating it as optional prose.
+
+- `[OBS]` — **scipy hard-imported without the fallback the plan's Open Question
+  promises.** `calibration.py` does `from scipy.stats import spearmanr` with no
+  numpy fallback. Verified scipy imports in this env, so this is fine as-is;
+  just noting the code and the Open Question disagree. Leave as hard import
+  (scipy is a guaranteed ML-stack dep); delete the "numpy fallback" from the
+  Open Question or keep as documented non-goal.
+
+- `[OBS]` — **`calibration.py` imports private `metric._sample_grid` /
+  `metric.SAMPLE_HZ`.** Acceptable intra-package coupling and keeps the grid
+  definition single-sourced (correct call — do NOT duplicate the grid). Noted
+  only for awareness.
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| Forward & backward edge sets mirror exactly -> sums-to-1 | VALIDATE | Hand-traced as consistent; the A5 test is the guard if not |
+| Additive 5.0/8.0 cannot relock the A8 forward skip | RISKY | Reward-tie; holds only by tie-break bias (see RISK) |
+| Default HmmParams produce A8's exact index vector | RISKY | Tuning-coupled brittle assertion (see RISK) |
+| `use_hmm` threads correctly through multiprocessing tuple | RISKY | Prose-only, no end-to-end test (see RISK) |
+| Default (no --hmm) gap_report is byte-identical | SAFE | `_follow_for_cell(False,...)` calls `follow(...)` with the same args as today |
+| `MatchedNote.confidence` default None keeps 61 tests green | SAFE | Field appended last with a default; positional constructions unaffected |
+| Jump-into-match preserves #118 relock behavior | SAFE | Traced A3/A4: backward lands bar-first-note, forward leaps filler; both correct |
+| scipy.stats.spearmanr available | SAFE | Verified import in this env |
+
+### Summary
+
+[BLOCKER] count: 0
+[RISK]    count: 5
+[QUESTION] count: 0
+
+The plan is unusually rigorous: exact code for every emitting task, a genuine
+forward-backward correctness guard, deep modules, correct vertical slicing
+(A4/A8 are declared verification-only capstones over already-landed code, not
+horizontal slicing). All five risks have concrete, in-plan fallbacks that do
+not weaken any assertion, and none block starting the build.
+
+VERDICT: PROCEED_WITH_CAUTION — monitor during build: (1) widen A8's skipped
+region so the additive-can't-relock assertion holds by margin, not by tie-break;
+(2) prefer A8's property assertions over the exact 14-element vector; (3) loosen
+A6 rel_tol to 0.05 if the marginal correction trips 0.02; (4) add an end-to-end
+`use_hmm` propagation test in C1; (5) actually implement + smoke-test C1's
+calibration line rather than leaving it as prose.
