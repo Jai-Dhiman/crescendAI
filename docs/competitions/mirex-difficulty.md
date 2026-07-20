@@ -399,6 +399,37 @@ Harness: `phase5c_consensus_labels.py`. 32% of PSyllabus pieces (2,500) carry >=
 
 Raw: `mirex_phase5c_consensus.json`. Keyed feature cache: `mirex_phase5c_features.json`.
 
+### Phase 5e — cross-dataset test on Mikrokosmos (RUN 2026-07-19; CIPI-proper blocked)
+
+**Verdict: (1) no label-wall lift -- the higher Mikrokosmos internal tau-c is an EASIER task, not cleaner-label headroom; (2) a real TRANSFER WARNING -- our PSyllabus-trained 37-feature model transfers WORSE than note_count alone to an independent corpus, i.e. it overfits PSyllabus. Argues for a parsimonious, robust submission.**
+
+CIPI proper (Zenodo 8037327) is access-restricted (0 files to anon API -- needs the owner's Zenodo
+token). Substituted **Mikrokosmos-difficulty** (Bartok, 147 pieces, expert Henle grades 1-8, open
+MusicXML, a MIREX-suggested set). Harness `phase5e_cross_dataset.py`, features via partitura.
+
+| result | tau-c |
+|---|---|
+| Mikrokosmos internal (37-feat, grade-stratified 5-fold) | 0.804 +/- 0.003 |
+| -- its own note_count floor | 0.776 |
+| Transfer PSyllabus-trained -> Mikrokosmos (full-37) | 0.705 |
+| Transfer (tempo-invariant pitch-only, 15 feat) | 0.687 |
+| Transfer note_count baseline | 0.776 |
+
+- **0.804 > 0.764 is a MIRAGE.** Mikrokosmos is single-composer + deliberately grade-ordered, so its
+  note_count floor is already 0.776 (vs ~0.70 on PSyllabus). The 37 features add only +0.03 over
+  note-count here -- the SAME thin margin as on PSyllabus (+0.06). Cleaner labels did NOT unlock
+  feature headroom -> reinforces the 5c feature-wall, does not refute it.
+- **Transfer warning (the real finding):** PSyllabus-trained 37-feat (0.705) transfers WORSE than
+  note_count alone (0.776) to an independent corpus -> the feature model overfits PSyllabus structure.
+  Direct risk for the MIREX private test. Caveat: MusicXML scores have nominal timing (120bpm, no
+  performed rubato) + default velocity, handicapping timing/velocity features; note_count is scale-free
+  and transfers cleanly. Still, the parsimony signal stands.
+- **Actionable:** favour a robust/parsimonious submission (note_count + a few robust pitch features)
+  over the full 37 for generalization. Open item: rerun on CIPI proper if the owner supplies a Zenodo token.
+
+Raw: `mirex_phase5e_cross_dataset.json`. Mikrokosmos data: `data/raw/mikrokosmos` (re-download from
+github PRamoneda/Mikrokosmos-difficulty). Feature cache: `mirex_phase5e_mikrokosmos_features.json`.
+
 ## Chosen approach (post-research)
 
 **Reproduce RubricNet's hand-crafted recipe on our AMT output** — NOT adapt our deep pairwise head (killed: A1). Rationale: hand-crafted features match deep encoders (A7), the strong features are pitch/onset-based = AMT's reliable part (A5/A6), and it's cheap + interpretable. MuQ audio fusion is a deferred differentiation probe (A11).
