@@ -5,7 +5,7 @@ the real-fixture reproduction test and test_follower_characterization.py
 for the required-to-fail pathology tests."""
 from __future__ import annotations
 
-from follower_bench.follower import ContinuityPrior, EstimatedTrajectory, MatchedNote, NO_PRIOR, follow, teleport_gaps
+from follower_bench.follower import ContinuityPrior, EstimatedTrajectory, MatchedNote, NO_PRIOR, bar_boundary_columns, follow, teleport_gaps
 from follower_bench.score_notes import ScoreNote
 from follower_bench.segments import PerfNote
 
@@ -97,3 +97,17 @@ def test_follow_auto_detects_a_semitone_transpose() -> None:
 
     assert result.transpose_semitones == 1
     assert len(result.matches) == 5
+
+
+def test_bar_boundary_columns_maps_downbeats_to_note_start_columns() -> None:
+    # Notes at score-seconds 0,1,2,3; downbeats at 0.0 (bar1) and 2.0 (bar2).
+    # Column = count of notes strictly before the downbeat.
+    positions = [0.0, 1.0, 2.0, 3.0]
+    assert bar_boundary_columns(positions, [0.0, 2.0]) == (0, 2)
+
+
+def test_bar_boundary_columns_downbeat_between_notes_and_dedups() -> None:
+    # Downbeat at 2.0 falls between notes at 1.5 and 3.0 -> column 2.
+    # Duplicate/again-zero downbeats collapse to a sorted unique tuple.
+    positions = [0.0, 1.5, 3.0]
+    assert bar_boundary_columns(positions, [0.0, 2.0, 2.0]) == (0, 2)

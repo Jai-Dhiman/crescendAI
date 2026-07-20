@@ -7,6 +7,7 @@ design.md for the full DP recurrence and rationale).
 """
 from __future__ import annotations
 
+import bisect
 import math
 from dataclasses import dataclass
 
@@ -141,6 +142,17 @@ def _align_at_transpose(
         matches=tuple(matches),
         unmatched_perf_indices=tuple(unmatched),
     )
+
+
+def bar_boundary_columns(positions: list[float], downbeats) -> tuple[int, ...]:
+    """Map bar-downbeat times (score-MIDI seconds) to score-note DP
+    columns: each column is the count of notes with position strictly
+    before the downbeat (i.e. the pointer sits at the start of that bar).
+    `positions` must be sorted ascending (as load_score_notes_from_midi
+    returns). Returns a sorted, de-duplicated tuple -- these are the only
+    columns follow() may jump to."""
+    cols = {bisect.bisect_left(positions, float(d)) for d in downbeats}
+    return tuple(sorted(cols))
 
 
 def follow(
