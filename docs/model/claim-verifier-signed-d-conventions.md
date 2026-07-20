@@ -1085,3 +1085,55 @@ whole-piece loudness claims the verifier CAN check — a cheap grounded-feedback
 dynamic-contrast (front 6: no valid statistic exists). Harnesses:
 `model/src/claim_measurement/dynamics_supply/{build_teacher_inputs,classify_supply}.py` +
 `teacher_prompt.md` (tests `test_dynamics_supply_{inputs,classify}.py`, 11 green).
+
+---
+
+## FRONT 8b UPDATE (#101, 2026-07-19): the FIRST INDEPENDENT (non-circular) dynamics faithfulness rate = 0.919 — substrate-faithful, gate-adjacent
+
+Front 8's rate (1.000) was a signal-fidelity ceiling: it cued the teacher from AMT mean velocity
+and scored with AMT mean velocity, so the measure adjudicated itself. This front breaks the
+circularity with an **independent truth signal**: the claim's polarity is fixed by **ground-truth
+MIDI velocity** and the SCORE is the production AMT-velocity measurer + frozen router — two
+independent measurements of the same performance. It answers the real question: *when ground truth
+says a performance is loud / soft / balanced overall, does the deployed AMT verifier agree?*
+
+**Substrate move (forced).** GT MIDI velocity exists only for PercePiano (which IS MIDI); the real
+YouTube `gd_bundles` have no ground truth. So this runs on PercePiano: `render_percepiano_bundles.py`
+renders each MIDI (fluidsynth, fixed gain 0.5) → aria-amt → a bundle carrying AMT `notes` +
+`gt_mean_velocity` + `gt_corpus_median`. 45 segments **stratified soft/balanced/loud** by GT velocity
+vs the labeled-corpus median (58.2), seed 42 — so all three verdict classes are represented (front 8
+had 0 soft cues). This also **fixes the G-B non-persistence gap** (that gate rendered to a deleted
+tempdir and cached only 180 anonymous scalars); the per-segment AMT arrays are now persisted.
+
+**ORACLE (no-LLM) design.** The claim polarity IS the GT label (loud→+, soft→−, balanced→neutral),
+so the rate isolates the verifier's **substrate faithfulness** (AMT-vs-GT at the tau decision
+boundary) with zero teacher/extractor noise. Truth-label purity holds — the verdict is only the
+deterministic measurer + frozen `route_verdict` (tau 6.5); GT MIDI velocity is a non-LLM signal.
+
+**Result (`model/data/results/dynamics_independent_rate.json`, n=45):**
+
+| quantity | value | read |
+|---|---:|---|
+| **independent faithfulness rate** | **0.919**, 95% CI [0.811, 1.000] | AMT verifier agrees with ground truth 92% (committed) |
+| committed | 37 / 45 (34 SUPPORTED, 3 REFUTED) | 8 near-threshold abstentions (mostly balanced) |
+| by verdict class | loud 12✓/1✗, **soft 12✓/2✗**, balanced 10✓ | all three tested; soft (−) now covered |
+| tau_gt sweep (4 / 6.5 / 9) | 0.865 / 0.919 / 0.973 | monotone, not a single-threshold artifact |
+| G-D gate | **count PASS (37≥30)**, **precision FAIL (CI half 0.095 > 0.05)** | first dimension to clear the count bar |
+
+**What it means. This is the paper's first independent per-dimension faithfulness number, and 0.919 <
+1.000 is the whole point** — the circular front-8 rate could not see substrate error; here the AMT
+velocity genuinely disagrees with GT on 3/37 committed segments (2 soft read as not-soft, 1 loud read
+as not-loud — real boundary errors). The rate is essentially the AMT↔GT velocity agreement (Spearman
+0.965, G-B) expressed as a whole-piece loudness DECISION rate, with the near-threshold dead-band
+honestly abstaining the 8 boundary cases. **The G-D gate fails on PRECISION, not coverage**: 37 committed
+clears the ≥30 count bar (a first for any dimension), but the CI half-width 0.095 needs ~2-3× more
+segments to drop below 0.05 — one more render batch closes it.
+
+**Scope / caveats (honest).** (1) This is **substrate** faithfulness (oracle), NOT teacher faithfulness:
+the claim = the GT label. The deployed end-to-end rate would be this × the teacher's sign-fidelity
+(~0.88, front 8) ≈ 0.8 — the teacher arm (cue the teacher from the GT label, extract, score) is the
+un-run next step. (2) Controlled-gain fluidsynth renders, not heterogeneous real audio (the G-F
+question). (3) PercePiano 8-bar excerpts. Harnesses:
+`model/src/claim_measurement/dynamics_supply/{render_percepiano_bundles,independent_rate}.py` (tests
+`test_dynamics_independent_rate.py`, 5 green; full `dynamics_supply` suite 16 green). Bundles persisted
+at `model/data/evals/percepiano_indep_bundles/`.
