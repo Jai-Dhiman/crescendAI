@@ -15,8 +15,6 @@ import math
 from dataclasses import dataclass
 
 from follower_bench.follower import EstimatedTrajectory, MatchedNote
-from follower_bench.score_notes import ScoreNote
-from follower_bench.segments import PerfNote
 
 NEG_INF = -math.inf
 
@@ -229,6 +227,9 @@ def _forward_backward(amt_notes, score_notes, params, transpose, bar_boundaries=
             if j >= 1:
                 terms.append(D[j - 1] + la + emit(i, j))  # match into j
             if jumps_enabled and j >= 1 and (j - 1) in bset:
+                # Intentional asymmetry vs _relax_row_jumps_viterbi: jump sources
+                # here are raw landing columns (suf/pref over prev), not the
+                # del-extended sources the Viterbi jump reads from V[i-1].
                 b = j - 1
                 jt = []
                 if ljb > NEG_INF and b + 1 <= m:
