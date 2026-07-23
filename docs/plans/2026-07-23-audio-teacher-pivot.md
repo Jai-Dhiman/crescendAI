@@ -251,7 +251,7 @@ git add model/pyproject.toml model/uv.lock model/src/audio_teacher/__init__.py m
 - Modify: `model/src/audio_teacher/audio.py`
 - Test: `model/tests/audio_teacher/test_audio.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `model/tests/audio_teacher/test_audio.py`:
 
@@ -284,14 +284,14 @@ def test_malformed_wav_aborts_naming_the_file(wav_factory, make_bad):
     assert path.name in str(excinfo.value)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_audio.py -v
 ```
 Expected: FAIL — the three new parametrized cases raise nothing (or a raw `wave.Error`), so `pytest.raises(MalformedClipError)` reports `DID NOT RAISE` / wrong exception type. `test_valid_mono_wav_passes_validation` still passes.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Replace `validate_wav` in `model/src/audio_teacher/audio.py` with:
 
@@ -332,14 +332,14 @@ def validate_wav(path: Path | str, expected_sample_rate: int) -> WavInfo:
     )
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_audio.py -v
 ```
 Expected: PASS (all 4 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/audio_teacher/audio.py model/tests/audio_teacher/test_audio.py && git commit -m "feat(audio-teacher): malformed-clip validation aborts naming the file (#127)"
@@ -357,7 +357,7 @@ git add model/src/audio_teacher/audio.py model/tests/audio_teacher/test_audio.py
 - Create: `model/src/audio_teacher/budget.py`
 - Test: `model/tests/audio_teacher/test_budget.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `model/tests/audio_teacher/test_budget.py`:
 
@@ -382,14 +382,14 @@ def test_precheck_raises_before_the_overshooting_call():
     assert guard.spent_usd == pytest.approx(0.9)  # the refused call charged nothing
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_budget.py -v
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'audio_teacher.budget'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Create `model/src/audio_teacher/budget.py`:
 
@@ -432,14 +432,14 @@ class BudgetGuard:
         self.spent_usd += actual_cost_usd
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_budget.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/audio_teacher/budget.py model/tests/audio_teacher/test_budget.py && git commit -m "feat(audio-teacher): budget guard raises before the overshooting call (#127)"
@@ -457,7 +457,7 @@ git add model/src/audio_teacher/budget.py model/tests/audio_teacher/test_budget.
 - Create: `model/src/audio_teacher/prompts.py`
 - Test: `model/tests/audio_teacher/test_prompts.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `model/tests/audio_teacher/test_prompts.py`:
 
@@ -482,14 +482,14 @@ def test_question_names_the_axis_contrast_and_forces_ab_answer(axis, keyword):
         build_question("rubato")
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_prompts.py -v
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'audio_teacher.prompts'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Create `model/src/audio_teacher/prompts.py`:
 
@@ -532,14 +532,14 @@ def build_question(axis: str) -> str:
     return f"{AXIS_QUESTIONS[axis]}\n\n{ANSWER_INSTRUCTION}"
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_prompts.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/audio_teacher/prompts.py model/tests/audio_teacher/test_prompts.py && git commit -m "feat(audio-teacher): per-axis elicitation questions with forced A/B answer (#127)"

@@ -29,3 +29,15 @@ Executed after controller pre-verified all 12 targets' live state matched the pl
 relabeled deferred,epic:audio-teacher with retarget comments. Verified epic:teacher-finetune and
 epic:model-v2 both have zero open issues. STATE comment posted to #127. Before/after snapshots in
 the session scratchpad (issue-migration-before/after.txt).
+
+## Task 2: Malformed WAVs abort naming the file
+Code verbatim from plan (commit 5a395a53). Spec PASS; quality APPROVED. Reviewer MINOR notes: the
+"not readable" and "zero-length" branches have no dedicated test case (manually verified working);
+acceptable -- plan scope covers stereo/wrong-rate/truncated only.
+
+## Task 3: Budget guard
+Code verbatim from plan (commit 0695628d). Spec PASS; quality APPROVED. Reviewer MINOR note: no
+exact-boundary (projected == cap) test; strict > semantics verified by reading.
+
+## Task 4: Per-axis elicitation questions
+Code verbatim from plan (commit 33f24264). Spec PASS; quality APPROVED. MINOR style notes only.
