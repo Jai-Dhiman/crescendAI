@@ -1100,10 +1100,11 @@ says a performance is loud / soft / balanced overall, does the deployed AMT veri
 **Substrate move (forced).** GT MIDI velocity exists only for PercePiano (which IS MIDI); the real
 YouTube `gd_bundles` have no ground truth. So this runs on PercePiano: `render_percepiano_bundles.py`
 renders each MIDI (fluidsynth, fixed gain 0.5) → aria-amt → a bundle carrying AMT `notes` +
-`gt_mean_velocity` + `gt_corpus_median`. 45 segments **stratified soft/balanced/loud** by GT velocity
-vs the labeled-corpus median (58.2), seed 42 — so all three verdict classes are represented (front 8
-had 0 soft cues). This also **fixes the G-B non-persistence gap** (that gate rendered to a deleted
-tempdir and cached only 180 anonymous scalars); the per-segment AMT arrays are now persisted.
+`gt_mean_velocity` + `gt_corpus_median`. 168 segments **stratified soft/balanced/loud** by GT velocity
+vs the labeled-corpus median (58.2), seed 42 (rendered in two nested batches, 45 then +123, ~40-70s/seg)
+— so all three verdict classes are represented (front 8 had 0 soft cues). This also **fixes the G-B
+non-persistence gap** (that gate rendered to a deleted tempdir and cached only 180 anonymous scalars);
+the per-segment AMT arrays are now persisted.
 
 **ORACLE (no-LLM) design.** The claim polarity IS the GT label (loud→+, soft→−, balanced→neutral),
 so the rate isolates the verifier's **substrate faithfulness** (AMT-vs-GT at the tau decision
@@ -1114,20 +1115,21 @@ deterministic measurer + frozen `route_verdict` (tau 6.5); GT MIDI velocity is a
 
 | quantity | value | read |
 |---|---:|---|
-| **independent faithfulness rate** | **0.919**, 95% CI [0.811, 1.000] | AMT verifier agrees with ground truth 92% (committed) |
-| committed | 37 / 45 (34 SUPPORTED, 3 REFUTED) | 8 near-threshold abstentions (mostly balanced) |
-| by verdict class | loud 12✓/1✗, **soft 12✓/2✗**, balanced 10✓ | all three tested; soft (−) now covered |
-| tau_gt sweep (4 / 6.5 / 9) | 0.865 / 0.919 / 0.973 | monotone, not a single-threshold artifact |
-| G-D gate | **count PASS (37≥30)**, **precision FAIL (CI half 0.095 > 0.05)** | first dimension to clear the count bar |
+| **independent faithfulness rate** | **0.919**, 95% CI [0.870, 0.959] | AMT verifier agrees with ground truth 92% (committed) |
+| committed | 123 / 168 (113 SUPPORTED, 10 REFUTED) | 45 near-threshold abstentions (16 soft / 17 balanced / 12 loud) |
+| by verdict class | loud 39✓/5✗, **soft 36✓/4✗**, balanced 38✓/1✗ | all three tested; soft (−) covered |
+| tau_gt sweep (4 / 6.5 / 9) | 0.862 / 0.919 / 0.902 | stable ~0.90, not a single-threshold artifact |
+| **G-D gate** | **PASS — committed 123 ≥ 30 AND CI half 0.045 ≤ 0.05** | **first gate-passing independent per-dimension rate** |
 
-**What it means. This is the paper's first independent per-dimension faithfulness number, and 0.919 <
-1.000 is the whole point** — the circular front-8 rate could not see substrate error; here the AMT
-velocity genuinely disagrees with GT on 3/37 committed segments (2 soft read as not-soft, 1 loud read
-as not-loud — real boundary errors). The rate is essentially the AMT↔GT velocity agreement (Spearman
-0.965, G-B) expressed as a whole-piece loudness DECISION rate, with the near-threshold dead-band
-honestly abstaining the 8 boundary cases. **The G-D gate fails on PRECISION, not coverage**: 37 committed
-clears the ≥30 count bar (a first for any dimension), but the CI half-width 0.095 needs ~2-3× more
-segments to drop below 0.05 — one more render batch closes it.
+**What it means. This is the paper's first GATE-PASSING independent per-dimension faithfulness number,
+and 0.919 < 1.000 is the whole point** — the circular front-8 rate could not see substrate error; here
+the AMT velocity genuinely disagrees with GT on 10/123 committed segments (5 loud read as not-loud,
+4 soft as not-soft, 1 balanced as directional — real boundary errors). The rate is essentially the
+AMT↔GT velocity agreement (Spearman 0.965, G-B) expressed as a whole-piece loudness DECISION rate, with
+the near-threshold dead-band honestly abstaining the 45 boundary cases. **The G-D gate now PASSES on both
+criteria**: 123 committed clears the ≥30 count bar (a first for any dimension) AND the CI half-width 0.045
+clears the ≤0.05 precision bar. (The initial n=45 batch passed count but missed precision at half 0.095;
+one nested +123-segment render batch closed it with the rate stable at 0.919.)
 
 **Scope / caveats (honest).** (1) This is **substrate** faithfulness (oracle), NOT teacher faithfulness:
 the claim = the GT label. The deployed end-to-end rate would be this × the teacher's sign-fidelity
