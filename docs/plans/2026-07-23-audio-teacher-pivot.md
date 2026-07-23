@@ -2411,3 +2411,167 @@ gh issue comment 127 --body "STATE: wave-1 issue migration executed — epic #$E
 4. **Group correctness:** A:1; B:2,3,4; C:5,6,7; D:8,10,12; E:9,11; F:13,14; G:15; H:16; I:17→18→19 (matches the Task Groups table and every task header). No parallel group shares a file.
 5. **Vertical slices:** every code task = one test (single function, parametrization allowed) + one implementation + one commit. Tasks 8/9/11/16 are lock-in tests over behavior shipped by an earlier vertical slice in the same file lineage; each carries an explicit mutation-based honesty check so a test that can never fail is caught.
 6. **Behavior tests:** all tests go through public interfaces (`validate_wav`, `load_manifest`, `build_question`/`parse_choice`, `RecordedResponseClient`, `BudgetGuard`, `score_responses`/`render_report`, `probe.main`, `build_manifest.main`); no internal mocking, no private-method calls, no network.
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise Challenge.** Right problem: yes. Two dead issue graphs (`epic:teacher-finetune`, `epic:model-v2`) currently masquerade as the live roadmap, and nothing tests whether base Inkling can hear piano contrasts before money is committed to Gate 1. Real pain without this: a future session (or the user, mid-funding-decision) could act on #71/#79/#80/#81/#82/#83/#84/#16/#55 as if they were current, or fund Gate 1 without an ex-ante-gated Gate 0 result. Direct path: yes — the plan does exactly the two things named in the spec goal (issue-graph migration, offline probe harness) and nothing else. Existing coverage: `model/src/follower_bench/` is correctly named and followed as the structural precedent (flat modules, `tests/<pkg>/`, `__file__`-anchored paths, manifest-in/report-out); `model/src/paths.py::ensure_local` is correctly identified as the un-importable precedent the manifest loader re-implements (verified: `paths.py` is genuinely absent from the hatch `packages` list, so the design's claim is accurate, not just asserted).
+
+**Scope Check.** MVP-cuttable: `build_manifest.py` (Task 14) is the most deferrable piece — Gate 0 curation could start from a hand-written YAML manifest without the CSV adapter, and the design already labels it SHALLOW/deliberate. Everything else (audio validation, manifest loader, budget guard, scorer, probe CLI) is load-bearing for the harness's one claim ("offline-testable end to end"). Hardest problem (population-partitioned, non-poolable scoring with an ex-ante-closed verdict) is being solved directly, not avoided — this is the one part of the design with a named prior failure (#21 synthetic-gap) driving it, and it gets the most test coverage (Tasks 10/11/13). Plan matches spec goal with no drift I can find: every spec bullet in "Solution (from the user's perspective)" traces to a task; the Out-of-Scope list in both plan and spec is identical and is respected in every task (no Gate 1 code, no BT comparator, no rendering engine appear anywhere in Tasks 1–19). File-count complexity smell: 9 new `src/` modules + 10 new test files exceeds the "8 files" trigger, but each module maps 1:1 to a named responsibility in the spec's Modules section and mirrors `follower_bench`'s existing flat layout — this is breadth inherent to a small harness with clean seams, not invented complexity. Not a blocker.
+
+**Twelve-Month Alignment.**
+```
+CURRENT STATE                          THIS PLAN                              12-MONTH IDEAL
+Two dead issue epics                → epic:audio-teacher (roadmap +      →   Gate 0 run executed, Gate 1
+(#16/#55 Qwen finetune,                gate ladder) + Gate 0 issue +          funding decision made on real
+#71/#79-84 MuQ/Aria v2)                contingency issue; 9 issues            evidence, wave-2 issues
+                                        closed, 3 relabeled                   promoted from the checklist
+
+No offline-testable way to           → model/src/audio_teacher/ (offline-  →   Harness reused for Gate 1's
+probe "can Inkling hear this"          testable manifest→judgment→          ordinal-RL eval and Gate 2's
+before spending money                  report pipeline, Tinker behind a     grounded-claim SFT eval
+                                        Protocol seam)
+```
+Moves toward the ideal; no tech debt identified that conflicts with it. The Tinker-behind-a-Protocol seam is specifically what lets Gate 1+ reuse this harness rather than rebuilding it.
+
+**Alternatives Check.**
+```
+[QUESTION] — The design doc doesn't restate the alternatives considered during the
+             /brainstorm session (issue #127's body references "Option C" of a
+             two-wave hybrid issue-graph approach, implying B and possibly A were
+             discussed and rejected). If that reasoning lives only in the brainstorm
+             transcript and not in a durable doc, a future engineer reading
+             docs/specs/2026-07-23-audio-teacher-pivot-design.md alone won't know why
+             the two-wave hybrid won over a single flat issue dump or a fully-deferred
+             wave-2. Low severity since #127's issue body captures the "hardest
+             decision resolved" (fallback posture) already.
+```
+
+### Engineering Pass
+
+**Architecture.** Data flow is linear and matches the stated design:
+```
+manifest.yaml → load_manifest (schema + WAV validation + offload check)
+                      │
+                      ▼
+              ProbeManifest.pairs ──► probe.main loop ──► ProbeClient.ask (recorded|tinker)
+                      │                     │                       │
+                      │              BudgetGuard.precheck ──raises──► BudgetExceededError
+                      │                     │                     (propagates; responses.jsonl
+                      │                     ▼                      so far preserved)
+                      │            responses.jsonl (append+flush per pair; resume source)
+                      │                     │
+                      ▼                     ▼
+              score_responses(manifest, responses) ──► report.json (render_report, deterministic)
+                                                    └──► run_meta.json (mode, spend, timestamp)
+```
+Verified against actual code, not assumed: `model/src/paths.py` confirmed absent from `model/pyproject.toml`'s `[tool.hatch.build.targets.wheel] packages` list (line 104), so the design's claim that `ensure_local` isn't importable from the installed package — and that `manifest.py` must re-implement it — is accurate. The re-implementation (`_ensure_clip_local`) also verified to genuinely extend `ensure_local`'s behavior: production `ensure_local` does an **exact-key** lookup (`manifest.get("entries", {}).get(rel)`, `model/src/paths.py:40`) with no directory-prefix matching, so a per-file lookup under an offloaded directory like `data/raw/competition/foo.wav` would silently miss the registry entry keyed `data/raw/competition` today. The plan's `_ensure_clip_local` adds `rel == registered or rel.startswith(registered + "/")`, which is a real, deliberate fix for T2 curation (files, not directories, get validated per-clip) — correctly called out in the design as an extension, not a copy-paste bug.
+
+No security-relevant input flows found: no SQL, no shell execution (rclone/regen commands are only ever printed in exception messages, never invoked), no unsanitized user input reaches an interpreter. Budget/scoring/manifest logic is pure Python over local files.
+
+**Module Depth Audit** (reading each file's planned interface vs. hidden implementation):
+- `audio.py` — Interface: `validate_wav(path, rate) -> WavInfo`, `MalformedClipError`. Hidden: RIFF parsing, 4 distinct failure modes, dual truncation detection (EOFError catch + explicit byte-count check). **DEEP.**
+- `manifest.py` — Interface: `load_manifest(path, repo_root, offload_registry) -> ProbeManifest`. Hidden: schema validation (6 branches), duplicate-id tracking, offload-registry prefix matching, per-clip WAV validation fan-out (~150 LOC). **DEEP.**
+- `prompts.py` — Interface: `build_question(axis)`, `parse_choice(text)`. Hidden: per-axis phrasing table, tolerant regex parsing, last-match-wins semantics. **DEEP**, verging on thin (two ~10-line functions) but each hides a genuine contract (the axis→question table, the parsing tolerance rules) that would be duplicated at every call site otherwise.
+- `client.py` — Interface: `ProbeClient` protocol, `RecordedResponseClient`. Hidden: JSONL bookkeeping, loud-on-incomplete-fixture semantics. **DEEP** for a 2-method fake; correctly minimal.
+- `budget.py` — Interface: `BudgetGuard(cap)`, `.precheck`, `.record`, `.spent_usd`. Hidden: the projection-before-charge invariant, the deliberate absence of a warn-mode. **DEEP** — small but the single invariant it enforces is exactly the one the program depends on (never overshoot $50).
+- `scorer.py` — Interface: `score_responses`, `render_report`, constants. Hidden: per-cell aggregation, ex-ante verdict rules, deterministic serialization. **DEEP** — the most load-bearing module, appropriately the most tested.
+- `tinker_client.py` — Interface: `TinkerProbeClient(...)`. Hidden: renderer/tokenizer wiring, `AudioPointer` message assembly, cost accounting. **UNCLEAR** — see Presumption Inventory; the hidden implementation is built against an SDK surface (`tinker_cookbook.model_info.get_recommended_renderer_name`, `tml_renderers.chat.AudioPointer`, `prompt.length`, `renderer.parse_response`) that is never exercised by any test and whose exact shape is unverified against current Tinker/Inkling docs. Depth can't be assessed for correctness, only for intent; the module is honestly labeled "never imported by tests except the not-installed path," which is the right mitigation given the run itself is out of scope.
+- `probe.py` — Interface: `main(argv) -> int`. Hidden: client selection, resume logic, budget wiring, report/meta writing, exit-code mapping. **DEEP** — correctly the composition root.
+- `build_manifest.py` — Interface: `main(argv) -> int`. Declared and confirmed **SHALLOW by design** (thin CSV→YAML adapter delegating all real validation to `load_manifest`); acceptable per the plan's own stated Gate-0-is-a-probe-not-a-framework rationale.
+
+**Code Quality.**
+- `MODEL_ROOT = Path(__file__).resolve().parents[2]` is defined independently in both `manifest.py` (Task 6) and `probe.py` (Task 15) rather than imported from one place. Minor DRY violation — 2 occurrences, below the 3+ threshold that would make this a hard flag, but worth a one-line note since `probe.py` already imports from `manifest.py` and could reuse its `MODEL_ROOT`.
+- No catch-all exception handling anywhere in the plan's code (`except (wave.Error, EOFError)`, `except ImportError` are both narrow and intentional) — matches CLAUDE.md's "explicit exception handling over silent fallbacks."
+- Edge cases: empty manifest pairs list rejected (`ManifestError`), zero-length WAV rejected, empty `parse_choice("")` returns `None` (tested), missing/extra response sets rejected (`ProbeIncompleteError`). No gaps found in the edge cases the tests actually exercise.
+- Follows `__file__`-anchored default paths per CLAUDE.md/MEMORY.md's explicit gotcha (`feedback_anchor_default_paths_to_module.md`) — verified in `manifest.py`, `probe.py`, `build_manifest.py` (`--repo-root` defaults to `MODEL_ROOT`, never CWD).
+
+**Test Philosophy Audit.** All tests call public module-level functions/classes (`validate_wav`, `load_manifest`, `build_question`/`parse_choice`, `RecordedResponseClient(...).ask`, `BudgetGuard(...).precheck`, `score_responses`/`render_report`, `probe.main`, `build_manifest.main`). No internal mocking of collaborators — `RecordedResponseClient` is a real fake at the *external* boundary (the sampling call), which is the correct thing to fake, not an internal collaborator of the module under test. No shape-only tests: every assertion checks a specific value (accuracy numbers, exact error substrings, exit codes), not just "field exists."
+
+**Vertical Slice Audit.**
+```
+[RISK] (confidence: 7/10) — Task 6 ships a single vertical-slice commit whose
+       implementation (schema_version/sample_rate/pairs/required-keys/duplicate-id/
+       axis/population/degraded validation + offload-registry prefix matching +
+       per-clip WAV validation, ~150 LOC) is driven by exactly one test (the valid-
+       manifest happy path). The six schema-violation branches and the offload-hint
+       branch are *implemented* in Task 6 but only *tested* three tasks later, in
+       Tasks 8 and 9. This is "Bundled commits" scope (section 9's RISK category,
+       not its BLOCKER category — no test is written without an implementation, and
+       no test is written that would pass without the code existing), but it does
+       mean Task 6's commit, on its own, ships materially untested code for two
+       task-cycles. Same pattern, smaller degree, in Task 10 (scorer verdict logic
+       tested fully only in Task 11) and Task 15 (resume loop tested fully only in
+       Task 16). Mitigation already in the plan: Tasks 8/9/11/16 each carry an
+       explicit mutation-based "honesty check" (temporarily break the assertion,
+       confirm the test fails, restore) specifically to guard against a lock-in
+       test that could never fail — this is a genuine safeguard against the
+       classic "test that tests nothing" failure mode, and it's disclosed
+       explicitly in the plan's own self-review (item 5). Watch during execution:
+       if a build-agent skips the honesty-check step under time pressure (it reads
+       as optional busywork once the assertions already pass), the safeguard is
+       lost silently. Fallback: require the honesty-check commands actually be run
+       and their output captured, not just the step checkbox ticked.
+```
+No task defers implementation past its own step (the inverse anti-pattern) — checked every task's Step 3 against its Step 1 test.
+
+**Test Coverage Gaps.**
+```
+[+] model/src/audio_teacher/manifest.py
+    │
+    ├── load_manifest()
+    │   ├── [TESTED] ★★  valid manifest, ordered pairs, resolved clips — Task 6
+    │   ├── [TESTED] ★★★ missing+offloaded clip → rclone hint — Task 8
+    │   ├── [TESTED] ★★  missing+unregistered clip → path named — Task 8
+    │   ├── [TESTED] ★★★ 6 schema-violation branches — Task 9
+    │   └── [GAP]        clip_a == clip_b (degenerate pair, same file both sides) —
+    │                    no test either way; not a correctness bug (scorer would
+    │                    still work) but worth a one-line curation-time guard note
+    │                    if build_manifest.py is ever pointed at bad CSV data.
+    │
+[+] model/src/audio_teacher/scorer.py
+    ├── score_responses()
+    │   ├── [TESTED] ★★★ partitioned cells, never pooled — Task 10
+    │   ├── [TESTED] ★★★ 5 ex-ante verdict rule branches — Task 11
+    │   └── [TESTED] ★★  ProbeIncompleteError on missing/extra — Task 10
+    └── render_report()
+        └── [TESTED] ★★★ order-independence + no-timestamp — Task 13
+
+[+] model/src/audio_teacher/probe.py
+    └── main()
+        ├── [TESTED] ★★  offline e2e, report+meta written, exit code — Task 15
+        ├── [TESTED] ★★★ resume skips answered pairs — Task 16
+        └── [GAP]        live-mode arg validation (missing --usd-per-1m-*-tokens
+                         triggers parser.error) has no test. Non-critical: it's a
+                         CLI usage guard, not a data-mutation path, and the plan's
+                         own scope excludes running the probe. RISK, not BLOCKER.
+```
+
+**Failure Modes.** Every I/O and async-adjacent operation reviewed:
+- Budget overshoot: raises before the call, responses saved so far — recoverable, loud (BudgetExceededError propagates to caller; no catch anywhere silences it).
+- Process killed mid-run: `responses.jsonl` is appended+flushed per pair, so a resumed run picks up where it left off (Task 16 proves this). `out.flush()` doesn't `fsync`, so in the worst case (OS crash, not just process kill) the very last written line could be lost from the page cache — extremely low-severity for a local research tool with a $50 budget and no concurrent writers; not worth a blocker.
+- Malformed/missing clip: raises `MalformedClipError`/`FileNotFoundError` at manifest-load time, before any spend — correct fail-fast posture.
+- Tinker SDK absent: raises `TinkerNotInstalledError` with install instructions, not a bare `ImportError` — good.
+- Tinker API errors during a live run: explicitly stated to "propagate as-is" — no catch-all swallows them; matches CLAUDE.md's explicit-exceptions rule. Not tested (correctly out of scope), but the code path (Task 12) contains no exception handling around `self._sampling.sample(...)`, so this is true by construction, not just by claim.
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `model/src/paths.py` is not in the wheel `packages` list, so `manifest.py` must re-implement `ensure_local` | SAFE | Verified directly: `packages` list in `model/pyproject.toml:104` has no `src` entry for the top-level package containing `paths.py` (it's `model/src/paths.py`, a bare module, not a sub-package — confirmed not among the 8 listed packages). |
+| `_ensure_clip_local`'s prefix matching is a deliberate extension over `ensure_local`'s exact-match lookup, not an accidental behavior divergence | SAFE | Verified by reading `model/src/paths.py:40` (`manifest.get("entries", {}).get(rel)` — exact key only) against the plan's `rel == registered or rel.startswith(registered + "/")`; design doc explicitly calls this an extension. |
+| `pyyaml` is already a dependency, so `manifest.py`/`conftest.py`'s `import yaml` needs no new pyproject entry | SAFE | Verified: `model/pyproject.toml:34` lists `"pyyaml>=6.0"`. |
+| Python's `wave.readframes` reliably raises on truncated payloads | RISKY (but harmless) | Behavior varies across implementations/versions; the plan doesn't rely on this alone — the explicit `len(payload) != expected_bytes` check after `readframes` catches truncation regardless of whether `wave` itself raises. Belt-and-suspenders design already covers the risk. |
+| `tinker`, `tinker_cookbook`, `tml_renderers` expose the exact API surface used in Task 12 (`model_info.get_recommended_renderer_name`, `chat.AudioPointer`, `chat.Author`/`AuthorKind`, `renderer.parse_response`, `prompt.length`, `tinker.ServiceClient().create_sampling_client`) | VALIDATE | Never exercised by any test in this plan (by design — running the probe is out of scope); the design doc's own Open Questions section already flags SDK package-name/version uncertainty but does not flag the deeper API-shape uncertainty. Low risk to Wave 1 (nothing here blocks the offline harness or the issue migration) but will cost real debugging time whenever the user actually funds and runs Gate 0. Worth a one-line addition to the Gate 0 issue body: "verify `tinker_client.py`'s API calls against current cookbook examples before running — they were written without SDK access." |
+| The nine issue numbers (#71 #79 #80 #81 #82 #83 #84 #16 #55) and the three relabel targets (#32 #33 #40) are still open, correctly labeled, and are the complete set of dead-plan issues | VALIDATE | Not independently re-verified in this review (would require live `gh issue list` against the real repo state at execution time); Task 19 Step 1 already captures a BEFORE snapshot for exactly this reason, which is the right verification point — flagging here only so the build agent doesn't skip reading that snapshot's output before closing anything. |
+| Group I (GitHub migration) can run fully concurrently with Groups A–H (code) with no shared state | SAFE | Confirmed: Group I touches no files in the worktree at all (pure `gh` CLI calls against the remote issue tracker); no file-level or state-level collision with the code groups. |
+
+### Summary
+[BLOCKER] count: 0
+[RISK]    count: 3
+[QUESTION] count: 1
+
+VERDICT: PROCEED_WITH_CAUTION — (1) Task 6/10/15's implementation-ahead-of-test bundling (schema validation, verdict logic, resume loop shipped before their locking tests in Tasks 8/9/11/16) relies on the plan's own mutation-based "honesty check" steps actually being executed, not just checkbox-ticked — watch that the build agent runs them for real; (2) `probe.py`'s live-mode argument-validation branch (missing token-rate flags) has no test — low severity, CLI-usage-only, and out of scope's "don't run the probe" already limits exposure; (3) `tinker_client.py`'s API surface (renderer/tokenizer/AudioPointer calls) is unverified against the actual Tinker/Inkling SDK and untested by design — acceptable for Wave 1 since running the probe is explicitly out of scope, but flag it in the Gate 0 issue so the user re-verifies the API shape before funding a live run.
+
+
