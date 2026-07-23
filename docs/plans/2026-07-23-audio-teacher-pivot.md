@@ -52,7 +52,7 @@ No two tasks in the same parallel group touch the same file (checked in self-rev
 - Create: `model/tests/audio_teacher/conftest.py`
 - Test: `model/tests/audio_teacher/test_audio.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `model/tests/audio_teacher/__init__.py` (empty file) and `model/tests/audio_teacher/conftest.py`:
 
@@ -155,14 +155,14 @@ def test_valid_mono_wav_passes_validation(wav_factory):
     assert info.duration_seconds == pytest.approx(2.0)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_audio.py -v
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'audio_teacher'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `model/pyproject.toml`, change:
 
@@ -226,14 +226,14 @@ def validate_wav(path: Path | str, expected_sample_rate: int) -> WavInfo:
 
 Then `cd model && uv sync --dev` so the editable install picks up the new package.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_audio.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/pyproject.toml model/uv.lock model/src/audio_teacher/__init__.py model/src/audio_teacher/audio.py model/tests/audio_teacher/ && git commit -m "feat(audio-teacher): bootstrap Gate 0 probe package + WAV info parsing (#127)"
@@ -2210,13 +2210,13 @@ git add model/tests/audio_teacher/test_probe.py model/src/audio_teacher/probe.py
 
 **Behavior being verified:** Command-work; verified by `gh` output (design: "Migration is NOT code-tested"). No repo diff, no commit.
 
-- [ ] **Step 1: Create the label**
+- [x] **Step 1: Create the label**
 
 ```bash
 gh label create "epic:audio-teacher" --color 5319e7 --description "Audio-native teacher gated program (Inkling/Tinker era)" || gh label list | grep audio-teacher
 ```
 
-- [ ] **Step 2: Create the epic issue**
+- [x] **Step 2: Create the epic issue**
 
 ```bash
 gh issue create \
@@ -2268,7 +2268,7 @@ EOF
 )"
 ```
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 ```bash
 gh issue list --label epic:audio-teacher --state open --json number,title
@@ -2280,13 +2280,13 @@ Expected: the epic issue is listed. Note its number for Tasks 18/19 (recoverable
 ### Task 18: Create Gate 0 + contingency issues
 **Group:** I (after Task 17)
 
-- [ ] **Step 1: Resolve the epic number**
+- [x] **Step 1: Resolve the epic number**
 
 ```bash
 EPIC=$(gh issue list --label epic:audio-teacher --state open --search "EPIC: Audio-native teacher" --json number --jq '.[0].number'); echo "EPIC=$EPIC"
 ```
 
-- [ ] **Step 2: Create the Gate 0 issue**
+- [x] **Step 2: Create the Gate 0 issue**
 
 ```bash
 gh issue create \
@@ -2324,7 +2324,7 @@ EOF
 )"
 ```
 
-- [ ] **Step 3: Create the parked contingency issue**
+- [x] **Step 3: Create the parked contingency issue**
 
 ```bash
 gh issue create \
@@ -2346,7 +2346,7 @@ EOF
 )"
 ```
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```bash
 gh issue list --label epic:audio-teacher --state open --json number,title,labels
