@@ -1181,3 +1181,16 @@ pipeline hits that same 0.919 on clean input, ~0.8 on realistic noisy input (8c)
 edge is real heterogeneous-gain audio (G-F), untested here (controlled fluidsynth renders only). Harness:
 `build_gt_cued_inputs.py` (test `test_build_gt_cued_inputs.py`, 3 green; full `dynamics_supply` suite 19
 green). Result: `model/data/results/dyn_gt_teacher_rate.json`.
+
+**SUBSTRATE CAVEAT — these numbers are aria-amt-specific (re-run trigger: #125 Transkun adoption).**
+Every AMT-substrate number in FRONT 8/8b/8c (and the upstream G-B 0.544 / G-C error bars) is measured on
+**aria-amt** velocity — the current production transcriber (as of 2026-07-23 transkun has ZERO code
+references; it is a candidate, not wired in). The 0.919 rate IS the aria-amt AMT↔GT velocity agreement
+(0.965) expressed as a decision rate. **Issue #125 proposes adopting Transkun** (vel F1 0.926, emits
+velocity+pedal) as the transcriber, explicitly to improve the velocity channel this rate depends on; its
+#104-difficulty arm STOPped (tau-c-neutral) but the CrescendAI-core/verifier adoption is unresolved. IF
+Transkun replaces aria-amt in the bundle path, re-run the whole chain — the transcribe→score split makes
+it a one-transcriber swap in `render_percepiano_bundles.py` then re-score `independent_rate.py` /
+`route_and_score.py` (bundles + rate JSONs regenerate; no code change to the scorers). The rate would
+likely RISE (better velocity fidelity → tighter AMT↔GT agreement). Until then, read every number here as
+"aria-amt substrate," not "the transcriber substrate."
