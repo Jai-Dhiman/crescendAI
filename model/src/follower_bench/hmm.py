@@ -36,6 +36,30 @@ class HmmParams:
     p_jump_fwd: float = 0.0
 
 
+# NOTE: keep this constant's provenance in sync with the #119 tuning entry in
+# docs/model/00-research-timeline.md.
+# Autoresearch-tuned production params for the jump-enabled HMM decoder (#119
+# follow-up, capped ASAP subset). Lowering p_jump_back 0.02 -> 0.002 cut clean
+# false-jumps 62 -> 9 while KEEPING the recovery win over #118 (jump
+# relock_success 0.222 -> 1.0, jump lock 0.563 -> 0.945, repeat/restart median
+# 5.74s -> 0.24s). Two residuals are a measured PITCH-ONLY CEILING, not a tuning
+# miss: (1) clean false_jmp floors at 9 -- all from 1-2 repetitive clips where a
+# late-performance passage coincidentally matches early score; the bad backward
+# jump is IDENTICAL (same 1215-note jump on Shilyaev03) to that clip's legitimate
+# repeat/restart jump, so neither a flat NOR a distance-scaled penalty can
+# separate them. (2) calibration median spearman_rho dips 0.311 -> 0.276 (below
+# the 0.30 target) because suppressing jumps makes the model commit confidently
+# on exactly those ambiguous regions. Both share one root -- pitch alone cannot
+# tell replay from coincidence -- resolvable only by a timing/IOI signal (the
+# deferred fork; see the follower P3 follow-up issue). Field defaults above keep
+# jumps OFF (monotonic-HMM property + its tests); this constant is the opt-in
+# jump-enabled production set.
+TUNED_HMM_PARAMS = HmmParams(
+    p_match=0.9, p_confuse=0.001, p_ins=0.05, p_del=0.5, p_adv=0.9,
+    p_jump_back=0.002, p_jump_fwd=0.01,
+)
+
+
 def _lg(p: float) -> float:
     return math.log(p) if p > 0.0 else NEG_INF
 

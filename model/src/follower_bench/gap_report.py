@@ -25,7 +25,7 @@ from follower_bench.asap_alignment import DEFAULT_ANNOTATIONS_PATH, load_alignme
 from follower_bench.calibration import calibration_stats
 from follower_bench.clip_generator import generate
 from follower_bench.follower import DEFAULT_SKIP_PENALTY, ContinuityPrior, bar_boundary_columns, follow
-from follower_bench.hmm import HmmParams, follow_hmm
+from follower_bench.hmm import TUNED_HMM_PARAMS, HmmParams, follow_hmm
 from follower_bench.metric import aggregate_by_pathology, score_clip, trajectory_from_matches
 from follower_bench.pathologies import PATHOLOGY_TYPES
 from follower_bench.score_notes import load_score_notes_from_midi
@@ -98,7 +98,7 @@ def _run_cell(performance: str, pathology: str, seed: int, score_notes: list,
                             jump_back_penalty=jump_back_penalty,
                             jump_fwd_penalty=jump_fwd_penalty)
     if hmm_params is None:
-        hmm_params = HmmParams(p_jump_back=0.02, p_jump_fwd=0.01)
+        hmm_params = TUNED_HMM_PARAMS
     t0 = time.perf_counter()
     try:
         clip = generate(performance, pathology, seed)
