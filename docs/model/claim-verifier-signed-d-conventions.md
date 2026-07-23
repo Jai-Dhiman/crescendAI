@@ -1137,5 +1137,47 @@ the claim = the GT label. The deployed end-to-end rate would be this × the teac
 un-run next step. (2) Controlled-gain fluidsynth renders, not heterogeneous real audio (the G-F
 question). (3) PercePiano 8-bar excerpts. Harnesses:
 `model/src/claim_measurement/dynamics_supply/{render_percepiano_bundles,independent_rate}.py` (tests
-`test_dynamics_independent_rate.py`, 5 green; full `dynamics_supply` suite 16 green). Bundles persisted
+`test_dynamics_independent_rate.py`, 5 green; full `dynamics_supply` suite 19 green). Bundles persisted
 at `model/data/evals/percepiano_indep_bundles/`.
+
+---
+
+## FRONT 8c UPDATE (#101, 2026-07-22): the END-TO-END (deployed) rate = 0.919 — the teacher is NOT the bottleneck; the substrate is
+
+8b measured the VERIFIER's substrate faithfulness (oracle: claim = GT label, no LLM). 8c layers the
+teacher back in to get the deployed end-to-end rate: the teacher is CUED by the ground-truth loudness
+label (independent of the AMT statistic that scores it), writes prose, and its LLM-extracted claims are
+scored by the real AMT measurer + frozen router. Same 168 PercePiano bundles as 8b; balanced GT-cue mix
+56 loud / 56 soft / 56 balanced. Harness `build_gt_cued_inputs.py` (reuses front-8 cue text + `gt_polarity`);
+teacher/extractor are Sonnet (4 batches each); scored by the shipped `gd_rate/route_and_score.py`.
+Non-circular: cue = GT MIDI velocity, score = AMT velocity.
+
+**Result (`model/data/results/dyn_gt_teacher_rate.json`):**
+
+| quantity | value | read |
+|---|---:|---|
+| level-claim supply | **168 / 168** segments (+59 contrast, abstain) | every cued segment yields a whole-piece level claim |
+| **teacher sign-fidelity vs GT cue** | **1.000 (168/168)** | 56/56 loud→+, 56/56 soft→−, 56/56 balanced→neutral |
+| **end-to-end deployed rate** | **0.919**, 95% CI [0.870, 0.959] | committed 123/168 (113 SUP, 10 REF); **G-D PASS = True** |
+
+**The end-to-end rate is IDENTICAL to the 8b oracle substrate rate (0.919, same committed set, same
+confusion)** — because the teacher's sign-fidelity is 1.000, it adds ZERO error, so the AMT substrate is
+the sole error source. **The teacher is not the bottleneck.** This is *higher* than front 8's teacher
+sign-fidelity (0.88): front 8's 2 sign errors were *balanced* cues inflated to loud, where the
+**AMT-derived** cue was ambiguous near the boundary; here the cue is a deadband-cleaned **GT** label
+(unambiguous), which the teacher echoes perfectly (incl. affirming all 56 balanced levels).
+
+**Honest deployment caveat.** 0.919 is the **clean-input** ceiling. In production the teacher is fed the
+**AMT-derived** loudness signal (noisy near tau), where front-8 measured ~0.88 sign-fidelity → a deployed
+rate ~0.8. So the deployed rate is **substrate-bounded at 0.919 when the loudness input is clean**, and
+the gap down to ~0.8 is entirely a function of how noisy the fed signal is near the decision boundary —
+NOT the teacher's honesty. The teacher also still adds ~0.35 contrast claims/segment (all abstain),
+echoing the front-5/8 finding that teachers gravitate to shaping language even when cued on level.
+
+**Net across FRONT 8 / 8b / 8c — dynamics-level is the one fully-characterized verifiable dimension:**
+supply is input-promptable (8: 0→17; 8c: 168/168); the verifier is perceptually validated (G-B 0.54) and
+substrate-faithful vs ground truth at **0.919 [0.870, 0.959], G-D PASS** (8b); and the deployed teacher
+pipeline hits that same 0.919 on clean input, ~0.8 on realistic noisy input (8c). The remaining open
+edge is real heterogeneous-gain audio (G-F), untested here (controlled fluidsynth renders only). Harness:
+`build_gt_cued_inputs.py` (test `test_build_gt_cued_inputs.py`, 3 green; full `dynamics_supply` suite 19
+green). Result: `model/data/results/dyn_gt_teacher_rate.json`.
