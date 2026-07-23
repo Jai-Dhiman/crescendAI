@@ -22,3 +22,10 @@ Label epic:audio-teacher pre-existed; epic created as #129. Verified via gh issu
 Gate 0 = #130, contingency = #131 (epic:audio-teacher,blocked). Per accepted /challenge caution, the
 Gate 0 body carries an explicit run-protocol step: re-verify tinker_client.py's Tinker API shape
 against current cookbook docs before funding a live run (written without SDK access).
+
+## Task 19: Migration batch (Group I)
+Executed after controller pre-verified all 12 targets' live state matched the plan. #71 #79 #80 #81
+#82 #83 #84 #16 #55 closed not-planned with successor comment linking epic #129; #32 #33 #40
+relabeled deferred,epic:audio-teacher with retarget comments. Verified epic:teacher-finetune and
+epic:model-v2 both have zero open issues. STATE comment posted to #127. Before/after snapshots in
+the session scratchpad (issue-migration-before/after.txt).

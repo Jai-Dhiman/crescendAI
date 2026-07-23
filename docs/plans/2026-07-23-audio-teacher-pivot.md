@@ -2358,7 +2358,7 @@ Expected: three issues (epic, Gate 0, contingency — contingency also carries `
 ### Task 19: Migration batch — close dead plans, relabel survivors
 **Group:** I (after Task 18)
 
-- [ ] **Step 1: Capture the BEFORE snapshot (goes into ship notes)**
+- [x] **Step 1: Capture the BEFORE snapshot (goes into ship notes)**
 
 ```bash
 EPIC=$(gh issue list --label epic:audio-teacher --state open --search "EPIC: Audio-native teacher" --json number --jq '.[0].number')
@@ -2366,7 +2366,7 @@ gh issue list --state open --limit 100 --json number,title,labels --jq '.[] | "\
 cat /tmp/issue-migration-before.txt
 ```
 
-- [ ] **Step 2: Close the nine dead issues, each linking the epic as successor**
+- [x] **Step 2: Close the nine dead issues, each linking the epic as successor**
 
 ```bash
 for N in 71 79 80 81 82 83 84 16 55; do
@@ -2374,7 +2374,7 @@ for N in 71 79 80 81 82 83 84 16 55; do
 done
 ```
 
-- [ ] **Step 3: Relabel #32 #33 #40 (keep `deferred`), with a retarget comment each**
+- [x] **Step 3: Relabel #32 #33 #40 (keep `deferred`), with a retarget comment each**
 
 ```bash
 gh issue edit 32 --remove-label "epic:teacher-finetune" --add-label "epic:audio-teacher"
@@ -2387,7 +2387,7 @@ gh issue edit 40 --remove-label "epic:teacher-finetune" --add-label "epic:audio-
 gh issue comment 40 --body "Retargeted by the audio-native teacher pivot (#127 -> epic #$EPIC): Layer-4 corpus-composition work, model-agnostic, ports unchanged. Stays deferred."
 ```
 
-- [ ] **Step 4: Capture the AFTER snapshot and post the verification checklist to #127**
+- [x] **Step 4: Capture the AFTER snapshot and post the verification checklist to #127**
 
 ```bash
 gh issue list --state open --limit 100 --json number,title,labels --jq '.[] | "\(.number)\t\(.title)\t\([.labels[].name] | join(","))"' | sort -n > /tmp/issue-migration-after.txt
