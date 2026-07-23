@@ -6,6 +6,8 @@ ContrastPair.degraded.
 """
 from __future__ import annotations
 
+import re
+
 AXIS_QUESTIONS = {
     "pedaling": (
         "One of these two piano recordings is over-pedaled: excessive sustain "
@@ -34,3 +36,19 @@ def build_question(axis: str) -> str:
             f"no elicitation question for axis {axis!r}; known: {sorted(AXIS_QUESTIONS)}"
         )
     return f"{AXIS_QUESTIONS[axis]}\n\n{ANSWER_INSTRUCTION}"
+
+
+_ANSWER_RE = re.compile(r"ANSWER:\s*([AB])\b", re.IGNORECASE)
+
+
+def parse_choice(text: str) -> str | None:
+    """Extract the forced A/B choice from a model response.
+
+    The last ANSWER: line wins (models sometimes revise). Returns "a",
+    "b", or None when no well-formed answer exists -- the scorer counts
+    None as unparseable, which pushes the gate toward FAIL (closed).
+    """
+    matches = _ANSWER_RE.findall(text)
+    if not matches:
+        return None
+    return matches[-1].lower()
