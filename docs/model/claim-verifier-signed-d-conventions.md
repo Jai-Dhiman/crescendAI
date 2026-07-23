@@ -1022,3 +1022,175 @@ RENDERED construction-known audio (clean AMT) — unaffected. (3) The real-audio
 dependency: **#108's continuity-penalized symbolic matcher replacing parangonar inside this offline
 pipeline** (its day-0 probe already beat parangonar's global matchers, which scatter with no local
 constraint). The #101 paper path and the #108 product path CONVERGE at the matcher.
+
+---
+
+## FRONT 8 UPDATE (#101, 2026-07-19): dynamics level-cue supply probe — the front-5 gap is INPUT-side and PROMPTABLE (rate is signal-fidelity, not independent)
+
+Front 5 declared the dynamics *rate* UNMEASURABLE: the generator makes ~90% dynamic-CONTRAST
+claims and ~0 falsifiable whole-piece LOUDNESS-LEVEL claims, so the G-B-validated mean-velocity
+LEVEL statistic had nothing to score (a construct mismatch). Front 6 then killed the obvious rescue
+(no deterministic dynamic-CONTRAST statistic validates). Front 5 left ONE door un-run: is that
+supply gap the generator's VOICE (won't state overall loudness) or its INPUT (never *given* an
+overall-loudness signal)? — the front-7 question, asked for dynamics. This front ran it and the
+answer is INPUT: the gap is promptable.
+
+**Method — paired two-arm test (mirrors 7a-bis) over the SAME 17 `gd_bundles` performances.** Held
+the permissive-but-honest teacher prompt IDENTICAL across arms; only the per-performance INPUT
+differs, so the arms isolate exactly one variable.
+- **ARM A**: `muq_means` scalars only (the ORIGINAL production input).
+- **ARM B**: + a **MEASURED** overall-loudness cue derived from THIS bundle's mean AMT note velocity
+  (`d = mean_vel − 51.5`, direction vs tau 6.5; 9 loud / 8 balanced / 0 soft).
+
+**KEY DISTINCTION from the timing probe:** timing's ARM-B cue had to be INVENTED (raw AMT onsets are
+texture-confounded; a real directional signal needed 7b's score alignment). Dynamics' validated
+statistic is mean note VELOCITY — density-free and gain-robust on the raw bundle — so the ARM-B cue
+is a REAL self-relative measurement. **CONSEQUENCE (the honest caveat):** the SAME statistic both
+CUES and SCORES, so any resulting rate is a **signal-fidelity** rate (the measure feeds and
+adjudicates itself), NOT an independent faithfulness rate. Teacher generation + claim extraction are
+LLM (Sonnet); the truth label is the real `DynamicsMeasurer` + frozen `route_verdict` (tau 6.5) — the
+Path-#1 non-circularity rule holds for the *verdict*, not for the cue↔statistic loop.
+
+**Results (all measured; `model/data/results/dynamics_level_cue_supply.json`, `dyn_arm_{a,b}_rate.json`):**
+
+| quantity | ARM A (no cue) | ARM B (measured cue) | read |
+|---|---:|---:|---|
+| level@whole_piece claims | **0** (13 contrast) | **17** (+14 contrast) | **supply LIFT 0→17: the gap is promptable, not a voice block** |
+| committed (real router) | 0 | 14 (3 near_threshold abstain) | 3 near-boundary claims correctly quarantined |
+| faithfulness rate | UNMEASURABLE | **1.000** CI [1.000, 1.000] | signal-fidelity ceiling (circular) — NOT the headline |
+| polarity (committed) | — | + 8/8, neutral 6/6 SUPPORTED | spans two verdict classes (soft/− untested: 0 soft cues) |
+| sign-fidelity vs cue | — | **15/17 (0.88)** | teacher inflated 2/8 *balanced* cues to a loud (+) claim |
+
+**What this measures (and what it does not).** ARM A **reproduces front 5** on these 17 (0 falsifiable
+overall-loudness claims — the teacher is honest and won't invent a level uncued). ARM B shows the
+teacher WILL make grounded whole-piece loudness claims when given a measured signal. The **1.000 is a
+signal-fidelity ceiling, not an independent faithfulness rate** — expected by construction and NOT a
+paper headline. The genuinely measured contributions are: (1) **the dynamics-level supply gap is
+INPUT-side and promptable** (0→17), reframing front 5's "unmeasurable" as "unmeasurable *on the uncued
+production input*"; (2) **teacher sign-fidelity is 0.88, not 1.0** — even given a clean cue the voice
+inflated 2 balanced performances to a directional loud claim (a measured teacher-side distortion);
+(3) **the near-threshold dead-band worked** — both inflated claims had true |d|<tau and were abstained,
+not committed (0 REFUTED among committed is the abstention machinery doing its job, not luck).
+
+**G-D PASS = False**, for two independent reasons: n=14 committed < 30 (only 17 bundles are
+transcribed; ≥30 needs more AMT transcription, ~57s/clip), AND the rate is signal-fidelity, not
+independent. A gate-passing INDEPENDENT dynamics-level rate still requires an **independent loudness
+signal** to break the cue↔statistic circularity (e.g. ground-truth MIDI velocity, or a human loudness
+label distinct from the scored statistic) — the same circularity caveat timing carries.
+
+**Net.** Dynamics-level moves from "validated statistic, no claims" (front 5) to "validated statistic,
+**claims are input-promptable**, independent rate still circularity-blocked." **Product consequence
+(concrete):** if CrescendAI feeds the teacher a measured overall-loudness input, the teacher emits
+whole-piece loudness claims the verifier CAN check — a cheap grounded-feedback surface, unlike
+dynamic-contrast (front 6: no valid statistic exists). Harnesses:
+`model/src/claim_measurement/dynamics_supply/{build_teacher_inputs,classify_supply}.py` +
+`teacher_prompt.md` (tests `test_dynamics_supply_{inputs,classify}.py`, 11 green).
+
+---
+
+## FRONT 8b UPDATE (#101, 2026-07-19): the FIRST INDEPENDENT (non-circular) dynamics faithfulness rate = 0.919 — substrate-faithful, gate-adjacent
+
+Front 8's rate (1.000) was a signal-fidelity ceiling: it cued the teacher from AMT mean velocity
+and scored with AMT mean velocity, so the measure adjudicated itself. This front breaks the
+circularity with an **independent truth signal**: the claim's polarity is fixed by **ground-truth
+MIDI velocity** and the SCORE is the production AMT-velocity measurer + frozen router — two
+independent measurements of the same performance. It answers the real question: *when ground truth
+says a performance is loud / soft / balanced overall, does the deployed AMT verifier agree?*
+
+**Substrate move (forced).** GT MIDI velocity exists only for PercePiano (which IS MIDI); the real
+YouTube `gd_bundles` have no ground truth. So this runs on PercePiano: `render_percepiano_bundles.py`
+renders each MIDI (fluidsynth, fixed gain 0.5) → aria-amt → a bundle carrying AMT `notes` +
+`gt_mean_velocity` + `gt_corpus_median`. 168 segments **stratified soft/balanced/loud** by GT velocity
+vs the labeled-corpus median (58.2), seed 42 (rendered in two nested batches, 45 then +123, ~40-70s/seg)
+— so all three verdict classes are represented (front 8 had 0 soft cues). This also **fixes the G-B
+non-persistence gap** (that gate rendered to a deleted tempdir and cached only 180 anonymous scalars);
+the per-segment AMT arrays are now persisted.
+
+**ORACLE (no-LLM) design.** The claim polarity IS the GT label (loud→+, soft→−, balanced→neutral),
+so the rate isolates the verifier's **substrate faithfulness** (AMT-vs-GT at the tau decision
+boundary) with zero teacher/extractor noise. Truth-label purity holds — the verdict is only the
+deterministic measurer + frozen `route_verdict` (tau 6.5); GT MIDI velocity is a non-LLM signal.
+
+**Result (`model/data/results/dynamics_independent_rate.json`, n=45):**
+
+| quantity | value | read |
+|---|---:|---|
+| **independent faithfulness rate** | **0.919**, 95% CI [0.870, 0.959] | AMT verifier agrees with ground truth 92% (committed) |
+| committed | 123 / 168 (113 SUPPORTED, 10 REFUTED) | 45 near-threshold abstentions (16 soft / 17 balanced / 12 loud) |
+| by verdict class | loud 39✓/5✗, **soft 36✓/4✗**, balanced 38✓/1✗ | all three tested; soft (−) covered |
+| tau_gt sweep (4 / 6.5 / 9) | 0.862 / 0.919 / 0.902 | stable ~0.90, not a single-threshold artifact |
+| **G-D gate** | **PASS — committed 123 ≥ 30 AND CI half 0.045 ≤ 0.05** | **first gate-passing independent per-dimension rate** |
+
+**What it means. This is the paper's first GATE-PASSING independent per-dimension faithfulness number,
+and 0.919 < 1.000 is the whole point** — the circular front-8 rate could not see substrate error; here
+the AMT velocity genuinely disagrees with GT on 10/123 committed segments (5 loud read as not-loud,
+4 soft as not-soft, 1 balanced as directional — real boundary errors). The rate is essentially the
+AMT↔GT velocity agreement (Spearman 0.965, G-B) expressed as a whole-piece loudness DECISION rate, with
+the near-threshold dead-band honestly abstaining the 45 boundary cases. **The G-D gate now PASSES on both
+criteria**: 123 committed clears the ≥30 count bar (a first for any dimension) AND the CI half-width 0.045
+clears the ≤0.05 precision bar. (The initial n=45 batch passed count but missed precision at half 0.095;
+one nested +123-segment render batch closed it with the rate stable at 0.919.)
+
+**Scope / caveats (honest).** (1) This is **substrate** faithfulness (oracle), NOT teacher faithfulness:
+the claim = the GT label. The deployed end-to-end rate would be this × the teacher's sign-fidelity
+(~0.88, front 8) ≈ 0.8 — the teacher arm (cue the teacher from the GT label, extract, score) is the
+un-run next step. (2) Controlled-gain fluidsynth renders, not heterogeneous real audio (the G-F
+question). (3) PercePiano 8-bar excerpts. Harnesses:
+`model/src/claim_measurement/dynamics_supply/{render_percepiano_bundles,independent_rate}.py` (tests
+`test_dynamics_independent_rate.py`, 5 green; full `dynamics_supply` suite 19 green). Bundles persisted
+at `model/data/evals/percepiano_indep_bundles/`.
+
+---
+
+## FRONT 8c UPDATE (#101, 2026-07-22): the END-TO-END (deployed) rate = 0.919 — the teacher is NOT the bottleneck; the substrate is
+
+8b measured the VERIFIER's substrate faithfulness (oracle: claim = GT label, no LLM). 8c layers the
+teacher back in to get the deployed end-to-end rate: the teacher is CUED by the ground-truth loudness
+label (independent of the AMT statistic that scores it), writes prose, and its LLM-extracted claims are
+scored by the real AMT measurer + frozen router. Same 168 PercePiano bundles as 8b; balanced GT-cue mix
+56 loud / 56 soft / 56 balanced. Harness `build_gt_cued_inputs.py` (reuses front-8 cue text + `gt_polarity`);
+teacher/extractor are Sonnet (4 batches each); scored by the shipped `gd_rate/route_and_score.py`.
+Non-circular: cue = GT MIDI velocity, score = AMT velocity.
+
+**Result (`model/data/results/dyn_gt_teacher_rate.json`):**
+
+| quantity | value | read |
+|---|---:|---|
+| level-claim supply | **168 / 168** segments (+59 contrast, abstain) | every cued segment yields a whole-piece level claim |
+| **teacher sign-fidelity vs GT cue** | **1.000 (168/168)** | 56/56 loud→+, 56/56 soft→−, 56/56 balanced→neutral |
+| **end-to-end deployed rate** | **0.919**, 95% CI [0.870, 0.959] | committed 123/168 (113 SUP, 10 REF); **G-D PASS = True** |
+
+**The end-to-end rate is IDENTICAL to the 8b oracle substrate rate (0.919, same committed set, same
+confusion)** — because the teacher's sign-fidelity is 1.000, it adds ZERO error, so the AMT substrate is
+the sole error source. **The teacher is not the bottleneck.** This is *higher* than front 8's teacher
+sign-fidelity (0.88): front 8's 2 sign errors were *balanced* cues inflated to loud, where the
+**AMT-derived** cue was ambiguous near the boundary; here the cue is a deadband-cleaned **GT** label
+(unambiguous), which the teacher echoes perfectly (incl. affirming all 56 balanced levels).
+
+**Honest deployment caveat.** 0.919 is the **clean-input** ceiling. In production the teacher is fed the
+**AMT-derived** loudness signal (noisy near tau), where front-8 measured ~0.88 sign-fidelity → a deployed
+rate ~0.8. So the deployed rate is **substrate-bounded at 0.919 when the loudness input is clean**, and
+the gap down to ~0.8 is entirely a function of how noisy the fed signal is near the decision boundary —
+NOT the teacher's honesty. The teacher also still adds ~0.35 contrast claims/segment (all abstain),
+echoing the front-5/8 finding that teachers gravitate to shaping language even when cued on level.
+
+**Net across FRONT 8 / 8b / 8c — dynamics-level is the one fully-characterized verifiable dimension:**
+supply is input-promptable (8: 0→17; 8c: 168/168); the verifier is perceptually validated (G-B 0.54) and
+substrate-faithful vs ground truth at **0.919 [0.870, 0.959], G-D PASS** (8b); and the deployed teacher
+pipeline hits that same 0.919 on clean input, ~0.8 on realistic noisy input (8c). The remaining open
+edge is real heterogeneous-gain audio (G-F), untested here (controlled fluidsynth renders only). Harness:
+`build_gt_cued_inputs.py` (test `test_build_gt_cued_inputs.py`, 3 green; full `dynamics_supply` suite 19
+green). Result: `model/data/results/dyn_gt_teacher_rate.json`.
+
+**SUBSTRATE CAVEAT — these numbers are aria-amt-specific (re-run trigger: #125 Transkun adoption).**
+Every AMT-substrate number in FRONT 8/8b/8c (and the upstream G-B 0.544 / G-C error bars) is measured on
+**aria-amt** velocity — the current production transcriber (as of 2026-07-23 transkun has ZERO code
+references; it is a candidate, not wired in). The 0.919 rate IS the aria-amt AMT↔GT velocity agreement
+(0.965) expressed as a decision rate. **Issue #125 proposes adopting Transkun** (vel F1 0.926, emits
+velocity+pedal) as the transcriber, explicitly to improve the velocity channel this rate depends on; its
+#104-difficulty arm STOPped (tau-c-neutral) but the CrescendAI-core/verifier adoption is unresolved. IF
+Transkun replaces aria-amt in the bundle path, re-run the whole chain — the transcribe→score split makes
+it a one-transcriber swap in `render_percepiano_bundles.py` then re-score `independent_rate.py` /
+`route_and_score.py` (bundles + rate JSONs regenerate; no code change to the scorers). The rate would
+likely RISE (better velocity fidelity → tighter AMT↔GT agreement). Until then, read every number here as
+"aria-amt substrate," not "the transcriber substrate."
