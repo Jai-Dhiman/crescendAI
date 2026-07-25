@@ -1,16 +1,10 @@
 # /// script
-# requires-python = ">=3.10,<3.13"
+# requires-python = ">=3.11"
 # dependencies = [
-#     "torch>=2.0.0",
 #     "numpy>=1.24.0",
-#     "safetensors>=0.4.0",
 #     "soundfile>=0.12.0",
 #     "scipy>=1.10.0",
-#     "numba>=0.59.0",
-#     "llvmlite>=0.42.0",
 #     "pretty_midi>=0.2.10",
-#     "aria-amt @ git+https://github.com/EleutherAI/aria-amt.git",
-#     "aria @ git+https://github.com/EleutherAI/aria.git",
 # ]
 # ///
 """G-B GATE (dynamics): does AMT-estimated mean note-velocity (from fixed-gain
@@ -18,14 +12,13 @@ piano-rendered audio) still track perceived dynamics, the way ground-truth MIDI 
 velocity does (partial-rho ~0.56)?  (#101 GATE 3 UPDATE)
 
 Pipeline per clip:  PercePiano .mid --fluidsynth(fixed gain)--> 16k wav
-  --aria-amt._transcribe--> notes w/ velocity --> mean AMT velocity.
+  --transkun_cli.transcribe_pcm--> notes w/ velocity --> mean AMT velocity.
 Correlate (halo-controlled partial Spearman) vs perceived dynamics. PASS iff >= ~0.5.
 Also reports AMT-vel vs GT-vel preservation (THE risk: does AMT normalize level away?).
 
-Run:  CRESCEND_DEVICE=auto uv run --script amt_dynamics_gb_gate.py [N]
+Run:  uv run --script amt_dynamics_gb_gate.py [N]
 """
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -40,14 +33,12 @@ REPO = Path(__file__).resolve().parents[4]
 MIDI_DIR = REPO / "model/data/midi/percepiano"
 LABELS = json.loads((REPO / "model/data/labels/composite/composite_labels.json").read_text())
 SF2 = REPO / "model/data/soundfonts/MuseScore_General.sf3"
-WEIGHTS = REPO / "model/data/weights/aria-amt"
 ALL_DIMS = ["timing", "dynamics", "pedaling", "articulation", "phrasing", "interpretation"]
 SR = 16000
 GAIN = 0.5
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 12
 
 sys.path.insert(0, str(REPO / "apps/inference/amt"))
-os.environ.setdefault("CRESCEND_DEVICE", "auto")
 
 
 def partial_spearman(x, y, z):
@@ -73,10 +64,9 @@ def gt_mean_velocity(midi_path):
     return float(np.mean(v)) if v else None
 
 
-print("Loading aria-amt EndpointHandler...", flush=True)
-from transcription import EndpointHandler
-handler = EndpointHandler(path=str(WEIGHTS))
-print("Model ready.\n", flush=True)
+print("Loading Transkun (transkun_cli)...", flush=True)
+from transkun_cli import transcribe_pcm
+print("Ready.\n", flush=True)
 
 labeled = [p for p in sorted(MIDI_DIR.glob("*.mid")) if LABELS.get(p.stem, {}).get("dynamics") is not None]
 rng = np.random.default_rng(42)
@@ -91,7 +81,7 @@ with tempfile.TemporaryDirectory() as td:
             audio, _ = sf.read(str(wav), dtype="float32")
             if audio.ndim > 1:
                 audio = audio.mean(axis=1)
-            notes, _ped = handler._transcribe(audio)
+            notes, _ped = transcribe_pcm(audio)
         except Exception as exc:
             print(f"  [{i+1}/{len(paths)}] {mp.stem[:30]} FAILED: {exc}", flush=True)
             continue

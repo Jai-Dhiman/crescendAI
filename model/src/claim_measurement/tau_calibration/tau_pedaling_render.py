@@ -1,20 +1,17 @@
 # /// script
-# requires-python = ">=3.10,<3.13"
+# requires-python = ">=3.11"
 # dependencies = [
-#     "torch>=2.0.0", "numpy>=1.24.0", "safetensors>=0.4.0", "soundfile>=0.12.0",
-#     "numba>=0.59.0", "llvmlite>=0.42.0", "pretty_midi>=0.2.10",
-#     "aria-amt @ git+https://github.com/EleutherAI/aria-amt.git",
-#     "aria @ git+https://github.com/EleutherAI/aria.git",
+#     "numpy>=1.24.0", "soundfile>=0.12.0", "pretty_midi>=0.2.10",
 # ]
 # ///
 """Front-4 pedaling tau calibration set (#101): render N natural (uncorrupted) PercePiano
-clips at fixed gain -> aria-amt -> sustain time-on-fraction, paired with the composite
+clips at fixed gain -> Transkun -> sustain time-on-fraction, paired with the composite
 pedaling perceptual label by stem. Broad random sample across the FULL pedaling spectrum
 (incl. dry clips -- the low-tail under-pedal anomalies). No corruption.
 
-Run:  CRESCEND_DEVICE=auto uv run --script tau_pedaling_render.py [N]
+Run:  uv run --script tau_pedaling_render.py [N]
 """
-import json, os, subprocess, sys, tempfile
+import json, subprocess, sys, tempfile
 from pathlib import Path
 import numpy as np, soundfile as sf, pretty_midi
 
@@ -22,12 +19,10 @@ REPO = Path(__file__).resolve().parents[4]
 MIDI_DIR = REPO / "model/data/midi/percepiano"
 LABELS = json.loads((REPO / "model/data/labels/composite/composite_labels.json").read_text())
 SF2 = REPO / "model/data/soundfonts/MuseScore_General.sf3"
-WEIGHTS = REPO / "model/data/weights/aria-amt"
 OUT = REPO / "model/data/results/tau_cal_pedaling.json"
 SR, GAIN = 16000, 0.5
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 180
 sys.path.insert(0, str(REPO / "apps/inference/amt"))
-os.environ.setdefault("CRESCEND_DEVICE", "auto")
 
 
 def cc64_spans(pm):
@@ -59,10 +54,9 @@ def render(mp, wav):
                    check=True, capture_output=True)
 
 
-print("Loading aria-amt...", flush=True)
-from transcription import EndpointHandler
-handler = EndpointHandler(path=str(WEIGHTS))
-print("Model ready.\n", flush=True)
+print("Loading Transkun (transkun_cli)...", flush=True)
+from transkun_cli import transcribe_pcm
+print("Ready.\n", flush=True)
 
 labeled = [p for p in sorted(MIDI_DIR.glob("*.mid")) if LABELS.get(p.stem, {}).get("pedaling") is not None]
 rng = np.random.default_rng(2024)
@@ -79,7 +73,7 @@ with tempfile.TemporaryDirectory() as td:
             render(mp, wav)
             audio, _ = sf.read(str(wav), dtype="float32")
             if audio.ndim > 1: audio = audio.mean(axis=1)
-            _n, pedals = handler._transcribe(audio)
+            _n, pedals = transcribe_pcm(audio)
             amt_frac = on_fraction(spans_from_events(pedals), total)
         except Exception as exc:
             print(f"  [{i+1}/{N}] {mp.stem[:24]} FAIL: {exc}", flush=True); continue

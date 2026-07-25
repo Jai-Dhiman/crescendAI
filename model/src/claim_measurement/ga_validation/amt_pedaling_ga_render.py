@@ -1,15 +1,9 @@
 # /// script
-# requires-python = ">=3.10,<3.13"
+# requires-python = ">=3.11"
 # dependencies = [
-#     "torch>=2.0.0",
 #     "numpy>=1.24.0",
-#     "safetensors>=0.4.0",
 #     "soundfile>=0.12.0",
-#     "numba>=0.59.0",
-#     "llvmlite>=0.42.0",
 #     "pretty_midi>=0.2.10",
-#     "aria-amt @ git+https://github.com/EleutherAI/aria-amt.git",
-#     "aria @ git+https://github.com/EleutherAI/aria.git",
 # ]
 # ///
 """Pedal G-A stage 1: construction-known CC64-span corruption -> render -> AMT (#101 front-3).
@@ -17,13 +11,13 @@
 For N base PercePiano clips that contain sustain pedal, rewrite the CC64 stream to make
 the pedal SPARSE (shorten each on-span x0.4), NEUTRAL (unchanged) or DENSE (extend each
 on-span to fill 60% of the gap to the next on). All three are true, construction-known
-on-fraction changes. Render at fixed gain, transcribe with aria-amt, and record the
+on-fraction changes. Render at fixed gain, transcribe with Transkun, and record the
 MIDI-true and AMT time-on-fraction per (clip, level) plus the raw AMT pedal events, so
 ``amt_pedaling_ga_metrics`` can (a) confirm AMT preserves on-fraction ORDERING (the
 gating risk -- pedal transcription is noisier than velocity and saturates when wet) and
 (b) feed the REAL PedalingMeasurer + frozen route_verdict.
 
-Run:  CRESCEND_DEVICE=auto uv run --script amt_pedaling_ga_render.py [N] [out.json]
+Run:  uv run --script amt_pedaling_ga_render.py [N] [out.json]
 """
 import json
 import os
@@ -40,7 +34,6 @@ REPO = Path(__file__).resolve().parents[4]
 MIDI_DIR = REPO / "model/data/midi/percepiano"
 LABELS = json.loads((REPO / "model/data/labels/composite/composite_labels.json").read_text())
 SF2 = REPO / "model/data/soundfonts/MuseScore_General.sf3"
-WEIGHTS = REPO / "model/data/weights/aria-amt"
 SR = 16000
 GAIN = 0.5
 SPARSE_SCALE = 0.4      # "scaled" mode: shorten each on-span
@@ -55,7 +48,6 @@ OUT = Path(sys.argv[2]) if len(sys.argv) > 2 else (REPO / "model/data/results/ga
 MODE = sys.argv[3] if len(sys.argv) > 3 else "maximal"
 
 sys.path.insert(0, str(REPO / "apps/inference/amt"))
-os.environ.setdefault("CRESCEND_DEVICE", "auto")
 
 
 def cc64_spans(pm: pretty_midi.PrettyMIDI) -> list[tuple[float, float]]:
@@ -139,10 +131,9 @@ def render(pm, wav_path):
     os.unlink(tmid)
 
 
-print("Loading aria-amt...", flush=True)
-from transcription import EndpointHandler
-handler = EndpointHandler(path=str(WEIGHTS))
-print("Model ready.\n", flush=True)
+print("Loading Transkun (transkun_cli)...", flush=True)
+from transkun_cli import transcribe_pcm
+print("Ready.\n", flush=True)
 
 labeled = [p for p in sorted(MIDI_DIR.glob("*.mid"))
            if LABELS.get(p.stem, {}).get("dynamics") is not None]
@@ -173,7 +164,7 @@ with tempfile.TemporaryDirectory() as td:
                 audio, _ = sf.read(str(wav), dtype="float32")
                 if audio.ndim > 1:
                     audio = audio.mean(axis=1)
-                _notes, pedals = handler._transcribe(audio)
+                _notes, pedals = transcribe_pcm(audio)
                 amt_frac = on_fraction(cc64_spans_from_events(pedals), total_dur)
             except Exception as exc:
                 print(f"  {mp.stem[:24]} {level} FAIL: {exc}", flush=True)

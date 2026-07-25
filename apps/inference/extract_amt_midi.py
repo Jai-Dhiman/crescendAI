@@ -1,23 +1,20 @@
 # /// script
-# requires-python = ">=3.10"
+# requires-python = ">=3.11"
 # dependencies = [
-#     "torch>=2.0.0",
 #     "numpy>=1.24.0",
-#     "safetensors>=0.4.0",
+#     "soundfile>=0.12.0",
 #     "pretty_midi>=0.2.10",
-#     "aria-amt @ git+https://github.com/EleutherAI/aria-amt.git",
-#     "aria @ git+https://github.com/EleutherAI/aria.git",
 # ]
 # ///
-"""Batch Aria-AMT transcription: a directory of WAVs -> per-segment {seg_id}.mid.
+"""Batch Transkun transcription: a directory of WAVs -> per-segment {seg_id}.mid.
 
 This is the core, tier-agnostic step of the #72 AMT MIDI extraction pipeline.
-It reuses the production-parity `EndpointHandler` (apps/inference/amt/transcription.py),
-which already carries the MPS/CPU device port and KV-cache monkey-patch, so local
-transcription matches what the HF endpoint produces.
+It uses the shared `transkun_cli.transcribe_wav` helper (apps/inference/amt/
+transkun_cli.py), which shells out to an isolated Transkun env and parses the
+output MIDI, so local transcription matches what the HF endpoint produces.
 
-The handler returns notes/pedals as JSON lists; this script serializes them to a
-real .mid file (via pretty_midi) because the Aria symbolic path
+transcribe_wav returns notes/pedals as JSON lists; this script serializes them to
+a real .mid file (via pretty_midi) because the Aria symbolic path
 (model/src/model_improvement/aria_encoder.py::AriaMidiPairDataset) loads
 `{midi_dir}/{seg_id}.mid` with `MidiDict.from_midi(path)`.
 
@@ -32,18 +29,15 @@ Usage:
     cd apps/inference && uv run extract_amt_midi.py \
         --wav-dir  /abs/path/to/wavs \
         --out-dir  /abs/path/to/model/data/midi/amt/t1 \
-        [--checkpoint /abs/path/to/aria-amt] [--overwrite] [--limit N]
+        [--overwrite] [--limit N]
 """
 
 from __future__ import annotations
 
 import argparse
-import base64
 import collections
-import gc
 import json
 import math
-import os
 import sys
 import time
 import traceback
@@ -51,11 +45,6 @@ from pathlib import Path
 
 AMT_DIR = str(Path(__file__).resolve().parent / "amt")
 sys.path.insert(0, AMT_DIR)
-os.environ.setdefault("CRESCEND_DEVICE", "auto")
-
-DEFAULT_CKPT = str(
-    Path(__file__).resolve().parents[2] / "model" / "data" / "weights" / "aria-amt"
-)
 
 
 def log(msg: str) -> None:
@@ -97,19 +86,6 @@ def notes_pedals_to_midi(notes: list[dict], pedals: list[dict], out_path: Path) 
     tmp_path.replace(out_path)
 
 
-def release_accelerator_memory() -> None:
-    """Free cached GPU allocations between segments. Aria-AMT reuses one model +
-    KV cache, but the MPS/CUDA caching allocator otherwise grows monotonically over
-    thousands of dense segments, eventually exhausting memory. Called periodically."""
-    import torch
-
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        torch.mps.empty_cache()
-
-
 def pitch_class_entropy(notes: list[dict]) -> float:
     """Shannon entropy (bits) over the 12 pitch classes. Sanity signal: a sane
     tonal transcription is neither flat (~3.58 = uniform noise) nor degenerate
@@ -129,7 +105,6 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--wav-dir", required=True, help="Directory of {seg_id}.wav inputs.")
     ap.add_argument("--out-dir", required=True, help="Directory for {seg_id}.mid outputs.")
-    ap.add_argument("--checkpoint", default=DEFAULT_CKPT)
     ap.add_argument(
         "--seg-ids",
         default=None,
@@ -155,11 +130,10 @@ def main() -> None:
     if not seg_ids:
         raise FileNotFoundError(f"No seg_ids to process (no *.wav in {wav_dir}?)")
 
-    log(f"Loading Aria-AMT from {args.checkpoint}")
-    from transcription import EndpointHandler
+    log("Loading Transkun (transkun_cli.transcribe_wav)")
+    from transkun_cli import transcribe_wav
 
-    handler = EndpointHandler(path=args.checkpoint)
-    log(f"Model ready. {len(seg_ids)} candidate segments.")
+    log(f"Ready. {len(seg_ids)} candidate segments.")
 
     failures_path = out_dir / "_failures.jsonl"
     sanity_path = out_dir / "_sanity.jsonl"
@@ -179,25 +153,24 @@ def main() -> None:
             continue
 
         try:
-            chunk_b64 = base64.b64encode(wav_path.read_bytes()).decode()
-            result = handler({"chunk_audio": chunk_b64, "context_audio": None})
-            if "error" in result:
-                raise RuntimeError(json.dumps(result["error"]))
-            notes = result.get("midi_notes", [])
-            pedals = result.get("pedal_events", [])
+            t_seg = time.time()
+            # transcribe_wav raises TranskunError (loud) on any failure -- never empty.
+            notes, pedals = transcribe_wav(wav_path)
+            seg_ms = int((time.time() - t_seg) * 1000)
             notes_pedals_to_midi(notes, pedals, out_path)
 
-            info = result.get("transcription_info", {})
+            pitches = [int(n["pitch"]) for n in notes]
+            pitch_range = [min(pitches), max(pitches)] if pitches else [0, 0]
             with sanity_path.open("a") as f:
                 f.write(
                     json.dumps(
                         {
                             "seg_id": seg_id,
                             "note_count": len(notes),
-                            "pitch_range": info.get("pitch_range"),
+                            "pitch_range": pitch_range,
                             "pedal_count": len(pedals),
                             "pc_entropy": pitch_class_entropy(notes),
-                            "ms": info.get("transcription_time_ms"),
+                            "ms": seg_ms,
                         }
                     )
                     + "\n"
@@ -214,7 +187,6 @@ def main() -> None:
                 )
 
         if (i + 1) % 25 == 0 or (i + 1) == len(seg_ids):
-            release_accelerator_memory()  # bound MPS/CUDA cache growth over long runs
             rate = n_done / max(1e-9, time.time() - t_start)
             log(
                 f"{i + 1}/{len(seg_ids)}  done={n_done} skip={n_skip} fail={n_fail}  "
