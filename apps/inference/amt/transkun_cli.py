@@ -91,3 +91,16 @@ def transcribe_wav(
         out_mid = Path(td) / "out.mid"
         _run_transkun(wav_path, out_mid)
         return midi_to_notes_and_pedals(out_mid)
+
+
+def transcribe_pcm(
+    pcm_16k: np.ndarray,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Transcribe a 16kHz mono float32 PCM array to (notes, pedals) via Transkun."""
+    pcm = np.ascontiguousarray(np.asarray(pcm_16k, dtype=np.float32))
+    if pcm.size == 0:
+        raise TranskunError("transcribe_pcm received empty PCM")
+    with tempfile.TemporaryDirectory() as td:
+        in_wav = Path(td) / "in.wav"
+        sf.write(str(in_wav), pcm, SAMPLE_RATE, format="WAV", subtype="FLOAT")
+        return transcribe_wav(in_wav)

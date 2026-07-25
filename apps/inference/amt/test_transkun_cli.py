@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pretty_midi
 import pytest
+import soundfile as sf
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import transkun_cli
@@ -74,3 +75,35 @@ def test_transcribe_wav_missing_input_raises(tmp_path):
     missing = tmp_path / "nope.wav"
     with pytest.raises(transkun_cli.TranskunError):
         transkun_cli.transcribe_wav(missing)
+
+
+def test_transcribe_pcm_on_real_sample_returns_notes_with_velocity():
+    """Real Transkun on the committed piano fixture. Slow: downloads weights once.
+
+    The fixture `apps/inference/amt/fixtures/piano_sample_5s_16k.wav` is a real
+    ~5s mono 16kHz piano clip committed to the repo (force-added past the `*.wav`
+    .gitignore rule), so it is GUARANTEED present in every fresh checkout/worktree.
+    This test FAILS HARD (never pytest.skip) when the fixture is absent — a missing
+    fixture is a real regression that must break the build, not silently pass.
+    """
+    wav = Path(__file__).resolve().parent / "fixtures" / "piano_sample_5s_16k.wav"
+    if not wav.exists():
+        raise AssertionError(
+            f"required committed fixture missing: {wav} "
+            "(force-add it: git add -f apps/inference/amt/fixtures/piano_sample_5s_16k.wav)"
+        )
+    y, sr = sf.read(str(wav), dtype="float32", always_2d=False)
+    if y.ndim > 1:
+        y = y.mean(axis=1)
+    if sr != transkun_cli.SAMPLE_RATE:
+        from math import gcd
+        from scipy.signal import resample_poly
+        g = gcd(int(sr), transkun_cli.SAMPLE_RATE)
+        y = resample_poly(y, transkun_cli.SAMPLE_RATE // g, int(sr) // g).astype("float32")
+
+    notes, pedals = transkun_cli.transcribe_pcm(y)
+
+    assert len(notes) > 0
+    assert all(set(n) == {"pitch", "onset", "offset", "velocity"} for n in notes)
+    assert all(isinstance(n["velocity"], int) and n["velocity"] > 0 for n in notes)
+    assert all(isinstance(p["value"], int) and p["value"] in (0, 127) for p in pedals)
