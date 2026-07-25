@@ -34,8 +34,9 @@ class RecordedResponseClient:
     """Replays canned responses from a JSONL file keyed by pair_id.
 
     Record shape per line: {"pair_id": str, "text": str} (extra keys are
-    ignored). A pair without a recording raises KeyError -- an incomplete
-    fixture must fail loudly, never be skipped.
+    ignored). A pair without a recording raises KeyError, and a duplicate
+    pair_id raises ValueError -- an incomplete or corrupt fixture must fail
+    loudly, never be skipped.
     """
 
     def __init__(self, responses_path: Path | str):
@@ -45,6 +46,11 @@ class RecordedResponseClient:
                 if not line.strip():
                     continue
                 rec = json.loads(line)
+                if rec["pair_id"] in self._responses:
+                    raise ValueError(
+                        f"duplicate recorded response for pair {rec['pair_id']!r} "
+                        f"in {responses_path}"
+                    )
                 self._responses[rec["pair_id"]] = rec["text"]
 
     def estimate_cost_usd(self, pair: ContrastPair) -> float:

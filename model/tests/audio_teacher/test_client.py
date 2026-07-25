@@ -36,3 +36,14 @@ def test_replays_recorded_response_and_errors_on_missing_pair(tmp_path):
     with pytest.raises(KeyError) as excinfo:
         client.ask(_pair("p9"))
     assert "p9" in str(excinfo.value)
+
+
+def test_duplicate_pair_id_in_recording_fails_loudly(tmp_path):
+    recorded = tmp_path / "recorded.jsonl"
+    recorded.write_text(
+        json.dumps({"pair_id": "p1", "text": "ANSWER: A"}) + "\n"
+        + json.dumps({"pair_id": "p1", "text": "ANSWER: B"}) + "\n"
+    )
+    with pytest.raises(ValueError) as excinfo:
+        RecordedResponseClient(recorded)
+    assert "p1" in str(excinfo.value)
