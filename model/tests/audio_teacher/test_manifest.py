@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 
 import pytest
+import yaml
 
 from audio_teacher.manifest import load_manifest
 
@@ -64,3 +65,53 @@ def test_missing_unregistered_clip_still_fails_naming_the_path(
             offload_registry=tmp_path / "no_registry.json",
         )
     assert "p1_b.wav" in str(excinfo.value)
+
+
+def _mutate_schema_version(doc):
+    doc["schema_version"] = 2
+
+
+def _mutate_axis(doc):
+    doc["pairs"][0]["axis"] = "rubato"
+
+
+def _mutate_population(doc):
+    doc["pairs"][0]["population"] = "studio"
+
+
+def _mutate_degraded(doc):
+    doc["pairs"][0]["degraded"] = "c"
+
+
+def _mutate_duplicate_id(doc):
+    doc["pairs"].append(dict(doc["pairs"][0]))
+
+
+def _mutate_missing_key(doc):
+    del doc["pairs"][0]["description"]
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        _mutate_schema_version,
+        _mutate_axis,
+        _mutate_population,
+        _mutate_degraded,
+        _mutate_duplicate_id,
+        _mutate_missing_key,
+    ],
+    ids=[
+        "schema_version", "axis", "population", "degraded",
+        "duplicate_id", "missing_key",
+    ],
+)
+def test_schema_violations_raise_manifest_error(tmp_path, manifest_factory, mutate):
+    from audio_teacher.manifest import ManifestError
+
+    manifest_path = manifest_factory([{"id": "p1"}])
+    doc = yaml.safe_load(manifest_path.read_text())
+    mutate(doc)
+    manifest_path.write_text(yaml.safe_dump(doc, sort_keys=False))
+    with pytest.raises(ManifestError):
+        load_manifest(manifest_path, repo_root=tmp_path)
