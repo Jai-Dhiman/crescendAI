@@ -1319,7 +1319,7 @@ git add apps/inference/amt/Dockerfile apps/inference/amt/scripts apps/inference/
 **Files:**
 - Modify: `apps/inference/smoke_test_amt.py` (drop aria `git+` dep from `/// deps`; point `DEFAULT_WAV` at the committed fixture; keep the `{"chunk_audio": ..., "context_audio": None}` call — contract unchanged)
 
-- [ ] **Step 1:** Update `smoke_test_amt.py`:
+- [x] **Step 1:** Update `smoke_test_amt.py`:
   - `/// script` deps: drop `aria-amt @ git+...` and `torch`/`safetensors`; keep `numpy`; add `soundfile`, `pretty_midi`. The `run_amt` path constructs `EndpointHandler` and calls it — unchanged (now Transkun-backed).
   - Repoint `DEFAULT_WAV` from the gitignored, untracked `Beethoven_WoO80_var27_8bars_3_15.wav` to the GUARANTEED-PRESENT committed fixture:
     ```python
@@ -1327,14 +1327,14 @@ git add apps/inference/amt/Dockerfile apps/inference/amt/scripts apps/inference/
     ```
     (`smoke_test_amt.py` lives in `apps/inference/`, so `parent / "amt" / "fixtures" / ...` resolves to `apps/inference/amt/fixtures/piano_sample_5s_16k.wav`.) The existing `main()` already `sys.exit(1)`s when `args.wav` is absent — with the fixture tracked, the default now resolves in every fresh checkout, so the gate genuinely runs instead of exiting early. Do NOT relax that existence check.
   - Transkun manages its own weights (there is no aria checkpoint dir): DELETE the `DEFAULT_CHECKPOINT_DIR` existence gate in `main()` (the `if not Path(args.checkpoint).exists(): sys.exit(1)` block, and its aria-amt-weights default) so the smoke does not falsely abort on a missing aria weights dir. Keep passing whatever `path` `EndpointHandler` needs (it ignores it). The assertions on notes/velocity/pedals remain — the gate is not weakened.
-- [ ] **Step 2: Run the smoke**
+- [x] **Step 2: Run the smoke**
 
 ```bash
 cd apps/inference && uv run smoke_test_amt.py
 ```
 Expected: prints `Notes: <N>0`, `Pedal events: >=0`, first notes show integer velocity > 0. FAIL loudly if the service errors.
 
-- [ ] **Step 3:** Boot the server and hit it over HTTP:
+- [x] **Step 3:** Boot the server and hit it over HTTP:
 
 ```bash
 just amt   # starts amt_local_server on :8001
@@ -1343,7 +1343,7 @@ curl -s localhost:8001/health   # -> {"model":"transkun","loaded":true}
 ```
 Expected: `/health` reports `transkun`, `loaded:true`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/inference/smoke_test_amt.py && git commit -m "test(amt): Gate 4 smoke on Transkun service (#128)"
@@ -1357,21 +1357,21 @@ git add apps/inference/smoke_test_amt.py && git commit -m "test(amt): Gate 4 smo
 **Behavior being verified:** the onset/dynamics/pedaling measurer suites and the model pedal-threading suites still pass (bundle shape unchanged by the swap).
 **Interface under test:** existing pytest suites.
 
-- [ ] **Step 1: Run the claim-taxonomy measurer suites**
+- [x] **Step 1: Run the claim-taxonomy measurer suites**
 
 ```bash
 cd apps/evals && uv run --with pytest pytest claim_taxonomy/tests/test_onset_deviation_measurer.py claim_taxonomy/tests/test_dynamics_measurer.py claim_taxonomy/tests/test_pedaling_measurer.py claim_taxonomy/tests/test_onset_deviation_integration.py -q
 ```
 Expected: PASS (these use synthetic bundle fixtures; substrate-string change is metadata-only).
 
-- [ ] **Step 2: Run the model measurer suites**
+- [x] **Step 2: Run the model measurer suites**
 
 ```bash
 cd model && uv run --with numpy --with pytest pytest src/claim_measurement/tests/test_pedal_threading.py src/claim_measurement/tests/test_extract_bundle_pedals.py -q
 ```
 Expected: PASS. If `test_pedal_threading` asserts aria-specific dedup behavior, update the expectation to the Transkun pass-through and record the change in the commit body.
 
-- [ ] **Step 3: Commit** (only if a test expectation legitimately changed)
+- [x] **Step 3: Commit** (only if a test expectation legitimately changed)
 
 ```bash
 git commit -am "test(measure): Gate 3 measurer suites green under Transkun (#128)"
@@ -1385,19 +1385,19 @@ git commit -am "test(measure): Gate 3 measurer suites green under Transkun (#128
 **Behavior being verified:** regenerated Transkun pseudo-truth yields piece-ID recall not worse than the aria baseline.
 **Interface under test:** `just amt-regen-pseudo-truth` + `just chroma-eval-verify`
 
-- [ ] **Step 1:** Bring up the service (`just amt`) and regenerate pseudo-truth (the Transkun `checkpoint_hash` change invalidates the aria cache, forcing regen):
+- [x] **Step 1:** Bring up the service (`just amt`) and regenerate pseudo-truth (the Transkun `checkpoint_hash` change invalidates the aria cache, forcing regen):
 
 ```bash
 just amt-regen-pseudo-truth <piece> <video_id>   # for each verified piece/video
 ```
-- [ ] **Step 2:** Run the full chroma eval:
+- [x] **Step 2:** Run the full chroma eval:
 
 ```bash
 just chroma-eval-verify
 ```
 Expected: piece-ID recall  aria baseline in `baseline.json`.
-- [ ] **Step 3 (conditional retune):** If recall regressed AND the `LowCoverageError` gate is the cause (Transkun's ~7% fewer notes push `n_anchors < MIN_ANCHORS` or `max_gap > MAX_ANCHOR_GAP_S`), lower `MIN_ANCHORS` and/or relax `MAX_ANCHOR_GAP_S` in `model/src/chroma_dtw_eval/amt_regen.py`, re-run, and record the before/after recall + the new thresholds on issue #128. Do NOT ratchet the baseline down silently.
-- [ ] **Step 4: Commit** (only if thresholds were retuned)
+- [x] **Step 3 (conditional retune):** If recall regressed AND the `LowCoverageError` gate is the cause (Transkun's ~7% fewer notes push `n_anchors < MIN_ANCHORS` or `max_gap > MAX_ANCHOR_GAP_S`), lower `MIN_ANCHORS` and/or relax `MAX_ANCHOR_GAP_S` in `model/src/chroma_dtw_eval/amt_regen.py`, re-run, and record the before/after recall + the new thresholds on issue #128. Do NOT ratchet the baseline down silently.
+- [x] **Step 4: Commit** (only if thresholds were retuned)
 
 ```bash
 git commit -am "fix(chroma): retune anchor gates for Transkun note density (#128)"
@@ -1411,14 +1411,14 @@ git commit -am "fix(chroma): retune anchor gates for Transkun note density (#128
 **Behavior being verified:** the piece-ID feasibility harness recall is stable under Transkun.
 **Interface under test:** `just piece-id-feasibility`
 
-- [ ] **Step 1:** Ensure the audio cache is present (`just piece-id-feasibility-acquire` if needed), service up.
-- [ ] **Step 2:** Run:
+- [x] **Step 1:** Ensure the audio cache is present (`just piece-id-feasibility-acquire` if needed), service up.
+- [x] **Step 2:** Run:
 
 ```bash
 just piece-id-feasibility
 ```
 Expected: recall stable vs the aria run; record the number on #128.
-- [ ] **Step 3:** No commit unless a code change was required; if so, commit with `(#128)`.
+- [x] **Step 3:** No commit unless a code change was required; if so, commit with `(#128)`.
 
 ---
 
@@ -1428,18 +1428,18 @@ Expected: recall stable vs the aria run; record the number on #128.
 **Behavior being verified:** any eval baseline/fixture that hard-codes aria transcription numbers is re-baselined under Transkun, with deltas recorded on #128.
 **Interface under test:** eval baseline artifacts.
 
-- [ ] **Step 1:** Identify hard-coded aria baselines:
+- [x] **Step 1:** Identify hard-coded aria baselines:
 
 ```bash
 grep -rn "aria-amt\|aria_amt" model apps --include=*.json --include=*.py | grep -iv transkun
 ```
-- [ ] **Step 2:** For each true baseline (e.g. `chroma_dtw_eval` `baseline.json`, any measurer golden), re-run its producer under Transkun and update the baseline; record old→new deltas in an issue #128 comment. **Explicitly re-run `amt_fidelity/onset_duration_render.py` and confirm its numbers are neutral vs the aria baseline** (Task 11 flagged it: aria implicitly truncated to 30s; the Transkun swap must keep the equivalent explicit cap — any drift here is a real regression, not metadata).
-- [ ] **Step 3:** Post the STATE line:
+- [x] **Step 2:** For each true baseline (e.g. `chroma_dtw_eval` `baseline.json`, any measurer golden), re-run its producer under Transkun and update the baseline; record old→new deltas in an issue #128 comment. **Explicitly re-run `amt_fidelity/onset_duration_render.py` and confirm its numbers are neutral vs the aria baseline** (Task 11 flagged it: aria implicitly truncated to 30s; the Transkun swap must keep the equivalent explicit cap — any drift here is a real regression, not metadata).
+- [x] **Step 3:** Post the STATE line:
 
 ```bash
 gh issue comment 128 --body "STATE: Transkun migration complete; Gate deltas recorded (chroma recall <old>-><new>, piece-id <old>-><new>). Next: /review then /ship."
 ```
-- [ ] **Step 4: Commit** any re-baselined artifacts:
+- [x] **Step 4: Commit** any re-baselined artifacts:
 
 ```bash
 git commit -am "test(eval): re-baseline transcription evals under Transkun (#128)"
