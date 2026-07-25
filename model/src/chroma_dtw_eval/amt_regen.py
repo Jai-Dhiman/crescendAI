@@ -40,7 +40,10 @@ RETRY_LIMIT = 2
 # of raw notes are a same-pitch repeat within 80ms of a prior one). Merge those
 # into one note; the window is far below the legitimate repeated-16th spacing on
 # these pieces (>=190ms at performance tempo), so real repeats survive.
-DEDUP_WINDOW_S = 0.08
+# Transkun does not emit the aria same-pitch re-onset artifact, so no merging is
+# applied (window 0.0). Retained as a pass-through so the pipeline shape is
+# unchanged; #128.
+DEDUP_WINDOW_S = 0.0
 
 # Distributional acceptance gate for the perf->score time-map. A usable map needs
 # enough monotonic anchors that SPAN the audio without a large blind gap -- NOT a
