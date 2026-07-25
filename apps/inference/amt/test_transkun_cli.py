@@ -50,3 +50,21 @@ def test_notes_carry_pitch_onset_offset_velocity(tmp_path):
     assert first["velocity"] == 70
     assert round(first["offset"], 2) == 0.30
     assert all(isinstance(n["velocity"], int) for n in notes)
+
+
+def test_cc64_maps_to_pedal_on_off(tmp_path):
+    midi_path = tmp_path / "p.mid"
+    _write_midi(
+        midi_path,
+        notes=[(60, 0.0, 1.0, 80)],
+        pedal_ccs=[(0.20, 100), (0.80, 10), (0.90, 64), (1.10, 63)],
+    )
+    _notes, pedals = transkun_cli.midi_to_notes_and_pedals(midi_path)
+
+    assert [(round(p["time"], 2), p["value"]) for p in pedals] == [
+        (0.20, 127),  # 100 >= 64 -> on
+        (0.80, 0),    # 10  <  64 -> off
+        (0.90, 127),  # 64  >= 64 -> on (boundary)
+        (1.10, 0),    # 63  <  64 -> off (boundary)
+    ]
+    assert all(p["value"] in (0, 127) for p in pedals)

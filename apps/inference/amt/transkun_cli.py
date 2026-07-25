@@ -37,6 +37,14 @@ def midi_to_notes_and_pedals(
                 "offset": round(float(n.end), 4),
                 "velocity": int(n.velocity),
             })
+        for cc in inst.control_changes:
+            if int(cc.number) != 64:
+                continue
+            pedals.append({
+                "time": round(float(cc.time), 4),
+                "value": 127 if int(cc.value) >= 64 else 0,
+            })
 
     notes.sort(key=lambda n: (n["onset"], n["pitch"]))
+    pedals.sort(key=lambda e: e["time"])
     return notes, pedals
