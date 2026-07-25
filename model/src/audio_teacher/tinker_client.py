@@ -116,8 +116,16 @@ class TinkerProbeClient:
         ).result()
         tokens = result.sequences[0].tokens
         message, _termination = self._renderer.parse_response(tokens)
-        content = getattr(message, "content", message)
-        text = content.text if hasattr(content, "text") else str(content)
+        # Loud on API drift: if the parsed message stops exposing
+        # content.text, this raises rather than silently degrading.
+        try:
+            text = message.content.text
+        except AttributeError as exc:
+            raise TypeError(
+                f"unexpected Tinker parse_response shape for pair "
+                f"{pair.pair_id!r}: expected message.content.text, got "
+                f"{type(message).__name__}"
+            ) from exc
         # Loud on API drift: if ModelInput stops exposing length, this raises.
         input_tokens = prompt.length
         output_tokens = len(tokens)
