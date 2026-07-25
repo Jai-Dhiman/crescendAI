@@ -557,7 +557,7 @@ git add model/src/audio_teacher/prompts.py model/tests/audio_teacher/test_prompt
 - Modify: `model/src/audio_teacher/prompts.py`
 - Test: `model/tests/audio_teacher/test_prompts.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `model/tests/audio_teacher/test_prompts.py`:
 
@@ -580,14 +580,14 @@ def test_parse_choice_extracts_forced_ab_or_none(text, expected):
     assert parse_choice(text) == expected
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_prompts.py -v
 ```
 Expected: FAIL — `ImportError: cannot import name 'parse_choice' from 'audio_teacher.prompts'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Append to `model/src/audio_teacher/prompts.py` (add `import re` below `from __future__ import annotations`):
 
@@ -608,14 +608,14 @@ def parse_choice(text: str) -> str | None:
     return matches[-1].lower()
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_prompts.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/audio_teacher/prompts.py model/tests/audio_teacher/test_prompts.py && git commit -m "feat(audio-teacher): tolerant last-answer-wins choice parsing (#127)"
@@ -633,7 +633,7 @@ git add model/src/audio_teacher/prompts.py model/tests/audio_teacher/test_prompt
 - Create: `model/src/audio_teacher/manifest.py`
 - Test: `model/tests/audio_teacher/test_manifest.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `model/tests/audio_teacher/test_manifest.py`:
 
@@ -665,14 +665,14 @@ def test_valid_manifest_loads_pairs_in_order_with_resolved_clips(
     assert p2.clip_b == tmp_path / "clips" / "p2_b.wav"
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_manifest.py -v
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'audio_teacher.manifest'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Create `model/src/audio_teacher/manifest.py`:
 
@@ -829,14 +829,14 @@ def load_manifest(
     return ProbeManifest(sample_rate=sample_rate, pairs=tuple(pairs))
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_manifest.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/audio_teacher/manifest.py model/tests/audio_teacher/test_manifest.py && git commit -m "feat(audio-teacher): contrast-pair manifest loader validates every clip (#127)"
@@ -854,7 +854,7 @@ git add model/src/audio_teacher/manifest.py model/tests/audio_teacher/test_manif
 - Create: `model/src/audio_teacher/client.py`
 - Test: `model/tests/audio_teacher/test_client.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `model/tests/audio_teacher/test_client.py`:
 
@@ -899,14 +899,14 @@ def test_replays_recorded_response_and_errors_on_missing_pair(tmp_path):
     assert "p9" in str(excinfo.value)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_client.py -v
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'audio_teacher.client'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Create `model/src/audio_teacher/client.py`:
 
@@ -978,14 +978,14 @@ class RecordedResponseClient:
         )
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_client.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/audio_teacher/client.py model/tests/audio_teacher/test_client.py && git commit -m "feat(audio-teacher): ProbeClient protocol + recorded-response fake (#127)"
