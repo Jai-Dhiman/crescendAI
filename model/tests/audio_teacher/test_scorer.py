@@ -116,3 +116,16 @@ def test_verdict_applies_ex_ante_kill_rules(
         assert report["verdict_reasons"] == []
     else:
         assert any(expected_reason_fragment in r for r in report["verdict_reasons"])
+
+
+def test_same_inputs_render_byte_identical_reports():
+    from audio_teacher.scorer import render_report
+
+    pairs, responses = _bulk("pedaling", "real", 20, 0, 0)
+    manifest = _manifest(pairs)
+    reversed_responses = dict(reversed(list(responses.items())))
+    r1 = render_report(score_responses(manifest, responses))
+    r2 = render_report(score_responses(manifest, reversed_responses))
+    assert r1 == r2
+    assert r1.endswith("\n")
+    assert "generated_at" not in r1  # volatile metadata lives in run_meta.json

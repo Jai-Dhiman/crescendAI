@@ -86,3 +86,11 @@ def _verdict_reasons(manifest: ProbeManifest, cells: dict[str, dict]) -> list[st
                 f"{KILL_THRESHOLD:.2f} kill threshold"
             )
     return reasons
+
+
+def render_report(report: dict) -> str:
+    """Deterministic serialization: the same report dict always renders to
+    byte-identical text (sorted keys, fixed indent, trailing newline). The
+    report carries no timestamps -- volatile run metadata belongs in
+    run_meta.json, written by the probe driver."""
+    return json.dumps(report, indent=2, sort_keys=True) + "\n"
