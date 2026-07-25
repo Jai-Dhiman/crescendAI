@@ -39,7 +39,7 @@ Group 0 is `[SHIPS INDEPENDENTLY]`: once T1–T4 land, `transkun_cli` is a usabl
 - Create: `apps/inference/amt/transkun_cli.py`
 - Test: `apps/inference/amt/test_transkun_cli.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/inference/amt/test_transkun_cli.py
@@ -97,14 +97,14 @@ def test_notes_carry_pitch_onset_offset_velocity(tmp_path):
     assert all(isinstance(n["velocity"], int) for n in notes)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/inference/amt && uv run --with pretty_midi --with numpy --with soundfile --with pytest pytest test_transkun_cli.py::test_notes_carry_pitch_onset_offset_velocity -q
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'transkun_cli'` (or `AttributeError: midi_to_notes_and_pedals`).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # apps/inference/amt/transkun_cli.py
@@ -153,14 +153,14 @@ def midi_to_notes_and_pedals(
 ```
 (Notes only — the CC64 pedal branch is added in T2 as its own red→green slice.)
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/inference/amt && uv run --with pretty_midi --with numpy --with soundfile --with pytest pytest test_transkun_cli.py::test_notes_carry_pitch_onset_offset_velocity -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/inference/amt/transkun_cli.py apps/inference/amt/test_transkun_cli.py && git commit -m "feat(amt): transkun_cli MIDI note parse with velocity (#128)"
@@ -178,7 +178,7 @@ git add apps/inference/amt/transkun_cli.py apps/inference/amt/test_transkun_cli.
 - Modify: `apps/inference/amt/transkun_cli.py`
 - Test: `apps/inference/amt/test_transkun_cli.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_cc64_maps_to_pedal_on_off(tmp_path):
@@ -199,14 +199,14 @@ def test_cc64_maps_to_pedal_on_off(tmp_path):
     assert all(p["value"] in (0, 127) for p in pedals)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/inference/amt && uv run --with pretty_midi --with numpy --with soundfile --with pytest pytest test_transkun_cli.py::test_cc64_maps_to_pedal_on_off -q
 ```
 Expected: FAIL — T1 returns `pedals == []` (no CC handling yet), so the assert on 4 pedal events fails.
 
-- [ ] **Step 3: Implement the minimum to make the test pass** — add the CC64 branch inside the `for inst in pm.instruments` loop of `midi_to_notes_and_pedals`, and sort pedals:
+- [x] **Step 3: Implement the minimum to make the test pass** — add the CC64 branch inside the `for inst in pm.instruments` loop of `midi_to_notes_and_pedals`, and sort pedals:
 
 ```python
         for cc in inst.control_changes:
@@ -219,14 +219,14 @@ Expected: FAIL — T1 returns `pedals == []` (no CC handling yet), so the assert
 ```
 and before the `return`, add `pedals.sort(key=lambda e: e["time"])`.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/inference/amt && uv run --with pretty_midi --with numpy --with soundfile --with pytest pytest test_transkun_cli.py -q
 ```
 Expected: PASS (both tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/inference/amt/transkun_cli.py apps/inference/amt/test_transkun_cli.py && git commit -m "test(amt): lock CC64>=64 pedal-on boundary in transkun_cli (#128)"
@@ -244,7 +244,7 @@ git add apps/inference/amt/transkun_cli.py apps/inference/amt/test_transkun_cli.
 - Modify: `apps/inference/amt/transkun_cli.py`
 - Test: `apps/inference/amt/test_transkun_cli.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_transcribe_wav_missing_input_raises(tmp_path):
@@ -253,14 +253,14 @@ def test_transcribe_wav_missing_input_raises(tmp_path):
         transkun_cli.transcribe_wav(missing)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/inference/amt && uv run --with pretty_midi --with numpy --with soundfile --with pytest pytest test_transkun_cli.py::test_transcribe_wav_missing_input_raises -q
 ```
 Expected: FAIL — `AttributeError: module 'transkun_cli' has no attribute 'transcribe_wav'`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass** (append to `transkun_cli.py`)
+- [x] **Step 3: Implement the minimum to make the test pass** (append to `transkun_cli.py`)
 
 ```python
 import subprocess
@@ -309,14 +309,14 @@ def transcribe_wav(
         return midi_to_notes_and_pedals(out_mid)
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/inference/amt && uv run --with pretty_midi --with numpy --with soundfile --with pytest pytest test_transkun_cli.py::test_transcribe_wav_missing_input_raises -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/inference/amt/transkun_cli.py apps/inference/amt/test_transkun_cli.py && git commit -m "feat(amt): transkun_cli transcribe_wav + loud TranskunError (#128)"
@@ -335,7 +335,7 @@ git add apps/inference/amt/transkun_cli.py apps/inference/amt/test_transkun_cli.
 - Test: `apps/inference/amt/test_transkun_cli.py`
 - Fixture (ALREADY COMMITTED, do not regenerate): `apps/inference/amt/fixtures/piano_sample_5s_16k.wav` — a real ~5s mono 16kHz piano clip, force-added past the `*.wav` .gitignore rule as part of the challenge-fix commit. It is tracked, so a fresh checkout/worktree has it. This is the guaranteed-present clip that lets Task 4 (and Gate 4) exercise real Transkun instead of skipping.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_transcribe_pcm_on_real_sample_returns_notes_with_velocity():
@@ -370,14 +370,14 @@ def test_transcribe_pcm_on_real_sample_returns_notes_with_velocity():
     assert all(isinstance(p["value"], int) and p["value"] in (0, 127) for p in pedals)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/inference/amt && uv run --with pretty_midi --with numpy --with soundfile --with scipy --with pytest pytest test_transkun_cli.py::test_transcribe_pcm_on_real_sample_returns_notes_with_velocity -q
 ```
 Expected: FAIL — `AttributeError: module 'transkun_cli' has no attribute 'transcribe_pcm'`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass** (append to `transkun_cli.py`)
+- [x] **Step 3: Implement the minimum to make the test pass** (append to `transkun_cli.py`)
 
 ```python
 def transcribe_pcm(
@@ -393,14 +393,14 @@ def transcribe_pcm(
         return transcribe_wav(in_wav)
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/inference/amt && uv run --with pretty_midi --with numpy --with soundfile --with scipy --with pytest pytest test_transkun_cli.py::test_transcribe_pcm_on_real_sample_returns_notes_with_velocity -q
 ```
 Expected: PASS (real Transkun; first run downloads weights).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/inference/amt/transkun_cli.py apps/inference/amt/test_transkun_cli.py && git commit -m "feat(amt): transkun_cli transcribe_pcm end-to-end verified on sample (#128)"
@@ -1514,3 +1514,32 @@ git commit -am "test(eval): re-baseline transcription evals under Transkun (#128
 [QUESTION] count: 0
 
 VERDICT: NEEDS_REWORK — (1) Task 5 deletes module-level `torch`/`amt` imports while the `@torch.inference_mode()`-decorated old EndpointHandler remains until Task 7, breaking `import transcription` at T5 Step 4 — fold the old-class removal into Task 5 or keep imports through T7. (2) The sole real-model verification (Task 4) silently skips and Gate 4 smoke crashes because the Beethoven sample WAV is gitignored/untracked, not "checked-in" — supply a real clip (repo or worktree) and make Task 4 fail-hard instead of skip so real Transkun is genuinely gated.
+
+---
+
+## Challenge Re-Review (2026-07-25)
+
+Re-review after the two prior blockers were reworked. Fresh CEO+ENG adversarial pass, verified against the live tree.
+
+### Prior blockers — both RESOLVED (verified against code)
+
+**Blocker 1 (import-ordering) — RESOLVED (confidence 9/10).** Task 5 Step 3 now carries an explicit **IMPORT-ORDERING REQUIREMENT** block instructing deletion of the module-level `torch`/`amt` imports AND the entire old aria `EndpointHandler` class in THIS task. Verified the code matches the plan's line references exactly: `import torch`@47, `import amt.config`@55, `from amt...`@89-92, `class EndpointHandler`@324 running to EOF@706, `@torch.inference_mode()`@568. The class is the last thing in the file, so "delete 324-706" is a clean tail removal; `decode_webm_to_pcm`@134 and `SAMPLE_RATE`@94 sit before it and survive. The remaining module-level aria references (`_AMT_CONFIG`@57, `_patched_load_config`@79, the `_amt_config.load_config = _patched_load_config` patch statement@87, `_load_weight`@100, `midi_dict_to_notes_and_pedals`@182, `deduplicate_notes`@227, `advance_valid_note_groups`@270) are all inside the contiguous aria block 47-133 / 182-323 that the task explicitly names for deletion and covers under "replace the entire aria machinery at the top of the file." After Task 5 there is ZERO import-time `torch`/`amt` reference, so `import transcription` succeeds at T5 Step 4. Consistency bonus: Task 7's red-state expectation ("`module 'transcription' has no attribute 'EndpointHandler'`") is now CORRECT because the old class is genuinely gone between T5 and T7.
+
+**Blocker 2 (real-model verification) — RESOLVED (confidence 10/10).** Verified `apps/inference/amt/fixtures/piano_sample_5s_16k.wav` is: tracked (`git ls-files` lists it), committed to HEAD (`git cat-file -e HEAD:...` passes — not merely staged), a real 5.00s mono 16kHz 16-bit PCM WAV (156K). The `.gitignore:143 *.wav` rule genuinely ignores arbitrary `.wav` names, confirming the "force-added past .gitignore" narrative. Task 4's test now `raise AssertionError` (fail-hard) instead of `pytest.skip` when the fixture is absent (lines 351-355). Gate 4 (Task 16) repoints `smoke_test_amt.py`'s `DEFAULT_WAV` to the same fixture and keeps the existence check. Real Transkun is now genuinely exercised by both a unit test (T4) and a service gate (Gate 4) on every fresh checkout.
+
+### New findings from the edits
+
+No new BLOCKER introduced by either rework. One minor pre-existing gap surfaced:
+
+[OBS] — Task 6's second test (`test_resolve_transcriber_falls_back_to_cli`, line 564) references `transkun_cli.transcribe_pcm`, but the test file header established in Task 5 (lines 424-438) imports only `transcription`, not `transkun_cli`. As written this NameErrors. It is NOT introduced by the two fixes and is self-correcting under strict TDD (the build agent hits the NameError at T6 Step 2 and adds `import transkun_cli`; `sys.path.insert` already makes it importable). Recommend the build agent add `import transkun_cli` to the test file when landing T6. Not a blocker.
+
+### Standing risks (unchanged, still valid watch-items)
+
+The 7 RISKs from the first review remain accurate and none were made worse by the edits: warm-path "load-once" unverified; CLI-fallback per-call weight reload latency; `extract_amt_midi.py` needs a bespoke (not mechanical) swap; `onset_duration_render.py` 30s implicit-truncation dependency (watch at Gate 5); CC64 density vs aria discrete pedal_msgs; Task 11 text-only guard; container `server.py` never runtime-booted (ensure the T15 Dockerfile provides whichever path `resolve_transcriber` takes). All are execution-time watch items, not plan-blocking.
+
+### Re-Review Summary
+[BLOCKER] count: 0
+[RISK]    count: 7 (carried forward, unchanged)
+[QUESTION] count: 0
+
+VERDICT: PROCEED_WITH_CAUTION — both prior blockers verified resolved against the live tree (Task 5 folds the aria class deletion in with the torch/amt import removal; fixture is committed to HEAD and Task 4 + Gate 4 fail hard). Monitor during execution: (a) add `import transkun_cli` to the T6 test to avoid a NameError; (b) `extract_amt_midi.py` is a bespoke rewrite, not a mechanical swap; (c) `onset_duration_render.py`'s explicit 30s cap must be confirmed number-neutral at Gate 5; (d) confirm the warm in-process transkun path is truly load-once (else live `/transcribe` reloads weights per chunk); (e) ensure the T15 Dockerfile supplies the runtime path `resolve_transcriber` will actually take.
