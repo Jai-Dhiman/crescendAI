@@ -33,16 +33,32 @@ MODEL_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUNS_ROOT = MODEL_ROOT / "data" / "results" / "audio_teacher"
 
 
-def _read_responses(path: Path) -> dict[str, str]:
+def _read_responses(path: Path) -> tuple[dict[str, str], float]:
+    """Load prior responses and sum their cost_usd for budget carry-forward.
+
+    The writer (main(), below) always emits cost_usd on every record, so a
+    record missing it on resume means responses.jsonl is corrupt -- fail
+    loudly naming the offending pair rather than silently treating it as
+    free.
+    """
     responses: dict[str, str] = {}
+    spent_usd = 0.0
     if path.exists():
         with path.open() as f:
             for line in f:
                 if not line.strip():
                     continue
                 rec = json.loads(line)
-                responses[rec["pair_id"]] = rec["text"]
-    return responses
+                pair_id = rec["pair_id"]
+                responses[pair_id] = rec["text"]
+                if "cost_usd" not in rec:
+                    raise ValueError(
+                        f"responses.jsonl record for pair {pair_id!r} in {path} is "
+                        "missing cost_usd -- the writer always emits it, so this "
+                        "record is corrupt"
+                    )
+                spent_usd += rec["cost_usd"]
+    return responses, spent_usd
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -94,9 +110,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     run_dir.mkdir(parents=True, exist_ok=True)
     responses_path = run_dir / "responses.jsonl"
-    responses = _read_responses(responses_path)
+    responses, prior_spent_usd = _read_responses(responses_path)
 
-    guard = BudgetGuard(max_spend_usd=args.max_spend)
+    guard = BudgetGuard(max_spend_usd=args.max_spend, initial_spent_usd=prior_spent_usd)
     with responses_path.open("a") as out:
         for pair in manifest.pairs:
             if pair.pair_id in responses:
