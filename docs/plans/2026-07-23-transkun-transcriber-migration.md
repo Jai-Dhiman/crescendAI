@@ -333,15 +333,26 @@ git add apps/inference/amt/transkun_cli.py apps/inference/amt/test_transkun_cli.
 **Files:**
 - Modify: `apps/inference/amt/transkun_cli.py`
 - Test: `apps/inference/amt/test_transkun_cli.py`
+- Fixture (ALREADY COMMITTED, do not regenerate): `apps/inference/amt/fixtures/piano_sample_5s_16k.wav` — a real ~5s mono 16kHz piano clip, force-added past the `*.wav` .gitignore rule as part of the challenge-fix commit. It is tracked, so a fresh checkout/worktree has it. This is the guaranteed-present clip that lets Task 4 (and Gate 4) exercise real Transkun instead of skipping.
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
 def test_transcribe_pcm_on_real_sample_returns_notes_with_velocity():
-    """Real Transkun on the checked-in Beethoven sample. Slow: downloads weights once."""
-    wav = Path(__file__).resolve().parents[1] / "Beethoven_WoO80_var27_8bars_3_15.wav"
+    """Real Transkun on the committed piano fixture. Slow: downloads weights once.
+
+    The fixture `apps/inference/amt/fixtures/piano_sample_5s_16k.wav` is a real
+    ~5s mono 16kHz piano clip committed to the repo (force-added past the `*.wav`
+    .gitignore rule), so it is GUARANTEED present in every fresh checkout/worktree.
+    This test FAILS HARD (never pytest.skip) when the fixture is absent — a missing
+    fixture is a real regression that must break the build, not silently pass.
+    """
+    wav = Path(__file__).resolve().parent / "fixtures" / "piano_sample_5s_16k.wav"
     if not wav.exists():
-        pytest.skip(f"sample WAV missing: {wav}")
+        raise AssertionError(
+            f"required committed fixture missing: {wav} "
+            "(force-add it: git add -f apps/inference/amt/fixtures/piano_sample_5s_16k.wav)"
+        )
     y, sr = sf.read(str(wav), dtype="float32", always_2d=False)
     if y.ndim > 1:
         y = y.mean(axis=1)
@@ -456,14 +467,17 @@ def test_build_response_empty_notes_pitch_range_zero():
 ```bash
 cd apps/inference/amt && uv run --with numpy --with soundfile --with pretty_midi --with fastapi --with pytest pytest test_transcription.py::test_build_response_has_frozen_contract_shape -q
 ```
-Expected: FAIL — `AttributeError: module 'transcription' has no attribute 'build_response'` (the current transcription.py imports aria at module load and has no build_response). If the import itself errors on aria, that is expected — this task begins the rewrite.
+Expected: FAIL — `AttributeError: module 'transcription' has no attribute 'build_response'` (the current transcription.py imports aria at module load and has no build_response). If the import itself errors on aria (e.g. aria-amt not installed in the test env), that is expected — this task begins the rewrite, which removes all aria/torch module-level imports and the old class in Step 3.
 
 - [ ] **Step 3: Implement the minimum to make the test pass** — begin the rewrite of `transcription.py`. Replace the entire aria machinery at the top of the file. Keep `decode_webm_to_pcm` (ffmpeg path) unchanged. Add:
+
+  **IMPORT-ORDERING REQUIREMENT (do not defer to Task 7):** Deleting the module-level `import torch` (line 47) and `import amt.config` / `from amt...` imports (lines 55, 89-92) is NOT self-consistent unless the old aria `EndpointHandler` class (currently `class EndpointHandler` at line 324 through the end of the old class, ~line 706) is deleted in THIS task. Its `_transcribe` method carries an `@torch.inference_mode()` decorator (line 568) that is evaluated at CLASS-DEFINITION time — i.e. at `import transcription`. If the old class survives while `torch` is gone from module scope, `import transcription` raises `NameError: name 'torch' is not defined` and Step 4's `build_response` tests cannot even import the module. So in this task: delete the module-level torch/amt imports AND delete the entire old aria `EndpointHandler` class body (lines ~324-706, including `_transcribe`, `_setup_kv_cache`, and every method that references torch/amt). After this task the module has `build_response` (+ the kept `decode_webm_to_pcm`) and NO `EndpointHandler` — the Transkun `EndpointHandler` is ADDED fresh in Task 7. There must be ZERO import-time reference to `torch` or `amt` left. (The `from amt.inference.model import KVCache` on line 409 is a lazy in-method import inside the old class and is removed with the class.)
 
 ```python
 # apps/inference/amt/transcription.py  (new top-of-file; delete aria imports,
 # _AMT_CONFIG, _patched_load_config, _load_weight, midi_dict_to_notes_and_pedals,
-# deduplicate_notes, advance_valid_note_groups, _setup_kv_cache, _find_checkpoint)
+# deduplicate_notes, advance_valid_note_groups, _setup_kv_cache, _find_checkpoint,
+# AND the entire old aria `EndpointHandler` class — see the import-ordering note above)
 from __future__ import annotations
 
 import base64
@@ -667,9 +681,9 @@ def test_handler_transcribes_chunk_and_ignores_context(monkeypatch):
 ```bash
 cd apps/inference/amt && uv run --with numpy --with soundfile --with pretty_midi --with fastapi --with pytest pytest test_transcription.py::test_handler_missing_chunk_returns_error_body -q
 ```
-Expected: FAIL — `AttributeError: module 'transcription' has no attribute 'EndpointHandler'` (or the old aria handler still loads a checkpoint and errors).
+Expected: FAIL — `AttributeError: module 'transcription' has no attribute 'EndpointHandler'` (the old aria `EndpointHandler` was already deleted in Task 5; this task adds the new Transkun-backed one).
 
-- [ ] **Step 3: Implement the minimum to make the test pass** — replace the old `EndpointHandler` class body:
+- [ ] **Step 3: Implement the minimum to make the test pass** — ADD the new Transkun-backed `EndpointHandler` class (the old aria `EndpointHandler` was deleted in Task 5, so this is a fresh class, not a body replacement):
 
 ```python
 class EndpointHandler:
@@ -1022,6 +1036,7 @@ Expected: FAIL — every listed file still references `EndpointHandler`.
   - In `dynamics_supply/render_percepiano_bundles.py`, also change `"substrate_versions": {"amt": "aria-amt/piano-medium-double-1.0"}` → `{"amt": "transkun/2.0.1"}`.
   - Update each `/// script` deps block: drop the aria `git+` lines and `torch`/`safetensors`; keep/ add `numpy`, `soundfile`, `pretty_midi`, `scipy` as each file needs. `extract_amt_midi.py` transcribes WAV files — it may call `transkun_cli.transcribe_wav` (path) or load+`transcribe_pcm`; use `transcribe_wav` on the WAV path and keep its pretty_midi serialization.
   - Replace any "aria-amt" prose in docstrings/comments in these files with "Transkun".
+  - **`onset_duration_render.py` — TRUNCATION RISK, verify number-neutrality at Gate 5 (do NOT redesign here):** this file has `AMT_WINDOW_S = 30.0 # aria-amt _transcribe hard-truncates to this` and passes the FULL clip audio to `handler._transcribe(audio)`, relying on aria's IMPLICIT 30s truncation. `transkun_cli.transcribe_pcm` does NOT truncate — it transcribes the whole clip. The explicit `crop(..., cutoff)` after transcription is expected to preserve the metric, but the mechanical swap does not prove it. After swapping to `transcribe_pcm`, keep an explicit 30s cap in this script (slice the PCM to `AMT_WINDOW_S * SAMPLE_RATE` before calling `transcribe_pcm`) so behavior stays equivalent to aria's implicit cap, and add a code comment noting the cap is now explicit because Transkun does not self-truncate. Flag this file for Gate 5: its rendered numbers MUST be confirmed number-neutral vs the aria baseline (any drift is a real regression, not metadata).
 
 - [ ] **Step 4: Run test — verify it PASSES**
 
@@ -1302,9 +1317,16 @@ git add apps/inference/amt/Dockerfile apps/inference/amt/scripts apps/inference/
 **Interface under test:** `just amt` + `smoke_test_amt.py`
 
 **Files:**
-- Modify (if needed): `apps/inference/smoke_test_amt.py` (drop aria `git+` dep from `/// deps`; keep the `{"chunk_audio": ..., "context_audio": None}` call — contract unchanged)
+- Modify: `apps/inference/smoke_test_amt.py` (drop aria `git+` dep from `/// deps`; point `DEFAULT_WAV` at the committed fixture; keep the `{"chunk_audio": ..., "context_audio": None}` call — contract unchanged)
 
-- [ ] **Step 1:** Update `smoke_test_amt.py` `/// script` deps: drop `aria-amt @ git+...`; keep `numpy`; add `soundfile`, `pretty_midi`. The `run_amt` path constructs `EndpointHandler` and calls it — unchanged (now Transkun-backed).
+- [ ] **Step 1:** Update `smoke_test_amt.py`:
+  - `/// script` deps: drop `aria-amt @ git+...` and `torch`/`safetensors`; keep `numpy`; add `soundfile`, `pretty_midi`. The `run_amt` path constructs `EndpointHandler` and calls it — unchanged (now Transkun-backed).
+  - Repoint `DEFAULT_WAV` from the gitignored, untracked `Beethoven_WoO80_var27_8bars_3_15.wav` to the GUARANTEED-PRESENT committed fixture:
+    ```python
+    DEFAULT_WAV = str(Path(__file__).resolve().parent / "amt" / "fixtures" / "piano_sample_5s_16k.wav")
+    ```
+    (`smoke_test_amt.py` lives in `apps/inference/`, so `parent / "amt" / "fixtures" / ...` resolves to `apps/inference/amt/fixtures/piano_sample_5s_16k.wav`.) The existing `main()` already `sys.exit(1)`s when `args.wav` is absent — with the fixture tracked, the default now resolves in every fresh checkout, so the gate genuinely runs instead of exiting early. Do NOT relax that existence check.
+  - Transkun manages its own weights (there is no aria checkpoint dir): DELETE the `DEFAULT_CHECKPOINT_DIR` existence gate in `main()` (the `if not Path(args.checkpoint).exists(): sys.exit(1)` block, and its aria-amt-weights default) so the smoke does not falsely abort on a missing aria weights dir. Keep passing whatever `path` `EndpointHandler` needs (it ignores it). The assertions on notes/velocity/pedals remain — the gate is not weakened.
 - [ ] **Step 2: Run the smoke**
 
 ```bash
@@ -1411,7 +1433,7 @@ Expected: recall stable vs the aria run; record the number on #128.
 ```bash
 grep -rn "aria-amt\|aria_amt" model apps --include=*.json --include=*.py | grep -iv transkun
 ```
-- [ ] **Step 2:** For each true baseline (e.g. `chroma_dtw_eval` `baseline.json`, any measurer golden), re-run its producer under Transkun and update the baseline; record old→new deltas in an issue #128 comment.
+- [ ] **Step 2:** For each true baseline (e.g. `chroma_dtw_eval` `baseline.json`, any measurer golden), re-run its producer under Transkun and update the baseline; record old→new deltas in an issue #128 comment. **Explicitly re-run `amt_fidelity/onset_duration_render.py` and confirm its numbers are neutral vs the aria baseline** (Task 11 flagged it: aria implicitly truncated to 30s; the Transkun swap must keep the equivalent explicit cap — any drift here is a real regression, not metadata).
 - [ ] **Step 3:** Post the STATE line:
 
 ```bash
@@ -1429,3 +1451,66 @@ git commit -am "test(eval): re-baseline transcription evals under Transkun (#128
 - Collapse the measurers' 27s stratified windowing to whole-piece Transkun transcription — prove number-neutral first (spec simplification (a)).
 - Unify dev `amt_local_server.py` with container `server.py` now the ONNX rationale is gone — prove behavior-neutral first (spec simplification (b)).
 - If the warm in-process `transkun` Python-API signature could not be confirmed in T6, the service runs CLI-only; wire the warm path once confirmed.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise — correct problem, direct path.** aria-amt's offset F1 0.37 vs Transkun 0.79 (#125 Stage 0) is a measured, load-bearing defect for a product whose thesis is expressive fidelity (offset/velocity/pedal). Replacing the transcriber behind a frozen `/transcribe` contract is the most direct route — verified: `inference.ts` reads only `midi_notes`/`pedal_events`/`error` (lines 58-59, 265-276), so the contract-freeze claim holds and no API/iOS/web churn is required. Existing coverage is correctly reused (the shared `transkun_cli` helper, `decode_webm_to_pcm` kept). No simpler framing found.
+
+**Scope — appropriately cut.** The two genuine simplifications (collapse 27s windowing to whole-piece; unify `amt_local_server.py` with `server.py`) are explicitly DEFERRED as #128 follow-ups with "prove number/behavior-neutral first" gates — the right call. Complexity smell (touches ~25 files) is inherent to a repo-wide substrate swap, not gold-plating; most are mechanical one-line import swaps.
+
+**12-month alignment — toward the ideal.** Transkun (MIT) removes two `git+` deps and the ONNX/PyTorch container split whose only rationale was aria CPU throughput. Net tech-debt reduction. Aligned.
+
+**Alternatives.** Spec Q's document the version-label and threshold decisions with defaults; the shell-out-vs-import trade is stated. Adequate.
+
+### Engineering Pass
+
+**Architecture.** Data flow verified end to end: `chunk_audio` b64 → `decode_webm_to_pcm` (ffmpeg, kept) → `transcribe_fn(pcm)` → `build_response`. Both `amt_regen.py` (posts WAV as `chunk_audio`, `context_audio: None`, reads only `midi_notes`/`pedal_events`) and `pieceid_amt_axis.py` (reads only `midi_notes`) confirm the frozen shape is sufficient. Dropping `context_duration_s` from `transcription_info` is safe — no consumer reads it.
+
+**Module depth.** `transkun_cli` (4-symbol surface hiding subprocess orchestration + pretty_midi CC64 parse) is genuinely DEEP. `transcription` rewrite (`EndpointHandler`/`build_response`/`resolve_transcriber`) is DEEP. No shallow-module smell.
+
+**BLOCKER — Task 5 import-ordering breaks `import transcription` at its own Step 4.** `transcription.py` decorates the old `_transcribe` with `@torch.inference_mode()` at class-definition time (line 568), and imports `torch` (47) + `amt.config` (55) at module top. Task 5 Step 3 deletes those module-level imports but defers removing the old aria `EndpointHandler` to Task 7. Between T5 and T7 the decorator expression `torch.inference_mode()` is evaluated at import and raises `NameError`, so `import transcription` fails and T5 Step 4 ("both build_response tests PASS") cannot go green. Fix: fold the old-class removal (or at minimum the `@torch.inference_mode()` method) into Task 5, or keep the aria imports through Task 7.
+
+**BLOCKER — the sole real-model verification silently skips; sample WAV is gitignored, not "checked-in."** `git check-ignore` confirms `apps/inference/Beethoven_WoO80_var27_8bars_3_15.wav` is ignored and `git ls-files` shows it untracked — absent in any fresh checkout/worktree. Task 4's `test_transcribe_pcm_on_real_sample...` does `if not wav.exists(): pytest.skip(...)`, so Group 0's "[SHIPS INDEPENDENTLY], model-verified" claim is unverified — the test skips. Gate 4 (`smoke_test_amt.py`, `DEFAULT_WAV` = same path) crashes on `read_bytes()` with no `--wav`. Result: NO task and NO gate actually exercises real Transkun on this tree. Fix: add a small real clip to the repo (or copy into the worktree / point at a rehydrated clip) AND make Task 4 fail-hard rather than skip when the sample is absent, so the model crux is genuinely gated.
+
+**RISK (6/10) — "warm load-once" may not be warm.** `_import_warm_transcriber`'s `_warm` closure calls `transkun.transcribe.transcribe(in_wav, out_mid, device="cpu")` per request. If that top-level entry re-instantiates the model each call (unverified), the "warm in-process, load-once" perf rationale in the spec collapses and the service reloads weights every request. Fallback: confirm transkun caches the model globally, or hoist model construction into `__init__` and call a lower-level API. Verify this is actually an issue before relying on the warm path for live latency.
+
+**RISK (7/10) — live latency / per-call weight reload under CLI fallback.** Transkun ≈ 0.45x realtime on CPU; the CLI path spawns a fresh `uv run --with transkun` (fresh interpreter + weight load, first-ever call downloads weights) per request. For the live 15s-chunk loop this is ~30s+ per chunk plus reload. If the warm path is deferred (T6's escape hatch), the live `/transcribe` is unusably slow. Acceptable pre-beta (zero users) but the plan never quantifies it. Fallback: keep warm path as a hard requirement for the live surface.
+
+**RISK (7/10) — `extract_amt_midi.py` is not a mechanical `_transcribe → transcribe_pcm` swap.** It calls the FULL `handler({"chunk_audio":..., "context_audio":None})` (line 183) and reads `result["transcription_info"]["pitch_range"]` / `transcription_time_ms` for its `_sanity.jsonl`. Task 11 lumps it into "same mechanical swap" but it needs a bespoke rewrite to `transkun_cli.transcribe_wav(wav_path)` plus reconstructing/dropping the sanity fields. Under-specified; call it out as its own sub-step.
+
+**RISK (6/10) — `onset_duration_render.py` depends on aria's implicit 30s truncation.** `AMT_WINDOW_S = 30.0 # aria-amt _transcribe hard-truncates to this`; it passes FULL clip audio to `handler._transcribe(audio)` and relies on the 30s cap. `transkun_cli.transcribe_pcm` does NOT truncate — it transcribes the whole clip (perf hit on long clips). The explicit `crop(..., cutoff)` afterward likely preserves the metric, but the mechanical swap in Task 11 does not verify number-neutrality. Watch at Gate 5.
+
+**RISK (5/10) — Transkun CC64 density vs aria discrete pedal_msgs.** T2 maps EVERY CC64 control-change to a pedal event (incl. consecutive 127s from a continuous pedal stream), whereas aria emitted discrete on/off `pedal_msgs`. Pedal on-fraction measurers (`tau_pedaling_render`, `amt_pedaling_ga_render`) integrate these; a dense same-value stream could shift the statistic or mis-pair on→off. Only surfaced at Gate 3/5. Consider collapsing consecutive same-value CC64 events in the parse.
+
+**RISK (6/10) — Task 11 guard is text-only.** `test_no_aria_amt_handler.py` asserts string presence/absence, not that the swapped scripts run or produce correct output. A broken swap (e.g. `extract_amt_midi`) passes the guard. These scripts need real audio+model to exercise, so a static guard is a pragmatic floor — but do not treat green as "swap works."
+
+**RISK (6/10) — container `server.py` never runtime-validated.** Task 9 hits `/health` via TestClient without triggering lifespan/model load, and no gate boots the container. If the warm path is deferred to CLI-only and the T15 Dockerfile (which installs transkun but not `uv`) lacks `uv` on PATH, `resolve_transcriber()` raises and the container refuses to start — caught only at a future deploy. Ensure the Dockerfile provides whichever path `resolve_transcriber` will actually take.
+
+**Test philosophy / vertical slice.** Tasks are mostly clean one-test→one-impl→one-commit. Minor: T5/T6/T7/T10 each land 2 closely-related tests in one slice — both implemented in the same commit, so not true horizontal slicing; acceptable. Guard/existence tests (T11/T14/T15) are shape tests by nature but are legitimate regression guards for a mechanical swap+deletion. Full-replace of `test_transcription.py` only drops tests for deleted helpers (`deduplicate_notes`, `midi_dict_to_notes_and_pedals`, `advance_valid_note_groups`); `decode_webm_to_pcm` (kept) was already untested, so no coverage regression.
+
+**Failure modes.** Loud-failure design is sound: `TranskunError` on non-zero exit / missing MIDI / missing input; `resolve_transcriber` refuses to start rather than silent per-request fallback; `__call__` returns a TRANSCRIPTION_ERROR body (matching the existing Tier-3 degrade contract). No new silent failures introduced. Chroma `DEDUP_WINDOW_S=0.0` correctly degrades to an order-normalizing pass-through (guard `diff < 0.0` never fires).
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `/transcribe` contract readable-fields are frozen for all 3 HTTP consumers | SAFE | Verified: inference.ts / amt_regen / pieceid read only midi_notes+pedal_events(+error) |
+| Beethoven sample WAV is "checked-in" and available to Task 4 / Gate 4 | RISKY | gitignored + untracked; absent in worktree → test skips, smoke crashes (BLOCKER) |
+| Deleting torch/aria imports in T5 leaves a still-importable module until T7 | RISKY | `@torch.inference_mode()` at class-def evaluates at import → NameError (BLOCKER) |
+| Warm in-process transkun path is "load-once" | VALIDATE | Closure calls top-level transcribe per request; caching unverified |
+| `transkun.transcribe.transcribe(wav,out,device=)` signature | VALIDATE | Plan itself flags it unconfirmed; CLI fallback is the tested path |
+| All 8 measurer swaps are mechanical `_transcribe→transcribe_pcm` | RISKY | extract_amt_midi uses full handler()+info; onset_duration relies on 30s trunc |
+| Transkun ~7% under-transcription won't drop chroma below MIN_ANCHORS gate | VALIDATE | Only Gate 1 run resolves it; threshold retune path documented |
+| CC64→event mapping preserves pedal on-fraction statistics | VALIDATE | Dense same-value stream differs from aria discrete pedal_msgs; Gate 3/5 |
+| Offline measurer gates are runtime-feasible with per-window fresh-subprocess reload | VALIDATE | Weight reload per call; wall-clock unestimated |
+
+### Summary
+[BLOCKER] count: 2
+[RISK]    count: 7
+[QUESTION] count: 0
+
+VERDICT: NEEDS_REWORK — (1) Task 5 deletes module-level `torch`/`amt` imports while the `@torch.inference_mode()`-decorated old EndpointHandler remains until Task 7, breaking `import transcription` at T5 Step 4 — fold the old-class removal into Task 5 or keep imports through T7. (2) The sole real-model verification (Task 4) silently skips and Gate 4 smoke crashes because the Beethoven sample WAV is gitignored/untracked, not "checked-in" — supply a real clip (repo or worktree) and make Task 4 fail-hard instead of skip so real Transkun is genuinely gated.
