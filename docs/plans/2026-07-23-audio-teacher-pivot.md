@@ -1670,7 +1670,7 @@ git add model/src/audio_teacher/tinker_client.py model/tests/audio_teacher/test_
 - Modify: `model/src/audio_teacher/scorer.py`
 - Test: `model/tests/audio_teacher/test_scorer.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `model/tests/audio_teacher/test_scorer.py`:
 
@@ -1688,14 +1688,14 @@ def test_same_inputs_render_byte_identical_reports():
     assert "generated_at" not in r1  # volatile metadata lives in run_meta.json
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_scorer.py -v
 ```
 Expected: FAIL — `ImportError: cannot import name 'render_report' from 'audio_teacher.scorer'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Append to `model/src/audio_teacher/scorer.py`:
 
@@ -1708,14 +1708,14 @@ def render_report(report: dict) -> str:
     return json.dumps(report, indent=2, sort_keys=True) + "\n"
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_scorer.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/audio_teacher/scorer.py model/tests/audio_teacher/test_scorer.py && git commit -m "feat(audio-teacher): byte-deterministic report rendering (#127)"
@@ -1733,7 +1733,7 @@ git add model/src/audio_teacher/scorer.py model/tests/audio_teacher/test_scorer.
 - Create: `model/src/audio_teacher/build_manifest.py`
 - Test: `model/tests/audio_teacher/test_build_manifest.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `model/tests/audio_teacher/test_build_manifest.py`:
 
@@ -1789,14 +1789,14 @@ def test_csv_curation_round_trips_and_rejects_bad_rows(tmp_path, wav_factory):
     assert not bad_out.exists()  # nothing written on invalid input
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_build_manifest.py -v
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'audio_teacher.build_manifest'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Create `model/src/audio_teacher/build_manifest.py`:
 
@@ -1881,14 +1881,14 @@ if __name__ == "__main__":
 
 Note: the YAML pair mapping uses key `id` (CSV column name), matching the loader's schema. `entries` keeps CSV column names, which are exactly the schema keys.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_build_manifest.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/audio_teacher/build_manifest.py model/tests/audio_teacher/test_build_manifest.py && git commit -m "feat(audio-teacher): shallow CSV->YAML manifest curation script (#127)"

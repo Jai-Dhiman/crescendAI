@@ -98,3 +98,13 @@ Commit bf95f922, test-only (scorer.py needed NO change -- Task 10's _verdict_rea
 satisfied all 5 rules). HONESTY CHECK EXECUTED: expected_verdict of pass_synthetic_never_gates
 mutated PASS->FAIL; pytest failed "AssertionError: assert 'PASS' == 'FAIL'"; restored, 6 passed.
 Spec PASS; quality APPROVED. No deviations.
+
+## Task 13: Deterministic report rendering (Group F)
+Code verbatim from plan (commit 4dd20295). TDD observed (ImportError first, then 7 passed).
+Spec PASS; quality APPROVED -- reviewer confirmed the order-independence test is not a tautology
+(dropping sort_keys would fail it). No deviations.
+
+## Task 14: CSV->YAML curation script (Group F)
+Code verbatim from plan (commit c3a275a6). TDD observed (ModuleNotFoundError first, then 1 passed).
+Spec PASS; quality APPROVED -- reviewer confirmed validation strictly precedes the write (bad_out
+never created), __file__-anchored MODEL_ROOT default, no silent fallbacks. No deviations.
