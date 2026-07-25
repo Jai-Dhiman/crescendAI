@@ -418,7 +418,7 @@ git add apps/inference/amt/transkun_cli.py apps/inference/amt/test_transkun_cli.
 - Modify: `apps/inference/amt/transcription.py`
 - Test: `apps/inference/amt/test_transcription.py`
 
-- [ ] **Step 1: Write the failing test** (replace the file's contents; the old tests target deleted helpers)
+- [x] **Step 1: Write the failing test** (replace the file's contents; the old tests target deleted helpers)
 
 ```python
 # apps/inference/amt/test_transcription.py
@@ -462,14 +462,14 @@ def test_build_response_empty_notes_pitch_range_zero():
     assert resp["midi_notes"] == []
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/inference/amt && uv run --with numpy --with soundfile --with pretty_midi --with fastapi --with pytest pytest test_transcription.py::test_build_response_has_frozen_contract_shape -q
 ```
 Expected: FAIL — `AttributeError: module 'transcription' has no attribute 'build_response'` (the current transcription.py imports aria at module load and has no build_response). If the import itself errors on aria (e.g. aria-amt not installed in the test env), that is expected — this task begins the rewrite, which removes all aria/torch module-level imports and the old class in Step 3.
 
-- [ ] **Step 3: Implement the minimum to make the test pass** — begin the rewrite of `transcription.py`. Replace the entire aria machinery at the top of the file. Keep `decode_webm_to_pcm` (ffmpeg path) unchanged. Add:
+- [x] **Step 3: Implement the minimum to make the test pass** — begin the rewrite of `transcription.py`. Replace the entire aria machinery at the top of the file. Keep `decode_webm_to_pcm` (ffmpeg path) unchanged. Add:
 
   **IMPORT-ORDERING REQUIREMENT (do not defer to Task 7):** Deleting the module-level `import torch` (line 47) and `import amt.config` / `from amt...` imports (lines 55, 89-92) is NOT self-consistent unless the old aria `EndpointHandler` class (currently `class EndpointHandler` at line 324 through the end of the old class, ~line 706) is deleted in THIS task. Its `_transcribe` method carries an `@torch.inference_mode()` decorator (line 568) that is evaluated at CLASS-DEFINITION time — i.e. at `import transcription`. If the old class survives while `torch` is gone from module scope, `import transcription` raises `NameError: name 'torch' is not defined` and Step 4's `build_response` tests cannot even import the module. So in this task: delete the module-level torch/amt imports AND delete the entire old aria `EndpointHandler` class body (lines ~324-706, including `_transcribe`, `_setup_kv_cache`, and every method that references torch/amt). After this task the module has `build_response` (+ the kept `decode_webm_to_pcm`) and NO `EndpointHandler` — the Transkun `EndpointHandler` is ADDED fresh in Task 7. There must be ZERO import-time reference to `torch` or `amt` left. (The `from amt.inference.model import KVCache` on line 409 is a lazy in-method import inside the old class and is removed with the class.)
 
@@ -521,14 +521,14 @@ def build_response(
 ```
 (Add `import sys` near the top with the other imports.)
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/inference/amt && uv run --with numpy --with soundfile --with pretty_midi --with fastapi --with pytest pytest test_transcription.py -q
 ```
 Expected: PASS (both build_response tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/inference/amt/transcription.py apps/inference/amt/test_transcription.py && git commit -m "feat(amt): build_response frozen contract shape; drop aria machinery (#128)"
@@ -546,7 +546,7 @@ git add apps/inference/amt/transcription.py apps/inference/amt/test_transcriptio
 - Modify: `apps/inference/amt/transcription.py`
 - Test: `apps/inference/amt/test_transcription.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_resolve_transcriber_refuses_when_no_path(monkeypatch):
@@ -564,14 +564,14 @@ def test_resolve_transcriber_falls_back_to_cli(monkeypatch):
     assert fn is transkun_cli.transcribe_pcm
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/inference/amt && uv run --with numpy --with soundfile --with pretty_midi --with fastapi --with pytest pytest test_transcription.py::test_resolve_transcriber_refuses_when_no_path -q
 ```
 Expected: FAIL — `AttributeError: module 'transcription' has no attribute 'resolve_transcriber'`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass** (add to `transcription.py`)
+- [x] **Step 3: Implement the minimum to make the test pass** (add to `transcription.py`)
 
 ```python
 def _import_warm_transcriber() -> Callable[[np.ndarray], tuple[list, list]] | None:
@@ -616,14 +616,14 @@ def resolve_transcriber() -> Callable[[np.ndarray], tuple[list, list]]:
 ```
 Note: `transkun.transcribe.transcribe(...)`'s exact Python-API signature must be confirmed against the installed package during build; if it differs, keep the warm path but adapt the call — the FALLBACK CLI path is the guaranteed one and is what the tests pin. If confirming the warm signature is not quick, return `None` from `_import_warm_transcriber` unconditionally (CLI-only) and record "warm in-process transkun path deferred" as a #128 follow-up. The refuse-to-start + CLI-fallback contract (the tested behavior) holds either way.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/inference/amt && uv run --with numpy --with soundfile --with pretty_midi --with fastapi --with pytest pytest test_transcription.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/inference/amt/transcription.py apps/inference/amt/test_transcription.py && git commit -m "feat(amt): resolve_transcriber refuse-to-start + CLI fallback (#128)"
@@ -641,7 +641,7 @@ git add apps/inference/amt/transcription.py apps/inference/amt/test_transcriptio
 - Modify: `apps/inference/amt/transcription.py`
 - Test: `apps/inference/amt/test_transcription.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_handler_missing_chunk_returns_error_body(monkeypatch):
@@ -676,14 +676,14 @@ def test_handler_transcribes_chunk_and_ignores_context(monkeypatch):
     assert out["pedal_events"] == [{"time": 0.1, "value": 127}]
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/inference/amt && uv run --with numpy --with soundfile --with pretty_midi --with fastapi --with pytest pytest test_transcription.py::test_handler_missing_chunk_returns_error_body -q
 ```
 Expected: FAIL — `AttributeError: module 'transcription' has no attribute 'EndpointHandler'` (the old aria `EndpointHandler` was already deleted in Task 5; this task adds the new Transkun-backed one).
 
-- [ ] **Step 3: Implement the minimum to make the test pass** — ADD the new Transkun-backed `EndpointHandler` class (the old aria `EndpointHandler` was deleted in Task 5, so this is a fresh class, not a body replacement):
+- [x] **Step 3: Implement the minimum to make the test pass** — ADD the new Transkun-backed `EndpointHandler` class (the old aria `EndpointHandler` was deleted in Task 5, so this is a fresh class, not a body replacement):
 
 ```python
 class EndpointHandler:
@@ -720,14 +720,14 @@ class EndpointHandler:
                               "message": str(e), "traceback": traceback.format_exc()}}
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/inference/amt && uv run --with numpy --with soundfile --with pretty_midi --with fastapi --with pytest pytest test_transcription.py -q
 ```
 Expected: PASS (all transcription tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/inference/amt/transcription.py apps/inference/amt/test_transcription.py && git commit -m "feat(amt): Transkun EndpointHandler, context_audio ignored (#128)"
@@ -745,7 +745,7 @@ git add apps/inference/amt/transcription.py apps/inference/amt/test_transcriptio
 - Modify: `apps/inference/amt/amt_local_server.py`
 - Test: `apps/inference/amt/test_amt_local_server.py` (new)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/inference/amt/test_amt_local_server.py
@@ -771,14 +771,14 @@ def test_health_reports_transkun_before_model_load():
     assert body["loaded"] is False  # _handler not initialized in-process
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/inference/amt && uv run --with fastapi --with httpx --with numpy --with soundfile --with pretty_midi --with pytest pytest test_amt_local_server.py -q
 ```
 Expected: FAIL — health returns `model == "aria-amt"`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass** — edit `amt_local_server.py`:
+- [x] **Step 3: Implement the minimum to make the test pass** — edit `amt_local_server.py`:
   - Replace the `/// script` dependency block:
     ```python
     # /// script
@@ -796,14 +796,14 @@ Expected: FAIL — health returns `model == "aria-amt"`.
   - Change the health handler: `return {"status": "ok", "model": "transkun", "loaded": _handler is not None}`.
   - Leave the `EndpointHandler` delegation in `_init_model`/`/transcribe` intact (it now resolves Transkun). Update the module docstring "Aria-AMT" → "Transkun".
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/inference/amt && uv run --with fastapi --with httpx --with numpy --with soundfile --with pretty_midi --with pytest pytest test_amt_local_server.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/inference/amt/amt_local_server.py apps/inference/amt/test_amt_local_server.py && git commit -m "feat(amt): local dev server on Transkun; /health reports transkun (#128)"
@@ -821,7 +821,7 @@ git add apps/inference/amt/amt_local_server.py apps/inference/amt/test_amt_local
 - Modify: `apps/inference/amt/server.py`
 - Test: `apps/inference/amt/test_server.py` (new)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/inference/amt/test_server.py
@@ -850,14 +850,14 @@ def test_health_shape_no_onnx():
     assert not hasattr(server, "_encoder_onnx")
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/inference/amt && uv run --with fastapi --with httpx --with numpy --with soundfile --with pretty_midi --with onnxruntime --with pytest pytest test_server.py -q
 ```
 Expected: FAIL — `server` module imports `onnxruntime` / aria at load, or `_encoder_onnx` still exists.
 
-- [ ] **Step 3: Implement the minimum to make the test pass** — rewrite `server.py`:
+- [x] **Step 3: Implement the minimum to make the test pass** — rewrite `server.py`:
   - Delete: the `import onnxruntime as ort`, `import torch`, the aria `_amt_config`/`_patched_load_config` block, all aria `from amt...` imports, `from transcription import _load_weight, advance_valid_note_groups`, `_setup_kv_cache_for_decoder`, `load_models`, the ONNX `transcribe(...)`, `midi_dict_to_notes_and_pedals`, `deduplicate_notes`, and the `_encoder_onnx`/`_decoder`/`_audio_transform`/`_tokenizer` globals.
   - Keep the FastAPI app + `/transcribe` + `/health` routes, `decode_webm_to_pcm`, `_inference_count`, `_start_time`.
   - Replace transcription with the shared handler:
@@ -882,14 +882,14 @@ Expected: FAIL — `server` module imports `onnxruntime` / aria at load, or `_en
     ```
   - `/health` must not require `_encoder_onnx`; report `model_loaded = _handler is not None`.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/inference/amt && uv run --with fastapi --with httpx --with numpy --with soundfile --with pretty_midi --with pytest pytest test_server.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/inference/amt/server.py apps/inference/amt/test_server.py && git commit -m "feat(amt): container server delegates to Transkun; drop ONNX split (#128)"
