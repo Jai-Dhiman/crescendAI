@@ -907,7 +907,7 @@ git add apps/inference/amt/server.py apps/inference/amt/test_server.py && git co
 - Modify: `model/src/claim_measurement/gd_rate/transcribe_bundles.py`
 - Test: `model/src/claim_measurement/gd_rate/test_transcribe_bundles.py` (new)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/src/claim_measurement/gd_rate/test_transcribe_bundles.py
@@ -946,27 +946,27 @@ def test_bundle_records_transkun_substrate():
     assert b["substrate_versions"]["amt"].startswith("transkun/")
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run --with numpy --with pytest pytest src/claim_measurement/gd_rate/test_transcribe_bundles.py -q
 ```
 Expected: FAIL — `_transcribe_windows` currently takes `handler` and calls `handler._transcribe`; and substrate is `aria-amt/...`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass** — edit `transcribe_bundles.py`:
+- [x] **Step 3: Implement the minimum to make the test pass** — edit `transcribe_bundles.py`:
   - Change `_transcribe_windows(handler, audio, starts)` signature to `_transcribe_windows(transcribe, audio, starts)`; replace `notes, pedals = handler._transcribe(pcm)` with `notes, pedals = transcribe(pcm)`.
   - In `_build_bundle`, change `"substrate_versions": {"amt": "aria-amt/piano-medium-double-1.0"}` → `{"amt": "transkun/2.0.1"}`.
   - In `main`: delete `sys.path.insert(0, REPO/"apps/inference/amt")` + `from transcription import EndpointHandler` + `handler = EndpointHandler(...)`; instead `sys.path.insert(0, str(REPO / "apps/inference/amt")); from transkun_cli import transcribe_pcm`; change the call site `notes, pedals = _transcribe_windows(handler, audio, starts)` → `_transcribe_windows(transcribe_pcm, audio, starts)`; drop the `--weights` reliance for model loading (keep the arg for back-compat or remove; if removed, delete its `add_argument`).
   - Replace the `/// script` deps: drop the two aria `git+` lines; keep `numpy`, `soundfile`, `scipy`, `pretty_midi`; drop `torch`/`safetensors`/`numba`/`llvmlite` (no longer needed). Update the "Truth-label purity: aria-amt is a non-LLM transcription model" line → "Transkun".
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run --with numpy --with pytest pytest src/claim_measurement/gd_rate/test_transcribe_bundles.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/gd_rate/transcribe_bundles.py model/src/claim_measurement/gd_rate/test_transcribe_bundles.py && git commit -m "feat(measure): gd_rate windows via transkun_cli; transkun substrate (#128)"
@@ -984,7 +984,7 @@ git add model/src/claim_measurement/gd_rate/transcribe_bundles.py model/src/clai
 - Modify: `model/src/claim_measurement/ga_validation/amt_dynamics_ga_render.py`, `ga_validation/amt_dynamics_gb_gate.py`, `ga_validation/amt_pedaling_ga_render.py`, `gc_error_bars/gc_dynamics_render.py`, `tau_calibration/tau_pedaling_render.py`, `amt_fidelity/onset_duration_render.py`, `dynamics_supply/render_percepiano_bundles.py`, `apps/inference/extract_amt_midi.py`
 - Test: `model/src/claim_measurement/test_no_aria_amt_handler.py` (new)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/src/claim_measurement/test_no_aria_amt_handler.py
@@ -1022,14 +1022,14 @@ def test_all_use_transkun_cli():
     assert missing == [], f"not swapped to transkun_cli: {missing}"
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run --with pytest pytest src/claim_measurement/test_no_aria_amt_handler.py -q
 ```
 Expected: FAIL — every listed file still references `EndpointHandler`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass** — in EACH listed file apply the same mechanical swap:
+- [x] **Step 3: Implement the minimum to make the test pass** — in EACH listed file apply the same mechanical swap:
   - Delete the `sys.path.insert(... "apps/inference/amt")` + `from transcription import EndpointHandler` + `handler = EndpointHandler(path=...)` lines.
   - Add `sys.path.insert(0, str(<REPO>/ "apps/inference/amt")); from transkun_cli import transcribe_pcm` (use each file's existing repo-root anchor; e.g. `Path(__file__).resolve().parents[N]`).
   - Replace every `handler._transcribe(pcm)` / `handler._transcribe(audio)` call with `transcribe_pcm(pcm)` / `transcribe_pcm(audio)`.
@@ -1038,14 +1038,14 @@ Expected: FAIL — every listed file still references `EndpointHandler`.
   - Replace any "aria-amt" prose in docstrings/comments in these files with "Transkun".
   - **`onset_duration_render.py` — TRUNCATION RISK, verify number-neutrality at Gate 5 (do NOT redesign here):** this file has `AMT_WINDOW_S = 30.0 # aria-amt _transcribe hard-truncates to this` and passes the FULL clip audio to `handler._transcribe(audio)`, relying on aria's IMPLICIT 30s truncation. `transkun_cli.transcribe_pcm` does NOT truncate — it transcribes the whole clip. The explicit `crop(..., cutoff)` after transcription is expected to preserve the metric, but the mechanical swap does not prove it. After swapping to `transcribe_pcm`, keep an explicit 30s cap in this script (slice the PCM to `AMT_WINDOW_S * SAMPLE_RATE` before calling `transcribe_pcm`) so behavior stays equivalent to aria's implicit cap, and add a code comment noting the cap is now explicit because Transkun does not self-truncate. Flag this file for Gate 5: its rendered numbers MUST be confirmed number-neutral vs the aria baseline (any drift is a real regression, not metadata).
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run --with pytest pytest src/claim_measurement/test_no_aria_amt_handler.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/ga_validation model/src/claim_measurement/gc_error_bars model/src/claim_measurement/tau_calibration model/src/claim_measurement/amt_fidelity model/src/claim_measurement/dynamics_supply/render_percepiano_bundles.py apps/inference/extract_amt_midi.py model/src/claim_measurement/test_no_aria_amt_handler.py && git commit -m "feat(measure): swap all render scripts to transkun_cli (#128)"
@@ -1063,7 +1063,7 @@ git add model/src/claim_measurement/ga_validation model/src/claim_measurement/gc
 - Modify: `model/src/chroma_dtw_eval/amt_regen.py`
 - Test: `model/src/chroma_dtw_eval/test_dedup_amt_notes.py` (new)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/src/chroma_dtw_eval/test_dedup_amt_notes.py
@@ -1088,25 +1088,25 @@ def test_same_pitch_close_onsets_are_not_merged():
     assert sorted(round(n["onset"], 2) for n in out) == [1.00, 1.05]
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run --with numpy --with pytest pytest src/chroma_dtw_eval/test_dedup_amt_notes.py -q
 ```
 Expected: FAIL — current `_dedup_amt_notes` merges the two (returns 1) because `DEDUP_WINDOW_S=0.08 > 0.05`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass** — in `amt_regen.py`:
+- [x] **Step 3: Implement the minimum to make the test pass** — in `amt_regen.py`:
   - Set `DEDUP_WINDOW_S = 0.0` and update its comment to: "Transkun does not emit the aria same-pitch re-onset artifact, so no merging is applied (window 0.0). Retained as a pass-through so the pipeline shape is unchanged; #128."
   - With `window_s = 0.0`, the `< window_s` guard is never true, so `_dedup_amt_notes` becomes an order-normalizing pass-through. Leave the function body otherwise intact.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run --with numpy --with pytest pytest src/chroma_dtw_eval/test_dedup_amt_notes.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/chroma_dtw_eval/amt_regen.py model/src/chroma_dtw_eval/test_dedup_amt_notes.py && git commit -m "feat(chroma): drop aria re-onset dedup for Transkun (#128)"
@@ -1124,7 +1124,7 @@ git add model/src/chroma_dtw_eval/amt_regen.py model/src/chroma_dtw_eval/test_de
 - Modify: `model/config/amt_version.json`
 - Test: `model/src/chroma_dtw_eval/test_amt_version_config.py` (new)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # model/src/chroma_dtw_eval/test_amt_version_config.py
@@ -1144,14 +1144,14 @@ def test_amt_version_names_transkun():
     assert "transkun" in body["checkpoint_hash"]
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run --with pytest pytest src/chroma_dtw_eval/test_amt_version_config.py -q
 ```
 Expected: FAIL — `model_name == "aria-amt"`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass** — probe the installed version, then write the config:
+- [x] **Step 3: Implement the minimum to make the test pass** — probe the installed version, then write the config:
 
 ```bash
 # get the real installed version (should be 2.0.1)
@@ -1170,14 +1170,14 @@ Set `model/config/amt_version.json`:
 ```
 (Use the actually-probed version in the label/hash if it differs from 2.0.1.)
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run --with pytest pytest src/chroma_dtw_eval/test_amt_version_config.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/config/amt_version.json model/src/chroma_dtw_eval/test_amt_version_config.py && git commit -m "feat(config): pin AMT version to Transkun 2.0.1 (#128)"
@@ -1195,7 +1195,7 @@ git add model/config/amt_version.json model/src/chroma_dtw_eval/test_amt_version
 - Modify: `docs/apps/07-evaluation.md`, `docs/model/01-data.md`, `docs/model/claim-verifier-signed-d-conventions.md`, `docs/architecture.md`, `CLAUDE.md`, `Justfile`
 - Test: `apps/inference/amt/test_docs_transkun.py` (new)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/inference/amt/test_docs_transkun.py
@@ -1218,26 +1218,26 @@ def test_docs_mention_transkun():
     assert missing == [], f"docs not updated to Transkun: {missing}"
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/inference/amt && uv run --with pytest pytest test_docs_transkun.py -q
 ```
 Expected: FAIL — none of the three docs mention Transkun yet.
 
-- [ ] **Step 3: Implement the minimum to make the test pass** — edit the prose in each file:
+- [x] **Step 3: Implement the minimum to make the test pass** — edit the prose in each file:
   - `docs/apps/07-evaluation.md`, `docs/model/01-data.md`, `docs/model/claim-verifier-signed-d-conventions.md`, `docs/architecture.md`: where the pipeline describes the AMT transcriber / "aria-amt" as the non-LLM transcription substrate, change to "Transkun (MIT, ISMIR 2024)". Where truth-label-purity notes say "aria-amt is a non-LLM transcription model", change the model name to Transkun.
   - `CLAUDE.md` Model Strategy: clarify that the AMT MIDI feeding the symbolic (Aria encoder) stream + MPM features is produced by Transkun. Do NOT confuse the transcriber (Transkun) with the Aria 650M symbolic ENCODER — only the transcriber changed.
   - `Justfile`: in the `amt`, `amt-extract`, `amt-run`, `catalog-pieceid-amt-axis` recipe comments, replace "Aria-AMT"/"aria-amt" with "Transkun". Do NOT change recipe NAMES (the `amt` prefix stays; consumers rely on it).
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/inference/amt && uv run --with pytest pytest test_docs_transkun.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/apps/07-evaluation.md docs/model/01-data.md docs/model/claim-verifier-signed-d-conventions.md docs/architecture.md CLAUDE.md Justfile apps/inference/amt/test_docs_transkun.py && git commit -m "docs: aria-amt transcriber -> Transkun across docs + Justfile (#128)"
@@ -1256,7 +1256,7 @@ git add docs/apps/07-evaluation.md docs/model/01-data.md docs/model/claim-verifi
 - Modify: `apps/inference/amt/Dockerfile`
 - Test: `apps/inference/amt/test_onnx_removed.py` (new)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # apps/inference/amt/test_onnx_removed.py
@@ -1284,25 +1284,25 @@ def test_audio_chunker_preserved():
     assert (REPO / "apps/inference/audio_chunker.py").exists()
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/inference/amt && uv run --with pytest pytest test_onnx_removed.py -q
 ```
 Expected: FAIL — `export_onnx.py` still exists; Dockerfile still references it.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
   - `git rm apps/inference/amt/scripts/export_onnx.py` (and remove the now-empty `scripts/` dir if empty).
   - Rewrite `apps/inference/amt/Dockerfile`: remove the builder stage that installs `onnx`/`onnxruntime` and runs `scripts/export_onnx.py`; remove `COPY scripts/export_onnx.py` and `COPY --from=builder /build/onnx_models/ /app/models/`. The runtime stage installs `transkun` (+ `pretty_midi`, `soundfile`, `numpy`, `fastapi`, `uvicorn`, `ffmpeg`) and runs `CMD ["python", "server.py"]`. Keep the `checkpoint.safetensors` COPY only if still referenced; since the aria decoder is gone, drop it and the `CHECKPOINT_PATH`/`MODEL_DIR` env that only fed the ONNX/decoder path.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/inference/amt && uv run --with pytest pytest test_onnx_removed.py -q
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/inference/amt/Dockerfile apps/inference/amt/scripts apps/inference/amt/test_onnx_removed.py && git commit -m "chore(amt): delete ONNX export machinery + Dockerfile stage (#128)"
