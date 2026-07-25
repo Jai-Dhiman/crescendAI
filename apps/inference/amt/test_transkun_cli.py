@@ -68,3 +68,9 @@ def test_cc64_maps_to_pedal_on_off(tmp_path):
         (1.10, 0),    # 63  <  64 -> off (boundary)
     ]
     assert all(p["value"] in (0, 127) for p in pedals)
+
+
+def test_transcribe_wav_missing_input_raises(tmp_path):
+    missing = tmp_path / "nope.wav"
+    with pytest.raises(transkun_cli.TranskunError):
+        transkun_cli.transcribe_wav(missing)
