@@ -116,3 +116,79 @@ def build_response(
             "chunk_duration_s": round(float(chunk_duration_s), 2),
         },
     }
+
+
+def _import_warm_transcriber() -> Callable[[np.ndarray], tuple[list, list]] | None:
+    """Return an in-process transkun PCM->(notes,pedals) callable if transkun is
+    importable in THIS env (warm, LOAD-ONCE), else None.
+
+    The 54MB Transkun model is loaded exactly once here (mirroring
+    transkun.transcribe.main's checkpoint/conf loading), then reused for every
+    request via the returned closure. Per request we write the PCM to a temp WAV
+    and feed it through transkun's OWN readAudio + soxr-resample path, so the
+    warm path's audio preprocessing is byte-identical to the CLI path
+    (transkun_cli.transcribe_pcm) that Task 4 verified end-to-end -- only the
+    model load is amortized. No silent failure: any import problem returns None
+    so resolve_transcriber falls back to the CLI explicitly.
+    """
+    try:
+        import moduleconf
+        import pkg_resources
+        import torch
+        from transkun.Data import writeMidi
+        from transkun.transcribe import readAudio
+    except ImportError:
+        return None
+
+    device = "cpu"  # MPS is slower for Transkun's semi-CRF ops; force CPU.
+    weight = pkg_resources.resource_filename("transkun", "pretrained/2.0.pt")
+    conf_path = pkg_resources.resource_filename("transkun", "pretrained/2.0.conf")
+
+    conf_manager = moduleconf.parseFromFile(conf_path)
+    transkun_cls = conf_manager["Model"].module.TransKun
+    conf = conf_manager["Model"].config
+
+    checkpoint = torch.load(weight, map_location=device)
+    model = transkun_cls(conf=conf).to(device)
+    state_key = "best_state_dict" if "best_state_dict" in checkpoint else "state_dict"
+    model.load_state_dict(checkpoint[state_key], strict=False)
+    model.eval()
+    torch.set_grad_enabled(False)
+
+    def _warm(pcm_16k: np.ndarray) -> tuple[list, list]:
+        import soundfile as _sf
+        pcm = np.ascontiguousarray(np.asarray(pcm_16k, dtype=np.float32))
+        if pcm.size == 0:
+            raise transkun_cli.TranskunError("warm transcribe received empty PCM")
+        with tempfile.TemporaryDirectory() as td:
+            in_wav = Path(td) / "in.wav"
+            out_mid = Path(td) / "out.mid"
+            # Same WAV encoding the CLI path uses, so readAudio sees identical bytes.
+            _sf.write(str(in_wav), pcm, transkun_cli.SAMPLE_RATE,
+                      format="WAV", subtype="FLOAT")
+            fs, audio = readAudio(str(in_wav))
+            if fs != model.fs:
+                import soxr
+                audio = soxr.resample(audio, fs, model.fs)
+            x = torch.from_numpy(np.ascontiguousarray(audio)).to(device)
+            notes_est = model.transcribe(
+                x, stepInSecond=None, segmentSizeInSecond=None,
+                discardSecondHalf=False,
+            )
+            writeMidi(notes_est).write(str(out_mid))
+            return transkun_cli.midi_to_notes_and_pedals(out_mid)
+
+    return _warm
+
+
+def resolve_transcriber() -> Callable[[np.ndarray], tuple[list, list]]:
+    """Resolve ONE transcriber at init. Prefer warm in-process transkun; else the
+    CLI helper (requires `uv`); else raise so the service refuses to start."""
+    warm = _import_warm_transcriber()
+    if warm is not None:
+        return warm
+    if shutil.which("uv") is not None:
+        return transkun_cli.transcribe_pcm
+    raise RuntimeError(
+        "No Transkun path available: transkun is not importable and `uv` is not on PATH."
+    )

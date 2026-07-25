@@ -12,6 +12,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import transcription
+import transkun_cli
 
 
 def test_build_response_has_frozen_contract_shape():
@@ -36,3 +37,18 @@ def test_build_response_empty_notes_pitch_range_zero():
     resp = transcription.build_response([], [], chunk_duration_s=0.0, elapsed_ms=1)
     assert resp["transcription_info"]["pitch_range"] == [0, 0]
     assert resp["midi_notes"] == []
+
+
+def test_resolve_transcriber_refuses_when_no_path(monkeypatch):
+    # Force the warm import to fail AND the CLI probe to fail.
+    monkeypatch.setattr(transcription, "_import_warm_transcriber", lambda: None)
+    monkeypatch.setattr(transcription.shutil, "which", lambda _cmd: None)
+    with pytest.raises(RuntimeError):
+        transcription.resolve_transcriber()
+
+
+def test_resolve_transcriber_falls_back_to_cli(monkeypatch):
+    monkeypatch.setattr(transcription, "_import_warm_transcriber", lambda: None)
+    monkeypatch.setattr(transcription.shutil, "which", lambda cmd: "/usr/bin/uv")
+    fn = transcription.resolve_transcriber()
+    assert fn is transkun_cli.transcribe_pcm
