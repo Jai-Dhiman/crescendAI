@@ -1,23 +1,17 @@
 # /// script
-# requires-python = ">=3.10,<3.13"
+# requires-python = ">=3.11"
 # dependencies = [
-#     "torch>=2.0.0",
 #     "numpy>=1.24.0",
-#     "safetensors>=0.4.0",
 #     "soundfile>=0.12.0",
 #     "scipy>=1.10.0",
-#     "numba>=0.59.0",
-#     "llvmlite>=0.42.0",
 #     "pretty_midi>=0.2.10",
-#     "aria-amt @ git+https://github.com/EleutherAI/aria-amt.git",
-#     "aria @ git+https://github.com/EleutherAI/aria.git",
 # ]
 # ///
 """G-D transcription harness: real generator-paired clips -> minimal AMT bundles.
 
 For each (recording_id) that has BOTH baseline_v1 generator prose AND local audio,
-transcribe STRATIFIED 27s windows spanning the clip in-process via aria-amt and pool
-the notes into a minimal bundle sufficient for the dynamics @whole_piece verdict.
+transcribe STRATIFIED 27s windows spanning the clip via Transkun (transkun_cli) and
+pool the notes into a minimal bundle sufficient for the dynamics @whole_piece verdict.
 
 Why stratified windows, not full coverage: the dynamics @whole_piece statistic is
 mean AMT note-velocity (#101 G-B). On MPS, dense-polyphony decode costs ~30-130s per
@@ -34,13 +28,12 @@ tier (>=2 anchors) but are NEVER consumed by the whole_piece dynamics measuremen
 reads only ``notes[*].velocity``. No score alignment is performed or implied -- region/bar
 claims on these bundles are out of scope for G-D (dynamics whole_piece only).
 
-Truth-label purity: aria-amt is a non-LLM transcription model. No LLM touches the bundle.
+Truth-label purity: Transkun is a non-LLM transcription model. No LLM touches the bundle.
 
 Run (from the worktree, pointing at PRIMARY-tree data which is gitignored/absent here):
-    CRESCEND_DEVICE=auto uv run --script transcribe_bundles.py \
+    uv run --script transcribe_bundles.py \
         --baseline   /ABS/crescendai/apps/evals/results/baseline_v1.jsonl \
         --audio-root /ABS/crescendai/model/data/evals/skill_eval/chopin_ballade_1/audio \
-        --weights    /ABS/crescendai/model/data/weights/aria-amt \
         --out        /ABS/crescendai/model/data/evals/gd_bundles \
         --piece-id chopin_ballade_1 --windows 3
 """
@@ -48,7 +41,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import time
 from math import gcd
@@ -144,7 +136,7 @@ def _build_bundle(piece_id: str, rid: str, notes: list[dict],
             {"bar_number": 2, "start_sec": dur},
         ],
         "anchors": {"perf_audio_sec": [0.0, dur], "score_audio_sec": [0.0, dur]},
-        "substrate_versions": {"amt": "aria-amt/piano-medium-double-1.0"},
+        "substrate_versions": {"amt": "transkun/2.0.1"},
         "coverage_note": (
             "stratified-window whole_piece sampling; NOT full coverage. "
             f"{len(window_starts)} x {CHUNK_S}s windows."
@@ -153,8 +145,11 @@ def _build_bundle(piece_id: str, rid: str, notes: list[dict],
     }
 
 
-def _transcribe_windows(handler, audio: np.ndarray, starts: list[float]) -> tuple[list[dict], list[dict]]:
-    """Transcribe each 27s window, offset times to clip-relative, pool notes+pedals."""
+def _transcribe_windows(transcribe, audio: np.ndarray, starts: list[float]) -> tuple[list[dict], list[dict]]:
+    """Transcribe each 27s window, offset times to clip-relative, pool notes+pedals.
+
+    `transcribe` is an injected PCM->(notes, pedals) callable (transkun_cli.transcribe_pcm).
+    """
     chunk_len = int(CHUNK_S * SAMPLE_RATE)
     all_notes: list[dict] = []
     all_pedals: list[dict] = []
@@ -163,7 +158,7 @@ def _transcribe_windows(handler, audio: np.ndarray, starts: list[float]) -> tupl
         pcm = audio[start:start + chunk_len]
         if len(pcm) < chunk_len:
             pcm = np.concatenate([pcm, np.zeros(chunk_len - len(pcm), dtype=np.float32)])
-        notes, pedals = handler._transcribe(pcm)
+        notes, pedals = transcribe(pcm)
         for n in notes:
             all_notes.append({
                 "pitch": int(n["pitch"]),
@@ -187,8 +182,6 @@ def main(argv: list[str] | None = None) -> int:
                    default=REPO / "apps/evals/results/baseline_v1.jsonl")
     ap.add_argument("--audio-root", type=Path, required=True,
                    help="dir of <recording_id>.wav for the piece")
-    ap.add_argument("--weights", type=Path,
-                   default=REPO / "model/data/weights/aria-amt")
     ap.add_argument("--out", type=Path,
                    default=REPO / "model/data/evals/gd_bundles")
     ap.add_argument("--piece-id", default="chopin_ballade_1")
@@ -209,11 +202,9 @@ def main(argv: list[str] | None = None) -> int:
          f"frac=[{args.frac_lo},{args.frac_hi}] -> {args.out}", flush=True)
 
     sys.path.insert(0, str(REPO / "apps/inference/amt"))
-    os.environ.setdefault("CRESCEND_DEVICE", "auto")
     t0 = time.time()
-    from transcription import EndpointHandler
-    handler = EndpointHandler(path=str(args.weights))
-    print(f"model ready ({time.time()-t0:.1f}s)", flush=True)
+    from transkun_cli import transcribe_pcm
+    print(f"transkun_cli ready ({time.time()-t0:.1f}s)", flush=True)
 
     done = 0
     skipped = 0
@@ -227,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
             audio = _load_audio_16k_mono(wav)
             dur = len(audio) / SAMPLE_RATE
             starts = _window_starts(dur, args.windows, args.frac_lo, args.frac_hi)
-            notes, pedals = _transcribe_windows(handler, audio, starts)
+            notes, pedals = _transcribe_windows(transcribe_pcm, audio, starts)
         except Exception as exc:  # explicit: record nothing, keep going
             print(f"  [{i+1}/{len(pairs)}] {rid} FAILED: {exc}", flush=True)
             continue
