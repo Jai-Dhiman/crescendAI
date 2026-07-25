@@ -1,6 +1,8 @@
 """Manifest loader behavior: full validation on load, loud failures."""
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from audio_teacher.manifest import load_manifest
@@ -23,3 +25,42 @@ def test_valid_manifest_loads_pairs_in_order_with_resolved_clips(
     assert p2.axis == "dynamics" and p2.population == "synthetic" and p2.degraded == "b"
     assert p1.clip_a.is_absolute() and p1.clip_a.exists()
     assert p2.clip_b == tmp_path / "clips" / "p2_b.wav"
+
+
+def test_missing_offloaded_clip_error_contains_rehydrate_command(
+    tmp_path, manifest_factory
+):
+    manifest_path = manifest_factory([{"id": "p1"}])
+    missing = tmp_path / "clips" / "p1_a.wav"
+    missing.unlink()
+    registry = tmp_path / "r2_offload.json"
+    registry.write_text(
+        json.dumps(
+            {
+                "bucket": "crescendai-bucket",
+                "remote_name": "r2",
+                "entries": {
+                    "clips": {"r2_prefix": "mirex-probe/clips", "reason": "test offload"}
+                },
+            }
+        )
+    )
+    with pytest.raises(FileNotFoundError) as excinfo:
+        load_manifest(manifest_path, repo_root=tmp_path, offload_registry=registry)
+    message = str(excinfo.value)
+    assert "p1_a.wav" in message
+    assert "rclone copy r2:crescendai-bucket/mirex-probe/clips clips" in message
+
+
+def test_missing_unregistered_clip_still_fails_naming_the_path(
+    tmp_path, manifest_factory
+):
+    manifest_path = manifest_factory([{"id": "p1"}])
+    (tmp_path / "clips" / "p1_b.wav").unlink()
+    with pytest.raises(FileNotFoundError) as excinfo:
+        load_manifest(
+            manifest_path,
+            repo_root=tmp_path,
+            offload_registry=tmp_path / "no_registry.json",
+        )
+    assert "p1_b.wav" in str(excinfo.value)
