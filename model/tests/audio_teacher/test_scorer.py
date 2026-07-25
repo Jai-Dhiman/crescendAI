@@ -61,3 +61,58 @@ def test_cells_are_partitioned_by_population_and_never_pooled():
         score_responses(manifest, {"r1": "ANSWER: A"})  # missing r2, s1
     with pytest.raises(ProbeIncompleteError):
         score_responses(manifest, {**responses, "ghost": "ANSWER: B"})  # extra
+
+
+def _bulk(axis: str, population: str, n_correct: int, n_wrong: int,
+          n_unparseable: int, start: int = 0):
+    """Build (pairs, responses) for one cell. degraded='a'; correct answers
+    say A, wrong say B, unparseable give no ANSWER line."""
+    pairs, responses = [], {}
+    i = start
+    for count, text in (
+        (n_correct, "ANSWER: A"),
+        (n_wrong, "ANSWER: B"),
+        (n_unparseable, "cannot tell"),
+    ):
+        for _ in range(count):
+            pid = f"{axis[:3]}_{population[:3]}_{i}"
+            pairs.append(_pair(pid, axis=axis, population=population, degraded="a"))
+            responses[pid] = text
+            i += 1
+    return pairs, responses
+
+
+@pytest.mark.parametrize(
+    "cell_specs,expected_verdict,expected_reason_fragment",
+    [
+        # 20/20 real correct + synthetic all wrong: synthetic never gates.
+        ([("pedaling", "real", 20, 0, 0), ("pedaling", "synthetic", 0, 5, 0)],
+         "PASS", None),
+        # 10/20 real correct: below the 0.70 kill threshold.
+        ([("pedaling", "real", 10, 10, 0)], "FAIL", "below"),
+        # Only 5 real pairs: insufficient evidence, gate stays closed.
+        ([("pedaling", "real", 5, 0, 0)], "FAIL", "only 5 pairs"),
+        # Synthetic-only axis: never opens the gate.
+        ([("dynamics", "synthetic", 20, 0, 0)], "FAIL", "no real-population"),
+        # 17 correct + 3 unparseable of 20: accuracy 0.85 but ambiguity 0.15.
+        ([("pedaling", "real", 17, 0, 3)], "FAIL", "unparseable"),
+    ],
+    ids=["pass_synthetic_never_gates", "fail_accuracy", "fail_insufficient",
+         "fail_synthetic_only", "fail_ambiguous"],
+)
+def test_verdict_applies_ex_ante_kill_rules(
+    cell_specs, expected_verdict, expected_reason_fragment
+):
+    pairs, responses = [], {}
+    start = 0
+    for axis, population, n_correct, n_wrong, n_unparseable in cell_specs:
+        p, r = _bulk(axis, population, n_correct, n_wrong, n_unparseable, start)
+        pairs += p
+        responses.update(r)
+        start += len(p)
+    report = score_responses(_manifest(pairs), responses)
+    assert report["verdict"] == expected_verdict
+    if expected_reason_fragment is None:
+        assert report["verdict_reasons"] == []
+    else:
+        assert any(expected_reason_fragment in r for r in report["verdict_reasons"])
