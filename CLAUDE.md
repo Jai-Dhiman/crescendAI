@@ -22,7 +22,7 @@ See `docs/architecture.md` for the full system design. Key points:
 
 ## Model Strategy
 
-- **Model v2:** MuQ (audio, pretrained on 160K hrs) + Aria (symbolic, pretrained on 820K MIDIs) as parallel streams; both stream outputs + MPM-style extracted features go to the teacher LLM
+- **Model v2:** MuQ (audio, pretrained on 160K hrs) + Aria (symbolic, pretrained on 820K MIDIs) as parallel streams; both stream outputs + MPM-style extracted features go to the teacher LLM. The AMT MIDI feeding the symbolic (Aria encoder) stream + MPM feature extraction is produced by the **Transkun** transcriber (MIT, ISMIR 2024; #128) behind the frozen `/transcribe` service — NOT to be confused with the Aria 650M symbolic *encoder*; only the transcriber substrate changed.
 - **Score conditioning:** delta = z_perf - z_score when score MIDI available
 - **Training:** PercePiano anchor (20%) + ordinal-dominated (80%) with T2 competition + T5 YouTube Skill data
 

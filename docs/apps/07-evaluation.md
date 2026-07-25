@@ -23,7 +23,7 @@ The practical eval is designed to run end-to-end through the synthesis pipeline,
 
 **Labeling:** Each recording has a `skill_level` label (1-5 buckets) assigned during data collection. Bucket 1 = beginner/weak intermediate, bucket 5 = advanced intermediate/early advanced.
 
-**Inference cache:** MuQ scores and Aria-AMT transcriptions are pre-computed and cached per recording. The eval pipeline replays cached data through the API's WebSocket pipeline, avoiding repeated inference costs.
+**Inference cache:** MuQ scores and Transkun (MIT, ISMIR 2024) transcriptions are pre-computed and cached per recording. The eval pipeline replays cached data through the API's WebSocket pipeline, avoiding repeated inference costs.
 
 ---
 
@@ -230,8 +230,8 @@ cache (`--catalog-cache`) that turns the ~8min, ~9GB JSON re-parse into a ~10s l
 - **Dedup of the 72 exact twins** lifts opening recognition 75.6→90.9% (orthogonal to B/C).
 - **A real-audio→AMT** (`pieceid_amt_axis.py`, `just catalog-pieceid-amt-axis-stream`) — paired
   clean-MIDI-vs-AMT recognition over the 519 ASAP↔MAESTRO matches, streaming each WAV from HF and
-  deleting it (disk-bounded). Blocked on placing the aria-amt `medium-double` `.safetensors`
-  checkpoint in `model/data/weights/aria-amt` (the AMT server does not auto-download it).
+  deleting it (disk-bounded). Under Transkun (#128) the old aria-amt checkpoint-placement blocker
+  is gone — Transkun self-manages its bundled weights, so the AMT server needs no manual checkpoint.
 
 **Autoresearch loop:** `pieceid_experimental.py` is the single editable knob-board (shortlist
 mode/K, margin, absolute-cost floor, source-aware AMT strictness); `pieceid_autoresearch_eval.py`
@@ -534,9 +534,9 @@ Teacher-rater study: 100+ routing decisions reviewed by piano teachers rating di
 
 ### Shipped harness — chroma-DTW follower (#13)
 
-`model/src/chroma_dtw_eval/` is a real **external-correctness** eval that needs no expert bar annotations. AMT (Aria-AMT) transcribes each practice recording, parangonar aligns the transcription to the score, and the resulting monotonic perf→score time-map is the **pseudo-truth** (`just amt-regen-pseudo-truth <piece> <video_id>`). The follower's per-chunk predicted score position is then scored as **absolute error in seconds** against that map (`just chroma-eval-verify`), against a frozen `model/data/evals/chroma_dtw/baseline.json` plus 5 guards (teleport, silence, monotonicity, cost-vs-error AUC, continuity). Ratchet a genuine, guard-clean improvement with `just chroma-eval-ratchet`.
+`model/src/chroma_dtw_eval/` is a real **external-correctness** eval that needs no expert bar annotations. AMT (Transkun, MIT/ISMIR 2024) transcribes each practice recording, parangonar aligns the transcription to the score, and the resulting monotonic perf→score time-map is the **pseudo-truth** (`just amt-regen-pseudo-truth <piece> <video_id>`). The follower's per-chunk predicted score position is then scored as **absolute error in seconds** against that map (`just chroma-eval-verify`), against a frozen `model/data/evals/chroma_dtw/baseline.json` plus 5 guards (teleport, silence, monotonicity, cost-vs-error AUC, continuity). Ratchet a genuine, guard-clean improvement with `just chroma-eval-ratchet`.
 
-- **Pseudo-truth acceptance is distributional, not a count ratio:** ≥100 monotonic anchors, ≥85% audio span, ≤8s max gap. (The original `matched/amt_notes ≥ 0.5` gate was unreachable — Aria-AMT over-transcribes ~2.8x as same-pitch re-onsets — so amt_regen now dedups those and uses sec-as-beat parangonar init.)
+- **Pseudo-truth acceptance is distributional, not a count ratio:** ≥100 monotonic anchors, ≥85% audio span, ≤8s max gap. (The original `matched/amt_notes ≥ 0.5` gate was unreachable under the old Aria-AMT substrate, which over-transcribed ~2.8x as same-pitch re-onsets; amt_regen deduped those and uses sec-as-beat parangonar init. Under Transkun (#128) the re-onset artifact is gone, so the dedup window is 0.0 — a pass-through — and Gate 1 re-checks recall on regenerated pseudo-truth.)
 - **Corpus (small):** 20 chunks across `bach_prelude_c_wtc1` + `bach_invention_1`. Expand before any strong claim.
 - **Current follower (`/autoresearch` #13):** primary = **40%** of chunks within 1.5s, mean |error| **2.6s**, max **9.2s** (vs the original unbanded baseline: primary 15%, mean 18.5s, max 62.6s — the lock-to-origin / teleport tail is eliminated). Three kept levers: a **dead-reckoned prior** (forward-marching expected position, breaks the lock-to-origin feedback stall), a **window-slice DTW** (confines the whole warping path — not just the endpoint — to the prior window), and **adaptive per-clip tempo** (re-estimate from confident predictions, gated to [0.3,1.0], so fast and slow performances each converge). See `model/data/evals/chroma_dtw/autoresearch_{results.tsv,changelog.md}` for the full loop.
 - **Two guards were found mis-specified and redefined during the loop:** g4 continuity assumed score advances at the audio rate (ratio 1.0), punishing accurate tracking of ~0.5× performances → now a tempo-agnostic teleport/stall detector (implied tempo ∈ [0.25,1.5]); g2 used cost-vs-error AUC, but path cost tracks per-piece chroma difficulty not alignment error → now AUC of the dead-reckon residual vs error.
