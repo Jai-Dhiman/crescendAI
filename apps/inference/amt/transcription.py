@@ -192,3 +192,37 @@ def resolve_transcriber() -> Callable[[np.ndarray], tuple[list, list]]:
     raise RuntimeError(
         "No Transkun path available: transkun is not importable and `uv` is not on PATH."
     )
+
+
+class EndpointHandler:
+    """Transkun-backed transcription handler. Frozen /transcribe contract."""
+
+    def __init__(self, path: str = "") -> None:
+        # `path` retained for call-site compatibility; Transkun weights are managed
+        # by the transkun package itself. Resolve the transcriber once (refuse to
+        # start if none available).
+        self._transcribe_fn = resolve_transcriber()
+
+    def __call__(self, data: dict[str, Any]) -> dict[str, Any]:
+        start_time = time.time()
+        try:
+            inputs = data.get("inputs", data)
+            if isinstance(inputs, str):
+                inputs = {"chunk_audio": inputs}
+
+            chunk_audio_b64 = inputs.get("chunk_audio")
+            if not chunk_audio_b64:
+                return {"error": {"code": "MISSING_CHUNK_AUDIO",
+                                  "message": "chunk_audio field is required"}}
+
+            chunk_pcm = decode_webm_to_pcm(base64.b64decode(chunk_audio_b64))
+            chunk_duration_s = len(chunk_pcm) / SAMPLE_RATE
+            # context_audio is accepted but IGNORED (Transkun is whole-piece; the
+            # aria overlap/dedup semantics are gone). No concatenation.
+
+            notes, pedals = self._transcribe_fn(chunk_pcm)
+            elapsed_ms = int((time.time() - start_time) * 1000)
+            return build_response(notes, pedals, chunk_duration_s, elapsed_ms)
+        except Exception as e:
+            return {"error": {"code": "TRANSCRIPTION_ERROR",
+                              "message": str(e), "traceback": traceback.format_exc()}}
