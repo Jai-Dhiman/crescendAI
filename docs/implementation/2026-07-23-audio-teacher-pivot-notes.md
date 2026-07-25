@@ -84,3 +84,17 @@ naming the pair and actual type, from exc). Re-review APPROVED. This is the seco
 reviewed deviation from the plan's verbatim code. SDK API surface remains knowingly unverified
 (accepted /challenge caution; Gate 0 issue #130 carries the re-verify step). MINOR accepted:
 single except ImportError collapses partial-install cases; no test for live paths (by design).
+
+## Task 9: Manifest schema rejection lock tests (Group E)
+Commit 8f2d3a6a, test-only; manifest.py needed NO change (all six violations already rejected;
+each parametrized case traced to a distinct validation branch by the reviewer). HONESTY CHECK
+EXECUTED: implementer first verified ManifestError subclasses Exception (not ValueError), then
+weakened to pytest.raises(ValueError) -- all 6 cases failed with the uncaught ManifestError (e.g.
+missing_key: "pair[0] missing keys ['description']"); restored, 9 passed. Spec PASS; quality
+APPROVED. No deviations.
+
+## Task 11: Ex-ante verdict rules lock tests (Group E)
+Commit bf95f922, test-only (scorer.py needed NO change -- Task 10's _verdict_reasons already
+satisfied all 5 rules). HONESTY CHECK EXECUTED: expected_verdict of pass_synthetic_never_gates
+mutated PASS->FAIL; pytest failed "AssertionError: assert 'PASS' == 'FAIL'"; restored, 6 passed.
+Spec PASS; quality APPROVED. No deviations.

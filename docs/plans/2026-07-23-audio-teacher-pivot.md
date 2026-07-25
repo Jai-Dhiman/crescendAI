@@ -1083,7 +1083,7 @@ git add model/tests/audio_teacher/test_manifest.py model/src/audio_teacher/manif
 - Modify: `model/src/audio_teacher/manifest.py` (only if a case is not already rejected)
 - Test: `model/tests/audio_teacher/test_manifest.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `model/tests/audio_teacher/test_manifest.py` (add `import yaml` to the imports):
 
@@ -1138,25 +1138,25 @@ def test_schema_violations_raise_manifest_error(tmp_path, manifest_factory, muta
         load_manifest(manifest_path, repo_root=tmp_path)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_manifest.py -v
 ```
 Expected: the Task 6 implementation already rejects all six cases, so these may PASS immediately. Apply the same honesty check as Task 8 Step 2: temporarily weaken one assertion (`pytest.raises(ValueError)`) to confirm the test is live, then restore. If any real case does NOT raise `ManifestError`, proceed to Step 3.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No change expected. If a case slipped through, add the missing validation branch in `load_manifest` raising `ManifestError` with the manifest path and pair id in the message (mirror the existing branches — do not restructure).
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_manifest.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/tests/audio_teacher/test_manifest.py model/src/audio_teacher/manifest.py && git commit -m "test(audio-teacher): lock manifest schema rejection cases (#127)"
@@ -1371,7 +1371,7 @@ git add model/src/audio_teacher/scorer.py model/tests/audio_teacher/test_scorer.
 - Modify: `model/src/audio_teacher/scorer.py` (only if a rule is missing — Task 10 shipped `_verdict_reasons`)
 - Test: `model/tests/audio_teacher/test_scorer.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `model/tests/audio_teacher/test_scorer.py`:
 
@@ -1431,25 +1431,25 @@ def test_verdict_applies_ex_ante_kill_rules(
         assert any(expected_reason_fragment in r for r in report["verdict_reasons"])
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_scorer.py -v
 ```
 Expected: the Task 10 implementation should already satisfy these rules, so they may PASS immediately. Honesty check as in Task 8/9: temporarily set `expected_verdict` of the first case to `"FAIL"`, confirm the test fails, restore. If a real case fails, proceed to Step 3.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No change expected. If a rule is wrong, fix only `_verdict_reasons` in `model/src/audio_teacher/scorer.py` to match the parametrized cases exactly (constants stay `0.70` / `20` / `0.10`).
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_scorer.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/tests/audio_teacher/test_scorer.py model/src/audio_teacher/scorer.py && git commit -m "test(audio-teacher): lock ex-ante verdict rules -- uncertain defaults to closed (#127)"
