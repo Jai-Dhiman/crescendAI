@@ -124,14 +124,11 @@ async def inference(request: Request):
 if __name__ == "__main__":
     import uvicorn
 
-    # Default: look for aria-amt checkpoint in model weights
-    default_checkpoint = str(
-        Path(__file__).resolve().parents[3] / "model" / "data" / "weights" / "aria-amt"
-    )
-
-    parser = argparse.ArgumentParser(description="Local Aria-AMT inference server (transcription)")
+    # Transkun manages its own bundled weights; --checkpoint-dir is retained for
+    # call-site compatibility but ignored by the (Transkun-backed) EndpointHandler.
+    parser = argparse.ArgumentParser(description="Local Transkun inference server (transcription)")
     parser.add_argument("--port", type=int, default=8001)
-    parser.add_argument("--checkpoint-dir", default=default_checkpoint)
+    parser.add_argument("--checkpoint-dir", default="")
     args = parser.parse_args()
 
     _init_model(args.checkpoint_dir)

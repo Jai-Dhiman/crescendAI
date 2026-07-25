@@ -457,7 +457,7 @@ def regenerate_pseudo_truth(
         json.loads(DEFAULT_AMT_VERSION_CONFIG.read_text())
         if DEFAULT_AMT_VERSION_CONFIG.exists() else {}
     )
-    regen_source = config_body.get("regen_source_default", "local:aria-amt")
+    regen_source = config_body.get("regen_source_default", "local:transkun")
     payload = PseudoTruthPayload(
         perf_audio_sec=perf_arr,
         score_audio_sec=score_arr,
