@@ -108,3 +108,10 @@ Spec PASS; quality APPROVED -- reviewer confirmed the order-independence test is
 Code verbatim from plan (commit c3a275a6). TDD observed (ModuleNotFoundError first, then 1 passed).
 Spec PASS; quality APPROVED -- reviewer confirmed validation strictly precedes the write (bad_out
 never created), __file__-anchored MODEL_ROOT default, no silent fallbacks. No deviations.
+
+## Task 15: Probe CLI (Group G)
+Code verbatim from plan (commit bb11e099). TDD observed (ModuleNotFoundError first; then 1 passed,
+package suite 35 passed). Spec PASS; quality APPROVED -- reviewer confirmed disk-write-then-flush
+precedes the in-memory update (crash-safe resume), BudgetExceededError propagates uncaught,
+TinkerProbeClient import is lazy (live branch only), generated_at confined to run_meta.json.
+No deviations.

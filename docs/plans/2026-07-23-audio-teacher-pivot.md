@@ -1906,7 +1906,7 @@ git add model/src/audio_teacher/build_manifest.py model/tests/audio_teacher/test
 - Create: `model/src/audio_teacher/probe.py`
 - Test: `model/tests/audio_teacher/test_probe.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `model/tests/audio_teacher/test_probe.py`:
 
@@ -1954,14 +1954,14 @@ def test_offline_probe_writes_population_partitioned_report(
     assert (run_dir / "responses.jsonl").exists()
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_probe.py -v
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'audio_teacher.probe'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Create `model/src/audio_teacher/probe.py`:
 
@@ -2116,14 +2116,14 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_probe.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/audio_teacher/probe.py model/tests/audio_teacher/test_probe.py && git commit -m "feat(audio-teacher): probe CLI -- manifest to deterministic report, offline-capable (#127)"
