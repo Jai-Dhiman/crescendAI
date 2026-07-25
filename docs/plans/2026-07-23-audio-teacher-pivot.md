@@ -1003,7 +1003,7 @@ git add model/src/audio_teacher/client.py model/tests/audio_teacher/test_client.
 - Modify: `model/src/audio_teacher/manifest.py` (only if the test exposes a gap — the Task 6 implementation already carries `_ensure_clip_local`; this task locks the behavior with tests)
 - Test: `model/tests/audio_teacher/test_manifest.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `model/tests/audio_teacher/test_manifest.py` (add `import json` to the imports):
 
@@ -1047,25 +1047,25 @@ def test_missing_unregistered_clip_still_fails_naming_the_path(
     assert "p1_b.wav" in str(excinfo.value)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_manifest.py -v
 ```
 Expected: with the Task 6 implementation in place these tests may already PASS. If they pass, that is acceptable for this task ONLY because the implementation predates the test by design (Task 6 shipped `_ensure_clip_local` as a unit); to keep the failing-first discipline honest, first run with a deliberate breakage check: temporarily change the assertion string to `"rclone WRONG"` and confirm the test FAILS, then restore it. If instead the real assertions fail (e.g., prefix matching bug), fix `_ensure_clip_local` minimally in Step 3.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No change expected — `_ensure_clip_local` from Task 6 already implements exact-and-prefix registry matching and the rclone hint. If Step 2's real assertions failed, fix only the matching/hint construction in `_ensure_clip_local` (do not touch schema validation).
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_manifest.py -v
 ```
 Expected: PASS (all manifest tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/tests/audio_teacher/test_manifest.py model/src/audio_teacher/manifest.py && git commit -m "test(audio-teacher): lock rehydrate-hint behavior for offloaded probe clips (#127)"
@@ -1174,7 +1174,7 @@ git add model/tests/audio_teacher/test_manifest.py model/src/audio_teacher/manif
 - Create: `model/src/audio_teacher/scorer.py`
 - Test: `model/tests/audio_teacher/test_scorer.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `model/tests/audio_teacher/test_scorer.py`:
 
@@ -1244,14 +1244,14 @@ def test_cells_are_partitioned_by_population_and_never_pooled():
         score_responses(manifest, {**responses, "ghost": "ANSWER: B"})  # extra
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_scorer.py -v
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'audio_teacher.scorer'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Create `model/src/audio_teacher/scorer.py`:
 
@@ -1346,14 +1346,14 @@ def _verdict_reasons(manifest: ProbeManifest, cells: dict[str, dict]) -> list[st
     return reasons
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_scorer.py -v
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/audio_teacher/scorer.py model/tests/audio_teacher/test_scorer.py && git commit -m "feat(audio-teacher): population-partitioned probe scoring, no pooling (#127)"
@@ -1467,7 +1467,7 @@ git add model/tests/audio_teacher/test_scorer.py model/src/audio_teacher/scorer.
 - Create: `model/src/audio_teacher/tinker_client.py`
 - Test: `model/tests/audio_teacher/test_tinker_client.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `model/tests/audio_teacher/test_tinker_client.py`:
 
@@ -1498,14 +1498,14 @@ def test_missing_sdk_raises_with_install_instructions():
     assert "uv add tinker" in str(excinfo.value)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_tinker_client.py -v
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'audio_teacher.tinker_client'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Create `model/src/audio_teacher/tinker_client.py`:
 
@@ -1645,14 +1645,14 @@ class TinkerProbeClient:
         )
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_tinker_client.py -v
 ```
 Expected: PASS (1 passed, or 1 skipped iff the SDK happens to be installed)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/audio_teacher/tinker_client.py model/tests/audio_teacher/test_tinker_client.py && git commit -m "feat(audio-teacher): Inkling Tinker client behind the ProbeClient seam (#127)"

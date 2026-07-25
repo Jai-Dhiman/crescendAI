@@ -60,3 +60,27 @@ overwritten, contradicting the module's fail-loud contract. Fixed in c91f8959 (T
 test_duplicate_pair_id_in_recording_fails_loudly failed with DID NOT RAISE, then ValueError naming
 the pair id + file added before the dict write). Re-review APPROVED. This is a deliberate,
 reviewed deviation from the plan's verbatim client.py code.
+
+## Task 8: Rehydrate-hint lock tests (Group D)
+Commit 32e81df3, test-only (41 insertions); manifest.py needed NO change -- Task 6's
+_ensure_clip_local already satisfied both behaviors, both tests passed on first run.
+HONESTY CHECK EXECUTED: assertion temporarily mutated to "rclone WRONG"; pytest failed with
+AssertionError showing the real message ("...Rehydrate with:\n    rclone copy
+r2:crescendai-bucket/mirex-probe/clips clips"); assertion restored exactly; re-run 3 passed.
+No deviations.
+
+## Task 10: Population-partitioned scorer (Group D)
+Code verbatim from plan (commit 15c03597). TDD observed (ModuleNotFoundError first). Spec PASS;
+quality APPROVED. MINOR notes: one 89-char line (E501, not CI-gated); report returns the internal
+cells dict without defensive copy (fresh per call, accepted). `import json` retained per plan for
+Task 13.
+
+## Task 12: Tinker client behind the seam (Group D)
+Base code verbatim from plan (commit bad92839); test exercised the real not-installed path
+(1 passed, not skipped -- SDK genuinely absent). Spec PASS. Quality review found one IMPORTANT:
+ask()'s getattr/hasattr response-text extraction was a silent fallback contradicting the fail-loud
+rule. Fixed in b8621b88 (direct message.content.text in try/except AttributeError raising TypeError
+naming the pair and actual type, from exc). Re-review APPROVED. This is the second deliberate,
+reviewed deviation from the plan's verbatim code. SDK API surface remains knowingly unverified
+(accepted /challenge caution; Gate 0 issue #130 carries the re-verify step). MINOR accepted:
+single except ImportError collapses partial-install cases; no test for live paths (by design).
