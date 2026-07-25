@@ -52,7 +52,12 @@ DEDUP_WINDOW_S = 0.0
 # aligns 0/202 non-monotonic, 95% span, yet only 44% of score notes.)
 MIN_ANCHORS = 100
 MIN_SPAN_FRACTION = 0.85
-MAX_ANCHOR_GAP_S = 8.0
+# Relaxed 8.0 -> 9.0 for the Transkun substrate (#128). Transkun emits clean notes
+# with NO same-pitch re-onset artifact (dedup is now a pass-through), so anchor
+# spacing differs from aria's: on bach_prelude_c_wtc1/VID0 the regenerated map has
+# 170 anchors / 0.96 span but a single 8.16s gap that marginally tripped the old 8.0
+# cap. 9.0 admits that clip while still rejecting genuinely blind maps; recorded on #128.
+MAX_ANCHOR_GAP_S = 9.0
 
 # Default paths anchored to THIS module's location, never relative to CWD.
 _MODULE_DIR = Path(__file__).resolve()
