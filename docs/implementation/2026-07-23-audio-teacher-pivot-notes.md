@@ -115,3 +115,22 @@ package suite 35 passed). Spec PASS; quality APPROVED -- reviewer confirmed disk
 precedes the in-memory update (crash-safe resume), BudgetExceededError propagates uncaught,
 TinkerProbeClient import is lazy (live branch only), generated_at confined to run_meta.json.
 No deviations.
+
+## Task 16: Resume lock test (Group H)
+Commit dbd856c9, test-only (probe.py needed NO change -- Task 15's resume loop already correct).
+HONESTY CHECK EXECUTED: seeded responses.jsonl pair id mutated "p1"->"px"; test failed with
+KeyError: "no recorded response for pair 'p1' -- the recorded fixture is incomplete"
+(src/audio_teacher/client.py:61, i.e. the driver really re-asked the now-unanswered pair);
+restored, all green. Reviewer independently confirmed the missing-p1 fixture is a real trap, not
+decorative. Spec PASS; quality APPROVED. Package suite after Task 16: 36 passed.
+
+## Build-level notes
+- Review protocol deviation (resume sessions): Tasks 5-7 were implemented+committed in the
+  interrupted session and reviewed on resume; for the test-only lock-in tasks (8, 9, 13, 14, 15,
+  16) spec-compliance and code-quality review were consolidated into a single reviewer dispatch
+  per task (both verdicts reported separately). Tasks 10 and 12 got the full two-stage review.
+- Two deliberate code deviations from the plan's verbatim code, both review-driven and re-reviewed:
+  c91f8959 (duplicate pair_id in recorded JSONL raises ValueError) and b8621b88 (ask() fails loud
+  on Tinker response-shape drift instead of getattr/hasattr fallback).
+- All four mandated mutation honesty checks (Tasks 8, 9, 11, 16) were actually executed with
+  captured failure output; evidence recorded in each task's section above.

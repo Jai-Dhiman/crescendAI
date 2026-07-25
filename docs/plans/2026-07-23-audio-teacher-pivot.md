@@ -2141,7 +2141,7 @@ git add model/src/audio_teacher/probe.py model/tests/audio_teacher/test_probe.py
 - Modify: `model/src/audio_teacher/probe.py` (only if the test exposes a gap — Task 15 shipped the resume loop)
 - Test: `model/tests/audio_teacher/test_probe.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `model/tests/audio_teacher/test_probe.py`:
 
@@ -2178,18 +2178,18 @@ def test_resume_skips_pairs_already_answered(tmp_path, manifest_factory):
     assert rc == 1  # still under MIN_REAL_PAIRS_PER_AXIS: gate stays closed
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_probe.py -v
 ```
 Expected: the Task 15 implementation already resumes, so this may PASS immediately. Honesty check as in Tasks 8/9/11: temporarily seed `responses.jsonl` with pair id `"px"` instead of `"p1"` and confirm the test FAILS with KeyError, then restore. If the real test fails, proceed to Step 3.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 No change expected. If resume is broken, fix only the `if pair.pair_id in responses: continue` path and `_read_responses` in `model/src/audio_teacher/probe.py`.
 
-- [ ] **Step 4: Run test — verify it PASSES, then run the whole suite**
+- [x] **Step 4: Run test — verify it PASSES, then run the whole suite**
 
 ```bash
 cd model && uv run python -m pytest tests/audio_teacher/test_probe.py -v
@@ -2197,7 +2197,7 @@ cd model && uv run python -m pytest tests/audio_teacher -v
 ```
 Expected: PASS (all audio_teacher tests green)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/tests/audio_teacher/test_probe.py model/src/audio_teacher/probe.py && git commit -m "test(audio-teacher): lock resume-from-responses behavior (#127)"
