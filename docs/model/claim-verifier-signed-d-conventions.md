@@ -1182,7 +1182,7 @@ edge is real heterogeneous-gain audio (G-F), untested here (controlled fluidsynt
 `build_gt_cued_inputs.py` (test `test_build_gt_cued_inputs.py`, 3 green; full `dynamics_supply` suite 19
 green). Result: `model/data/results/dyn_gt_teacher_rate.json`.
 
-**SUBSTRATE CAVEAT — these numbers were measured under aria-amt; Transkun is now the transcriber (#128), so re-baseline before trusting them.**
+**SUBSTRATE CAVEAT — RESOLVED by FRONT 8d (below). The aria-amt rate does NOT transfer to Transkun: the naive substrate swap CRASHES 0.919 -> 0.413, and recalibrating the velocity reference recovers it only to 0.784. The prediction "would likely RISE" (struck through below) was FALSIFIED.**
 Every AMT-substrate number in FRONT 8/8b/8c (and the upstream G-B 0.544 / G-C error bars) was measured on
 **aria-amt** velocity, the transcriber in production when they were recorded. The 0.919 rate IS the aria-amt
 AMT↔GT velocity agreement (0.965) expressed as a decision rate. **#128 adopted Transkun** (MIT, ISMIR 2024;
@@ -1190,5 +1190,59 @@ vel F1 0.926, emits velocity+pedal) repo-wide behind the frozen `/transcribe` co
 (`render_percepiano_bundles.py` et al.) now call `transkun_cli.transcribe_pcm`, so the numbers here are
 stale until re-rendered. The transcribe→score split keeps this a pure substrate swap: re-render the bundles
 then re-score `independent_rate.py` / `route_and_score.py` (bundles + rate JSONs regenerate; no code change
-to the scorers). The rate would likely RISE (better velocity fidelity → tighter AMT↔GT agreement). Until the
-#128 Gate 5 re-baseline lands, read every number here as "aria-amt substrate," not "the transcriber substrate."
+to the scorers). ~~The rate would likely RISE (better velocity fidelity → tighter AMT↔GT agreement).~~ **[FALSIFIED
+by 8d: the rate CRASHED, because the aria-calibrated `REFERENCE_VELOCITY=51.5` does not transfer and Transkun
+compresses velocity dynamic range.]** Every number in FRONT 8/8b/8c is "aria-amt substrate"; see FRONT 8d for
+the Transkun re-baseline.
+
+## FRONT 8d UPDATE (#101, 2026-07-26): the Transkun re-baseline — the dynamics rate does NOT transfer across transcribers (0.919 -> 0.413 naive; 0.784 recalibrated)
+
+#128 swapped the production transcriber aria-amt -> Transkun repo-wide. FRONT 8d re-renders the SAME 168
+stratified PercePiano segments under Transkun (seed-42 `stratify` is nested-superset, so the stem set is
+byte-identical to 8b's — a true PAIRED experiment: only the transcriber changes; GT-MIDI truth labels, tau,
+and the scorer are all held fixed) and re-scores them through the unchanged `independent_rate.py` verifier.
+Harness: `render_percepiano_bundles.py` now calls `transkun_cli.transcribe_pcm` (#128, no scorer change);
+new `compare_substrates.py` (+ `test_compare_substrates.py`, 7 green; full `claim_measurement` suite 57 pass)
+does the paired join. Results: `model/data/results/{dynamics_independent_rate_transkun,dyn_substrate_compare,
+dyn_transkun_recalibrated_rate}.json`; 168 Transkun bundles at `model/data/evals/percepiano_indep_bundles_transkun/`.
+
+**Result — the rate collapses on the naive swap, and the collapse decomposes into TWO causes:**
+
+| substrate / reference | rate | committed | 95% CI half | G-D | read |
+|---|---:|---:|---:|:--:|---|
+| aria-amt, `REFERENCE_VELOCITY=51.5` (8b) | **0.919** | 123 | 0.045 | PASS | the shipped headline |
+| Transkun, reference UNCHANGED (51.5) | **0.413** | 143 | 0.080 | FAIL | naive swap: calibration debt |
+| Transkun, reference recalibrated to 65.66 | **0.784** | 116 | 0.073 | FAIL | offset removed, residual remains |
+
+Paired McNemar on the 103 committed-in-both (naive swap vs aria): 54 segments flipped SUPPORTED->REFUTED vs
+only 5 the other way, **exact two-sided p = 1.9e-11** — an overwhelmingly directional, non-sampling degradation.
+
+**Cause 1 (dominant, ~73% of the drop): calibration debt.** The whole_piece statistic is `d = mean(AMT
+velocity) - REFERENCE_VELOCITY`, and `REFERENCE_VELOCITY=51.5` was the aria corpus median per-clip mean
+velocity (`dynamics.py:15`, flagged `locked:false -- recalibrate per substrate`). Transkun's corpus median is
+**65.66** (offset **+13.4**), so every `d` is inflated: GT-soft segments move from d=-11.4 (correctly "soft")
+to d=+6.8 ("loud"), and GT-balanced from d~=0 to d=+13.3 ("loud"). The verifier then REFUTES the GT soft/balanced
+claims while SUPPORTING all 56 loud ones (an already-loud reading pushed further up never crosses the boundary
+the wrong way). Moving the reference to 65.66 recovers 0.413 -> 0.784 (0.371 of the 0.506 gap). This is the
+recalibration step the code itself flagged and #128 did not action.
+
+**Cause 2 (residual, ~14pp, un-recoverable by a scalar reference): velocity dynamic-range COMPRESSION.**
+Reference-independent (a difference of two group means, so the reference cancels): the GT-loud vs GT-soft
+mean-d SEPARATION is **24.87** velocity units under aria but only **16.07** under Transkun — Transkun squashes
+the loud-vs-soft gap to ~65% of aria's range. A scalar reference re-centers but cannot un-compress, so after
+recalibration the extremes stay elevated (loud 10 REF, soft 11 REF vs aria's 5/4) while balanced nearly fully
+recovers (4 REF). Per-stratum paired velocity shift (Transkun - aria): loud +9.41, soft **+18.21**, balanced
++13.37 — the shift is largest exactly where the range collapses.
+
+**Honest caveat — measured on fluidsynth renders, which may be OOD for Transkun's velocity head.** Transkun was
+trained/validated on real piano recordings (MAESTRO), where #125 Stage-0 showed it WINS on velocity; here it
+transcribes fixed-gain fluidsynth audio. So the compression may be partly a synthetic-audio artifact rather than
+intrinsic — this folds directly into the still-open G-F (real-audio) edge, which is now higher priority: whether
+Transkun's velocity range widens on real audio decides whether the recalibrated 0.784 is a floor or the ceiling.
+
+**Verdict + action.** Faithfulness rates are SUBSTRATE-SPECIFIC and do not transfer across transcribers without
+(a) recalibrating `REFERENCE_VELOCITY` per substrate (mandatory — the naive swap is a silent 0.919->0.413 failure)
+and (b) accepting a genuine ~14pp discriminative loss from range compression on this (synthetic) substrate.
+Before any Transkun dynamics verdict is trusted, `REFERENCE_VELOCITY` must be set to the Transkun corpus median
+(~65.66), and even then expect ~0.78, not ~0.92. The reference change itself is a production-affecting edit to
+the (otherwise frozen-router-adjacent) measurer and is left as an explicit owner decision, NOT shipped here.
