@@ -1,19 +1,18 @@
 # /// script
-# requires-python = ">=3.10"
+# requires-python = ">=3.11"
 # dependencies = [
 #     "fastapi>=0.115.0",
 #     "uvicorn>=0.34.0",
-#     "torch>=2.0.0",
 #     "numpy>=1.24.0",
-#     "safetensors>=0.4.0",
-#     "aria-amt @ git+https://github.com/EleutherAI/aria-amt.git",
-#     "aria @ git+https://github.com/EleutherAI/aria.git",
+#     "soundfile>=0.12.0",
+#     "pretty_midi>=0.2.10",
+#     "transkun>=2.0.1",
 # ]
 # ///
-"""Local Aria-AMT inference server for dev testing.
+"""Local Transkun inference server for dev testing.
 
 Piano transcription only (MIDI notes + pedal events). No quality scoring.
-Mirrors the production Aria-AMT HF endpoint (amt_handler.py).
+Mirrors the production Transkun HF endpoint (transcription.py).
 
 Accepts JSON with base64-encoded audio fields:
   - chunk_audio (required): current 15s chunk
@@ -49,7 +48,7 @@ _handler = None
 def _init_model(checkpoint_dir: str) -> None:
     global _handler
 
-    print("[AMT] Loading Aria-AMT model...")
+    print("[AMT] Loading Transkun model...")
     from transcription import EndpointHandler
 
     _handler = EndpointHandler(path=checkpoint_dir)
@@ -58,12 +57,12 @@ def _init_model(checkpoint_dir: str) -> None:
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "model": "aria-amt", "loaded": _handler is not None}
+    return {"status": "ok", "model": "transkun", "loaded": _handler is not None}
 
 
 @app.post("/transcribe")
 async def inference(request: Request):
-    """Run Aria-AMT transcription.
+    """Run Transkun transcription.
 
     Accepts two formats:
     1. JSON with base64 fields: {"chunk_audio": "<b64>", "context_audio": "<b64 or null>"}
@@ -125,14 +124,11 @@ async def inference(request: Request):
 if __name__ == "__main__":
     import uvicorn
 
-    # Default: look for aria-amt checkpoint in model weights
-    default_checkpoint = str(
-        Path(__file__).resolve().parents[3] / "model" / "data" / "weights" / "aria-amt"
-    )
-
-    parser = argparse.ArgumentParser(description="Local Aria-AMT inference server (transcription)")
+    # Transkun manages its own bundled weights; --checkpoint-dir is retained for
+    # call-site compatibility but ignored by the (Transkun-backed) EndpointHandler.
+    parser = argparse.ArgumentParser(description="Local Transkun inference server (transcription)")
     parser.add_argument("--port", type=int, default=8001)
-    parser.add_argument("--checkpoint-dir", default=default_checkpoint)
+    parser.add_argument("--checkpoint-dir", default="")
     args = parser.parse_args()
 
     _init_model(args.checkpoint_dir)

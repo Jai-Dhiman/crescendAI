@@ -1,51 +1,43 @@
 # /// script
-# requires-python = ">=3.10"
+# requires-python = ">=3.11"
 # dependencies = [
-#     "torch>=2.0.0",
 #     "numpy>=1.24.0",
-#     "safetensors>=0.4.0",
-#     "aria-amt @ git+https://github.com/EleutherAI/aria-amt.git",
+#     "soundfile>=0.12.0",
+#     "pretty_midi>=0.2.10",
 # ]
 # ///
-"""Smoke test: Aria-AMT transcription on Beethoven_WoO80_var27_8bars_3_15.wav
+"""Smoke test: Transkun transcription on the committed piano fixture.
 
-Runs the full transcription pipeline and prints note/pedal counts.
+Runs the full transcription pipeline (Transkun via transkun_cli) and prints
+note/pedal counts. Defaults to the guaranteed-present committed fixture so the
+gate genuinely runs on every fresh checkout.
 
 Usage:
     cd apps/inference && uv run smoke_test_amt.py
     cd apps/inference && uv run smoke_test_amt.py --wav path/to/other.wav
-    cd apps/inference && uv run smoke_test_amt.py --checkpoint path/to/weights/
 """
 
 from __future__ import annotations
 
 import argparse
 import base64
-import os
 import sys
 import time
 from pathlib import Path
 
-# Must insert amt/ so transcription.py (and its patched amt.config) is importable
+# Must insert amt/ so transcription.py + transkun_cli are importable
 AMT_DIR = str(Path(__file__).resolve().parent / "amt")
 sys.path.insert(0, AMT_DIR)
 
-os.environ.setdefault("CRESCEND_DEVICE", "auto")
-
-DEFAULT_WAV = str(Path(__file__).resolve().parent / "Beethoven_WoO80_var27_8bars_3_15.wav")
-DEFAULT_CHECKPOINT_DIR = str(
-    Path(__file__).resolve().parents[2]
-    / "model"
-    / "data"
-    / "weights"
-    / "aria-amt"
+DEFAULT_WAV = str(
+    Path(__file__).resolve().parent / "amt" / "fixtures" / "piano_sample_5s_16k.wav"
 )
 
 
 def run_amt(wav_path: str, checkpoint_dir: str) -> None:
     from transcription import EndpointHandler
 
-    print(f"\n[AMT] Loading model from {checkpoint_dir}...")
+    print(f"\n[AMT] Resolving Transkun transcriber (path ignored: {checkpoint_dir!r})...")
     handler = EndpointHandler(path=checkpoint_dir)
 
     print(f"\n[AMT] Loading audio: {wav_path}")
@@ -85,15 +77,13 @@ def run_amt(wav_path: str, checkpoint_dir: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="AMT smoke test")
     parser.add_argument("--wav", default=DEFAULT_WAV)
-    parser.add_argument("--checkpoint", default=DEFAULT_CHECKPOINT_DIR)
+    # Transkun manages its own bundled weights; path is retained for call-site
+    # compatibility only (EndpointHandler ignores it). No aria checkpoint gate.
+    parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
     if not Path(args.wav).exists():
         print(f"ERROR: WAV not found: {args.wav}")
-        sys.exit(1)
-
-    if not Path(args.checkpoint).exists():
-        print(f"ERROR: Checkpoint dir not found: {args.checkpoint}")
         sys.exit(1)
 
     run_amt(args.wav, args.checkpoint)

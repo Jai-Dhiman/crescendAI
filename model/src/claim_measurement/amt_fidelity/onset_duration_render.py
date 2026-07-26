@@ -1,23 +1,17 @@
 # /// script
-# requires-python = ">=3.10,<3.13"
+# requires-python = ">=3.11"
 # dependencies = [
-#     "torch>=2.0.0",
 #     "numpy>=1.24.0",
-#     "safetensors>=0.4.0",
 #     "soundfile>=0.12.0",
-#     "numba>=0.59.0",
-#     "llvmlite>=0.42.0",
 #     "pretty_midi>=0.2.10",
-#     "aria-amt @ git+https://github.com/EleutherAI/aria-amt.git",
-#     "aria @ git+https://github.com/EleutherAI/aria.git",
 # ]
 # ///
 """AMT-fidelity map for onset (gates timing) and offset/duration (gates articulation).
 
 Pipeline per clip: ground-truth PercePiano MIDI -> fluidsynth render (fixed gain,
-16k) -> aria-amt _transcribe -> greedy AMT<->GT note match -> onset/duration
-fidelity. The render path is byte-identical to the velocity gate that scored 0.965,
-so onset/duration numbers are directly comparable.
+16k) -> Transkun (transkun_cli.transcribe_pcm) -> greedy AMT<->GT note match ->
+onset/duration fidelity. The render path is byte-identical to the velocity gate that
+scored 0.965, so onset/duration numbers are directly comparable.
 
 Why this is the go/no-go: timing reduces to per-note onset_deviation_ms with +-30ms
 rush/drag thresholds, so the AMT onset NOISE (std of amt-gt onset error) must sit
@@ -25,13 +19,12 @@ well under 30ms. Articulation reduces to mean(perf_dur)/mean(score_dur), so the 
 OFFSET head -- never tested before -- must recover note duration.
 
 Run (from the amt_fidelity dir, data read from the PRIMARY checkout):
-    CRESCEND_DEVICE=auto uv run --script onset_duration_render.py [N]
+    uv run --script onset_duration_render.py [N]
 
 Worktree note: model/data is gitignored and absent here, so all data paths point
 at the primary checkout absolutely. Results land in the PRIMARY tree's results dir.
 """
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -53,18 +46,19 @@ from fidelity_metrics import (  # noqa: E402
 PRIMARY = Path("/Users/jdhiman/Documents/crescendai")
 MIDI_DIR = PRIMARY / "model/data/midi/percepiano"
 SF2 = PRIMARY / "model/data/soundfonts/MuseScore_General.sf3"
-WEIGHTS = PRIMARY / "model/data/weights/aria-amt"
 OUT = PRIMARY / "model/data/results/amt_fidelity_onset_duration.json"
 
 SR = 16000
 GAIN = 0.5
-AMT_WINDOW_S = 30.0       # aria-amt _transcribe hard-truncates to this
+# Transkun does NOT self-truncate (aria-amt implicitly hard-truncated to 30s). We keep the
+# 30s cap EXPLICIT here -- slicing the PCM to AMT_WINDOW_S*SR before transcription -- so the
+# onset/duration numbers stay number-neutral vs the aria baseline (verify at Gate 5 / #128).
+AMT_WINDOW_S = 30.0       # explicit AMT-visible window (was aria's implicit truncation)
 GUARD_S = 1.0             # drop GT notes near the truncation boundary
 ONSET_WINDOW_S = 0.1      # match tolerance (pitch-exact, nearest onset)
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 40
 
 sys.path.insert(0, str(PRIMARY / "apps/inference/amt"))
-os.environ.setdefault("CRESCEND_DEVICE", "auto")
 
 
 def load_gt_notes(midi_path: Path):
@@ -93,10 +87,9 @@ def crop(notes, cutoff_s):
     return [n for n in notes if n["onset"] <= cutoff_s and n["offset"] <= cutoff_s]
 
 
-print("Loading aria-amt...", flush=True)
-from transcription import EndpointHandler  # noqa: E402
-handler = EndpointHandler(path=str(WEIGHTS))
-print("Model ready.\n", flush=True)
+print("Loading Transkun (transkun_cli)...", flush=True)
+from transkun_cli import transcribe_pcm  # noqa: E402
+print("Ready.\n", flush=True)
 
 rng = np.random.default_rng(2026)
 all_midis = sorted(MIDI_DIR.glob("*.mid"))
@@ -123,7 +116,10 @@ with tempfile.TemporaryDirectory() as td:
             n_truncated += int(truncated)
 
             gt = crop(gt_full, cutoff)
-            amt_notes, _ped = handler._transcribe(audio)
+            # Explicit 30s cap: aria-amt implicitly truncated to AMT_WINDOW_S; Transkun does
+            # not, so slice the PCM to keep the AMT-visible window number-neutral (#128 Gate 5).
+            audio_capped = audio[:int(AMT_WINDOW_S * SR)]
+            amt_notes, _ped = transcribe_pcm(audio_capped)
             amt = crop([{"pitch": int(n["pitch"]), "onset": float(n["onset"]),
                          "offset": float(n["offset"]), "velocity": int(n["velocity"])}
                         for n in amt_notes], cutoff)

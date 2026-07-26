@@ -28,11 +28,11 @@ dev:
 muq:
     cd apps/inference && uv run muq/muq_local_server.py --checkpoint-dir ../../model/data/checkpoints/a1_max_sweep/A1max_r32_L7-12_ls0.1
 
-# Start Aria-AMT inference server (transcription, port 8001)
+# Start Transkun inference server (transcription, port 8001)
 amt:
     cd apps/inference && uv run amt/amt_local_server.py --port 8001
 
-# --- AMT MIDI extraction for Aria symbolic path (issue #72) ---
+# --- AMT MIDI extraction for Aria symbolic path (Transkun transcriber, #128; issue #72) ---
 
 # Prepare per-segment WAVs for a tier (t1 | cliburn | chopin). Resumable.
 # t1 renders PercePiano ground-truth MIDI (fluidsynth); cliburn pulls from R2;

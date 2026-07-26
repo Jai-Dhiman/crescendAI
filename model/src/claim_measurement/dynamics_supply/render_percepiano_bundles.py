@@ -1,16 +1,10 @@
 # /// script
-# requires-python = ">=3.10,<3.13"
+# requires-python = ">=3.11"
 # dependencies = [
-#     "torch>=2.0.0",
 #     "numpy>=1.24.0",
-#     "safetensors>=0.4.0",
 #     "soundfile>=0.12.0",
 #     "scipy>=1.10.0",
-#     "numba>=0.59.0",
-#     "llvmlite>=0.42.0",
 #     "pretty_midi>=0.2.10",
-#     "aria-amt @ git+https://github.com/EleutherAI/aria-amt.git",
-#     "aria @ git+https://github.com/EleutherAI/aria.git",
 # ]
 # ///
 """FRONT 8b: render+transcribe stratified PercePiano segments -> AMT bundles that carry
@@ -27,7 +21,7 @@ Also fixes the G-B non-persistence gap: the G-B gate rendered to a tempdir and c
 the downstream oracle rate + any re-score is cheap and reproducible.
 
 Pipeline per segment:  PercePiano .mid --fluidsynth(fixed gain 0.5, 16k)--> wav
-  --aria-amt._transcribe--> notes w/ AMT velocity  (+ gt_mean_velocity from pretty_midi).
+  --transkun_cli.transcribe_pcm--> notes w/ AMT velocity  (+ gt_mean_velocity from pretty_midi).
 
 Stratified sampling (seed 42): segments are binned soft / balanced / loud by GT mean velocity
 vs the labeled-corpus GT median (deadband TAU_GT), then sampled evenly per stratum so all
@@ -35,7 +29,7 @@ three verdict classes are represented (front 8 had 0 soft cues). The GT median i
 every bundle so the score-time label + a tau sweep need no re-render.
 
 Run (from worktree, writing to PRIMARY-tree data which is gitignored/absent in the worktree):
-    CRESCEND_DEVICE=auto uv run --script render_percepiano_bundles.py \
+    uv run --script render_percepiano_bundles.py \
         --out /ABS/crescendai/model/data/evals/percepiano_indep_bundles \
         --n 45
 """
@@ -43,7 +37,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -81,8 +74,11 @@ def gt_mean_velocity(midi_path: Path) -> float | None:
     return float(np.mean(v)) if v else None
 
 
-def transcribe_full(handler, audio: np.ndarray) -> list[dict]:
-    """Contiguous 27s chunks covering the WHOLE short segment; pool clip-relative notes."""
+def transcribe_full(transcribe, audio: np.ndarray) -> list[dict]:
+    """Contiguous 27s chunks covering the WHOLE short segment; pool clip-relative notes.
+
+    `transcribe` is an injected PCM->(notes, pedals) callable (transkun_cli.transcribe_pcm).
+    """
     chunk_len = int(CHUNK_S * SR)
     n_chunks = max(1, int(np.ceil(len(audio) / chunk_len)))
     all_notes: list[dict] = []
@@ -92,7 +88,7 @@ def transcribe_full(handler, audio: np.ndarray) -> list[dict]:
         if len(pcm) < chunk_len:
             pcm = np.concatenate([pcm, np.zeros(chunk_len - len(pcm), dtype=np.float32)])
         offset = start / SR
-        notes, _pedals = handler._transcribe(pcm)
+        notes, _pedals = transcribe(pcm)
         for n in notes:
             all_notes.append({
                 "pitch": int(n["pitch"]),
@@ -136,7 +132,7 @@ def build_bundle(stem: str, notes: list[dict], duration_sec: float,
             {"bar_number": 2, "start_sec": dur},
         ],
         "anchors": {"perf_audio_sec": [0.0, dur], "score_audio_sec": [0.0, dur]},
-        "substrate_versions": {"amt": "aria-amt/piano-medium-double-1.0"},
+        "substrate_versions": {"amt": "transkun/2.0.1"},
         "gt_mean_velocity": round(float(gt_vel), 3),   # INDEPENDENT truth signal
         "gt_corpus_median": round(float(gt_median), 3),
         "coverage_note": "full-segment coverage (contiguous 27s chunks); short PercePiano excerpt.",
@@ -149,7 +145,6 @@ def main(argv: list[str] | None = None) -> int:
                     help="primary-checkout model/data (MIDI/labels/soundfont/weights live here)")
     ap.add_argument("--out", type=Path, default=None,
                     help="default: <data-root>/evals/percepiano_indep_bundles")
-    ap.add_argument("--weights", type=Path, default=None)
     ap.add_argument("--n", type=int, default=45)
     ap.add_argument("--force", action="store_true")
     args = ap.parse_args(argv)
@@ -158,7 +153,6 @@ def main(argv: list[str] | None = None) -> int:
     midi_dir = data_root / "midi/percepiano"
     labels_path = data_root / "labels/composite/composite_labels.json"
     sf2 = data_root / "soundfonts/MuseScore_General.sf3"
-    weights = args.weights or (data_root / "weights/aria-amt")
     out_dir = args.out or (data_root / "evals/percepiano_indep_bundles")
 
     labels = json.loads(labels_path.read_text())
@@ -177,11 +171,9 @@ def main(argv: list[str] | None = None) -> int:
 
     out_dir.mkdir(parents=True, exist_ok=True)
     sys.path.insert(0, str(REPO / "apps/inference/amt"))
-    os.environ.setdefault("CRESCEND_DEVICE", "auto")
     t0 = time.time()
-    from transcription import EndpointHandler
-    handler = EndpointHandler(path=str(weights))
-    print(f"model ready ({time.time()-t0:.1f}s)\n", flush=True)
+    from transkun_cli import transcribe_pcm
+    print(f"transkun_cli ready ({time.time()-t0:.1f}s)\n", flush=True)
 
     done = skipped = 0
     with tempfile.TemporaryDirectory() as td:
@@ -198,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
                 if audio.ndim > 1:
                     audio = audio.mean(axis=1)
                 dur = len(audio) / SR
-                notes = transcribe_full(handler, audio)
+                notes = transcribe_full(transcribe_pcm, audio)
             except Exception as exc:  # explicit: record nothing, keep going
                 print(f"  [{i+1}/{len(picked)}] {stem[:34]} FAILED: {exc}", flush=True)
                 continue

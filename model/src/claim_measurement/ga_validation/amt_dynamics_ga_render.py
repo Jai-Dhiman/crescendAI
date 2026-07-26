@@ -1,25 +1,19 @@
 # /// script
-# requires-python = ">=3.10,<3.13"
+# requires-python = ">=3.11"
 # dependencies = [
-#     "torch>=2.0.0",
 #     "numpy>=1.24.0",
-#     "safetensors>=0.4.0",
 #     "soundfile>=0.12.0",
-#     "numba>=0.59.0",
-#     "llvmlite>=0.42.0",
 #     "pretty_midi>=0.2.10",
-#     "aria-amt @ git+https://github.com/EleutherAI/aria-amt.git",
-#     "aria @ git+https://github.com/EleutherAI/aria.git",
 # ]
 # ///
 """Dynamics G-A stage 1: construction-known velocity-scaling corruption -> render -> AMT.
 
 For N base PercePiano clips, scale ALL MIDI velocities by {0.55 soft, 1.0 neutral,
 1.45 loud} (a true, construction-known performance-level change), render at FIXED gain,
-transcribe with aria-amt, and record the per-(clip,scale) AMT velocity lists. Stage 2
+transcribe with Transkun, and record the per-(clip,scale) AMT velocity lists. Stage 2
 (amt_dynamics_ga_metrics) feeds these to the REAL DynamicsMeasurer + frozen route_verdict.
 
-Run:  CRESCEND_DEVICE=auto uv run --script amt_dynamics_ga_render.py [N]
+Run:  uv run --script amt_dynamics_ga_render.py [N]
 """
 import json
 import os
@@ -36,14 +30,12 @@ REPO = Path(__file__).resolve().parents[4]
 MIDI_DIR = REPO / "model/data/midi/percepiano"
 LABELS = json.loads((REPO / "model/data/labels/composite/composite_labels.json").read_text())
 SF2 = REPO / "model/data/soundfonts/MuseScore_General.sf3"
-WEIGHTS = REPO / "model/data/weights/aria-amt"
 SR = 16000
 GAIN = 0.5
 SCALES = {"soft": 0.55, "neutral": 1.0, "loud": 1.45}
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 30
 
 sys.path.insert(0, str(REPO / "apps/inference/amt"))
-os.environ.setdefault("CRESCEND_DEVICE", "auto")
 
 
 def render_scaled(midi_path, scale, wav_path):
@@ -61,10 +53,9 @@ def render_scaled(midi_path, scale, wav_path):
     os.unlink(tmid)
 
 
-print("Loading aria-amt...", flush=True)
-from transcription import EndpointHandler
-handler = EndpointHandler(path=str(WEIGHTS))
-print("Model ready.\n", flush=True)
+print("Loading Transkun (transkun_cli)...", flush=True)
+from transkun_cli import transcribe_pcm
+print("Ready.\n", flush=True)
 
 labeled = [p for p in sorted(MIDI_DIR.glob("*.mid")) if LABELS.get(p.stem, {}).get("dynamics") is not None]
 rng = np.random.default_rng(123)
@@ -82,7 +73,7 @@ with tempfile.TemporaryDirectory() as td:
                 audio, _ = sf.read(str(wav), dtype="float32")
                 if audio.ndim > 1:
                     audio = audio.mean(axis=1)
-                notes, _ped = handler._transcribe(audio)
+                notes, _ped = transcribe_pcm(audio)
                 vels = [int(n["velocity"]) for n in notes]
             except Exception as exc:
                 print(f"  [{i+1}/{len(paths)}] {mp.stem[:24]} {sname} FAIL: {exc}", flush=True)

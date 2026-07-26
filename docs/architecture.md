@@ -59,7 +59,7 @@ From *The runtime behind production deep agents* (Mahler wiki): "building a good
 
 ### Model System (`docs/model/`)
 
-The audio intelligence layer. A finetuned MuQ foundation model (A1-Max) outputs 6 teacher-grounded dimensions: dynamics, timing, pedaling, articulation, phrasing, interpretation. Deployed as a 4-fold ensemble on HuggingFace Inference Endpoints (79.85% pairwise accuracy on clean folds; the older 80.8% figure was from a leaked-fold run -- see `docs/model/00-research-timeline.md`). Populates the enrichment cache (Layer 1 of the context graph) with prompt-aware extraction keys. The model taxonomy, encoder architecture, training pipeline, and research roadmap live here.
+The audio intelligence layer. A finetuned MuQ foundation model (A1-Max) outputs 6 teacher-grounded dimensions: dynamics, timing, pedaling, articulation, phrasing, interpretation. Deployed as a 4-fold ensemble on HuggingFace Inference Endpoints (79.85% pairwise accuracy on clean folds; the older 80.8% figure was from a leaked-fold run -- see `docs/model/00-research-timeline.md`). Populates the enrichment cache (Layer 1 of the context graph) with prompt-aware extraction keys. The parallel symbolic stream derives its note-level features (velocity, offset, pedal) from Transkun (MIT, ISMIR 2024) audio-to-MIDI transcription -- the non-LLM transcriber behind the frozen `/transcribe` service. The model taxonomy, encoder architecture, training pipeline, and research roadmap live here.
 
 Entry point: [`docs/model/00-research-timeline.md`](model/00-research-timeline.md)
 

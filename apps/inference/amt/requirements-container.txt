@@ -1,8 +1,10 @@
-# Hybrid server: ONNX encoder + PyTorch decoder
-# NOTE: torch is installed separately from the CPU wheel index in the Dockerfile
-onnxruntime>=1.17.0
+# Transkun transcription server.
+# transkun bundles its own pretrained weights (pretrained/2.0.pt) and pulls its
+# torch/pydub/soxr/moduleconf deps; torch itself is installed separately from the
+# CPU wheel index in the Dockerfile so we get the CPU build, not the CUDA one.
+transkun>=2.0.1
 numpy>=1.24.0
+soundfile>=0.12.0
+pretty_midi>=0.2.10
 fastapi>=0.110.0
 uvicorn[standard]>=0.27.0
-safetensors>=0.4.0
-aria-amt @ git+https://github.com/EleutherAI/aria-amt.git

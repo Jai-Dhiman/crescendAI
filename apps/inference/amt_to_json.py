@@ -1,13 +1,12 @@
 # /// script
-# requires-python = ">=3.10"
+# requires-python = ">=3.11"
 # dependencies = [
-#     "torch>=2.0.0",
 #     "numpy>=1.24.0",
-#     "safetensors>=0.4.0",
-#     "aria-amt @ git+https://github.com/EleutherAI/aria-amt.git",
+#     "soundfile>=0.12.0",
+#     "pretty_midi>=0.2.10",
 # ]
 # ///
-"""Transcribe a wav via Aria-AMT and dump notes + pedals to JSON.
+"""Transcribe a wav via Transkun and dump notes + pedals to JSON.
 
     cd apps/inference && uv run amt_to_json.py --wav path.wav --out notes.json
 """
@@ -17,23 +16,20 @@ from __future__ import annotations
 import argparse
 import base64
 import json
-import os
 import sys
 import time
 from pathlib import Path
 
 AMT_DIR = str(Path(__file__).resolve().parent / "amt")
 sys.path.insert(0, AMT_DIR)
-os.environ.setdefault("CRESCEND_DEVICE", "auto")
-
-DEFAULT_CKPT = str(Path(__file__).resolve().parents[2] / "model" / "data" / "weights" / "aria-amt")
 
 
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--wav", required=True)
     p.add_argument("--out", required=True)
-    p.add_argument("--checkpoint", default=DEFAULT_CKPT)
+    # Transkun manages its own bundled weights; path retained but ignored.
+    p.add_argument("--checkpoint", default="")
     args = p.parse_args()
 
     from transcription import EndpointHandler

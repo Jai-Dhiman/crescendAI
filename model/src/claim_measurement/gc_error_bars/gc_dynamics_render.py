@@ -1,23 +1,17 @@
 # /// script
-# requires-python = ">=3.10,<3.13"
+# requires-python = ">=3.11"
 # dependencies = [
-#     "torch>=2.0.0",
 #     "numpy>=1.24.0",
-#     "safetensors>=0.4.0",
 #     "soundfile>=0.12.0",
-#     "numba>=0.59.0",
-#     "llvmlite>=0.42.0",
 #     "pretty_midi>=0.2.10",
-#     "aria-amt @ git+https://github.com/EleutherAI/aria-amt.git",
-#     "aria @ git+https://github.com/EleutherAI/aria.git",
 # ]
 # ///
 """G-C stage 1: empirical substrate error of the dynamics statistic (mean AMT velocity).
 
 For each of N PercePiano clips: render ONCE at the measurer's calibration gain, then
 re-transcribe the SAME performance under K perceptually neutral recording nuisances
-(sub-JND gain jitter + high-SNR additive white noise). aria-amt decodes greedily, so
-re-transcribing an identical WAV is a no-op (verified per clip: DETERMINISM CHECK) --
+(sub-JND gain jitter + high-SNR additive white noise). Transkun decodes deterministically
+on CPU, so re-transcribing an identical WAV is a no-op (verified per clip: DETERMINISM CHECK) --
 the churn we record is the substrate's response to nuisance-equivalent captures, i.e.
 exactly what re-recording the same performance would exercise. Stage 2
 (gc_churn_metrics) reduces the per-variant velocities to the measured 1-sigma the
@@ -27,10 +21,9 @@ Nuisance model (reported in the output so the dead-band is auditable, not a hidd
   gain jitter  ~ U(-GAIN_JITTER_DB, +GAIN_JITTER_DB) dB  (below the ~1 dB loudness JND)
   additive     ~ white Gaussian at SNR_DB relative to clip RMS (inaudible)
 
-Run:  CRESCEND_DEVICE=auto uv run --script gc_dynamics_render.py [N]
+Run:  uv run --script gc_dynamics_render.py [N]
 """
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -52,7 +45,6 @@ REPO = (Path(*_parts[:_parts.index(".worktrees")]) if ".worktrees" in _parts
 MIDI_DIR = REPO / "model/data/midi/percepiano"
 LABELS = json.loads((REPO / "model/data/labels/composite/composite_labels.json").read_text())
 SF2 = REPO / "model/data/soundfonts/MuseScore_General.sf3"
-WEIGHTS = REPO / "model/data/weights/aria-amt"
 OUT = REPO / "model/data/results/gc_dynamics_churn.json"
 
 SR = 16000
@@ -64,7 +56,6 @@ ONSET_WINDOW_S = 0.1       # per-note match tolerance
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 12
 
 sys.path.insert(0, str(REPO / "apps/inference/amt"))
-os.environ.setdefault("CRESCEND_DEVICE", "auto")
 
 
 def render(midi_path, wav_path):
@@ -85,14 +76,13 @@ def perturb(audio, rng):
     return out.astype(np.float32)
 
 
-print("Loading aria-amt...", flush=True)
-from transcription import EndpointHandler  # noqa: E402
-handler = EndpointHandler(path=str(WEIGHTS))
-print("Model ready.\n", flush=True)
+print("Loading Transkun (transkun_cli)...", flush=True)
+from transkun_cli import transcribe_pcm  # noqa: E402
+print("Ready.\n", flush=True)
 
 
 def transcribe(audio):
-    notes, _ped = handler._transcribe(audio)
+    notes, _ped = transcribe_pcm(audio)
     return [{"pitch": int(n["pitch"]), "onset": float(n["onset"]),
              "offset": float(n["offset"]), "velocity": int(n["velocity"])} for n in notes]
 
