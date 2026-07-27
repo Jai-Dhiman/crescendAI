@@ -248,14 +248,195 @@ def stage_compare():
     print(f"\n  wrote {OUT}")
 
 
+# ============================ Stage 2, LEVER 1 probe (#125) ============================
+# Stage 1 found the deployed gap (transkun 0.790 vs aria 0.816) is a calibration artifact:
+# the FROZEN LightGBM was trained on CLEAN score note-counts, and aria's ~4% over-count lands
+# closer to that clean distribution than transkun's ~7% under-count. LEVER 1 asks: if we RE-FIT
+# the head on transkun-transcribed features, does the gap close (and does it beat aria's 0.816)?
+#
+# The honest full test needs transkun transcriptions of all ~7.9k TRAIN pieces (a large GPU/yt-dlp
+# job). This is the CHEAP proxy: re-fit on the ~39 transcriptions we already have, cross-validated.
+#
+# CONFOUND (why a naive "does the re-fit head beat 0.816?" is unfair): the deployed 0.816 head
+# trained on 7,899 pieces; a re-fit head here can only train on ~38 (LOO within the subset). Phase-5d
+# showed train-SET-SIZE dominates (clean-full-7899 ~0.79 >> clean-matched-75 ~0.70). So a 38-piece
+# head loses to 0.816 on size grounds ALONE, independent of calibration. The confound-free signal is
+# a MATCHED-N contrast -- both arms trained on the same ~38 pieces, differing only in feature source:
+#   arm A  clean-train -> transkun-test  (the deployment mismatch, matched-N)
+#   arm B  transkun-train -> transkun-test  (LEVER 1: calibration matched, matched-N)
+# B - A isolates the calibration effect from the train-size effect. We ALSO report the literal bar
+# (B vs the 7.9k deployed aria=0.816) so the underpowered comparison is on record, correctly framed.
+
+# small-N head config, held IDENTICAL across arms A/B/C so the contrast is fair (the deployed
+# min_child_samples=40 cannot split 38 rows -> would collapse to a constant; tune for N~38 instead).
+SMALL_N_PARAMS = dict(objective="regression", n_estimators=200, learning_rate=0.05, num_leaves=7,
+                      min_child_samples=5, subsample=0.9, subsample_freq=1, colsample_bytree=0.9,
+                      reg_lambda=1.0, random_state=2026, n_jobs=-1, verbosity=-1)
+DEPLOYED_PARAMS = dict(objective="regression", n_estimators=400, learning_rate=0.03, num_leaves=31,
+                       min_child_samples=40, subsample=0.8, subsample_freq=1, colsample_bytree=0.9,
+                       reg_lambda=1.0, random_state=2026, n_jobs=-1, verbosity=-1)
+OUT_REFIT = Path("/Users/jdhiman/Documents/crescendai/model/data/results/mirex_stage2_refit_probe.json")
+
+
+def _paired_rows():
+    """The 39 pieces with clean + aria + transkun features (same construction as stage_compare)."""
+    manifest = json.loads(MANIFEST.read_text())
+    rows = []
+    with zipfile.ZipFile(MID_ZIP) as zf:
+        for m in manifest:
+            aria_notes = p3e._stitch_amt_notes(m["seg_id"])
+            tk_notes = _transkun_notes(m["seg_id"])
+            if not aria_notes or not tk_notes:
+                continue
+            clean_notes = notes_from_midi_bytes(zf.read(m["midi_name"]))
+            cf, af, tf = (p3e._feats_from_notes(clean_notes),
+                          p3e._feats_from_notes(aria_notes),
+                          p3e._feats_from_notes(tk_notes))
+            if cf is None or af is None or tf is None:
+                continue
+            rows.append({"grade": m["grade"], "clean": cf, "aria": af, "transkun": tf})
+    return rows
+
+
+def _loo_predict(train_X, test_X, y, params):
+    """Leave-one-out CV predictions: fit on the other n-1 train rows, predict the held-out test row."""
+    import lightgbm as lgb
+    n = len(y)
+    preds = np.empty(n)
+    for i in range(n):
+        tr = np.arange(n) != i
+        preds[i] = lgb.LGBMRegressor(**params).fit(train_X[tr], y[tr]).predict(test_X[i:i + 1])[0]
+    return preds
+
+
+def _boot_tauc_diff(pred_a, pred_b, grades, n_boot=5000, seed=2026):
+    """Paired bootstrap over pieces: 95% CI + P(a>b) on tau_c(a) - tau_c(b) (same resample both arms)."""
+    n = len(grades)
+    rng = np.random.default_rng(seed)
+    d = np.empty(n_boot)
+    for b in range(n_boot):
+        idx = rng.integers(0, n, n)
+        d[b] = (stats.kendalltau(pred_a[idx], grades[idx], variant="c").statistic
+                - stats.kendalltau(pred_b[idx], grades[idx], variant="c").statistic)
+    lo, hi = (float(x) for x in np.percentile(d, [2.5, 97.5]))
+    return lo, hi, float(np.mean(d > 0))
+
+
+def stage_refit():
+    import lightgbm as lgb
+    rows = _paired_rows()
+    n = len(rows)
+    print(f"paired pieces (clean + aria + transkun all present): {n}", flush=True)
+    if n < 10:
+        raise SystemExit(f"too few paired pieces ({n}) for a stable tau-c")
+
+    feats = list(rows[0]["clean"].keys())
+    grades = np.array([r["grade"] for r in rows])
+    clean_X = np.array([[r["clean"][f] for f in feats] for r in rows], float)
+    aria_X = np.array([[r["aria"][f] for f in feats] for r in rows], float)
+    tk_X = np.array([[r["transkun"][f] for f in feats] for r in rows], float)
+
+    # --- reference: reconstruct the DEPLOYED 7.9k-clean-trained head (validate it reproduces
+    #     Stage-1's 0.816/0.790 before trusting anything new -- wave-5 instrument discipline) ---
+    full_records, _ = load_records(LABELS, MID_ZIP)
+    full_rows, _ = load_or_extract(full_records, use_cache=True)
+    fX = np.array([[r[f] for f in feats] for r in full_rows], float)
+    fy = np.array([r["grade"] for r in full_rows], int)
+    deployed = lgb.LGBMRegressor(**DEPLOYED_PARAMS).fit(fX, fy)
+    dep_pred_aria, dep_pred_tk = deployed.predict(aria_X), deployed.predict(tk_X)
+    tau_dep_aria, tau_dep_tk = p3e.tau_c(dep_pred_aria, grades), p3e.tau_c(dep_pred_tk, grades)
+    print(f"  [instrument check] deployed 7.9k head: aria={tau_dep_aria:.4f} (exp ~0.8158)  "
+          f"transkun={tau_dep_tk:.4f} (exp ~0.7897)", flush=True)
+
+    # --- matched-N LOO arms (all train on ~38 pieces, IDENTICAL small-N config) ---
+    predA = _loo_predict(clean_X, tk_X, grades, SMALL_N_PARAMS)   # clean-train -> transkun-test
+    predB = _loo_predict(tk_X, tk_X, grades, SMALL_N_PARAMS)      # LEVER 1: transkun -> transkun
+    predC = _loo_predict(clean_X, clean_X, grades, SMALL_N_PARAMS)  # matched-N clean ceiling
+    tauA, tauB, tauC = (p3e.tau_c(predA, grades), p3e.tau_c(predB, grades), p3e.tau_c(predC, grades))
+
+    # --- the two decisive contrasts ---
+    cal_lo, cal_hi, cal_p = _boot_tauc_diff(predB, predA, grades)          # calibration delta (B-A)
+    bar_lo, bar_hi, bar_p = _boot_tauc_diff(predB, dep_pred_aria, grades)  # literal bar (B vs 0.816)
+
+    bar_pass = bar_lo > 0.0          # LEVER-1 head beats deployed aria, CI excludes zero
+    cal_real = cal_lo > 0.0          # calibration matching helps, CI excludes zero (confound-free)
+
+    if bar_pass:
+        verdict = (f"PASS (unexpected): LEVER-1 re-fit head (transkun-trained, LOO) tau-c {tauB:.3f} "
+                   f"beats deployed aria {tau_dep_aria:.3f}, 95% CI [{bar_lo:+.3f},{bar_hi:+.3f}] "
+                   f"excludes zero. The gap WAS pure head calibration -- full 7.9k transkun re-fit warranted.")
+    elif cal_real:
+        verdict = (f"LITERAL BAR NOT MET, but CALIBRATION IS A REAL LEVER at matched-N: B-A = "
+                   f"{tauB - tauA:+.3f}, 95% CI [{cal_lo:+.3f},{cal_hi:+.3f}] excludes zero. Re-fitting "
+                   f"the head on transkun features helps it read transkun; the subset can't clear the "
+                   f"absolute 0.816 (7.9k-trained) bar on train-size grounds (Phase-5d). A full-7.9k "
+                   f"transkun re-fit is the only way to test the absolute bar -- borderline worth it.")
+    else:
+        verdict = (f"DEAD: neither test passes. LEVER-1 head tau-c {tauB:.3f} does NOT beat deployed "
+                   f"aria {tau_dep_aria:.3f} (bar CI [{bar_lo:+.3f},{bar_hi:+.3f}]), AND the confound-free "
+                   f"calibration delta B-A={tauB - tauA:+.3f} is within noise (CI [{cal_lo:+.3f},"
+                   f"{cal_hi:+.3f}]). Re-fitting the head on transkun features does NOT close the gap even "
+                   f"at matched-N -> a full-7.9k transkun re-fit (expensive) would not help either. "
+                   f"Confirms Gate-0: #104 Stage-2 has no positive-EV lever left.")
+
+    summary = {
+        "n_paired": n,
+        "deployed_7900_trained_reference": {
+            "clean_subset": p3e.tau_c(deployed.predict(clean_X), grades),
+            "aria_amt": tau_dep_aria, "transkun": tau_dep_tk,
+        },
+        "matched_N_loo_arms": {
+            "A_clean_train_transkun_test": tauA,
+            "B_transkun_train_transkun_test_LEVER1": tauB,
+            "C_clean_train_clean_test_ceiling": tauC,
+            "note": "all trained on ~38 pieces, identical SMALL_N_PARAMS; only feature source differs",
+        },
+        "calibration_delta_B_minus_A": {
+            "point": tauB - tauA, "ci95": [cal_lo, cal_hi], "p_B_gt_A": cal_p,
+            "is_real_confound_free": cal_real,
+        },
+        "literal_stage2_bar_B_vs_deployed_aria": {
+            "point": tauB - tau_dep_aria, "ci95": [bar_lo, bar_hi], "p_B_gt_aria": bar_p,
+            "passes": bar_pass,
+            "caveat": "B trains on ~38 pieces, deployed aria on 7,899; this comparison is train-size "
+                      "confounded (unfair to B). Use the matched-N calibration delta for the real signal.",
+        },
+        "verdict": verdict,
+        "params": {"small_n": SMALL_N_PARAMS, "deployed": DEPLOYED_PARAMS},
+    }
+    OUT_REFIT.parent.mkdir(parents=True, exist_ok=True)
+    OUT_REFIT.write_text(json.dumps({"summary": summary}, indent=2))
+
+    print("\n=== STAGE 2, LEVER 1 PROBE: re-fit difficulty head on transkun features (#125) ===")
+    print(f"  paired pieces: {n}")
+    print(f"\n  deployed 7.9k-clean-trained head (train-size {len(fy)}):")
+    print(f"    clean-subset = {summary['deployed_7900_trained_reference']['clean_subset']:.4f}")
+    print(f"    aria-amt     = {tau_dep_aria:.4f}   (the 0.816 bar)")
+    print(f"    transkun     = {tau_dep_tk:.4f}   (the gap Lever 1 tries to close)")
+    print(f"\n  matched-N LOO arms (all trained on ~{n - 1} pieces, identical config):")
+    print(f"    A  clean-train  -> transkun-test  = {tauA:.4f}   (deployment mismatch)")
+    print(f"    B  transkun-train-> transkun-test = {tauB:.4f}   (LEVER 1)")
+    print(f"    C  clean-train  -> clean-test     = {tauC:.4f}   (matched-N clean ceiling)")
+    print(f"\n  CONFOUND-FREE calibration delta  B - A = {tauB - tauA:+.4f}   "
+          f"95% CI [{cal_lo:+.4f},{cal_hi:+.4f}]  P(B>A)={cal_p:.2f}  "
+          f"{'REAL' if cal_real else 'within noise'}")
+    print(f"  literal bar (train-size confounded) B vs deployed-aria = {tauB - tau_dep_aria:+.4f}  "
+          f"95% CI [{bar_lo:+.4f},{bar_hi:+.4f}]  P(B>aria)={bar_p:.2f}  "
+          f"{'PASS' if bar_pass else 'not met'}")
+    print(f"\n  VERDICT: {verdict}")
+    print(f"\n  wrote {OUT_REFIT}")
+
+
 def main():
     stage = sys.argv[sys.argv.index("--stage") + 1] if "--stage" in sys.argv else "compare"
     if stage == "transcribe":
         stage_transcribe()
     elif stage == "compare":
         stage_compare()
+    elif stage == "refit":
+        stage_refit()
     else:
-        raise SystemExit(f"unknown --stage {stage!r} (transcribe|compare)")
+        raise SystemExit(f"unknown --stage {stage!r} (transcribe|compare|refit)")
 
 
 if __name__ == "__main__":
