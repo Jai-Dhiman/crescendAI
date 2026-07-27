@@ -1182,7 +1182,7 @@ edge is real heterogeneous-gain audio (G-F), untested here (controlled fluidsynt
 `build_gt_cued_inputs.py` (test `test_build_gt_cued_inputs.py`, 3 green; full `dynamics_supply` suite 19
 green). Result: `model/data/results/dyn_gt_teacher_rate.json`.
 
-**SUBSTRATE CAVEAT — these numbers were measured under aria-amt; Transkun is now the transcriber (#128), so re-baseline before trusting them.**
+**SUBSTRATE CAVEAT — RESOLVED by FRONT 8d (below). The aria-amt rate does NOT transfer to Transkun: the naive substrate swap CRASHES 0.919 -> 0.413, and recalibrating the velocity reference recovers it only to 0.784. The prediction "would likely RISE" (struck through below) was FALSIFIED.**
 Every AMT-substrate number in FRONT 8/8b/8c (and the upstream G-B 0.544 / G-C error bars) was measured on
 **aria-amt** velocity, the transcriber in production when they were recorded. The 0.919 rate IS the aria-amt
 AMT↔GT velocity agreement (0.965) expressed as a decision rate. **#128 adopted Transkun** (MIT, ISMIR 2024;
@@ -1190,5 +1190,128 @@ vel F1 0.926, emits velocity+pedal) repo-wide behind the frozen `/transcribe` co
 (`render_percepiano_bundles.py` et al.) now call `transkun_cli.transcribe_pcm`, so the numbers here are
 stale until re-rendered. The transcribe→score split keeps this a pure substrate swap: re-render the bundles
 then re-score `independent_rate.py` / `route_and_score.py` (bundles + rate JSONs regenerate; no code change
-to the scorers). The rate would likely RISE (better velocity fidelity → tighter AMT↔GT agreement). Until the
-#128 Gate 5 re-baseline lands, read every number here as "aria-amt substrate," not "the transcriber substrate."
+to the scorers). ~~The rate would likely RISE (better velocity fidelity → tighter AMT↔GT agreement).~~ **[FALSIFIED
+by 8d: the rate CRASHED, because the aria-calibrated `REFERENCE_VELOCITY=51.5` does not transfer and Transkun
+compresses velocity dynamic range.]** Every number in FRONT 8/8b/8c is "aria-amt substrate"; see FRONT 8d for
+the Transkun re-baseline.
+
+## FRONT 8d UPDATE (#101, 2026-07-26): the Transkun re-baseline — the dynamics rate does NOT transfer across transcribers (0.919 -> 0.413 naive; 0.784 recalibrated)
+
+#128 swapped the production transcriber aria-amt -> Transkun repo-wide. FRONT 8d re-renders the SAME 168
+stratified PercePiano segments under Transkun (seed-42 `stratify` is nested-superset, so the stem set is
+byte-identical to 8b's — a true PAIRED experiment: only the transcriber changes; GT-MIDI truth labels, tau,
+and the scorer are all held fixed) and re-scores them through the unchanged `independent_rate.py` verifier.
+Harness: `render_percepiano_bundles.py` now calls `transkun_cli.transcribe_pcm` (#128, no scorer change);
+new `compare_substrates.py` (+ `test_compare_substrates.py`, 7 green; full `claim_measurement` suite 57 pass)
+does the paired join. Results: `model/data/results/{dynamics_independent_rate_transkun,dyn_substrate_compare,
+dyn_transkun_recalibrated_rate}.json`; 168 Transkun bundles at `model/data/evals/percepiano_indep_bundles_transkun/`.
+
+**Result — the rate collapses on the naive swap, and the collapse decomposes into TWO causes:**
+
+| substrate / reference | rate | committed | 95% CI half | G-D | read |
+|---|---:|---:|---:|:--:|---|
+| aria-amt, `REFERENCE_VELOCITY=51.5` (8b) | **0.919** | 123 | 0.045 | PASS | the shipped headline |
+| Transkun, reference UNCHANGED (51.5) | **0.413** | 143 | 0.080 | FAIL | naive swap: calibration debt |
+| Transkun, reference recalibrated to 65.66 | **0.784** | 116 | 0.073 | FAIL | offset removed, residual remains |
+
+Paired McNemar on the 103 committed-in-both (naive swap vs aria): 54 segments flipped SUPPORTED->REFUTED vs
+only 5 the other way, **exact two-sided p = 1.9e-11** — an overwhelmingly directional, non-sampling degradation.
+
+**Cause 1 (dominant, ~73% of the drop): calibration debt.** The whole_piece statistic is `d = mean(AMT
+velocity) - REFERENCE_VELOCITY`, and `REFERENCE_VELOCITY=51.5` was the aria corpus median per-clip mean
+velocity (`dynamics.py:15`, flagged `locked:false -- recalibrate per substrate`). Transkun's corpus median is
+**65.66** (offset **+13.4**), so every `d` is inflated: GT-soft segments move from d=-11.4 (correctly "soft")
+to d=+6.8 ("loud"), and GT-balanced from d~=0 to d=+13.3 ("loud"). The verifier then REFUTES the GT soft/balanced
+claims while SUPPORTING all 56 loud ones (an already-loud reading pushed further up never crosses the boundary
+the wrong way). Moving the reference to 65.66 recovers 0.413 -> 0.784 (0.371 of the 0.506 gap). This is the
+recalibration step the code itself flagged and #128 did not action.
+
+**Cause 2 (residual, ~14pp, un-recoverable by a scalar reference): velocity dynamic-range COMPRESSION.**
+Reference-independent (a difference of two group means, so the reference cancels): the GT-loud vs GT-soft
+mean-d SEPARATION is **24.87** velocity units under aria but only **16.07** under Transkun — Transkun squashes
+the loud-vs-soft gap to ~65% of aria's range. A scalar reference re-centers but cannot un-compress, so after
+recalibration the extremes stay elevated (loud 10 REF, soft 11 REF vs aria's 5/4) while balanced nearly fully
+recovers (4 REF). Per-stratum paired velocity shift (Transkun - aria): loud +9.41, soft **+18.21**, balanced
++13.37 — the shift is largest exactly where the range collapses.
+
+**Honest caveat — measured on fluidsynth renders, which may be OOD for Transkun's velocity head.** Transkun was
+trained/validated on real piano recordings (MAESTRO), where #125 Stage-0 showed it WINS on velocity; here it
+transcribes fixed-gain fluidsynth audio. So the compression may be partly a synthetic-audio artifact rather than
+intrinsic — this folds directly into the still-open G-F (real-audio) edge, which is now higher priority: whether
+Transkun's velocity range widens on real audio decides whether the recalibrated 0.784 is a floor or the ceiling.
+
+**Verdict + action.** Faithfulness rates are SUBSTRATE-SPECIFIC and do not transfer across transcribers without
+(a) recalibrating `REFERENCE_VELOCITY` per substrate (mandatory — the naive swap is a silent 0.919->0.413 failure)
+and (b) accepting a genuine ~14pp discriminative loss from range compression on this (synthetic) substrate.
+Before any Transkun dynamics verdict is trusted, `REFERENCE_VELOCITY` must be set to the Transkun corpus median
+(~65.66), and even then expect ~0.78, not ~0.92. The reference change itself is a production-affecting edit to
+the (otherwise frozen-router-adjacent) measurer and is left as an explicit owner decision, NOT shipped here.
+
+## FRONT 9 UPDATE (#101, 2026-07-26; pedaling corrected 2026-07-27): REAL-audio Transkun faithfulness on the verifiable set — dynamics 0.979, pedaling 1.000, articulation ungated; the 8d compression was a fluidsynth artifact
+
+8b/8c/8d measured dynamics on FLUIDSYNTH-rendered PercePiano (synthetic, because PercePiano is MIDI-only).
+FRONT 9 closes the G-F real-audio edge AND produces the production-substrate (Transkun) numbers across the
+verifiable dimensions, using **MAESTRO** — the one corpus with REAL recorded audio AND time-aligned GT MIDI
+(Yamaha Disklavier captures MIDI while the acoustic performance is mic'd). Same non-circular oracle as 8b
+(truth = GT MIDI, score = Transkun-from-real-audio), now on real audio. **MAESTRO TEST split only** (Transkun
+trained on MAESTRO train → test avoids train-on-test). 24 performances / 10 composers → 188 27s windows.
+Harness `render_maestro_bundles.py` (transcribe each full performance once, window AMT+GT post-hoc; multi-oracle
+bundles carry GT velocity + CC64 pedal + note offsets). Data `model/data/evals/maestro_indep_bundles/`.
+
+**2026-07-27 audit correction.** The original windowing kept only CC64 events whose timestamps fell inside each
+27s window. It failed to carry the pedal state into the next window when the pedal was already down; 88/188
+original bundles definitely began with an unrepresented release event. The original pedaling results
+(0.991 scoped, 0.960 lifted) are retired. `window_pedals()` now injects the entering down-state, with boundary
+tests. A clean 24/24-performance retranscription regenerated all 188 bundles in 54.7 minutes with zero failures.
+The corrected rates below come only from those regenerated bundles.
+
+**The verifiable-set table (real audio, Transkun, reference recalibrated per substrate×corpus):**
+
+| dimension | real-audio Transkun rate | G-D | vs prior |
+|---|---:|:--:|---|
+| **dynamics** | **0.979** CI[0.952, 1.000] (145 committed) | PASS | > aria-fluidsynth 0.919; naive ref → 0.236 |
+| **pedaling** | **1.000** CI[1.000, 1.000] (115 committed) | PASS | aria could NOT deliver (G-B 0.181, saturated) |
+| **articulation** | probe: statistic corr **0.876**, qualified UNGATE | probe | aria could NOT measure at all |
+| timing | not run | — | parked on the #119/#126 score-alignment matcher |
+
+**Finding 1 — the 8d velocity-range compression was 100% a fluidsynth-OOD artifact.** On real audio Transkun's
+per-window mean velocity tracks GT at **corr 0.989** (mean |AMT−GT| = 1.12, signed offset +0.76, vs fluidsynth
++13). The reference-free loud−soft SEPARATION is **23.65 (AMT) vs 23.68 (GT)** — essentially identical, vs
+fluidsynth's compressed 16.07. Transkun preserves the full dynamic range on real (in-distribution) audio. The
+fluidsynth substrate was not merely less realistic — it was *actively misleading* about Transkun's velocity
+fidelity, because fixed-gain fluidsynth is outside Transkun's training distribution while real recordings are in it.
+
+**Finding 2 — recalibration per (substrate × corpus) is MANDATORY, not optional.** Dynamics naive (aria-PercePiano
+`REFERENCE_VELOCITY=51.5`) → **0.236** (MAESTRO is louder-played, GT median 64.3, so the reference is doubly
+wrong); recalibrated to the Transkun-MAESTRO corpus median (64.33) → **0.979**. Same for pedaling
+(`REFERENCE_FRACTION` 0.4623 → AMT median 0.5798; GT median 0.5745). The 0.24-vs-0.98 swing on ONE config line is the operational headline:
+a substrate/corpus swap silently invalidates the decision reference.
+
+**Finding 3 — Transkun UNBLOCKS pedaling, which aria could not deliver.** Aria's pedal head saturated at a ~0.55
+ceiling (perceptual G-B 0.181, over-pedal detection failed). Transkun's real-audio pedal on-fraction correlates
+**0.9976** with GT and reaches 1.0 (no saturation). Production rate (over-pedal `+` scoped out per the aria-era
+`substrate_insensitive_polarity`) = **1.000** (115 committed); with `--lift-scoping` (probe whether Transkun can
+now do over-pedal) = **1.000** (126 committed), still G-D PASS (11/39 over-pedal windows commit, all supported;
+28 remain near-threshold abstentions). → **Recommendation:
+the pedaling `substrate_insensitive_polarity={whole_piece:"+"}` scoping is arguably liftable under Transkun.**
+
+**Finding 4 — articulation qualifies for a (caveated) ungate.** The gate is offset reliability. Transkun matches
+99.8% of notes to GT; onset error median 3.1ms; **offset error median 9.4ms but p90 90ms** (releases are
+acoustically ambiguous — intrinsically ~3× onset noise for any transcriber). The offset-DERIVED articulation
+statistic (per-window median duration/IOI ratio) tracks GT at **corr 0.876** — aria could not measure it at all.
+→ articulation moves from `gated_on_measurement` to *measurable-with-caveats*: wire the measurer + calibrate its
+tau off the 90ms offset tail; it will be the least-clean of the verifiable dims. Probe only (no routed measurer yet).
+
+**Honest next-order caveat — MAESTRO is IN-distribution and pristine.** These are Yamaha-Disklavier studio
+recordings; Transkun trained on MAESTRO(-train). Production user audio is phone mics, uprights, reverberant rooms
+— out of this distribution. So 0.979/1.000 are the CLEAN-real-audio ceiling; the next honesty edge (call it G-F2)
+is degraded/consumer real audio, which needs a different GT source (hard — that's the recurring GT-MIDI problem).
+
+**Net across the verifiable set:** on the production substrate (Transkun) + clean real audio, the verifier is
+substrate-faithful at **0.979 (dynamics)** and **1.000 (pedaling)**, both G-D PASS and both *higher* than the
+retired aria-fluidsynth 0.919; articulation is newly measurable (0.876). The three scoped-out dims (phrasing,
+interpretation, timbre) remain out by construction. Harness: `render_maestro_bundles.py`,
+`pedaling_independent_rate.py`, `articulation_offset_probe.py` (+ 3 test files, 25 tests; full suite 75 pass).
+Results: `model/data/results/{dyn_maestro_realaudio_{naive,recalibrated},pedaling_maestro_rate,
+pedaling_maestro_rate_liftscoping,articulation_offset_probe}.json`. All reference recalibrations are measurements
+here, NOT shipped edits to the frozen-router-adjacent measurers — production wiring is an owner decision.
