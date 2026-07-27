@@ -6,6 +6,7 @@ import pytest
 from claim_measurement.dynamics_supply.render_maestro_bundles import (
     pedal_on_fraction,
     rel,
+    window_pedals,
     window_notes,
 )
 
@@ -35,6 +36,19 @@ def test_pedal_threshold_is_64():
     # value 63 is UP, 64 is DOWN (half-pedal boundary)
     assert pedal_on_fraction([{"time": -1.0, "value": 63}], 0.0, 10.0) == 0.0
     assert pedal_on_fraction([{"time": -1.0, "value": 64}], 0.0, 10.0) == pytest.approx(1.0)
+
+
+def test_window_pedals_preserves_state_entering_window():
+    pedals = [{"time": 20.0, "value": 127}, {"time": 30.0, "value": 0}]
+    assert window_pedals(pedals, 27.0, 54.0) == [
+        {"time": 0.0, "value": 127},
+        {"time": 3.0, "value": 0},
+    ]
+
+
+def test_window_pedals_does_not_inject_stale_state_at_boundary():
+    pedals = [{"time": 20.0, "value": 127}, {"time": 27.0, "value": 0}]
+    assert window_pedals(pedals, 27.0, 54.0) == [{"time": 0.0, "value": 0}]
 
 
 def test_window_notes_uses_onset_half_open_interval():

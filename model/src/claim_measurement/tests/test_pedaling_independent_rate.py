@@ -26,6 +26,6 @@ def test_amt_corpus_reference_is_median_on_fraction():
     assert amt_corpus_reference([a, b]) == pytest.approx(0.75)
 
 
-def test_amt_corpus_reference_empty_falls_back_to_aria():
-    # no measurable pedal -> aria default 0.4623 (explicit, not a silent zero)
-    assert amt_corpus_reference([{"duration_sec": 0.0, "pedal_events": []}]) == pytest.approx(0.4623)
+def test_amt_corpus_reference_empty_raises():
+    with pytest.raises(ValueError, match="no bundles contain a measurable"):
+        amt_corpus_reference([{"duration_sec": 0.0, "pedal_events": []}])

@@ -1247,7 +1247,7 @@ Before any Transkun dynamics verdict is trusted, `REFERENCE_VELOCITY` must be se
 (~65.66), and even then expect ~0.78, not ~0.92. The reference change itself is a production-affecting edit to
 the (otherwise frozen-router-adjacent) measurer and is left as an explicit owner decision, NOT shipped here.
 
-## FRONT 9 UPDATE (#101, 2026-07-26): REAL-audio Transkun faithfulness on the verifiable set — dynamics 0.979, pedaling 0.991, articulation ungated; the 8d compression was a fluidsynth artifact
+## FRONT 9 UPDATE (#101, 2026-07-26; pedaling corrected 2026-07-27): REAL-audio Transkun faithfulness on the verifiable set — dynamics 0.979, pedaling 1.000, articulation ungated; the 8d compression was a fluidsynth artifact
 
 8b/8c/8d measured dynamics on FLUIDSYNTH-rendered PercePiano (synthetic, because PercePiano is MIDI-only).
 FRONT 9 closes the G-F real-audio edge AND produces the production-substrate (Transkun) numbers across the
@@ -1258,12 +1258,19 @@ trained on MAESTRO train → test avoids train-on-test). 24 performances / 10 co
 Harness `render_maestro_bundles.py` (transcribe each full performance once, window AMT+GT post-hoc; multi-oracle
 bundles carry GT velocity + CC64 pedal + note offsets). Data `model/data/evals/maestro_indep_bundles/`.
 
+**2026-07-27 audit correction.** The original windowing kept only CC64 events whose timestamps fell inside each
+27s window. It failed to carry the pedal state into the next window when the pedal was already down; 88/188
+original bundles definitely began with an unrepresented release event. The original pedaling results
+(0.991 scoped, 0.960 lifted) are retired. `window_pedals()` now injects the entering down-state, with boundary
+tests. A clean 24/24-performance retranscription regenerated all 188 bundles in 54.7 minutes with zero failures.
+The corrected rates below come only from those regenerated bundles.
+
 **The verifiable-set table (real audio, Transkun, reference recalibrated per substrate×corpus):**
 
 | dimension | real-audio Transkun rate | G-D | vs prior |
 |---|---:|:--:|---|
 | **dynamics** | **0.979** CI[0.952, 1.000] (145 committed) | PASS | > aria-fluidsynth 0.919; naive ref → 0.236 |
-| **pedaling** | **0.991** CI[0.973, 1.000] (113 committed) | PASS | aria could NOT deliver (G-B 0.181, saturated) |
+| **pedaling** | **1.000** CI[1.000, 1.000] (115 committed) | PASS | aria could NOT deliver (G-B 0.181, saturated) |
 | **articulation** | probe: statistic corr **0.876**, qualified UNGATE | probe | aria could NOT measure at all |
 | timing | not run | — | parked on the #119/#126 score-alignment matcher |
 
@@ -1277,14 +1284,15 @@ fidelity, because fixed-gain fluidsynth is outside Transkun's training distribut
 **Finding 2 — recalibration per (substrate × corpus) is MANDATORY, not optional.** Dynamics naive (aria-PercePiano
 `REFERENCE_VELOCITY=51.5`) → **0.236** (MAESTRO is louder-played, GT median 64.3, so the reference is doubly
 wrong); recalibrated to the Transkun-MAESTRO corpus median (64.33) → **0.979**. Same for pedaling
-(`REFERENCE_FRACTION` 0.4623 → 0.548). The 0.24-vs-0.98 swing on ONE config line is the operational headline:
+(`REFERENCE_FRACTION` 0.4623 → AMT median 0.5798; GT median 0.5745). The 0.24-vs-0.98 swing on ONE config line is the operational headline:
 a substrate/corpus swap silently invalidates the decision reference.
 
 **Finding 3 — Transkun UNBLOCKS pedaling, which aria could not deliver.** Aria's pedal head saturated at a ~0.55
 ceiling (perceptual G-B 0.181, over-pedal detection failed). Transkun's real-audio pedal on-fraction correlates
-**0.922** with GT and reaches 1.0 (no saturation). Production rate (over-pedal `+` scoped out per the aria-era
-`substrate_insensitive_polarity`) = **0.991**; with `--lift-scoping` (probe whether Transkun can now do over-pedal)
-= **0.960**, still G-D PASS (over-pedal recovers to 8/12 committed vs aria's total failure). → **Recommendation:
+**0.9976** with GT and reaches 1.0 (no saturation). Production rate (over-pedal `+` scoped out per the aria-era
+`substrate_insensitive_polarity`) = **1.000** (115 committed); with `--lift-scoping` (probe whether Transkun can
+now do over-pedal) = **1.000** (126 committed), still G-D PASS (11/39 over-pedal windows commit, all supported;
+28 remain near-threshold abstentions). → **Recommendation:
 the pedaling `substrate_insensitive_polarity={whole_piece:"+"}` scoping is arguably liftable under Transkun.**
 
 **Finding 4 — articulation qualifies for a (caveated) ungate.** The gate is offset reliability. Transkun matches
@@ -1296,14 +1304,14 @@ tau off the 90ms offset tail; it will be the least-clean of the verifiable dims.
 
 **Honest next-order caveat — MAESTRO is IN-distribution and pristine.** These are Yamaha-Disklavier studio
 recordings; Transkun trained on MAESTRO(-train). Production user audio is phone mics, uprights, reverberant rooms
-— out of this distribution. So 0.979/0.991 are the CLEAN-real-audio ceiling; the next honesty edge (call it G-F2)
+— out of this distribution. So 0.979/1.000 are the CLEAN-real-audio ceiling; the next honesty edge (call it G-F2)
 is degraded/consumer real audio, which needs a different GT source (hard — that's the recurring GT-MIDI problem).
 
 **Net across the verifiable set:** on the production substrate (Transkun) + clean real audio, the verifier is
-substrate-faithful at **0.979 (dynamics)** and **0.991 (pedaling)**, both G-D PASS and both *higher* than the
+substrate-faithful at **0.979 (dynamics)** and **1.000 (pedaling)**, both G-D PASS and both *higher* than the
 retired aria-fluidsynth 0.919; articulation is newly measurable (0.876). The three scoped-out dims (phrasing,
 interpretation, timbre) remain out by construction. Harness: `render_maestro_bundles.py`,
-`pedaling_independent_rate.py`, `articulation_offset_probe.py` (+ 3 test files, 23 tests; full suite 73 pass).
+`pedaling_independent_rate.py`, `articulation_offset_probe.py` (+ 3 test files, 25 tests; full suite 75 pass).
 Results: `model/data/results/{dyn_maestro_realaudio_{naive,recalibrated},pedaling_maestro_rate,
 pedaling_maestro_rate_liftscoping,articulation_offset_probe}.json`. All reference recalibrations are measurements
 here, NOT shipped edits to the frozen-router-adjacent measurers — production wiring is an owner decision.

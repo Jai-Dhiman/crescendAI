@@ -108,6 +108,24 @@ def pedal_on_fraction(pedals: list[dict], t0: float, t1: float, thresh: int = 64
     return down / (t1 - t0)
 
 
+def window_pedals(pedals: list[dict], t0: float, t1: float) -> list[dict]:
+    """Shift CC64 events into a window while preserving the state at its boundary."""
+    state = 0
+    for event in pedals:
+        if event["time"] >= t0:
+            break
+        state = event["value"]
+
+    events = [
+        {"time": round(event["time"] - t0, 4), "value": event["value"]}
+        for event in pedals
+        if t0 <= event["time"] < t1
+    ]
+    if state >= 64 and (not events or events[0]["time"] > 0):
+        events.insert(0, {"time": 0.0, "value": state})
+    return events
+
+
 def window_notes(notes: list[dict], t0: float, t1: float) -> list[dict]:
     return [n for n in notes if t0 <= n["onset"] < t1]
 
@@ -186,6 +204,7 @@ def main(argv: list[str] | None = None) -> int:
 
     t0_all = time.time()
     written = skipped = 0
+    failures: list[str] = []
     for i, (stem, wav, midi) in enumerate(perfs):
         gtw = gt_by_perf[stem]
         if not gtw:
@@ -200,6 +219,7 @@ def main(argv: list[str] | None = None) -> int:
             pcm = load_pcm(wav)
             amt_notes, amt_pedals = transcribe_pcm(pcm)
         except Exception as exc:  # explicit: record nothing for this perf, keep going
+            failures.append(stem)
             print(f"  [{i+1}/{len(perfs)}] {stem[:40]} TRANSCRIBE FAILED: {exc}", flush=True)
             continue
         gt_notes_all, _gt_ped = gt_notes_and_pedals(midi)
@@ -209,8 +229,7 @@ def main(argv: list[str] | None = None) -> int:
             amt_win = window_notes(amt_notes, t0, t1)
             if len(amt_win) < MINIMUM_NOTES:
                 continue  # AMT under-transcribed this window; GT was fine but pair must hold both
-            amt_ped_win = [{"time": round(e["time"] - t0, 4), "value": e["value"]}
-                           for e in amt_pedals if t0 <= e["time"] < t1]
+            amt_ped_win = window_pedals(amt_pedals, t0, t1)
             gt_win = window_notes(gt_notes_all, t0, t1)
             bundle = {
                 "schema_version": BUNDLE_SCHEMA_VERSION,
@@ -243,6 +262,11 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"\nDONE: {written} bundles written, {skipped} present. "
           f"{(time.time()-t0_all)/60:.1f} min.", flush=True)
+    if failures:
+        raise SystemExit(
+            f"{len(failures)}/{len(perfs)} MAESTRO transcriptions failed: "
+            f"{', '.join(failures)}"
+        )
     return 0
 
 

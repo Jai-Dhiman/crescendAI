@@ -73,7 +73,9 @@ def amt_corpus_reference(bundles: list[dict]) -> float:
         if st >= 64:
             down += dur - t
         fracs.append(down / dur)
-    return float(np.median(fracs)) if fracs else 0.4623
+    if not fracs:
+        raise ValueError("no bundles contain a measurable AMT pedal on-fraction")
+    return float(np.median(fracs))
 
 
 def score_bundle(bundle: dict, taxonomy: dict, tau_gt: float) -> dict:
