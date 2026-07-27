@@ -114,7 +114,7 @@ def _load_perf_notes(path: Path) -> list[PerfNote]:
     return notes
 
 
-def load_asap_clip(asap_piece: str, asap_root: Path
+def load_asap_clip(asap_piece: str, asap_root: Path, audio_cache: Path | None = None
                    ) -> tuple[list[PerfNote], list[ScoreNote], tuple[int, ...], BeatTruth]:
     """Load one ASAP performance into everything the follower + metric need:
     (perf_notes, score_notes, bar_boundaries, beat_truth).
@@ -124,9 +124,17 @@ def load_asap_clip(asap_piece: str, asap_root: Path
     tree lives in the PRIMARY checkout. Same reason realaudio.py takes explicit
     roots.
 
+    With ``audio_cache`` the performance notes come from the MAESTRO-audio ->
+    Transkun bundle for this piece (built by ``asap_audio.py``, already shifted
+    into ASAP's clock) instead of ASAP's performance MIDI. Everything else --
+    score, bar boundaries, beat truth -- is identical, so the two modes differ
+    only in the note source and are directly comparable. A missing bundle is an
+    error, never a silent fall back to MIDI: that would report a clean-MIDI
+    number as if it had come through audio.
+
     Raises:
-        AsapEvalError: the piece has no usable ASAP alignment or its MIDI is
-            missing (wraps the underlying loader errors loudly).
+        AsapEvalError: the piece has no usable ASAP alignment, its MIDI is
+            missing, or ``audio_cache`` has no bundle for it.
     """
     try:
         al = load_alignment(asap_piece, asap_root=asap_root,
@@ -134,7 +142,17 @@ def load_asap_clip(asap_piece: str, asap_root: Path
     except (AsapAlignmentMissingError, FileNotFoundError) as exc:
         raise AsapEvalError(f"{asap_piece}: {type(exc).__name__}: {exc}") from exc
 
-    perf_notes = _load_perf_notes(al.performance_midi_path)
+    if audio_cache is None:
+        perf_notes = _load_perf_notes(al.performance_midi_path)
+    else:
+        from follower_eval.asap_audio import bundle_path
+        from follower_eval.realaudio import load_bundle_notes
+        b = bundle_path(audio_cache, asap_piece)
+        if not b.exists():
+            raise AsapEvalError(
+                f"{asap_piece}: no audio bundle at {b} -- build it first with "
+                f"`python -m follower_eval.asap_audio --pieces {asap_piece}`")
+        perf_notes = load_bundle_notes(b)
     score_notes = load_score_notes_from_midi(al.score_midi_path)
     if not perf_notes or not score_notes:
         raise AsapEvalError(f"{asap_piece}: empty perf ({len(perf_notes)}) or score ({len(score_notes)}) notes")
@@ -226,9 +244,11 @@ def _rng_starts(truth: BeatTruth, n: int, window_sec: float, seed: int) -> list[
 
 
 def evaluate_clip(asap_piece: str, asap_root: Path, random_starts: int = 8,
-                  window_sec: float = 20.0, seed: int = 0) -> AsapClipResult:
-    """Full-follow + `random_starts` cold-start windows for one ASAP performance."""
-    perf_notes, score_notes, bar_boundaries, truth = load_asap_clip(asap_piece, asap_root)
+                  window_sec: float = 20.0, seed: int = 0,
+                  audio_cache: Path | None = None) -> AsapClipResult:
+    """Full-follow + `random_starts` cold-start windows for one ASAP performance.
+    ``audio_cache`` switches the note source to MAESTRO-audio->Transkun."""
+    perf_notes, score_notes, bar_boundaries, truth = load_asap_clip(asap_piece, asap_root, audio_cache)
     full = follow_window(perf_notes, score_notes, bar_boundaries, truth,
                          t_start=0.0, window_sec=None, label="full")
     starts = _rng_starts(truth, random_starts, window_sec, seed)
@@ -337,7 +357,20 @@ def main() -> None:
     ap.add_argument("--window-sec", type=float, default=20.0, help="cold-start window length")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", type=Path, default=None, help="write the JSON report here")
+    ap.add_argument("--perf-source", choices=("midi", "audio"), default="midi",
+                    help="midi = ASAP performance MIDI (isolation: matcher only); "
+                         "audio = MAESTRO audio through Transkun (the production chain)")
+    ap.add_argument("--audio-cache", type=Path, default=Path("data/evals/asap_audio_bundles"),
+                    help="bundles built by follower_eval.asap_audio (used with --perf-source audio)")
     args = ap.parse_args()
+
+    audio_cache = args.audio_cache if args.perf_source == "audio" else None
+    if audio_cache is not None and not args.pieces:
+        # only pieces we actually transcribed can run in audio mode
+        args.pieces = sorted(p.stem.replace("__", "/") + ".mid"
+                             for p in audio_cache.glob("*.json"))
+        if not args.pieces:
+            raise SystemExit(f"no audio bundles in {audio_cache} -- run follower_eval.asap_audio first")
 
     pieces = args.pieces or aligned_pieces(args.asap_root / "asap_annotations.json", limit=args.limit)
     results: list[AsapClipResult] = []
@@ -345,10 +378,13 @@ def main() -> None:
     for p in pieces:
         try:
             results.append(evaluate_clip(p, args.asap_root, random_starts=args.random_starts,
-                                         window_sec=args.window_sec, seed=args.seed))
+                                         window_sec=args.window_sec, seed=args.seed,
+                                         audio_cache=audio_cache))
         except AsapEvalError as exc:
             failures.append({"piece": p, "error": str(exc)})
 
+    print(f"perf-note source: {args.perf_source}"
+          + (f"  ({audio_cache})" if audio_cache else "  (ASAP performance MIDI -- matcher isolation)"))
     print(_format(results))
     if failures:
         print(f"\nFAILURES ({len(failures)}):")
