@@ -201,6 +201,37 @@ def build_one(asap_piece: str, asap_root: Path, midi_root: Path, audio_root: Pat
     return bundle
 
 
+HF_AUDIO_REPO = "ddPn08/maestro-v3.0.0"   # per-file MAESTRO audio; same repo the
+                                          # piece-ID axis already streams from
+
+
+def fetch_audio(row: dict, audio_root: Path, repo: str = HF_AUDIO_REPO) -> Path:
+    """Download one ASAP row's MAESTRO WAV into ``audio_root`` (repo layout is
+    ``<year>/<name>.wav``, which is exactly the local tree). Downloading the full
+    v3 audio is ~100 GB; Track A only needs the ASAP-linked files, one at a time."""
+    from huggingface_hub import hf_hub_download
+    link = row.get("maestro_audio_performance") or ""
+    if not link:
+        raise AsapAudioError(f"{row['midi_performance']}: no maestro_audio_performance link")
+    rel = str(Path(link).relative_to("{maestro}"))
+    dest = audio_root / rel
+    if dest.exists():
+        return dest
+    audio_root.mkdir(parents=True, exist_ok=True)
+    try:
+        return Path(hf_hub_download(repo_id=repo, filename=rel, repo_type="dataset",
+                                    local_dir=str(audio_root)))
+    except Exception as exc:   # a 404/network error on one perf must not kill the batch
+        raise AsapAudioError(f"fetch {rel} from {repo} failed: {type(exc).__name__}: {exc}") from exc
+
+
+def linked_pieces(asap_root: Path) -> list[str]:
+    """Every ASAP piece key that carries a MAESTRO audio link (519 of 1066),
+    whether or not the audio is downloaded yet."""
+    return sorted(k for k, r in load_metadata(asap_root).items()
+                  if (r.get("maestro_audio_performance") or "").strip())
+
+
 def available_pieces(asap_root: Path, midi_root: Path, audio_root: Path) -> list[str]:
     """ASAP piece keys whose MAESTRO audio is actually present locally -- the set
     Track A's audio mode can run on today, without a download."""
@@ -224,9 +255,16 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--list", action="store_true", help="list locally-available pieces and exit")
+    ap.add_argument("--fetch", action="store_true",
+                    help=f"download missing MAESTRO audio from {HF_AUDIO_REPO} (~50-150 MB/perf); "
+                         "with --limit this grows the Track A subset")
     args = ap.parse_args()
 
-    pieces = args.pieces or available_pieces(args.asap_root, args.maestro_midi_root, args.maestro_audio_root)
+    if args.fetch:
+        pieces = args.pieces or linked_pieces(args.asap_root)
+    else:
+        pieces = args.pieces or available_pieces(args.asap_root, args.maestro_midi_root,
+                                                 args.maestro_audio_root)
     if args.limit:
         pieces = pieces[:args.limit]
     if args.list:
@@ -242,6 +280,8 @@ def main() -> None:
     ok = 0
     for i, p in enumerate(pieces, 1):
         try:
+            if args.fetch:
+                fetch_audio(meta[p], args.maestro_audio_root)
             b = build_one(p, args.asap_root, args.maestro_midi_root, args.maestro_audio_root,
                           args.cache, transcribe_wav, meta, force=args.force)
             ok += 1
