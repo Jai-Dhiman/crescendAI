@@ -59,8 +59,13 @@ def midi_to_notes_and_pedals(
 
 def _run_transkun(in_wav: Path, out_mid: Path) -> None:
     """Shell out to Transkun in an isolated env. Raise TranskunError on any failure."""
+    # setuptools is required: transkun's transcribe.py does `import pkg_resources`, which lives
+    # in setuptools. uv's isolated env does not include it unless a dep pulls it in, so without
+    # this the CLI dies with ModuleNotFoundError: No module named 'pkg_resources' (intermittent,
+    # depending on uv-cache resolution). Pinning it explicitly makes the env deterministic.
     cmd = [
-        "uv", "run", "--no-project", "--with", "transkun", "--python", "3.11",
+        "uv", "run", "--no-project", "--with", "transkun", "--with", "setuptools",
+        "--python", "3.11",
         "transkun", str(in_wav), str(out_mid), "--device", "cpu",
     ]
     try:
