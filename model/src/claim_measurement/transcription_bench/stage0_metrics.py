@@ -139,11 +139,15 @@ def main():
         for m in manifest:
             gt = GT / f"{m['seg']}.mid"
             est = mdir / f"{m['seg']}.mid"
-            if gt.exists() and est.exists():
-                try:
-                    rows.append(evaluate(gt, est))
-                except Exception as exc:  # noqa: BLE001
-                    print(f"  {model}/{m['seg']} eval fail: {exc!r}", flush=True)
+            if not gt.exists() or not est.exists():
+                raise FileNotFoundError(
+                    f"incomplete paired benchmark for {model}/{m['seg']}: "
+                    f"gt_exists={gt.exists()} est_exists={est.exists()}"
+                )
+            try:
+                rows.append(evaluate(gt, est))
+            except Exception as exc:  # noqa: BLE001
+                raise RuntimeError(f"evaluation failed for {model}/{m['seg']}") from exc
         keys = ["onset_f1", "onset_offset_f1", "velocity_f1", "velocity_mae",
                 "velocity_spearman", "onset_mae_ms", "pedal_frame_f1"]
         per_model[model] = {"n_clips": len(rows), **{k: _agg([r[k] for r in rows]) for k in keys}}

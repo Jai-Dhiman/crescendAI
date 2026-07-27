@@ -84,8 +84,8 @@ def stage_transcribe():
             ok += 1
             continue
         # isolated transkun env -- must NOT reuse this script's uv-run env (torch vs our deps)
-        cmd = ["uv", "run", "--no-project", "--with", "transkun", "--python", "3.11",
-               "transkun", str(wav), str(out)]
+        cmd = ["uv", "run", "--no-project", "--with", "transkun", "--with", "setuptools",
+               "--python", "3.11", "transkun", str(wav), str(out)]
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode == 0 and out.exists():
             ok += 1
@@ -95,6 +95,8 @@ def stage_transcribe():
             print(f"  [{i}/{len(wavs)}] FAIL {wav.stem[:44]}: {r.stderr.strip()[-120:]}", flush=True)
     print(f"\ntranscribed {ok}/{len(wavs)} ({fail} failed) -> {TRANSKUN_DIR}. Next: --stage compare.",
           flush=True)
+    if fail:
+        raise SystemExit(f"Transkun failed for {fail}/{len(wavs)} benchmark files")
 
 
 def _transkun_notes(seg_id: str):
@@ -376,8 +378,9 @@ def stage_refit():
                    f"aria {tau_dep_aria:.3f} (bar CI [{bar_lo:+.3f},{bar_hi:+.3f}]), AND the confound-free "
                    f"calibration delta B-A={tauB - tauA:+.3f} is within noise (CI [{cal_lo:+.3f},"
                    f"{cal_hi:+.3f}]). Re-fitting the head on transkun features does NOT close the gap even "
-                   f"at matched-N -> a full-7.9k transkun re-fit (expensive) would not help either. "
-                   f"Confirms Gate-0: #104 Stage-2 has no positive-EV lever left.")
+                   f"at matched-N. This probe does not prove a full-7.9k refit cannot help; it shows no "
+                   f"reliable effect that would justify that expensive experiment. Under the original "
+                   f"Gate-0 decision rule, #104 Stage-2 has no positive-EV lever left.")
 
     summary = {
         "n_paired": n,

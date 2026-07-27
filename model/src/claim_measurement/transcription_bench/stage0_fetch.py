@@ -117,6 +117,8 @@ def main():
                 fail += 1
                 print(f"  FAIL {m['seg']}: {exc!r}", flush=True)
     print(f"\nfetched {ok}/{len(manifest)} ({fail} failed). Next: transcribe + metrics.", flush=True)
+    if fail:
+        raise SystemExit(f"failed to fetch {fail}/{len(manifest)} benchmark clips")
 
 
 if __name__ == "__main__":
