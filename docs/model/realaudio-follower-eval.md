@@ -1,6 +1,6 @@
 # Real-Audio Score-Follower Eval — SOURCE OF TRUTH
 
-**Status:** v1 proxy track live (2026-07-26, #133). Gold (accuracy) track pending. This eval is the **source of truth** for score-follower quality; the synthetic `follower_bench` (below) is superseded and slated for removal once the gold track is trusted.
+**Status:** v1 proxy track live (2026-07-26, #133). Gold (accuracy) track **tooling built** (2026-07-27, #133 S3); awaiting human tapping to produce the real accuracy numbers + final PASS bars. This eval is the **source of truth** for score-follower quality; the synthetic `follower_bench` (below) is superseded and slated for removal once the gold track is trusted.
 
 ## Why this exists
 
@@ -23,7 +23,9 @@ Real audio has no synthetic answer key, so the eval measures on two tracks:
 - `confidence` — forward-backward posterior mass on each decoded column.
 - `conf_vs_monotone` calibration — does confidence drop at backward steps (the "knows when it's lost" signal)?
 
-**Gold track (planned, #133 S3) — human bar-tap, ~20–30 clip subset.** The one **non-circular accuracy** number: a human taps bar onsets → `(audio_sec → score bar)` reference; the follower's decoded score-position at each tap is compared to the true bar → bar-localization error, % within tolerance, relock latency after stops. Also adjudicates whether low-confidence proxy clips are genuine hard cases (correct to abstain) or follower failures.
+**Gold track (tooling built, #133 S3) — human bar-tap, 32-clip subset.** The one **non-circular accuracy** number: a human taps bar downbeats → `(bar_number → audio_sec)` reference; the follower's decoded score-position at each tap is compared to the true bar's score-second → bar-localization error, % within tolerance, relock latency after restarts. Also adjudicates whether low-confidence proxy clips are genuine hard cases (correct to abstain) or follower failures.
+
+*Why the two clocks compare:* a tap's `audio_sec` is WAV playback time; the follower's `MatchedNote.perf_time` is the Transkun onset in that **same** WAV clock (the tap tool serves the transcription's source WAV, not a YouTube re-encode). Interpolating the follower's `perf_time → score_position` staircase at each tapped `audio_sec` yields a decoded score-second directly comparable to `measure_table[bar_number].start_sec`. Both live in score-render seconds, so the error is a real cursor offset, not a proxy. Error is also reported in **bars** (error ÷ local bar duration) so it is tempo-invariant across the rep.
 
 ## v1 proxy results (279 clips, 0 harness failures)
 
@@ -36,7 +38,27 @@ Real audio has no synthetic answer key, so the eval measures on two tracks:
 
 Reading: the follower traverses the full score on the large majority of real amateur clips, is robust to real AMT + phone-audio noise, and raises a self-doubt signal on ~21% (the beginner-heavy, hesitation-heavy pieces — `fur_elise`, `pathetique`). **Accuracy remains unverified** — high coverage/confidence/span is *consistent with* good following but is not proof; a confidently-wrong alignment yields the same proxies. That is the gap the gold track fills.
 
-**PASS bars are deliberately not yet set** — they will be built on per-clip distributions, not medians (the median `backward_frac` of 0.00 hid that 72% of clips contain repeats; aggregates lie about exactly the behavior we care about).
+**PASS bars are deliberately not yet finalized** — they will be built on the observed **tap-level distribution** across the labeled clips, not per-clip medians (the median `backward_frac` of 0.00 hid that 72% of clips contain repeats; aggregates lie about exactly the behavior we care about). `gold_report.py` pools every tap, never medians-of-medians.
+
+The verdict currently runs against **provisional placeholder bars** (`PROVISIONAL_PASS` in `gold_report.py`): `within_1bar_frac ≥ 0.85` and `median_abs_err_bars ≤ 0.5` — the minimum a live cursor needs (land on the right measure on the large majority of downbeats). These are advisory and printed with a `PROVISIONAL` flag until the human tapping is done; then re-derive the bars from the actual distribution and lock them.
+
+## Gold track — how to label and score (#133 S3)
+
+Subset: `model/src/follower_eval/gold_subset.json` — 32 clips (per rep piece, the lowest- and highest-confidence v1 clip; spans confidence 0.03→0.97 across all 16 pieces).
+
+```bash
+cd model    # PRIMARY checkout (data/ + the WAVs are gitignored, absent in worktrees)
+WT=<path-to-issue-133-worktree>/model
+# 1. label: opens a local page that serves each clip's real WAV; tap Space on each
+#    bar downbeat (edit "Next bar" back on a repeat/restart), Save per clip.
+PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.tap_tool --serve   # http://localhost:8766
+# 2. score: runs the follower on each labeled clip, prints bar-localization
+#    accuracy + a (provisional) PASS/FAIL verdict.
+PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.gold_report \
+  --bundles-root data/evals/realaudio_bundles --scores-root data/scores --out /tmp/gold_report.json
+```
+
+Gold labels are written to `data/evals/realaudio_bundles/<piece>/<vid>.gold.json` (`{bar_taps:[{bar_number,audio_sec}]}`) — gitignored, resumable (the tool re-loads existing taps). Modules: `tap_tool.py` (labeler), `accuracy.py` (metric), `gold_report.py` (report + verdict); tests in `tests/follower_eval/test_accuracy.py`.
 
 ## Rebuild
 
