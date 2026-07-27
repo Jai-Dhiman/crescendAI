@@ -61,6 +61,19 @@ Track B outputs `data/evals/realaudio_bundles/<piece>/<vid>.validate.json` (verd
 
 **Superseded:** the bar-tap gold tool (`tap_tool.py` / `accuracy.py` / `gold_report.py`, `gold_subset.json`) — labeling by ear needs bar numbers the labeler can't produce without scores. Kept for now (the `decode_at` + error core is reused by Track A/B); removable once the two tracks are trusted.
 
+## Piece-ID — the corpus is mislabeled (`piece_id.py`)
+
+**Finding (2026-07-27):** the practice corpus is labeled by the folder a YouTube video was curated into, and those labels are unreliable — VERIFIED cases: `fantaisie_impromptu/JbYGHXsQiqk` is someone sightreading **Chopin Op.25/5** (title confirms); `nocturne_op9no2/rNkfVVKbICk` is **op.9 no.1**, not the no.2 score shown; `fur_elise/BShLXl02VvQ` is a 13-min mixed session (5534 notes vs 905, pitch-class cosine 0.32). The follower was handed the **wrong score** — its low confidence on those clips was *correct* (a mismatch detector), not failure. This reframes the v1 "21% low-confidence" set as largely **score mismatch**, not follower difficulty. (Track A on ASAP is unaffected — its score↔performance pairings are verified.)
+
+**Stage:** per clip, identify the score actually played against the 10,494-score catalog — ngram trigram shortlist (`data/fingerprints/ngram_index.json`) UNION the folder label translated via `SCORE_FILENAME_BY_PIECE`, then follower-verify each candidate on a 60 s window, decide by **coverage × confidence** with an abstain floor (confidence is the arbiter; a wrong score can cover a tonal window but never earns high posterior). Catalog scores are all `load_score`-compatible, so any candidate is followable. VERIFIED: fantaisie → RE-LABELED `chopin.etudes_op_25.5` (cov 0.62/conf 0.84 vs 0.51/0.06); bach_prelude → CONFIRMED `bach.prelude.bwv_846` (cov 0.99/conf 0.97 via the label channel, since ngram is blind to its arpeggios).
+
+```bash
+PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.piece_id \
+  --clips fantaisie_impromptu/JbYGHXsQiqk bach_prelude_c_wtc1/w03EKJjOTJE --k 6 --window-sec 30
+```
+
+Limits: verify is a ~25-way transpose search × K candidates (~30–60 s/clip — background the corpus pass); the ngram+label shortlist misses clips that are *both* mislabeled *and* arpeggiated (neither channel surfaces the truth → abstain), which a pitch-histogram/chroma shortlist channel would recover. NOT YET DONE: corpus-wide relabel pass; wiring the identified score into `validate_tool`.
+
 ## Rebuild
 
 ```bash
