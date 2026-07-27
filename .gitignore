@@ -195,4 +195,3 @@ paper/
 # nested standalone repo (MIREX Track B, issue #106) - own git history
 mirex-trackb/
 .codex/
-AGENTS.md
