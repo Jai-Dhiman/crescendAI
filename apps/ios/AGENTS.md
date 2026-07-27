@@ -1,6 +1,8 @@
 # iOS scope
 
-Read `../AGENTS.md` and the repository-root `AGENTS.md` first.
+`CLAUDE.md` is the canonical Claude Code context for this scope. Keep the
+sibling `AGENTS.md` byte-identical as a compatibility mirror. Read
+`../CLAUDE.md` and the repository-root `CLAUDE.md` first.
 
 - The app is SwiftUI and local-first. Treat current Swift source, the Xcode
   project, and `docs/apps/00-status.md` as authoritative; do not infer the live
