@@ -54,11 +54,51 @@ class ValidateToolError(RuntimeError):
     skip that would let the human validate a clip we can't render."""
 
 
+def load_piece_id_map(path: Path) -> dict[str, str]:
+    """``{"<piece>/<vid>": score_id}`` from a ``piece_id`` run, ABSTAINs omitted.
+
+    The corpus folder labels are unreliable (a clip filed `fantaisie_impromptu`
+    is Chopin Op.25/5), so the validator must render the score the piece-ID
+    stage says is actually being played -- otherwise the human is shown a
+    mismatch and blames the follower for correctly refusing to track a piece it
+    was never given.
+    """
+    if not path.exists():
+        raise ValidateToolError(
+            f"no piece-ID map at {path}. The corpus labels are known-wrong, so the "
+            f"validator refuses to guess. Run:\n"
+            f"  python -m follower_eval.piece_id --clips <piece/vid ...> --out {path}\n"
+            f"or pass --trust-labels to validate against the folder label anyway."
+        )
+    out: dict[str, str] = {}
+    for r in json.loads(path.read_text()):
+        if r["decision"] != "ABSTAIN":
+            out[f"{r['piece_folder']}/{r['video_id']}"] = r["decision"]
+    return out
+
+
+def resolve_score_id(piece: str, vid: str, id_map: dict[str, str]) -> tuple[str, str]:
+    """``(score_id, source)`` for a clip. ``source`` is ``"piece_id"`` when the
+    identification stage named the score, else ``"label"`` -- the fallback for
+    clips it abstained on, surfaced in the UI so the human knows the score on
+    screen is unverified rather than assuming a follower failure."""
+    sid = id_map.get(f"{piece}/{vid}")
+    if sid is not None:
+        return sid, "piece_id"
+    if piece not in SCORE_FILENAME_BY_PIECE:
+        raise ValidateToolError(f"no score for piece {piece} and piece-ID abstained")
+    return SCORE_FILENAME_BY_PIECE[piece].removesuffix(".json"), "label"
+
+
 def list_clips(subset_json: Path, bundles_root: Path,
-               use_all: bool, pieces: list[str] | None) -> list[dict]:
+               use_all: bool, pieces: list[str] | None,
+               id_map: dict[str, str] | None = None) -> list[dict]:
     """Resolve the clips to validate -> [{piece, video_id, wav_path, title,
-    v1_confidence, existing}]. Default source is the committed gold subset (spans
-    confidence); ``use_all`` enumerates every bundle instead."""
+    v1_confidence, existing, score_id, score_source}]. Default source is the
+    committed gold subset (spans confidence); ``use_all`` enumerates every bundle
+    instead. ``id_map`` comes from ``load_piece_id_map`` and decides which score
+    each clip is validated against."""
+    id_map = id_map or {}
     entries: list[dict] = []
     if use_all:
         for piece_dir in sorted(p for p in bundles_root.iterdir() if p.is_dir()):
@@ -87,10 +127,14 @@ def list_clips(subset_json: Path, bundles_root: Path,
         if not wav.exists():
             raise ValidateToolError(f"missing WAV {wav} for {piece}/{vid}")
         vpath = bundles_root / piece / f"{vid}.validate.json"
+        score_id, score_source = resolve_score_id(piece, vid, id_map)
+        label_sid = SCORE_FILENAME_BY_PIECE.get(piece, "").removesuffix(".json")
         out.append({
+            "relabeled": score_source == "piece_id" and score_id != label_sid,
             "piece": piece, "video_id": vid, "wav_path": wav,
             "title": bundle.get("title"), "v1_confidence": e["v1_confidence"],
             "existing": vpath.exists(),
+            "score_id": score_id, "score_source": score_source,
         })
     if not out:
         raise ValidateToolError(f"no clips resolved (all={use_all}, pieces={pieces})")
@@ -99,17 +143,21 @@ def list_clips(subset_json: Path, bundles_root: Path,
     return out
 
 
-def build_clip_view(piece: str, bundle_path: Path, scores_root: Path) -> dict:
+def build_clip_view(piece: str, bundle_path: Path, scores_root: Path,
+                    score_id: str, score_source: str = "piece_id") -> dict:
     """Run the follower once and precompute everything the canvas needs: the
     score notes, the played notes mapped to score position by the follower, the
     decoded trajectory (for the playhead), and the median confidence.
 
+    ``score_id`` is the score to follow against -- resolved by ``resolve_score_id``
+    from the piece-ID stage, NOT from the (unreliable) folder label.
+
     Raises:
-        ValidateToolError: the piece has no known score, or loaders fail loudly.
+        ValidateToolError: the score file is missing, or loaders fail loudly.
     """
-    if piece not in SCORE_FILENAME_BY_PIECE:
-        raise ValidateToolError(f"no score for piece {piece}")
-    score_path = scores_root / SCORE_FILENAME_BY_PIECE[piece]
+    score_path = scores_root / f"{score_id}.json"
+    if not score_path.exists():
+        raise ValidateToolError(f"missing score {score_path} for {piece}/{bundle_path.stem}")
     score_notes, bar_boundaries, score_span = load_score(score_path)
     perf = load_bundle_notes(bundle_path)
     est = follow_hmm(perf, score_notes, TUNED_HMM_PARAMS, bar_boundaries=bar_boundaries)
@@ -125,6 +173,8 @@ def build_clip_view(piece: str, bundle_path: Path, scores_root: Path) -> dict:
     score = [{"sx": round(n.position, 3), "pitch": n.pitch} for n in score_notes]
     return {
         "piece": piece,
+        "score_id": score_id,
+        "score_source": score_source,
         "score_span_sec": round(score_span, 2),
         "played": played,
         "score": score,
@@ -136,21 +186,24 @@ def build_clip_view(piece: str, bundle_path: Path, scores_root: Path) -> dict:
     }
 
 
-def _view_cache_path(bundles_root: Path, piece: str, vid: str) -> Path:
-    return bundles_root / "_view_cache" / f"{piece}__{vid}.view.json"
+def _view_cache_path(bundles_root: Path, piece: str, vid: str, score_id: str) -> Path:
+    # score_id is part of the key: a clip re-labeled by piece-ID must not be
+    # served the view that was computed against its old (wrong) label score.
+    return bundles_root / "_view_cache" / f"{piece}__{vid}__{score_id}.view.json"
 
 
 def get_clip_view(piece: str, vid: str, bundles_root: Path, scores_root: Path,
+                  score_id: str, score_source: str = "piece_id",
                   force: bool = False) -> dict:
     """build_clip_view with a disk cache. ``follow_hmm`` is O(perf x score) and
     the big amateur clips take minutes -- caching the precomputed view to
-    ``_view_cache/`` makes the labeler load instantly. Cache is keyed by clip
-    only (follower params + score are fixed); pass ``force`` after a follower or
-    score change."""
-    cache = _view_cache_path(bundles_root, piece, vid)
+    ``_view_cache/`` makes the labeler load instantly. Cache is keyed by clip AND
+    score (follower params are fixed); pass ``force`` after a follower change."""
+    cache = _view_cache_path(bundles_root, piece, vid, score_id)
     if cache.exists() and not force:
         return json.loads(cache.read_text())
-    view = build_clip_view(piece, bundles_root / piece / f"{vid}.json", scores_root)
+    view = build_clip_view(piece, bundles_root / piece / f"{vid}.json", scores_root,
+                           score_id, score_source)
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text(json.dumps(view))
     return view
@@ -185,7 +238,9 @@ def save_validation(bundles_root: Path, payload: dict) -> Path:
 
 def generate_html(clips: list[dict]) -> str:
     state = [{"piece": c["piece"], "video_id": c["video_id"], "title": c["title"] or c["video_id"],
-              "v1_confidence": c["v1_confidence"], "existing": c["existing"]} for c in clips]
+              "v1_confidence": c["v1_confidence"], "existing": c["existing"],
+              "score_id": c["score_id"], "score_source": c["score_source"],
+              "relabeled": c["relabeled"]} for c in clips]
     n_done = sum(1 for c in clips if c["existing"])
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8">
@@ -234,6 +289,15 @@ let cur = -1, view = null, audioEl = null, canvas = null, ctx = null, raf = null
 let wrongSpans = [], spanOpen = null, verdict = null;
 const PX_PER_SCORE_SEC = 40, PITCH_MIN = 21, PITCH_MAX = 108;
 
+// Which score is on screen, and can we trust it? The corpus folder labels are
+// wrong often enough that "score unverified" must be visible -- a mismatch there
+// is a labeling failure, not a follower failure.
+function scoreTag(c) {{
+  if (c.score_source !== 'piece_id') return '<b style="color:#e0a54a">SCORE UNVERIFIED (folder label; piece-ID abstained)</b>';
+  return '<b style="color:#5ac07a">score identified from audio</b>' +
+         (c.relabeled ? ' <b style="color:#e0a54a">(RE-LABELED off the folder label)</b>' : '');
+}}
+
 function renderList() {{
   document.getElementById('clip-list').innerHTML = CLIPS.map((c,i)=>{{
     const done = c.existing || (i===cur && verdict);
@@ -268,7 +332,8 @@ async function selectClip(i) {{
 function renderPanel() {{
   const c=CLIPS[cur];
   document.getElementById('panel').innerHTML = `
-    <h2>${{c.piece}}</h2>
+    <h2>${{view.score_id}}</h2>
+    <div class="meta">${{scoreTag(c)}} &middot; filed under ${{c.piece}}</div>
     <div class="meta">${{c.title||''}} &middot; ${{c.video_id}} &middot; follower confidence ${{view.median_confidence==null?'?':view.median_confidence}} &middot; transpose ${{view.transpose_semitones}}</div>
     <canvas id="roll" width="1100" height="320"></canvas>
     <div class="legend"><span class="sw" style="background:#4a9ae0"></span>played (where follower placed it)
@@ -373,6 +438,7 @@ class ValidateHandler(http.server.BaseHTTPRequestHandler):
     bundles_root: Path
     scores_root: Path
     _wav_by_key: dict
+    _clip_by_key: dict
     _view_cache: dict
 
     def _json(self, obj, code=200):
@@ -403,7 +469,9 @@ class ValidateHandler(http.server.BaseHTTPRequestHandler):
             self._json(self._view_cache[key]); return
         try:
             piece, vid = key.split("/", 1)
-            view = get_clip_view(piece, vid, self.bundles_root, self.scores_root)
+            c = self._clip_by_key[key]
+            view = get_clip_view(piece, vid, self.bundles_root, self.scores_root,
+                                 c["score_id"], c["score_source"])
             self._view_cache[key] = view
             self._json(view)
         except Exception as e:
@@ -467,6 +535,7 @@ def make_handler(clips, bundles_root, scores_root):
     Bound.bundles_root = bundles_root
     Bound.scores_root = scores_root
     Bound._wav_by_key = wav_by_key
+    Bound._clip_by_key = {f"{c['piece']}/{c['video_id']}": c for c in clips}
     Bound._view_cache = {}
     return Bound
 
@@ -484,22 +553,37 @@ def main() -> None:
                          "(do this once -- big clips take minutes -- so the labeler loads instantly)")
     ap.add_argument("--force", action="store_true", help="with --precompute: rebuild cached views")
     ap.add_argument("--port", type=int, default=8767)
+    ap.add_argument("--piece-id", type=Path, default=None,
+                    help="piece-ID results JSON (default <bundles-root>/_piece_id.json); "
+                         "decides which score each clip is validated against")
+    ap.add_argument("--trust-labels", action="store_true",
+                    help="validate against the corpus folder label instead of a piece-ID run "
+                         "(the labels are known-wrong -- only for a label-free smoke test)")
     args = ap.parse_args()
 
-    clips = list_clips(args.subset, args.bundles_root, args.all, args.pieces)
+    id_map: dict[str, str] = {}
+    if not args.trust_labels:
+        id_map = load_piece_id_map(args.piece_id or args.bundles_root / "_piece_id.json")
+
+    clips = list_clips(args.subset, args.bundles_root, args.all, args.pieces, id_map)
+    n_id = sum(1 for c in clips if c["score_source"] == "piece_id")
+    n_relabel = sum(1 for c in clips if c["relabeled"])
     print(f"Resolved {len(clips)} clips ({sum(1 for c in clips if c['existing'])} already validated)")
+    print(f"  score source: {n_id} identified ({n_relabel} RE-LABELED off the folder label), "
+          f"{len(clips) - n_id} falling back to the unverified label")
 
     if args.precompute:
         import time
         for i, c in enumerate(clips, 1):
             key = f"{c['piece']}/{c['video_id']}"
-            cache = _view_cache_path(args.bundles_root, c["piece"], c["video_id"])
+            cache = _view_cache_path(args.bundles_root, c["piece"], c["video_id"], c["score_id"])
             if cache.exists() and not args.force:
                 print(f"[{i}/{len(clips)}] {key}: cached", flush=True)
                 continue
             t0 = time.perf_counter()
             try:
-                get_clip_view(c["piece"], c["video_id"], args.bundles_root, args.scores_root, force=args.force)
+                get_clip_view(c["piece"], c["video_id"], args.bundles_root, args.scores_root,
+                              c["score_id"], c["score_source"], force=args.force)
                 print(f"[{i}/{len(clips)}] {key}: built in {time.perf_counter()-t0:.1f}s", flush=True)
             except Exception as e:
                 print(f"[{i}/{len(clips)}] {key}: FAILED {type(e).__name__}: {e}", flush=True)

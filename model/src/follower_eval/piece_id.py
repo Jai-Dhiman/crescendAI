@@ -209,14 +209,30 @@ def main() -> None:
     args = ap.parse_args()
 
     idx = load_ngram_index(args.ngram_index)
-    results = []
-    for spec in args.clips:
+
+    # A corpus pass is ~30-60 s/clip, so write after every clip and resume from
+    # what --out already holds: a crash on clip 20 must not discard clips 1-19.
+    done: list[dict] = []
+    if args.out and args.out.exists():
+        done = json.loads(args.out.read_text())
+        print(f"resuming: {len(done)} clip(s) already in {args.out}")
+    seen = {(d["piece_folder"], d["video_id"]) for d in done}
+
+    results = [PieceIdResult(**{**d, "candidates": tuple(Candidate(**c) for c in d["candidates"])})
+               for d in done]
+    for i, spec in enumerate(args.clips, 1):
         folder, vid = spec.split("/", 1)
-        results.append(identify(folder, vid, args.bundles_root, args.scores_root, idx,
-                                k=args.k, window_sec=args.window_sec))
+        if (folder, vid) in seen:
+            continue
+        print(f"[{i}/{len(args.clips)}] {folder}/{vid}", flush=True)
+        r = identify(folder, vid, args.bundles_root, args.scores_root, idx,
+                     k=args.k, window_sec=args.window_sec)
+        results.append(r)
+        print(f"    -> {r.decision}", flush=True)
+        if args.out:
+            args.out.write_text(json.dumps([result_to_jsonable(x) for x in results], indent=1))
     print(_format(results))
     if args.out:
-        args.out.write_text(json.dumps([result_to_jsonable(r) for r in results], indent=1))
         print(f"\nwrote {args.out}")
 
 
