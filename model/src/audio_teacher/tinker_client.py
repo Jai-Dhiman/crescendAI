@@ -46,7 +46,7 @@ class TinkerProbeClient:
         try:
             import tinker
             from tinker_cookbook import model_info
-            from tinker_cookbook.renderers import get_renderer
+            from tinker_cookbook.renderers import get_renderer, get_text_content
             from tinker_cookbook.tokenizer_utils import get_tokenizer
             from tml_renderers import chat
         except ImportError as exc:
@@ -58,6 +58,7 @@ class TinkerProbeClient:
             ) from exc
         self._tinker = tinker
         self._chat = chat
+        self._get_text_content = get_text_content
         self._sample_rate = sample_rate
         self._in_rate = usd_per_1m_input_tokens
         self._out_rate = usd_per_1m_output_tokens
@@ -86,13 +87,16 @@ class TinkerProbeClient:
                 author=user,
             )
 
-        return [
+        # The Inkling renderer's build_generation_prompt consumes a
+        # chat.MessageList (not a bare Python list) -- match the cookbook
+        # sample_audio.py flow exactly.
+        return chat.MessageList([
             chat.Message(content=chat.Text(build_question(pair.axis)), author=user),
             chat.Message(content=chat.Text("Clip A:"), author=user),
             clip_message(pair.clip_a),
             chat.Message(content=chat.Text("Clip B:"), author=user),
             clip_message(pair.clip_b),
-        ]
+        ])
 
     def estimate_cost_usd(self, pair: ContrastPair) -> float:
         seconds = 0.0
@@ -111,21 +115,20 @@ class TinkerProbeClient:
             num_samples=1,
             sampling_params=self._tinker.SamplingParams(
                 max_tokens=self._max_tokens,
+                # Greedy: a discrimination probe wants the model's single
+                # most-likely A/B judgment, not a sample from its posterior --
+                # temperature noise would add variance to a 20-pair accuracy.
+                temperature=0.0,
                 stop=self._renderer.get_stop_sequences(),
             ),
         ).result()
         tokens = result.sequences[0].tokens
         message, _termination = self._renderer.parse_response(tokens)
-        # Loud on API drift: if the parsed message stops exposing
-        # content.text, this raises rather than silently degrading.
-        try:
-            text = message.content.text
-        except AttributeError as exc:
-            raise TypeError(
-                f"unexpected Tinker parse_response shape for pair "
-                f"{pair.pair_id!r}: expected message.content.text, got "
-                f"{type(message).__name__}"
-            ) from exc
+        # parse_response returns a renderers.Message (a TypedDict whose
+        # "content" is a str or a list of content parts), NOT an object with
+        # .content.text -- get_text_content is the cookbook accessor and it
+        # strips reasoning parts, leaving just the answer text to parse.
+        text = self._get_text_content(message)
         # Loud on API drift: if ModelInput stops exposing length, this raises.
         input_tokens = prompt.length
         output_tokens = len(tokens)
