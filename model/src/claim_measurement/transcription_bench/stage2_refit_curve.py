@@ -88,8 +88,8 @@ def _dl_one(m):
     return m["seg_id"], (r.returncode == 0 and wav.exists()), (r.stderr or "").strip()[:70]
 
 
-def stage_prep(per_grade: int, all_mode: bool, workers: int):
-    WAV_DIR.mkdir(parents=True, exist_ok=True)
+def _build_manifest(per_grade: int, all_mode: bool):
+    """Additive: union the (all | grade-stratified) selection into any existing manifest."""
     picked = _select_all() if all_mode else p3e.select_records(per_grade)
     new = [{"seg_id": p3e._seg_id(r.key), "key": r.key, "grade": r.grade,
             "video_id": vid, "midi_name": r.midi_name} for r, vid in picked]
@@ -101,10 +101,16 @@ def stage_prep(per_grade: int, all_mode: bool, workers: int):
             by_id[m["seg_id"]] = m
             added += 1
     manifest = list(by_id.values())
+    MANIFEST.parent.mkdir(parents=True, exist_ok=True)
     MANIFEST.write_text(json.dumps(manifest, indent=2))
     print(f"manifest now {len(manifest)} pieces ({added} newly added, {len(existing)} kept) across "
           f"grades {sorted(set(m['grade'] for m in manifest))}", flush=True)
+    return manifest
 
+
+def stage_prep(per_grade: int, all_mode: bool, workers: int):
+    WAV_DIR.mkdir(parents=True, exist_ok=True)
+    manifest = _build_manifest(per_grade, all_mode)
     todo = [m for m in manifest if not (WAV_DIR / f"{m['seg_id']}.wav").exists()]
     print(f"{len(todo)} to download ({workers} workers)", flush=True)
     ok = fail = 0
@@ -126,6 +132,44 @@ def _tk_one(wav):
            "--python", "3.11", "transkun", str(wav), str(out), "--device", "cpu"]
     r = subprocess.run(cmd, capture_output=True, text=True)
     return wav.stem, (r.returncode == 0 and out.exists()), (r.stderr or "").strip()[-90:]
+
+
+def _pipe_one(m):
+    """Disk-safe per-piece unit for the full run: download -> transcribe -> DROP the wav, so peak
+    disk is bounded to only the in-flight wavs (not ~79GB of the whole corpus at once)."""
+    seg = m["seg_id"]
+    if (TK_DIR / f"{seg}.mid").exists():
+        return seg, "skip", ""
+    wav = WAV_DIR / f"{seg}.wav"
+    try:
+        if not wav.exists():
+            _, dok, derr = _dl_one(m)
+            if not dok:
+                return seg, "dlfail", derr
+        _, tok, terr = _tk_one(wav)
+        return seg, ("ok" if tok else "tkfail"), terr
+    finally:
+        wav.unlink(missing_ok=True)
+
+
+def stage_pipeline(per_grade: int, all_mode: bool, workers: int):
+    """Full-run driver: build (additive) manifest, then download+transcribe+drop-wav per piece."""
+    WAV_DIR.mkdir(parents=True, exist_ok=True)
+    TK_DIR.mkdir(parents=True, exist_ok=True)
+    manifest = _build_manifest(per_grade, all_mode)
+    todo = [m for m in manifest if not (TK_DIR / f"{m['seg_id']}.mid").exists()]
+    print(f"{len(todo)}/{len(manifest)} pieces need a MIDI ({workers} workers, disk-safe: wav dropped "
+          f"after each)", flush=True)
+    tally = {"ok": 0, "skip": 0, "dlfail": 0, "tkfail": 0}
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        for done, (seg, status, err) in enumerate(
+                (f.result() for f in as_completed({ex.submit(_pipe_one, m) for m in todo})), 1):
+            tally[status] = tally.get(status, 0) + 1
+            if status in ("dlfail", "tkfail"):
+                print(f"  {status} {seg[:40]}: {err}", flush=True)
+            if done % 50 == 0:
+                print(f"  progress {done}/{len(todo)} {tally}", flush=True)
+    print(f"\npipeline done {tally}. MIDIs in {TK_DIR}. Next: --stage curve.", flush=True)
 
 
 def stage_transcribe(workers: int):
@@ -263,10 +307,12 @@ def main():
         stage_prep(per_grade, all_mode, workers)
     elif stage == "transcribe":
         stage_transcribe(workers)
+    elif stage == "pipeline":
+        stage_pipeline(per_grade, all_mode, workers)
     elif stage == "curve":
         stage_curve()
     else:
-        raise SystemExit(f"unknown --stage {stage!r} (prep|transcribe|curve)")
+        raise SystemExit(f"unknown --stage {stage!r} (prep|transcribe|pipeline|curve)")
 
 
 if __name__ == "__main__":
