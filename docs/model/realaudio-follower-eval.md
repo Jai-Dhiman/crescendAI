@@ -1,6 +1,6 @@
 # Real-Audio Score-Follower Eval — SOURCE OF TRUTH
 
-**Status:** v1 proxy track live (2026-07-26, #133). Gold (accuracy) track **tooling built** (2026-07-27, #133 S3); awaiting human tapping to produce the real accuracy numbers + final PASS bars. This eval is the **source of truth** for score-follower quality; the synthetic `follower_bench` (below) is superseded and slated for removal once the gold track is trusted.
+**Status:** v1 proxy track live (2026-07-26). Accuracy is measured two ways (2026-07-27, #133 S3): **Track A** — automatic, against ASAP's human-verified beat alignment (live; first numbers in) — and **Track B** — a light-touch human validator for the real amateur clips (tool built, browser-verified; awaiting a labeling pass). The **bar-tap tool is superseded**: labeling by ear needs bar numbers against scores the labeler doesn't have — Track A gets ground truth from ASAP instead, Track B needs only "watch and flag." This eval is the **source of truth** for score-follower quality; the synthetic `follower_bench` (below) is superseded and slated for removal once the accuracy tracks are trusted.
 
 ## Why this exists
 
@@ -23,9 +23,9 @@ Real audio has no synthetic answer key, so the eval measures on two tracks:
 - `confidence` — forward-backward posterior mass on each decoded column.
 - `conf_vs_monotone` calibration — does confidence drop at backward steps (the "knows when it's lost" signal)?
 
-**Gold track (tooling built, #133 S3) — human bar-tap, 32-clip subset.** The one **non-circular accuracy** number: a human taps bar downbeats → `(bar_number → audio_sec)` reference; the follower's decoded score-position at each tap is compared to the true bar's score-second → bar-localization error, % within tolerance, relock latency after restarts. Also adjudicates whether low-confidence proxy clips are genuine hard cases (correct to abstain) or follower failures.
+**Track A — automatic, against ASAP beat alignment (`asap_eval.py`).** ASAP ships, per real performance, a human-verified alignment between the performance timeline and the score timeline (`performance_beats[i]` ↔ `midi_score_beats[i]`). That pairing *is* the answer key: at performance-time `p_i` the true score position is `s_i`. We run the follower on the ASAP performance and compare its decoded score-position at each `p_i` to `s_i` → localization error in seconds and tempo-invariant **beats**, over 1000+ real pianists in the rep idiom, no labeling. Two modes: **full-follow**, and **random mid-performance cold-start** (feed only notes from a random `t_start` — the real interactive case, where the user is somewhere in the middle with no lead-in). First result on clean ASAP MIDI: near-perfect (full ~0.001 beat median; cold-start ~0.001 beat, pooled within-1-beat 0.98) — an isolation result showing the *matcher* is not the weak link, so real-audio degradation will come from transcription noise (the MAESTRO-audio→Transkun step next). This runs on ASAP MIDI on-disk; swapping the perf-note source for MAESTRO-audio→Transkun measures the same follower through the real transcription stage with the same ASAP truth.
 
-*Why the two clocks compare:* a tap's `audio_sec` is WAV playback time; the follower's `MatchedNote.perf_time` is the Transkun onset in that **same** WAV clock (the tap tool serves the transcription's source WAV, not a YouTube re-encode). Interpolating the follower's `perf_time → score_position` staircase at each tapped `audio_sec` yields a decoded score-second directly comparable to `measure_table[bar_number].start_sec`. Both live in score-render seconds, so the error is a real cursor offset, not a proxy. Error is also reported in **bars** (error ÷ local bar duration) so it is tempo-invariant across the rep.
+**Track B — light-touch human validation of the amateur clips (`validate_tool.py`).** The amateur phone-audio clips have no independent ground truth and ASAP has neither phone audio nor amateur restarts, so the real target still needs a human — but not bar numbers. The tool draws two note-strips on one score-time axis: the played notes *where the follower placed them* (`decode_at` of each onset) over the score reference, with a playhead driven by the follower's decoded position. When the follower is right the rows line up; when wrong they clash (visibly and against the audio). The human holds SPACE over wrong spans and picks one verdict (`tracked` / `recovered` / `wrong` / `junk`). `validate_report.py` aggregates these into a success fraction and, crucially, the **low-confidence adjudication**: a low-conf clip marked `junk` = the follower was right to abstain; marked `wrong` = a real failure. Follower views are cached to disk (`--precompute`) because `follow_hmm` is O(perf×score) — big clips take minutes to compute but then load instantly.
 
 ## v1 proxy results (279 clips, 0 harness failures)
 
@@ -38,27 +38,28 @@ Real audio has no synthetic answer key, so the eval measures on two tracks:
 
 Reading: the follower traverses the full score on the large majority of real amateur clips, is robust to real AMT + phone-audio noise, and raises a self-doubt signal on ~21% (the beginner-heavy, hesitation-heavy pieces — `fur_elise`, `pathetique`). **Accuracy remains unverified** — high coverage/confidence/span is *consistent with* good following but is not proof; a confidently-wrong alignment yields the same proxies. That is the gap the gold track fills.
 
-**PASS bars are deliberately not yet finalized** — they will be built on the observed **tap-level distribution** across the labeled clips, not per-clip medians (the median `backward_frac` of 0.00 hid that 72% of clips contain repeats; aggregates lie about exactly the behavior we care about). `gold_report.py` pools every tap, never medians-of-medians.
+**PASS bars are deliberately not yet finalized.** Track A gives a per-beat error distribution over real performances; Track B gives the amateur-clip success fraction and the low-confidence adjudication. Bars get set from the observed distributions once the MAESTRO-audio Track A run and a Track B labeling pass are in — not from the clean-MIDI numbers, which are the easy end.
 
-The verdict currently runs against **provisional placeholder bars** (`PROVISIONAL_PASS` in `gold_report.py`): `within_1bar_frac ≥ 0.85` and `median_abs_err_bars ≤ 0.5` — the minimum a live cursor needs (land on the right measure on the large majority of downbeats). These are advisory and printed with a `PROVISIONAL` flag until the human tapping is done; then re-derive the bars from the actual distribution and lock them.
-
-## Gold track — how to label and score (#133 S3)
-
-Subset: `model/src/follower_eval/gold_subset.json` — 32 clips (per rep piece, the lowest- and highest-confidence v1 clip; spans confidence 0.03→0.97 across all 16 pieces).
+## How to run the accuracy tracks (#133 S3)
 
 ```bash
-cd model    # PRIMARY checkout (data/ + the WAVs are gitignored, absent in worktrees)
+cd model    # PRIMARY checkout (data/raw/asap + the WAVs are gitignored/absent in worktrees)
 WT=<path-to-issue-133-worktree>/model
-# 1. label: opens a local page that serves each clip's real WAV; tap Space on each
-#    bar downbeat (edit "Next bar" back on a repeat/restart), Save per clip.
-PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.tap_tool --serve   # http://localhost:8766
-# 2. score: runs the follower on each labeled clip, prints bar-localization
-#    accuracy + a (provisional) PASS/FAIL verdict.
-PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.gold_report \
-  --bundles-root data/evals/realaudio_bundles --scores-root data/scores --out /tmp/gold_report.json
+
+# TRACK A — automatic, ASAP ground truth (no labeling). --limit caps the corpus.
+PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.asap_eval \
+  --limit 40 --random-starts 8 --window-sec 20 --out /tmp/asap_trackA.json
+
+# TRACK B — light-touch validation of the amateur clips.
+PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.validate_tool --precompute   # once (minutes; big clips)
+PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.validate_tool --serve        # http://localhost:8767 — watch & flag
+PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.validate_report \
+  --bundles-root data/evals/realaudio_bundles                                       # aggregate + adjudicate low-conf
 ```
 
-Gold labels are written to `data/evals/realaudio_bundles/<piece>/<vid>.gold.json` (`{bar_taps:[{bar_number,audio_sec}]}`) — gitignored, resumable (the tool re-loads existing taps). Modules: `tap_tool.py` (labeler), `accuracy.py` (metric), `gold_report.py` (report + verdict); tests in `tests/follower_eval/test_accuracy.py`.
+Track B outputs `data/evals/realaudio_bundles/<piece>/<vid>.validate.json` (verdict + wrong-spans; gitignored, resumable). Modules: `asap_eval.py` (Track A), `validate_tool.py` + `validate_report.py` (Track B); tests in `tests/follower_eval/test_asap_eval.py`.
+
+**Superseded:** the bar-tap gold tool (`tap_tool.py` / `accuracy.py` / `gold_report.py`, `gold_subset.json`) — labeling by ear needs bar numbers the labeler can't produce without scores. Kept for now (the `decode_at` + error core is reused by Track A/B); removable once the two tracks are trusted.
 
 ## Rebuild
 
