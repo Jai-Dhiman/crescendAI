@@ -14,10 +14,12 @@ accuracy.
   with:
 
   ```bash
+  cd apps/api
   DATABASE_URL="postgresql://jdhiman:postgres@localhost:5432/crescendai_dev" bun run migrate
   ```
 
-  Bare `bun run migrate` targets the hosted production database.
+  From `apps/api`, bare `bun run migrate` targets the hosted production
+  database.
 - "Ready" means local tests/checks, local services, and the relevant manual
   click-through are green.
 
