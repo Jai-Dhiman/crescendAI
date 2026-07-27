@@ -23,9 +23,17 @@ Real audio has no synthetic answer key, so the eval measures on two tracks:
 - `confidence` — forward-backward posterior mass on each decoded column.
 - `conf_vs_monotone` calibration — does confidence drop at backward steps (the "knows when it's lost" signal)?
 
-**Track A — automatic, against ASAP beat alignment (`asap_eval.py`).** ASAP ships, per real performance, a human-verified alignment between the performance timeline and the score timeline (`performance_beats[i]` ↔ `midi_score_beats[i]`). That pairing *is* the answer key: at performance-time `p_i` the true score position is `s_i`. We run the follower on the ASAP performance and compare its decoded score-position at each `p_i` to `s_i` → localization error in seconds and tempo-invariant **beats**, over 1000+ real pianists in the rep idiom, no labeling. Two modes: **full-follow**, and **random mid-performance cold-start** (feed only notes from a random `t_start` — the real interactive case, where the user is somewhere in the middle with no lead-in). First result on clean ASAP MIDI: near-perfect (full ~0.001 beat median; cold-start ~0.001 beat, pooled within-1-beat 0.98) — an isolation result showing the *matcher* is not the weak link, so real-audio degradation will come from transcription noise (the MAESTRO-audio→Transkun step next). This runs on ASAP MIDI on-disk; swapping the perf-note source for MAESTRO-audio→Transkun measures the same follower through the real transcription stage with the same ASAP truth.
+**Track A — automatic, against ASAP beat alignment (`asap_eval.py`).** ASAP ships, per real performance, a human-verified alignment between the performance timeline and the score timeline (`performance_beats[i]` ↔ `midi_score_beats[i]`). That pairing *is* the answer key: at performance-time `p_i` the true score position is `s_i`. We run the follower on the ASAP performance and compare its decoded score-position at each `p_i` to `s_i` → localization error in seconds and tempo-invariant **beats**, over 1000+ real pianists in the rep idiom, no labeling. Two modes: **full-follow**, and **random mid-performance cold-start** (feed only notes from a random `t_start` — the real interactive case, where the user is somewhere in the middle with no lead-in). First result on clean ASAP MIDI: near-perfect (full ~0.001 beat median; cold-start ~0.001 beat, pooled within-1-beat 0.98) — an isolation result showing the *matcher* is not the weak link, so real-audio degradation will come from transcription noise.
+
+**Through real audio (`asap_audio.py`, `--perf-source audio`).** The same performances are supplied as **MAESTRO audio → Transkun** (the production transcriber) with ASAP's alignment still the answer key, so the only thing that changes between the two modes is the note source and the numbers are directly comparable. A missing bundle is an error, never a fall back to MIDI — that would report a clean-MIDI number as if it had come through audio.
+
+> **Do not use ASAP's metadata `start` column as the audio time offset.** ASAP performances are excerpts cut from longer MAESTRO recordings, so a transcription is in MAESTRO's clock while the beat truth is in ASAP's. `start` looks like that offset and is wrong: for `Bach/Fugue/bwv_858/Zhang01M` it reads **90.331 s while the true offset is 89.831 s**. Half a second is a large systematic error at beat resolution, and it corrupts the number silently instead of failing. `derive_shift()` recovers the offset from the notes themselves (both MIDIs are on disk) and raises below 98% note agreement rather than guessing.
+
+Only performances whose MAESTRO audio is present locally can run in audio mode (`asap_audio --list`); 519 of the 1066 ASAP rows carry a MAESTRO link, and the rest of that audio is a download.
 
 **Track B — light-touch human validation of the amateur clips (`validate_tool.py`).** The amateur phone-audio clips have no independent ground truth and ASAP has neither phone audio nor amateur restarts, so the real target still needs a human — but not bar numbers. The tool draws two note-strips on one score-time axis: the played notes *where the follower placed them* (`decode_at` of each onset) over the score reference, with a playhead driven by the follower's decoded position. When the follower is right the rows line up; when wrong they clash (visibly and against the audio). The human holds SPACE over wrong spans and picks one verdict (`tracked` / `recovered` / `wrong` / `junk`). `validate_report.py` aggregates these into a success fraction and, crucially, the **low-confidence adjudication**: a low-conf clip marked `junk` = the follower was right to abstain; marked `wrong` = a real failure. Follower views are cached to disk (`--precompute`) because `follow_hmm` is O(perf×score) — big clips take minutes to compute but then load instantly.
+
+**The validator follows the piece-ID'd score, not the folder label.** The corpus labels are known-wrong, so `validate_tool` resolves each clip's score through `piece_id.py` (`load_piece_id_map` → `resolve_score_id`). A clip the ID stage abstained on still gets validated, but against the folder label and flagged **SCORE UNVERIFIED** in the UI, so a labeling failure is never recorded as a follower failure. A missing piece-ID map is a loud error naming the command to run; `--trust-labels` is the explicit opt-in to the old wrong-score behavior. The view cache is keyed by clip **and score**, so a re-labeled clip is never served a view computed against its old score.
 
 ## v1 proxy results (279 clips, 0 harness failures)
 
@@ -49,6 +57,17 @@ WT=<path-to-issue-133-worktree>/model
 # TRACK A — automatic, ASAP ground truth (no labeling). --limit caps the corpus.
 PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.asap_eval \
   --limit 40 --random-starts 8 --window-sec 20 --out /tmp/asap_trackA.json
+
+# TRACK A through real audio: build MAESTRO->Transkun bundles, then re-run.
+# (--list first: only performances whose MAESTRO audio is local can run.)
+PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.asap_audio --list
+PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.asap_audio          # transcribe (minutes/clip)
+PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.asap_eval --perf-source audio \
+  --out /tmp/asap_trackA_audio.json
+
+# PIECE-ID — required before Track B; the corpus labels are wrong.
+PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.piece_id \
+  --clips <piece/vid ...> --out data/evals/realaudio_bundles/_piece_id.json   # resumable
 
 # TRACK B — light-touch validation of the amateur clips.
 PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.validate_tool --precompute   # once (minutes; big clips)
