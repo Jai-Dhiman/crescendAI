@@ -1,6 +1,8 @@
 # Apps scope
 
-Read the repository-root `AGENTS.md` first.
+`CLAUDE.md` is the canonical Claude Code context for this scope. Keep the
+sibling `AGENTS.md` byte-identical as a compatibility mirror. Read the
+repository-root `CLAUDE.md` first.
 
 ## Boundaries
 
@@ -10,7 +12,7 @@ Read the repository-root `AGENTS.md` first.
 - `web/` is the browser client. Treat its package manifest and source as
   authoritative; do not copy endpoint or component inventories into context
   files.
-- `ios/` has additional constraints in `ios/AGENTS.md`.
+- `ios/` has additional constraints in `ios/CLAUDE.md`.
 - Use `bun` for API and web dependencies and scripts.
 
 ## Verification and safety
@@ -21,7 +23,7 @@ Read the repository-root `AGENTS.md` first.
   commands are production mutations and remain human-lit.
 - Preserve explicit errors across service boundaries. Do not hide API,
   WebSocket, inference, or persistence failures with client-side fallbacks.
-- Capture errors using the surface’s existing Sentry integration; follow nearby
+- Capture errors using the surface's existing Sentry integration; follow nearby
   code rather than duplicating SDK recipes here.
 
 ## Routing

@@ -1,6 +1,8 @@
 # Model and research scope
 
-Read the repository-root `AGENTS.md` first.
+`CLAUDE.md` is the canonical Claude Code context for this scope. Keep the
+sibling `AGENTS.md` byte-identical as a compatibility mirror. Read the
+repository-root `CLAUDE.md` first.
 
 - Use `uv` for every Python environment and command.
 - Track experiments with Trackio. Record the split, seed, dataset provenance,
