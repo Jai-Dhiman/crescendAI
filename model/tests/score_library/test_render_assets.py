@@ -1,6 +1,6 @@
 """Tests for score_library.render_assets -- Verovio render gate on real .mxl assets.
 
-Requires model/scores/v1/ to be populated (run `just build-catalog-mxl` first).
+Requires model/scores/v1/ to be populated (run `just corpus::build-catalog-mxl` first).
 Skips gracefully if no .mxl assets are found.
 """
 
@@ -34,7 +34,7 @@ _SAMPLE_MXL = _find_one_generated_mxl()
 
 @pytest.mark.skipif(
     _SAMPLE_MXL is None,
-    reason="No .mxl assets found in model/scores/v1/ -- run `just build-catalog-mxl` first",
+    reason="No .mxl assets found in model/scores/v1/ -- run `just corpus::build-catalog-mxl` first",
 )
 def test_generated_mxl_is_valid_zip() -> None:
     """The generated .mxl is a proper ZIP archive."""
@@ -51,7 +51,7 @@ def test_generated_mxl_is_valid_zip() -> None:
 
 @pytest.mark.skipif(
     _SAMPLE_MXL is None,
-    reason="No .mxl assets found in model/scores/v1/ -- run `just build-catalog-mxl` first",
+    reason="No .mxl assets found in model/scores/v1/ -- run `just corpus::build-catalog-mxl` first",
 )
 def test_generated_mxl_renders_in_verovio() -> None:
     """The generated .mxl loads in Verovio and produces at least one page.
@@ -85,7 +85,7 @@ def test_generated_mxl_renders_in_verovio() -> None:
 
 @pytest.mark.skipif(
     _SAMPLE_MXL is None,
-    reason="No .mxl assets found in model/scores/v1/ -- run `just build-catalog-mxl` first",
+    reason="No .mxl assets found in model/scores/v1/ -- run `just corpus::build-catalog-mxl` first",
 )
 def test_generated_mxl_has_no_doctype() -> None:
     """The inner XML of the generated .mxl has no DOCTYPE declaration.

@@ -33,7 +33,7 @@ whatever generated it.
 
 ## Adding a score to the catalog
 
-Append one entry to `manual_scores.json`, then run `just catalog-add` (parse-manual
+Append one entry to `manual_scores.json`, then run `just corpus::catalog-add` (parse-manual
 -> fingerprint -> reports catalog size). The validation gate inside `parse-manual`
 HALTS loudly if any source is bad or off-grid — it never writes a partial catalog.
 
@@ -169,7 +169,7 @@ is the input for a deferred cleanliness pass. Full history in memory
 
 Do not conflate them:
 
-- **The general catalog** grows freely via the manifest + `just catalog-add`. Add
+- **The general catalog** grows freely via the manifest + `just corpus::catalog-add`. Add
   as many pieces as you like; no code change.
 - **The fixed 16-piece eval set** is `CANONICAL_MAP` in
   `model/src/score_library/catalog_coverage.py` plus `eval_piece_map.json`. It is
