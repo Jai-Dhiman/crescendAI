@@ -29,9 +29,31 @@ Real audio has no synthetic answer key, so the eval measures on two tracks:
 
 > **Do not use ASAP's metadata `start` column as the audio time offset.** ASAP performances are excerpts cut from longer MAESTRO recordings, so a transcription is in MAESTRO's clock while the beat truth is in ASAP's. `start` looks like that offset and is wrong: for `Bach/Fugue/bwv_858/Zhang01M` it reads **90.331 s while the true offset is 89.831 s**. Half a second is a large systematic error at beat resolution, and it corrupts the number silently instead of failing. `derive_shift()` recovers the offset from the notes themselves (both MIDIs are on disk) and raises below 98% note agreement rather than guessing.
 
-Only performances whose MAESTRO audio is present locally can run in audio mode (`asap_audio --list`); 519 of the 1066 ASAP rows carry a MAESTRO link, and the rest of that audio is a download.
+Only performances whose MAESTRO audio is present locally can run in audio mode (`asap_audio --list`); 519 of the 1066 ASAP rows carry a MAESTRO link, `--fetch` pulls the rest per-file from `ddPn08/maestro-v3.0.0`.
+
+**Track A through-audio result (2026-07-27, 55 performances, 13 composers).** 56 ASAP performances transcribed from MAESTRO audio through Transkun; 55 have a usable ASAP alignment (1 excluded: `Scriabin/Sonatas/5/ChernovA06M` is not `score_and_performance_aligned`).
+
+| Track A mode | full-follow median | cold-start median | cold-start within-1-beat |
+|---|---|---|---|
+| MAESTRO audio → Transkun (55 perfs) | **0.005 beats** | **0.005 beats** | **0.9205** (440 windows) |
+
+Transcription fidelity: AMT note count vs the reference MIDI is a **median 0.991** of the reference (worst: dense virtuoso writing — Liszt Ballade 2 0.91, Islamey 0.92). Transcription cost is ~0.27× realtime on CPU.
+
+Reading: going through the real transcriber barely moves localization — the follower is not transcription-limited on competition-grade recordings. The weakest clips are `Schumann/Arabeske/Min09M` (within-1-beat 0.76) and `Schubert/Impromptu_op.90_D.899/4_no_repeat` (0.66), both of which are also the weakest on clean MIDI, so they are matcher/repeat-structure cases rather than audio cases.
 
 **Track B — light-touch human validation of the amateur clips (`validate_tool.py`).** The amateur phone-audio clips have no independent ground truth and ASAP has neither phone audio nor amateur restarts, so the real target still needs a human — but not bar numbers. The tool draws two note-strips on one score-time axis: the played notes *where the follower placed them* (`decode_at` of each onset) over the score reference, with a playhead driven by the follower's decoded position. When the follower is right the rows line up; when wrong they clash (visibly and against the audio). The human holds SPACE over wrong spans and picks one verdict (`tracked` / `recovered` / `wrong` / `junk`). `validate_report.py` aggregates these into a success fraction and, crucially, the **low-confidence adjudication**: a low-conf clip marked `junk` = the follower was right to abstain; marked `wrong` = a real failure. Follower views are cached to disk (`--precompute`) because `follow_hmm` is O(perf×score) — big clips take minutes to compute but then load instantly.
+
+**Piece-ID over the 32-clip subset (2026-07-27): 16 label-confirmed, 5 RE-LABELED, 11 abstain.** 16% of the subset had been validated against the wrong score:
+
+| filed as | actually playing | conf |
+|---|---|---|
+| `moonlight_sonata_mvt1/_KGpW2ROcwA` | `beethoven.piano_sonatas.1-1` (Op. 2/1 — the video title confirms it) | 0.91 |
+| `rachmaninoff_prelude_csm/v80RecqrtJ8` | `rachmaninoff.preludes_op_23.4` | 0.97 |
+| `bach_prelude_c_wtc1/A_wTcQZoyxM` | `bach.prelude.bwv_870` (WTC **II**) | 0.94 |
+| `pathetique_mvt2/IqbxUz9xi1c` | `beethoven.piano_sonatas.8-1` (mvt **1**) | 0.76 |
+| `fantaisie_impromptu/JbYGHXsQiqk` | `chopin.etudes_op_25.5` | 0.84 |
+
+**This resolves the v1 "21% low-confidence" question: confidence is a working score-mismatch detector.** Re-running the follower on the corrected score moves every re-labeled clip from **0.03–0.07 to 0.67–0.88** confidence, while the 11 abstained clips stay at **0.11–0.39** on their (probably correct) label score. So low confidence has two distinct causes and they separate cleanly: *wrong score* recovers when corrected, *hard/hesitant playing* does not. The residual low-confidence set is performance difficulty, not mislabeling. Of the 11 abstains, 4 already rank the folder-label piece first (at low confidence), so a wider `--k` shortlist would not help — only a longer verify window might.
 
 **The validator follows the piece-ID'd score, not the folder label.** The corpus labels are known-wrong, so `validate_tool` resolves each clip's score through `piece_id.py` (`load_piece_id_map` → `resolve_score_id`). A clip the ID stage abstained on still gets validated, but against the folder label and flagged **SCORE UNVERIFIED** in the UI, so a labeling failure is never recorded as a follower failure. A missing piece-ID map is a loud error naming the command to run; `--trust-labels` is the explicit opt-in to the old wrong-score behavior. The view cache is keyed by clip **and score**, so a re-labeled clip is never served a view computed against its old score.
 
