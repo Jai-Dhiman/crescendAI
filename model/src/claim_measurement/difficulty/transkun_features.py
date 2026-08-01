@@ -291,41 +291,48 @@ def release_features(notes: Sequence[Note]) -> dict[str, float]:
 
 
 def pedal_features(sustain: Sequence[dict], soft: Sequence[dict],
-                   piece_duration_s: float) -> dict[str, float]:
-    """Sustain-pedal technique from CC64 (+ una corda from CC67).
+                   start_s: float, end_s: float) -> dict[str, float]:
+    """Sustain-pedal TIMING from CC64 (+ una corda usage from CC67).
 
-    `pedal_half_fraction` is the discriminative one: values strictly inside the
-    extremes mean graded, continuous pedal control (half- and quarter-pedalling), a
-    late-grade skill, whereas a beginner's transcription shows only 0/127 slams.
+    Deliberately timing-only. The obvious richer idea -- half-pedalling, measured from
+    CC64 values strictly inside the extremes -- is NOT EXPRESSIBLE from Transkun output:
+    Transkun's pedal head is a binary detector that emits only 0 and 127, so depth mean
+    (always 63.5), value entropy (always 1.0) and half-pedal fraction (always 0.0) are
+    constants across every piece in the corpus, carrying zero information. They are
+    omitted rather than shipped as dead columns. Recovering pedal DEPTH would require a
+    different transcriber, not a different feature. What Transkun does supply honestly
+    is WHEN and HOW OFTEN the pedal moves, which is what remains here.
 
-    All quantities are rates or fractions. A piece with genuinely no CC64 gets 0.0 for
-    the rate/usage terms (a true observation) but nan for the shape terms (depth,
-    entropy, segment length), which are undefined with no events -- distinguishing
-    "pedal never used" from "pedal used shallowly".
+    The window [start_s, end_s] must be the note window in the SAME absolute clock as
+    the pedal event times. Pedal events are timestamped from the start of the file while
+    the first note may begin much later, so normalizing by the note span alone lets
+    hold-times sum past the span and produces an "on fraction" above 1.
+
+    A piece with genuinely no CC64 gets 0.0 for the usage terms (a true observation)
+    but nan for segment shape, which is undefined with no events.
     """
-    keys = ("pedal_change_rate", "pedal_on_fraction", "pedal_half_fraction",
-            "pedal_value_entropy", "pedal_depth_mean", "pedal_segment_mean_s",
+    keys = ("pedal_change_rate", "pedal_on_fraction", "pedal_segment_mean_s",
             "pedal_segment_cv", "soft_pedal_rate", "soft_pedal_used")
-    if piece_duration_s <= 0:
+    window = float(end_s) - float(start_s)
+    if window <= 0:
         return dict.fromkeys(keys, float("nan"))
 
-    soft_rate = float(len(soft) / piece_duration_s)
+    soft_rate = float(len(soft) / window)
     if not sustain:
         return {"pedal_change_rate": 0.0, "pedal_on_fraction": 0.0,
-                "pedal_half_fraction": float("nan"), "pedal_value_entropy": float("nan"),
-                "pedal_depth_mean": float("nan"), "pedal_segment_mean_s": float("nan"),
-                "pedal_segment_cv": float("nan"),
+                "pedal_segment_mean_s": float("nan"), "pedal_segment_cv": float("nan"),
                 "soft_pedal_rate": soft_rate, "soft_pedal_used": float(bool(soft))}
 
     times = np.array([e["time"] for e in sustain], float)
     values = np.array([e["value"] for e in sustain], float)
 
     # Time-weighted fraction of the piece with the pedal down: each event's value holds
-    # until the next event; the last holds to the end of the piece.
-    edges = np.append(times, piece_duration_s)
+    # until the next event, the last to end_s. Both edges are clipped into the note
+    # window so the result is a genuine fraction of the sounding piece.
+    edges = np.clip(np.append(times, end_s), start_s, end_s)
     holds = np.clip(np.diff(edges), 0.0, None)
     down = values >= PEDAL_ON
-    on_fraction = float(holds[down].sum() / piece_duration_s)
+    on_fraction = float(holds[down].sum() / window)
 
     # Sustained "pedal down" segments -> how long each pedalling gesture lasts.
     seg_lengths = []
@@ -342,13 +349,9 @@ def pedal_features(sustain: Sequence[dict], soft: Sequence[dict],
     seg_mean = float(seg.mean()) if seg.size else float("nan")
     seg_cv = float(seg.std() / seg.mean()) if seg.size >= 2 and seg.mean() > 0 else float("nan")
 
-    interior = (values > 1) & (values < 126)
     return {
-        "pedal_change_rate": float(len(sustain) / piece_duration_s),
+        "pedal_change_rate": float(len(sustain) / window),
         "pedal_on_fraction": on_fraction,
-        "pedal_half_fraction": float(np.mean(interior)),
-        "pedal_value_entropy": _entropy(np.digitize(values, np.arange(8, 128, 8))),
-        "pedal_depth_mean": float(values.mean()),
         "pedal_segment_mean_s": seg_mean,
         "pedal_segment_cv": seg_cv,
         "soft_pedal_rate": soft_rate,
@@ -364,11 +367,13 @@ def transkun_features(notes: Sequence[Note], sustain: Sequence[dict],
         raise ValueError("need >=2 notes for transkun features")
     onsets = [float(x["onset"]) for x in notes]
     offsets = [float(x["offset"]) for x in notes]
-    duration = max(max(offsets), max(onsets)) - min(onsets)
+    # The note window in absolute file time -- pedal events share this clock.
+    start = min(onsets)
+    end = max(max(offsets), max(onsets))
     out: dict[str, float] = {}
     out.update(articulation_features(notes))
     out.update(duration_features(notes))
     out.update(voicing_features(notes))
     out.update(release_features(notes))
-    out.update(pedal_features(sustain, soft, duration))
+    out.update(pedal_features(sustain, soft, start, end))
     return {f"tk_{k}": v for k, v in out.items()}

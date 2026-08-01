@@ -196,43 +196,58 @@ def test_monophonic_piece_has_no_chords_to_measure():
 # --------------------------------------------------------------------- pedal
 
 
-def test_no_pedal_gives_zero_usage_but_nan_shape():
-    """Absence of pedal is a real 0.0 for usage, but depth/entropy are undefined --
-    nan keeps 'never pedalled' distinguishable from 'pedalled shallowly'."""
-    f = pedal_features([], [], piece_duration_s=60.0)
+def test_no_pedal_gives_zero_usage_but_nan_segment_shape():
+    """Absence of pedal is a real 0.0 for usage, but segment length is undefined with no
+    events -- nan keeps 'never pedalled' distinguishable from 'pedalled briefly'."""
+    f = pedal_features([], [], 0.0, 60.0)
     assert f["pedal_change_rate"] == 0.0
     assert f["pedal_on_fraction"] == 0.0
-    assert math.isnan(f["pedal_depth_mean"])
-    assert math.isnan(f["pedal_value_entropy"])
+    assert math.isnan(f["pedal_segment_mean_s"])
     assert f["soft_pedal_used"] == 0.0
 
 
 def test_pedal_on_fraction_is_time_weighted():
     """Down at t=0, up at t=5, over a 10 s piece -> exactly half the piece pedalled."""
     sustain = [{"time": 0.0, "value": 127}, {"time": 5.0, "value": 0}]
-    f = pedal_features(sustain, [], piece_duration_s=10.0)
+    f = pedal_features(sustain, [], 0.0, 10.0)
     assert f["pedal_on_fraction"] == pytest.approx(0.5, abs=1e-9)
     assert f["pedal_change_rate"] == pytest.approx(0.2, abs=1e-9)
     assert f["pedal_segment_mean_s"] == pytest.approx(5.0, abs=1e-9)
 
 
-def test_half_pedalling_is_distinguished_from_binary_slams():
-    """The discriminative claim: graded interior values vs on/off extremes."""
-    binary = [{"time": float(i), "value": 127 if i % 2 == 0 else 0} for i in range(8)]
-    graded = [{"time": float(i), "value": 30 + 8 * i} for i in range(8)]
-    fb = pedal_features(binary, [], piece_duration_s=10.0)
-    fg = pedal_features(graded, [], piece_duration_s=10.0)
-    assert fb["pedal_half_fraction"] == 0.0
-    assert fg["pedal_half_fraction"] == 1.0
-    assert fg["pedal_value_entropy"] > fb["pedal_value_entropy"]
+def test_on_fraction_stays_a_fraction_when_pedal_precedes_the_first_note():
+    """Regression: pedal events are timestamped from the start of the FILE while the
+    first note may begin much later. Normalizing by the note span alone let hold-times
+    sum past the span and produced an 'on fraction' of 1.24 on real data."""
+    sustain = [{"time": 0.0, "value": 127}, {"time": 30.0, "value": 0}]
+    f = pedal_features(sustain, [], start_s=20.0, end_s=30.0)
+    assert 0.0 <= f["pedal_on_fraction"] <= 1.0
+    # Only t=20..30 lies inside the note window, and the pedal is down for all of it.
+    assert f["pedal_on_fraction"] == pytest.approx(1.0, abs=1e-9)
+
+
+def test_pedal_events_after_the_last_note_do_not_inflate_the_fraction():
+    sustain = [{"time": 0.0, "value": 127}, {"time": 50.0, "value": 0}]
+    f = pedal_features(sustain, [], start_s=0.0, end_s=10.0)
+    assert f["pedal_on_fraction"] == pytest.approx(1.0, abs=1e-9)
 
 
 def test_pedal_rate_is_length_invariant():
     """Same gesture density over a 2x longer piece -> same rate."""
     a = [{"time": float(i), "value": 127} for i in range(10)]
     b = [{"time": 2.0 * i, "value": 127} for i in range(10)]
-    assert (pedal_features(a, [], 10.0)["pedal_change_rate"]
-            == pytest.approx(2 * pedal_features(b, [], 20.0)["pedal_change_rate"]))
+    assert (pedal_features(a, [], 0.0, 10.0)["pedal_change_rate"]
+            == pytest.approx(2 * pedal_features(b, [], 0.0, 20.0)["pedal_change_rate"]))
+
+
+def test_pedal_depth_features_are_absent_because_transkun_cannot_supply_them():
+    """Transkun's pedal head emits only CC64 0 and 127, so depth mean (always 63.5),
+    value entropy (always 1.0) and half-pedal fraction (always 0.0) are constants across
+    the whole corpus. They must not exist as columns -- a constant feature is dead weight
+    that reads as signal in a feature list."""
+    f = pedal_features([{"time": 0.0, "value": 127}], [], 0.0, 10.0)
+    for dead in ("pedal_depth_mean", "pedal_value_entropy", "pedal_half_fraction"):
+        assert dead not in f
 
 
 # ----------------------------------------------------------------- integration
@@ -243,9 +258,9 @@ def test_transkun_features_are_namespaced_and_complete():
     sustain = [{"time": 0.0, "value": 100}, {"time": 1.0, "value": 0}]
     f = transkun_features(notes, sustain, [])
     assert all(k.startswith("tk_") for k in f)
-    # 8 articulation + 6 duration + 8 voicing + 4 release + 9 pedal
-    assert len(f) == 35
-    assert "tk_concurrency_mean" in f and "tk_pedal_half_fraction" in f
+    # 8 articulation + 6 duration + 8 voicing + 4 release + 6 pedal
+    assert len(f) == 32
+    assert "tk_concurrency_mean" in f and "tk_pedal_on_fraction" in f
 
 
 def test_transkun_features_rejects_a_single_note():
