@@ -79,7 +79,7 @@ argument.
 - Create: `model/src/claim_measurement/difficulty/bakeoff_paths.py`
 - Test: `model/src/claim_measurement/difficulty/test_bakeoff_paths.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Tests for bakeoff_paths.
@@ -99,14 +99,14 @@ def test_resolve_paths_uses_override_root():
     assert paths.emb_root == Path("/tmp/fake_data_root/results/bakeoff")
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_bakeoff_paths.py -q --no-cov
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_measurement.difficulty'` (package/module do not exist yet).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 `model/src/claim_measurement/difficulty/__init__.py`: empty file.
 
@@ -146,14 +146,14 @@ def resolve_paths(data_root: Path | None = None) -> BakeoffPaths:
     )
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_bakeoff_paths.py -q --no-cov
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/difficulty/__init__.py \
@@ -177,7 +177,7 @@ correct Kendall tau-c otherwise, matching the exact behavior ported from
 - Create: `model/src/claim_measurement/difficulty/bakeoff_cv.py`
 - Create: `model/src/claim_measurement/difficulty/test_bakeoff_cv.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Tests for bakeoff_cv (ported from the unmerged issue-104-mirex-difficulty
@@ -213,14 +213,14 @@ def test_tau_c_handles_ties_without_raising():
     assert not math.isnan(result)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_bakeoff_cv.py -q --no-cov
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_measurement.difficulty.bakeoff_cv'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 """Composer-disjoint CV + Kendall tau-c, ported from the unmerged
@@ -252,14 +252,14 @@ def tau_c(x, y) -> float | None:
     return None if np.isnan(t) else float(t)
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_bakeoff_cv.py -q --no-cov
 ```
 Expected: PASS (5 passed)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/difficulty/bakeoff_cv.py \
@@ -281,7 +281,7 @@ let a model memorize "Czerny pieces are grade 4").
 - Modify: `model/src/claim_measurement/difficulty/bakeoff_cv.py`
 - Modify: `model/src/claim_measurement/difficulty/test_bakeoff_cv.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `test_bakeoff_cv.py`:
 ```python
@@ -310,14 +310,14 @@ def test_composer_disjoint_folds_no_composer_straddles_a_fold():
             )
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_bakeoff_cv.py::test_composer_disjoint_folds_no_composer_straddles_a_fold -q --no-cov
 ```
 Expected: FAIL — `ImportError: cannot import name 'composer_disjoint_folds'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Append to `bakeoff_cv.py`:
 ```python
@@ -341,14 +341,14 @@ def composer_disjoint_folds(composers: np.ndarray, n_folds: int, seed: int) -> l
             for f in range(n_folds)]
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_bakeoff_cv.py -q --no-cov
 ```
 Expected: PASS (6 passed)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/difficulty/bakeoff_cv.py \
@@ -371,7 +371,7 @@ requires ("composer-disjoint grouped 5-fold x 5-seed RidgeCV").
 - Modify: `model/src/claim_measurement/difficulty/bakeoff_cv.py`
 - Modify: `model/src/claim_measurement/difficulty/test_bakeoff_cv.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `test_bakeoff_cv.py`:
 ```python
@@ -404,14 +404,14 @@ def test_oof_tau_ridge_reports_zero_seeds_when_target_is_constant():
     assert result == {"mean": None, "std": None, "n_seeds": 0}
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_bakeoff_cv.py -k oof_tau_ridge -q --no-cov
 ```
 Expected: FAIL — `ImportError: cannot import name 'oof_tau_ridge'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Append to `bakeoff_cv.py`:
 ```python
@@ -443,14 +443,14 @@ def oof_tau_ridge(X: np.ndarray, y: np.ndarray, composers: np.ndarray,
             "n_seeds": len(taus)}
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_bakeoff_cv.py -q --no-cov
 ```
 Expected: PASS (8 passed)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/difficulty/bakeoff_cv.py \
@@ -472,7 +472,7 @@ output contract both backbone extractors write into.
 - Create: `model/src/claim_measurement/difficulty/bakeoff_npz.py`
 - Create: `model/src/claim_measurement/difficulty/test_bakeoff_npz.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Tests for the shared .npz embedding contract.
@@ -496,14 +496,14 @@ def test_round_trip_preserves_embedding_grade_composer(tmp_path):
     assert record.composer_id == 42
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_bakeoff_npz.py -q --no-cov
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_measurement.difficulty.bakeoff_npz'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 """Per-piece .npz embedding contract shared by every backbone extractor.
@@ -550,14 +550,14 @@ def read_embedding_npz(path: Path) -> EmbeddingRecord:
     return EmbeddingRecord(embeddings=embeddings, grade=grade, composer_id=composer_id)
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_bakeoff_npz.py -q --no-cov
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/difficulty/bakeoff_npz.py \
@@ -578,7 +578,7 @@ property that makes one contract serve both backbones.
 **Files:**
 - Modify: `model/src/claim_measurement/difficulty/test_bakeoff_npz.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `test_bakeoff_npz.py`:
 ```python
@@ -598,7 +598,7 @@ def test_round_trip_preserves_multiple_poolings(tmp_path):
     np.testing.assert_allclose(record.embeddings["last_token"], [0.9, 0.8])
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 Actually run this before assuming: given Task 5's implementation already
 supports an arbitrary number of embeddings, this MAY pass immediately. Run it
@@ -611,7 +611,7 @@ If it FAILS, proceed to Step 3. If it already PASSES, this confirms the
 Task-5 implementation already generalizes — skip Step 3, note this in the
 commit message, and proceed to Step 5.
 
-- [ ] **Step 3: Implement the minimum to make the test pass** (only if Step 2 failed)
+- [x] **Step 3: Implement the minimum to make the test pass** (only if Step 2 failed)
 
 No implementation change is expected — `write_embedding_npz`/`read_embedding_npz`
 already iterate `embeddings` as a dict of arbitrary size. If it does fail,
@@ -619,14 +619,14 @@ the most likely cause is a key-prefix collision; fix by confirming the
 `_EMB_PREFIX` stripping in `read_embedding_npz` only strips the prefix
 (`k[len(_EMB_PREFIX):]`), not the whole key.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_bakeoff_npz.py -q --no-cov
 ```
 Expected: PASS (2 passed)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/difficulty/test_bakeoff_npz.py
@@ -650,7 +650,7 @@ manifest.
 - Create: `model/src/claim_measurement/difficulty/bakeoff_sampling.py`
 - Create: `model/src/claim_measurement/difficulty/test_bakeoff_sampling.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Tests for bakeoff_sampling.
@@ -698,14 +698,14 @@ def test_load_bakeoff_manifest_joins_and_filters(tmp_path):
                                       grade=3, composer="Bach")]
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_bakeoff_sampling.py -q --no-cov
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_measurement.difficulty.bakeoff_sampling'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 """Manifest+labels join and composer-stratified sampling for the bake-off.
@@ -750,14 +750,14 @@ def load_bakeoff_manifest(manifest_path: Path, labels_path: Path, transkun_mid_d
     return entries
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_bakeoff_sampling.py -q --no-cov
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/difficulty/bakeoff_sampling.py \
@@ -781,7 +781,7 @@ on for composer-disjoint CV to have enough groups.
 - Modify: `model/src/claim_measurement/difficulty/bakeoff_sampling.py`
 - Modify: `model/src/claim_measurement/difficulty/test_bakeoff_sampling.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `test_bakeoff_sampling.py`:
 ```python
@@ -818,14 +818,14 @@ def test_composer_stratified_sample_returns_everything_when_target_exceeds_pool(
     assert len(sample) == 15
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_bakeoff_sampling.py -k stratified -q --no-cov
 ```
 Expected: FAIL — `ImportError: cannot import name 'composer_stratified_sample'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Append to `bakeoff_sampling.py`:
 ```python
@@ -875,14 +875,14 @@ def composer_stratified_sample(entries: list[ManifestEntry], target_n: int, seed
     return sample
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_bakeoff_sampling.py -q --no-cov
 ```
 Expected: PASS (4 passed)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/difficulty/bakeoff_sampling.py \
@@ -905,7 +905,7 @@ never touch real model weights.
 - Create: `model/src/claim_measurement/difficulty/backbone.py`
 - Create: `model/src/claim_measurement/difficulty/test_backbone.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Tests for the Backbone protocol's test double.
@@ -940,14 +940,14 @@ def test_fake_backbone_is_deterministic_per_path_but_differs_across_paths():
     assert not np.array_equal(a1, b)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_backbone.py -q --no-cov
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_measurement.difficulty.backbone'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 """The seam: a narrow interface both real backbones and test fakes implement,
@@ -982,14 +982,14 @@ class FakeBackbone:
         return {name: rng.random(self.dim).astype(np.float32) for name in self.pooling_names}
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_backbone.py -q --no-cov
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/difficulty/backbone.py \
@@ -1013,7 +1013,7 @@ real model weights."
 - Create: `model/src/claim_measurement/difficulty/extract.py`
 - Create: `model/src/claim_measurement/difficulty/test_extract.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Tests for the backbone-agnostic extraction orchestrator.
@@ -1071,14 +1071,14 @@ def test_extract_embeddings_records_failures_and_continues(tmp_path):
     assert not (out_dir / "b.npz").exists()
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_extract.py -q --no-cov
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_measurement.difficulty.extract'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 """Backbone-agnostic per-piece extraction: iterate manifest entries, call the
@@ -1132,14 +1132,14 @@ def extract_embeddings(backbone: Backbone, entries: list[ManifestEntry],
     return report
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_extract.py -q --no-cov
 ```
 Expected: PASS (2 passed)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/difficulty/extract.py \
@@ -1163,7 +1163,7 @@ human-lit GPU boundary, not this adapter's job.
 - Create: `model/src/claim_measurement/difficulty/aria_backbone.py`
 - Create: `model/src/claim_measurement/difficulty/test_aria_backbone.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Tests for the Aria backbone adapter (no real weights loaded).
@@ -1194,14 +1194,14 @@ def test_embed_wraps_extract_embedding_as_numpy(monkeypatch):
     np.testing.assert_allclose(result["embedding"], [1.0, 2.0, 3.0])
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_aria_backbone.py -q --no-cov
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_measurement.difficulty.aria_backbone'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 """Aria-medium adapter: the thin seam between the Backbone protocol and the
@@ -1225,7 +1225,7 @@ class AriaBackbone:
         return {"embedding": vec.detach().cpu().numpy().astype(np.float32)}
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_aria_backbone.py -q --no-cov
@@ -1235,7 +1235,7 @@ Expected: PASS. If it fails instead with an import error unrelated to
 this contradicts the plan's verified precondition — stop and report rather
 than reinterpreting the failure.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/difficulty/aria_backbone.py \
@@ -1258,7 +1258,7 @@ last-token — correctly, entirely offline, via an injected fake `loader`
 - Create: `model/src/claim_measurement/difficulty/moonbeam_backbone.py`
 - Create: `model/src/claim_measurement/difficulty/test_moonbeam_backbone.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Tests for the MoonBeam pooling math, against an injected fake loader --
@@ -1284,14 +1284,14 @@ def test_embed_computes_mean_pool_and_last_token_from_injected_loader():
     np.testing.assert_allclose(result["last_token"], [5.0, 6.0])
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_moonbeam_backbone.py -q --no-cov
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_measurement.difficulty.moonbeam_backbone'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 """MoonBeam-839M adapter -- an INTEGRATION SPIKE (issue #138 design). MoonBeam's
@@ -1341,14 +1341,14 @@ class MoonBeamBackbone:
         }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_moonbeam_backbone.py -q --no-cov
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/difficulty/moonbeam_backbone.py \
@@ -1370,7 +1370,7 @@ failure over silent fallback, per this repo's coding rules.
 **Files:**
 - Modify: `model/src/claim_measurement/difficulty/test_moonbeam_backbone.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `test_moonbeam_backbone.py`:
 ```python
@@ -1382,7 +1382,7 @@ def test_construction_without_loader_fails_loudly():
         MoonBeamBackbone(loader=None)
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 This is expected to already PASS given Task 12a's implementation (the
 `ValueError` is already raised in `__init__`). Run it to confirm:
@@ -1397,18 +1397,18 @@ the behavior it documents was a deliberate side effect of a prior task). If
 it FAILS, implement the missing `raise ValueError(...)` in `__init__` per
 Task 12a's code before proceeding.
 
-- [ ] **Step 3: Implement the minimum to make the test pass** (only if Step 2 failed)
+- [x] **Step 3: Implement the minimum to make the test pass** (only if Step 2 failed)
 
 No change expected.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_moonbeam_backbone.py -q --no-cov
 ```
 Expected: PASS (2 passed)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/difficulty/test_moonbeam_backbone.py
@@ -1432,7 +1432,7 @@ isolated venv, documented" hard constraint without a new standalone doc file.
 - Create: `model/src/claim_measurement/difficulty/moonbeam_extract_script.py`
 - Create: `model/src/claim_measurement/difficulty/test_moonbeam_extract_script.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Offline test of moonbeam_extract_script's CLI wiring, via an injected fake
@@ -1476,14 +1476,14 @@ def test_main_wires_injected_loader_into_extraction(tmp_path):
     np.testing.assert_allclose(record.embeddings["last_token"], [3.0, 4.0])
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_moonbeam_extract_script.py -q --no-cov
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_measurement.difficulty.moonbeam_extract_script'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 # /// script
@@ -1581,14 +1581,14 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_moonbeam_extract_script.py -q --no-cov
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/difficulty/moonbeam_extract_script.py \
@@ -1612,7 +1612,7 @@ public CLI.
 - Create: `model/src/claim_measurement/difficulty/run_bakeoff.py`
 - Create: `model/src/claim_measurement/difficulty/test_run_bakeoff.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Offline tests for run_bakeoff.py's CLI stage dispatch.
@@ -1651,14 +1651,14 @@ def test_sample_stage_writes_sample_manifest(tmp_path):
     assert {e["seg_id"] for e in out} == {"a", "b"}
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_run_bakeoff.py -q --no-cov
 ```
 Expected: FAIL — `ModuleNotFoundError: No module named 'claim_measurement.difficulty.run_bakeoff'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```python
 """CLI stage dispatch for the frozen backbone bake-off (#138 Phase 0).
@@ -1760,14 +1760,14 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_run_bakeoff.py -q --no-cov
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/difficulty/run_bakeoff.py \
@@ -1790,7 +1790,7 @@ requires ("Outputs per-backbone frozen tau-c (mean/std over seeds)").
 **Files:**
 - Modify: `model/src/claim_measurement/difficulty/test_run_bakeoff.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `test_run_bakeoff.py`:
 ```python
@@ -1818,7 +1818,7 @@ def test_eval_stage_reports_per_backbone_per_pooling_tau_c(tmp_path, capsys):
     assert set(printed["aria"]["embedding"]) == {"mean", "std", "n_seeds"}
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_run_bakeoff.py -k eval_stage -q --no-cov
@@ -1830,7 +1830,7 @@ case applies, same as Task 6's protocol: if it already PASSES, this
 documents/locks existing behavior with an explicit test (acceptable per Task
 12b's precedent) — skip Step 3.
 
-- [ ] **Step 3: Implement the minimum to make the test pass** (only if Step 2 failed)
+- [x] **Step 3: Implement the minimum to make the test pass** (only if Step 2 failed)
 
 No implementation change expected — `_stage_eval` and the `eval` CLI branch
 already exist from Task 14. If Step 2 fails, the most likely causes are (a)
@@ -1839,14 +1839,14 @@ already exist from Task 14. If Step 2 fails, the most likely causes are (a)
 are populated for an empty directory — fix by ensuring `_stage_eval` skips a
 `backbone_dir` with zero `.npz` files rather than calling `np.stack([])`.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/test_run_bakeoff.py -q --no-cov
 ```
 Expected: PASS (2 passed)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add model/src/claim_measurement/difficulty/test_run_bakeoff.py
