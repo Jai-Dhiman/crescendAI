@@ -20,8 +20,13 @@ class ExtractionReport:
 
 
 def _composer_id(composer: str, index_path: Path) -> int:
-    """Look up (or append) composer in the shared composer_index.json so
-    every backbone's npz files reference the same numeric ids."""
+    """Look up (or append) composer in the shared composer_index.json.
+
+    Ids are stable across backbones only when extraction runs are serialized
+    against this index (the intended usage: run one backbone's extraction to
+    completion, then the next). The read-modify-write below is not atomic or
+    locked, so concurrent extraction runs racing on the same
+    composer_index.json can assign divergent ids to the same composer."""
     if index_path.exists():
         index = json.loads(index_path.read_text())
     else:
