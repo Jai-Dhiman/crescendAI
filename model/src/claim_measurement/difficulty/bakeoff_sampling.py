@@ -38,3 +38,49 @@ def load_bakeoff_manifest(manifest_path: Path, labels_path: Path, transkun_mid_d
         entries.append(ManifestEntry(seg_id=m["seg_id"], key=m["key"],
                                       grade=int(m["grade"]), composer=composer))
     return entries
+
+
+def composer_stratified_sample(entries: list[ManifestEntry], target_n: int, seed: int) -> list[ManifestEntry]:
+    """Draw up to target_n entries so every composer present in `entries`
+    contributes at least one piece to the output (when target_n >= the
+    number of distinct composers), proportional to each composer's share of
+    `entries` beyond that floor, deterministic given `seed`."""
+    if target_n <= 0:
+        raise ValueError("target_n must be positive")
+    if target_n >= len(entries):
+        return list(entries)
+
+    by_composer: dict[str, list[ManifestEntry]] = {}
+    for e in entries:
+        by_composer.setdefault(e.composer, []).append(e)
+    composers = sorted(by_composer)
+    rng = np.random.default_rng(seed)
+    for c in composers:
+        rng.shuffle(by_composer[c])  # deterministic per-composer order
+
+    if len(composers) > target_n:
+        keep = sorted(rng.permutation(composers)[:target_n].tolist())
+        return [by_composer[c][0] for c in keep]
+
+    quotas = {c: 1 for c in composers}
+    remaining = target_n - len(composers)
+    total = len(entries)
+    for c in composers:
+        share = len(by_composer[c]) / total
+        quotas[c] += int(round(share * remaining))
+
+    sample: list[ManifestEntry] = []
+    for c in composers:
+        take = min(quotas[c], len(by_composer[c]))
+        sample.extend(by_composer[c][:take])
+
+    if len(sample) > target_n:
+        rng.shuffle(sample)
+        sample = sample[:target_n]
+    elif len(sample) < target_n:
+        taken_ids = {e.seg_id for e in sample}
+        leftover = [e for e in entries if e.seg_id not in taken_ids]
+        rng.shuffle(leftover)
+        sample.extend(leftover[: target_n - len(sample)])
+
+    return sample
