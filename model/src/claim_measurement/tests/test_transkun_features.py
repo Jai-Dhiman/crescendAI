@@ -160,13 +160,26 @@ def test_block_chord_reports_its_voice_count():
     assert f["frac_time_ge5_voices"] == pytest.approx(0.0, abs=1e-9)
 
 
+def test_voice_change_rate_counts_transitions_through_rests():
+    """Regression: transitions were counted AFTER silent segments were dropped, which
+    splices non-adjacent moments together. Two detached notes give 1 -> 0 -> 1 -> 0;
+    dropping the rests collapses that to 1, 1 and reports zero changes."""
+    notes = [note(60, 0.0, 0.5), note(64, 1.0, 1.5)]
+    # timeline over [0, 1.5]: 1 (0-0.5), 0 (0.5-1.0), 1 (1.0-1.5) -> 2 transitions
+    f = voicing_features(notes)
+    assert f["voice_change_rate"] == pytest.approx(2 / 1.5, abs=1e-9)
+
+
 def test_voice_change_rate_is_per_second_not_a_count():
     """Doubling the piece's length while keeping the same texture must not change the
-    rate -- this is the length-confound guard."""
-    short = [note(60, 0.0, 1.0), note(64, 1.0, 2.0)]
-    long = [note(60, 0.0, 2.0), note(64, 2.0, 4.0)]
-    assert voicing_features(short)["voice_change_rate"] == pytest.approx(
-        2 * voicing_features(long)["voice_change_rate"])
+    rate -- this is the length-confound guard. Uses a texture with genuine transitions
+    so both sides are non-zero and the ratio is actually exercised."""
+    short = [note(60, 0.0, 0.5), note(64, 1.0, 1.5)]
+    long = [note(60, 0.0, 1.0), note(64, 2.0, 3.0)]
+    short_rate = voicing_features(short)["voice_change_rate"]
+    long_rate = voicing_features(long)["voice_change_rate"]
+    assert short_rate > 0 and long_rate > 0
+    assert short_rate == pytest.approx(2 * long_rate)
 
 
 # ------------------------------------------------------------------- release

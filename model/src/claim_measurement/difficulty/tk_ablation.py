@@ -34,6 +34,7 @@ Stages:
     uv run --script tk_ablation.py --stage extract [--workers 8] [--limit N]
     uv run --script tk_ablation.py --stage cv [--boot 2000]
 """
+import hashlib
 import json
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -64,6 +65,22 @@ REG_PARAMS = dict(objective="regression", n_estimators=300, learning_rate=0.03,
                   num_leaves=31, min_child_samples=40, subsample=0.8, subsample_freq=1,
                   colsample_bytree=0.9, reg_lambda=1.0, random_state=SEED,
                   n_jobs=-1, verbosity=-1)
+
+
+def _extractor_fingerprint() -> str:
+    """SHA of the two modules that define the feature values.
+
+    This harness exists to be looped on: edit a feature, re-measure. The failure mode
+    that ruins such a loop is silent -- edit `transkun_features.py`, run `--stage cv`,
+    forget `--stage extract`, and the cache serves the OLD values while the report reads
+    like a verdict on the new ones. Comparing feature NAMES would not catch it either,
+    since a changed formula keeps its name. Hashing the source does.
+    """
+    here = Path(__file__).resolve().parent
+    h = hashlib.sha256()
+    for name in ("transkun_features.py", "phase3c_explore.py"):
+        h.update((here / name).read_bytes())
+    return h.hexdigest()[:16]
 
 
 def tau_c(x, y):
@@ -127,6 +144,7 @@ def stage_extract(workers: int, limit: int | None):
 
     FEAT_CACHE.parent.mkdir(parents=True, exist_ok=True)
     FEAT_CACHE.write_text(json.dumps({"n_rows": len(rows), "n_failed": len(errors),
+                                      "extractor_sha": _extractor_fingerprint(),
                                       "errors": errors[:50], "rows": rows}))
     print(f"\nextracted {len(rows)} rows, {len(errors)} failures -> {FEAT_CACHE}", flush=True)
     for e in errors[:10]:
@@ -138,6 +156,13 @@ def _load_matrix():
     rows = cached["rows"]
     if not rows:
         raise SystemExit(f"no rows in {FEAT_CACHE}; run --stage extract first")
+    current = _extractor_fingerprint()
+    if cached.get("extractor_sha") != current:
+        raise SystemExit(
+            f"STALE FEATURE CACHE: {FEAT_CACHE} was built by extractor "
+            f"{cached.get('extractor_sha')!r} but the code on disk is {current!r}.\n"
+            f"Re-run `--stage extract` before `--stage cv`; scoring the old values under "
+            f"the new code would report a verdict on features that were never measured.")
     base = [k for k in rows[0] if k not in ("key", "grade", "composer") and not k.startswith("tk_")]
     new = [k for k in rows[0] if k.startswith("tk_")]
     feats = base + new

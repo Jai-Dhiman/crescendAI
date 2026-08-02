@@ -213,6 +213,12 @@ def voicing_features(notes: Sequence[Note]) -> dict[str, float]:
     if counts.size < 1 or wall <= 0:
         return dict.fromkeys(keys, float("nan"))
 
+    # Texture churn must be counted on the FULL timeline, BEFORE silent segments are
+    # dropped. Counting it afterwards splices non-adjacent moments together and misses
+    # every transition that passes through a rest: 1 -> 0 -> 1 collapses to 1, 1 and
+    # reads as zero changes when there were two.
+    changes = int(np.count_nonzero(np.diff(counts))) if counts.size >= 2 else 0
+
     sounding = counts >= 1
     total = float(seg[sounding].sum())
     if total <= 0:
@@ -227,10 +233,7 @@ def voicing_features(notes: Sequence[Note]) -> dict[str, float]:
     # Weighted percentile of the voice count: sort by count, walk the weight mass.
     idx = np.argsort(counts)
     cw = np.cumsum(w[idx])
-    p90 = float(counts[idx][np.searchsorted(cw, 0.9)]) if cw.size else float("nan")
-    # How often the sounding-voice count changes per second -- texture churn, which is
-    # a rate (length-invariant) rather than a count.
-    changes = int(np.count_nonzero(np.diff(counts))) if counts.size >= 2 else 0
+    p90 = float(counts[idx][min(int(np.searchsorted(cw, 0.9)), cw.size - 1)])
     return {
         "concurrency_mean": float(np.sum(counts * w)),
         "concurrency_p90": p90,
