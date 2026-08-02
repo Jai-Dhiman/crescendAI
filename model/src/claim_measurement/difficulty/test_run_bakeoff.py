@@ -37,6 +37,29 @@ def test_sample_stage_writes_sample_manifest(tmp_path):
     assert {e["seg_id"] for e in out} == {"a", "b"}
 
 
+def test_eval_stage_reports_empty_dict_when_emb_dir_missing(tmp_path, capsys):
+    # No extraction has run yet -- results/bakeoff/emb/ does not exist. The
+    # eval stage must report an empty result set, not raise.
+    exit_code = main(["--stage", "eval", "--data-root", str(tmp_path)])
+
+    assert exit_code == 0
+    printed = json.loads(capsys.readouterr().out)
+    assert printed == {}
+
+
+def test_eval_stage_skips_backbone_dir_with_no_npz_files(tmp_path, capsys):
+    # A backbone subdirectory exists (e.g. created but extraction produced
+    # nothing) but holds no .npz files: it must be skipped, not crash the
+    # npz-glob/stack logic.
+    (tmp_path / "results" / "bakeoff" / "emb" / "aria").mkdir(parents=True)
+
+    exit_code = main(["--stage", "eval", "--data-root", str(tmp_path)])
+
+    assert exit_code == 0
+    printed = json.loads(capsys.readouterr().out)
+    assert printed == {}
+
+
 def test_eval_stage_reports_per_backbone_per_pooling_tau_c(tmp_path, capsys):
     rng = np.random.default_rng(0)
     emb_dir = tmp_path / "results" / "bakeoff" / "emb" / "aria"

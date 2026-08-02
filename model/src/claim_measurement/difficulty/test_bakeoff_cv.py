@@ -71,6 +71,38 @@ def test_oof_tau_ridge_recovers_a_strong_linear_signal():
     assert result["std"] >= 0.0
 
 
+def test_composer_disjoint_folds_leaves_excess_folds_empty_when_composers_below_n_folds():
+    # Fewer distinct composers (3) than requested folds (5): the extra folds
+    # come back as empty arrays rather than raising or under-filling n_folds.
+    composers = np.array([f"composer_{i % 3}" for i in range(30)])
+
+    folds = composer_disjoint_folds(composers, n_folds=5, seed=1)
+
+    assert len(folds) == 5
+    non_empty = [f for f in folds if len(f) > 0]
+    empty = [f for f in folds if len(f) == 0]
+    assert len(non_empty) == 3
+    assert len(empty) == 2
+    all_indices = np.concatenate(folds)
+    assert sorted(all_indices) == list(range(30))
+
+
+def test_oof_tau_ridge_skips_empty_folds_when_composers_below_n_folds():
+    # oof_tau_ridge must not crash on the empty test-folds produced above --
+    # it should silently skip them (via the `len(te) == 0: continue` guard)
+    # and still recover a valid tau-c from the non-empty folds.
+    rng = np.random.default_rng(0)
+    n = 30
+    composers = np.array([f"composer_{i % 3}" for i in range(n)])
+    X = rng.normal(size=(n, 3))
+    y = X[:, 0] * 5
+
+    result = oof_tau_ridge(X, y, composers, n_folds=5, seeds=[1, 2])
+
+    assert result["n_seeds"] == 2
+    assert result["mean"] is not None
+
+
 def test_oof_tau_ridge_reports_zero_seeds_when_target_is_constant():
     rng = np.random.default_rng(0)
     n = 60
