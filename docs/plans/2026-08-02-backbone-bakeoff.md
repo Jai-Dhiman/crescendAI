@@ -1869,3 +1869,242 @@ cd model && uv run python -m claim_measurement.difficulty.run_bakeoff --stage sa
 This line is documentation of the human-lit next step (real sample draw
 against the main checkout's real data) — **not** part of this plan's
 executed tasks; do not run it as part of `/build`.
+
+---
+
+## Challenge Review
+
+Verification method: read the plan and spec in full, read every real source
+file the plan cites (`aria_embeddings.py`, `pyproject.toml`, `paths.py`,
+`score_align/` precedent, `gc_error_bars/` broken precedent), ran the
+`score_align` and `gc_error_bars` pytest precondition claims live, diffed
+`bakeoff_cv.py`'s ported functions against the actual unmerged
+`issue-104-mirex-difficulty` commit `7976b5e6` (`git show`), diffed
+`load_bakeoff_manifest`'s filter against the actual unmerged
+`issue-137-transkun-features` `tk_ablation.py`, checked the real
+`manifest.json`/`new_clean_data.json` field shapes and `transkun_mid/`
+naming under the main checkout, and executed every non-trivial algorithm in
+the plan (`tau_c`, `composer_disjoint_folds`, `oof_tau_ridge`,
+`composer_stratified_sample`) verbatim against the plan's own test fixtures
+in a live `uv run python3` REPL. All passed exactly as the plan claims.
+
+### CEO Pass
+
+**Premise Challenge.** Right problem, real pain: memory records #124 (LoRA
+single-split fine-tune) already burned a GPU budget on the wrong bet once
+("frozen-on-H 0.6785 -> lora-on-H 0.6583" — the fine-tune made things worse
+under the honest OOD gate). A cheap frozen-embedding decider before the next
+expensive fine-tune is the direct, proportionate fix, not a proxy problem.
+No simpler framing was found — a bake-off needs both backbones on the same
+protocol, which is exactly what this plan builds.
+
+**Scope Check.** Correctly matches the spec's stated goal and "Not in
+scope" boundaries (no Phase-1 trainer code, no re-litigating the deployed
+0.824 baseline, no symbolic-feature comparison). Task count (15 tasks, ~20
+files including tests) exceeds the ">8 files" complexity-smell threshold,
+but every file maps to a genuinely separate, independently-testable concern
+(path resolution, CV math, npz I/O, sampling, a protocol+fake, an
+orchestrator, two backbone adapters, one CLI) — this granularity matches the
+existing `score_align/` precedent (3 files for one concern) scaled to two
+backbones plus shared eval math. Not flagged as a real complexity problem.
+
+**Twelve-Month Alignment.**
+```
+CURRENT STATE                  THIS PLAN                       12-MONTH IDEAL
+Aria integrated,           ->  offline-testable decider    ->  LoRA fine-tune on
+MoonBeam absent,               harness; human runs it            the winning backbone,
+no bake-off protocol            on GPU, picks a winner            shipped to MIREX
+exists on this branch
+```
+Moves toward the ideal; no tech debt created that conflicts with it (frozen
+extraction code is throwaway-after-decision by design, not meant to survive
+into Phase 1).
+
+**Alternatives Check.**
+```
+[QUESTION] — The spec's "Not in scope" section implicitly rules out
+             alternatives (e.g., skip the bake-off and fine-tune both
+             backbones directly, or use a cheaper single-fold proxy instead
+             of 5-fold x 5-seed) but does not name them or say why they were
+             rejected. Given #124's memory lesson that a single-split
+             evaluation already produced a misleading result once, the
+             5-fold x 5-seed choice deserves one sentence of "why not
+             cheaper" in the spec for a future reader.
+```
+
+### Engineering Pass
+
+**Architecture.** Data flow is clean and matches how the code actually
+works today:
+```
+run_bakeoff.py --stage sample
+    -> bakeoff_paths.resolve_paths (verified: parents[3] == model/data,
+       matches DEFAULT_DATA_ROOT)
+    -> bakeoff_sampling.load_bakeoff_manifest (verified: filter logic is an
+       exact match of the real, unmerged tk_ablation.py's
+       "no midi -> skip; no composer -> skip" — confirmed against
+       issue-137-transkun-features's actual file)
+    -> bakeoff_sampling.composer_stratified_sample -> sample_manifest.json
+
+[human, GPU] extract-aria / extract-moonbeam
+    -> AriaBackbone.embed / MoonBeamBackbone.embed
+    -> extract.extract_embeddings (per-piece try/except, loud failure list)
+    -> bakeoff_npz.write_embedding_npz -> {seg_id}.npz
+
+run_bakeoff.py --stage eval
+    -> bakeoff_npz.read_embedding_npz (per backbone dir, per pooling)
+    -> bakeoff_cv.oof_tau_ridge (verified: composer_disjoint_folds,
+       RidgeCV/StandardScaler pipeline, and the alphas grid are a verbatim
+       port of phase5b_aria_probe.py's _oof_tau/_folds, confirmed via
+       `git show 7976b5e6`)
+    -> stdout JSON {backbone: {pooling: {mean, std, n_seeds}}}
+```
+No security surface (no SQL, shell, or LLM-prompt injection paths — all
+inputs are local JSON/MIDI files under a human-supplied `--data-root`).
+
+**Module Depth Audit.**
+- `bakeoff_paths.py`: 1 function, hides worktree-vs-main-checkout path
+  layout. DEEP.
+- `bakeoff_cv.py`: 3 functions, hides RidgeCV pipeline + composer
+  bin-packing + seed-repeated OOF bookkeeping (verified non-trivial and
+  correct by execution). DEEP.
+- `bakeoff_npz.py`: 2 functions, hides the pickle-free multi-pooling
+  key-prefix scheme. DEEP.
+- `bakeoff_sampling.py`: 2 functions, hides join/filter + quota-with-cap
+  sampling (verified correct by execution, including the >target_n-composers
+  branch). DEEP.
+- `backbone.py`: Protocol + `FakeBackbone`. SHALLOW by explicit design (the
+  spec says so: "Hides: nothing by design — this is the seam"). Correctly
+  not flagged as a problem since it's declared intentional, not accidental.
+- `extract.py`: 1 function + report dataclass, hides per-entry
+  try/except-and-record, npz writing, composer-id bookkeeping. DEEP.
+- `aria_backbone.py` / `moonbeam_backbone.py`: thin adapters, appropriately
+  thin given they wrap either an existing verified function
+  (`extract_embedding`) or injected test seams. Acceptable, not shallow in
+  the harmful sense — they carry real logic (tensor->ndarray conversion;
+  mean/last-token pooling math, verified by execution).
+- `run_bakeoff.py`: CLI dispatch, appropriately thin — it is intentionally a
+  wiring layer over already-deep modules.
+
+**Code Quality.**
+```
+[RISK] (confidence: 6/10) — extract.py's `except Exception as exc:  # noqa:
+       BLE001` is a catch-all, flagged by this repo's own test-philosophy
+       standard as a smell. It is explicitly justified in-comment ("record
+       and continue; the run report is the source of truth") and matches
+       CLAUDE.md's "failures should be loud" rule (failures ARE surfaced —
+       via report.failed, printed by run_bakeoff.py, and a non-zero exit
+       code from moonbeam_extract_script.py) rather than silently
+       swallowed. Acceptable as designed; flagged for awareness, not as a
+       blocker.
+```
+
+**Test Philosophy / Vertical Slice Audit.** All 15 tasks are one
+test(-group)-then-implementation-then-commit; no task writes bulk tests
+before any implementation exists. Tasks 6, 12b, and 15 use an explicit
+"run first, it may already pass" pattern for behavior that a prior task's
+implementation already generalizes to — this is documented and justified
+(locks existing behavior with an explicit regression test) rather than
+horizontal slicing. All tests exercise public module interfaces; no test
+mocks an internal collaborator of the module under test (Task 11's
+monkeypatch of `aria_embeddings.extract_embedding` is an *external*
+boundary — the real ML weight load — not an internal collaborator of
+`AriaBackbone`). No shape-only tests: every test asserts on computed values,
+not just presence/type of fields.
+
+**Test Coverage Gaps.**
+```
+[+] bakeoff_cv.py
+    │
+    ├── tau_c()
+    │   ├── [TESTED] ★★  perfect agreement / disagreement — Task 2
+    │   ├── [TESTED] ★★  constant side -> None — Task 2
+    │   ├── [TESTED] ★★  <3 points -> None — Task 2
+    │   └── [TESTED] ★    ties don't raise — Task 2 (doesn't assert the
+    │                     actual tau value, only non-nan)
+    ├── composer_disjoint_folds()
+    │   ├── [TESTED] ★★★ no-straddle + full coverage — Task 3
+    │   └── [GAP]         n_folds > n_composers (some folds necessarily
+    │                     empty) — untested; oof_tau_ridge's `len(te)==0:
+    │                     continue` guard exists but is never exercised by
+    │                     name
+    └── oof_tau_ridge()
+        ├── [TESTED] ★★  strong linear signal recovered — Task 4 (verified
+        │                by live execution: mean=1.0)
+        ├── [TESTED] ★★  constant target -> zero seeds — Task 4 (verified:
+        │                {"mean": None, "std": None, "n_seeds": 0})
+        └── [GAP]         a fold with <3 train rows (the `len(tr) < 3:
+                          continue` branch) — untested
+```
+None of these gaps sit on a critical/irreversible path (no auth, payments,
+or data mutation) — this is an offline decision-support harness for one
+human's own next GPU spend, not user-facing production code. Not blockers
+given the pre-beta/zero-user stage, but worth a follow-up if the eval stage
+is ever reused past Phase 0.
+
+**Failure Modes.**
+```
+[RISK] (confidence: 7/10) — extract_embeddings has no resume/skip-existing
+       logic: it does not check whether {seg_id}.npz already exists before
+       calling backbone.embed() again. The code being ported
+       (phase5b_aria_probe.py's stage_embed) explicitly HAD this
+       ("todo = [m for m in manifest if not (EMB_DIR / f'{seg_id}.npz')
+       .exists()]", docstring: "Stages (resumable)"), and this property was
+       dropped without discussion in the spec's "Key decisions" section.
+       For a ~900-piece MoonBeam-839M GPU extraction (the expensive human-
+       lit step this harness exists to gate), a crash or interrupt partway
+       through means re-extracting everything already done, not just the
+       remainder — costly in the exact resource (GPU time) this Phase-0
+       gate is designed to conserve. Fallback: the human running the real
+       extraction can work around this by pre-filtering `entries` to
+       exclude already-written seg_ids before calling extract_embeddings,
+       but nothing in run_bakeoff.py or extract.py does this automatically,
+       and it isn't mentioned as a known limitation anywhere in the plan or
+       spec.
+```
+```
+[OBS] — write_embedding_npz writes directly to the target path via
+        np.savez (no write-to-temp-then-rename). A crash mid-write during
+        the real GPU run would leave a truncated/corrupt .npz for that one
+        piece. Given the RISK above (no resume logic reads existing files
+        before re-extracting anyway), this compounds it: even if
+        resumability is added later, a corrupt half-written file could
+        silently poison a resume-check's "already exists" test unless that
+        future fix also validates readability, not just existence.
+```
+
+### Presumption Inventory
+
+| ASSUMPTION | VERDICT | REASON |
+|---|---|---|
+| `phase5b_aria_probe.py`'s tau_c/`_folds`/`_oof_tau` port is behavior-identical | SAFE | Diffed verbatim via `git show 7976b5e6`; matches exactly except the intentional `_folds` -> `composer_disjoint_folds` promotion |
+| `tk_ablation.py`'s manifest+composer filter is mirrored exactly | SAFE | Diffed via `git show issue-137-transkun-features`; identical two-condition skip logic |
+| `model_improvement.aria_embeddings.extract_embedding(midi_path, variant="embedding") -> torch.Tensor` signature | SAFE | Read the real function; signature matches exactly |
+| `claim_measurement.difficulty.*` is importable the same way `claim_measurement.score_align.*` is, despite not being in `pyproject.toml`'s `[tool.hatch.build.targets.wheel] packages` list | SAFE | Ran the real `score_align` test suite live (19/19 passed) proving this import pattern already works for a sibling, unlisted subpackage under the same top-level `claim_measurement` package |
+| `gc_error_bars`'s colocated test is a broken flat-import precedent, not to be copied | SAFE | Ran it live; confirmed `ModuleNotFoundError: No module named 'gc_churn_metrics'` exactly as claimed |
+| Real `manifest.json`/`new_clean_data.json` field names (`seg_id`, `key`, `grade`, `composer`) match the plan's fixtures | SAFE | Read the real files under the main checkout's `model/data/`; fields match exactly |
+| `MoonBeamBackbone`'s real constructor signature (per spec: `checkpoint_path: Path, loader=None`) vs. the plan's actual implementation (`loader` only, no `checkpoint_path` param) | RISKY | See below — genuine spec/plan drift |
+| Composer-stratified sampling's quota-with-rounding algorithm hits exactly `target_n` with no duplicates across the tested scales | SAFE | Executed live against the plan's own test fixtures (50x20 and 5x3 composer/piece grids); both assertions passed |
+| No resume/skip-existing logic is an acceptable regression from the ported code's resumability | VALIDATE | Real functional gap for the expensive human-lit GPU step this harness exists to protect; not exercised by any test since it's cross-cutting CLI behavior, not a unit |
+
+```
+[QUESTION] — Spec section "Modules" (line ~195) documents
+             `MoonBeamBackbone.__init__(self, checkpoint_path: Path,
+             loader=None)`, but Task 12a's actual implementation is
+             `MoonBeamBackbone.__init__(self, loader=None)` with no
+             `checkpoint_path` parameter at all — the checkpoint path is
+             instead threaded through `moonbeam_extract_script.py`'s
+             `loader_factory(checkpoint_path)` closure (Task 13). The
+             actual design is arguably cleaner (checkpoint concerns stay
+             out of the pooling-only class), but the spec should be
+             corrected to match what was actually built, since a future
+             reader diffing spec against code will see a false
+             discrepancy.
+```
+
+### Summary
+[BLOCKER] count: 0
+[RISK]    count: 3
+[QUESTION] count: 2
+
+### VERDICT: PROCEED_WITH_CAUTION — monitor: (1) extract_embeddings' missing resume/skip-existing logic before the human runs the real, expensive MoonBeam-839M GPU extraction — worth a one-line pre-filter fix or an explicit documented limitation before that run, not before this build; (2) the catch-all `except Exception` in extract.py, acceptable as designed but worth keeping an eye on if failure modes widen later; (3) untested `n_folds > n_composers` and `<3-train-rows` fold-guard branches in bakeoff_cv.py, low severity given the non-production, single-human-user stage of this harness.
