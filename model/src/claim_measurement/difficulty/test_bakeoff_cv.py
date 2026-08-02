@@ -6,7 +6,9 @@ Run: cd model && uv run python -m pytest src/claim_measurement/difficulty/ -q --
 """
 import math
 
-from claim_measurement.difficulty.bakeoff_cv import tau_c
+import numpy as np
+
+from claim_measurement.difficulty.bakeoff_cv import composer_disjoint_folds, tau_c
 
 
 def test_tau_c_perfect_agreement_is_one():
@@ -29,3 +31,23 @@ def test_tau_c_handles_ties_without_raising():
     result = tau_c([1, 1, 2, 3], [1, 2, 2, 3])
     assert result is not None
     assert not math.isnan(result)
+
+
+def test_composer_disjoint_folds_no_composer_straddles_a_fold():
+    rng = np.random.default_rng(0)
+    composers = np.array(
+        [f"composer_{i % 30}" for i in range(300)]
+    )
+    rng.shuffle(composers)
+
+    folds = composer_disjoint_folds(composers, n_folds=5, seed=2026)
+
+    assert len(folds) == 5
+    all_indices = np.concatenate(folds)
+    assert sorted(all_indices) == list(range(300))  # every row covered exactly once
+    fold_composer_sets = [set(composers[f]) for f in folds]
+    for i in range(5):
+        for j in range(i + 1, 5):
+            assert not (fold_composer_sets[i] & fold_composer_sets[j]), (
+                f"fold {i} and fold {j} share a composer"
+            )

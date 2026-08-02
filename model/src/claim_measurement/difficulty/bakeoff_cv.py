@@ -25,3 +25,23 @@ def tau_c(x, y) -> float | None:
         return None
     t = stats.kendalltau(x, y, variant="c").statistic
     return None if np.isnan(t) else float(t)
+
+
+def composer_disjoint_folds(composers: np.ndarray, n_folds: int, seed: int) -> list[np.ndarray]:
+    """Split row indices into n_folds folds such that no composer's rows
+    straddle two folds. Greedy bin-packing: composers are shuffled
+    deterministically by seed, then each composer's whole row group is
+    assigned to the fold with the fewest rows so far."""
+    composers = np.asarray(composers)
+    uniq = sorted(set(composers))
+    sizes = {c: int(np.sum(composers == c)) for c in uniq}
+    order = np.random.default_rng(seed).permutation(len(uniq))
+    counts = [0] * n_folds
+    fold_of = {}
+    for idx in order:
+        c = uniq[idx]
+        f = int(np.argmin(counts))
+        fold_of[c] = f
+        counts[f] += sizes[c]
+    return [np.array([i for i, c in enumerate(composers) if fold_of[c] == f])
+            for f in range(n_folds)]
