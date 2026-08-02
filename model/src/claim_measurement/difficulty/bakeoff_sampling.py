@@ -69,14 +69,34 @@ def composer_stratified_sample(entries: list[ManifestEntry], target_n: int, seed
         share = len(by_composer[c]) / total
         quotas[c] += int(round(share * remaining))
 
+    # Rounding can push sum(quotas) above target_n. Shrink the surplus
+    # (quota - 1) off the composers with the largest surplus first, never
+    # below the floor of 1, so every composer keeps at least one piece.
+    overflow = sum(quotas.values()) - target_n
+    if overflow > 0:
+        order = sorted(composers, key=lambda c: quotas[c] - 1, reverse=True)
+        i = 0
+        while overflow > 0:
+            c = order[i % len(order)]
+            if quotas[c] > 1:
+                quotas[c] -= 1
+                overflow -= 1
+            i += 1
+
     sample: list[ManifestEntry] = []
     for c in composers:
         take = min(quotas[c], len(by_composer[c]))
         sample.extend(by_composer[c][:take])
 
     if len(sample) > target_n:
-        rng.shuffle(sample)
-        sample = sample[:target_n]
+        # Defensive: quota capping above should already bring sum(sample)
+        # to <= target_n, but guard against residual surplus by truncating
+        # only entries beyond each composer's first (protected) piece.
+        protected_ids = {by_composer[c][0].seg_id for c in composers}
+        protected = [e for e in sample if e.seg_id in protected_ids]
+        surplus = [e for e in sample if e.seg_id not in protected_ids]
+        rng.shuffle(surplus)
+        sample = protected + surplus[: target_n - len(protected)]
     elif len(sample) < target_n:
         taken_ids = {e.seg_id for e in sample}
         leftover = [e for e in entries if e.seg_id not in taken_ids]
