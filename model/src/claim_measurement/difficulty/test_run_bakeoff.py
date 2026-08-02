@@ -5,6 +5,9 @@ Run: cd model && uv run python -m pytest src/claim_measurement/difficulty/ -q --
 import json
 from pathlib import Path
 
+import numpy as np
+
+from claim_measurement.difficulty.bakeoff_npz import write_embedding_npz
 from claim_measurement.difficulty.run_bakeoff import main
 
 
@@ -32,3 +35,22 @@ def test_sample_stage_writes_sample_manifest(tmp_path):
     assert exit_code == 0
     out = json.loads((tmp_path / "results" / "bakeoff" / "sample_manifest.json").read_text())
     assert {e["seg_id"] for e in out} == {"a", "b"}
+
+
+def test_eval_stage_reports_per_backbone_per_pooling_tau_c(tmp_path, capsys):
+    rng = np.random.default_rng(0)
+    emb_dir = tmp_path / "results" / "bakeoff" / "emb" / "aria"
+    for i in range(12):
+        write_embedding_npz(
+            emb_dir / f"piece_{i}.npz",
+            {"embedding": rng.random(4).astype(np.float32)},
+            grade=i % 6,
+            composer_id=i % 6,
+        )
+
+    exit_code = main(["--stage", "eval", "--data-root", str(tmp_path)])
+
+    assert exit_code == 0
+    printed = json.loads(capsys.readouterr().out)
+    assert "aria" in printed
+    assert set(printed["aria"]["embedding"]) == {"mean", "std", "n_seeds"}
