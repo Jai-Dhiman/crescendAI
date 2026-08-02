@@ -45,3 +45,31 @@ def composer_disjoint_folds(composers: np.ndarray, n_folds: int, seed: int) -> l
         counts[f] += sizes[c]
     return [np.array([i for i, c in enumerate(composers) if fold_of[c] == f])
             for f in range(n_folds)]
+
+
+def oof_tau_ridge(X: np.ndarray, y: np.ndarray, composers: np.ndarray,
+                   n_folds: int, seeds: list[int]) -> dict:
+    """Composer-disjoint grouped n_folds-fold RidgeCV, repeated per seed
+    (each seed re-draws the fold assignment). Returns mean/std tau-c over
+    seeds where a fold produced a valid tau-c, and n_seeds actually used."""
+    from sklearn.linear_model import RidgeCV
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+
+    alphas = np.logspace(-1, 5, 25)
+    taus = []
+    for seed in seeds:
+        oof = np.full(len(y), np.nan)
+        for te in composer_disjoint_folds(composers, n_folds, seed):
+            tr = np.setdiff1d(np.arange(len(y)), te)
+            if len(tr) < 3 or len(te) == 0:
+                continue
+            model = make_pipeline(StandardScaler(), RidgeCV(alphas=alphas))
+            model.fit(np.nan_to_num(X[tr]), y[tr])
+            oof[te] = model.predict(np.nan_to_num(X[te]))
+        t = tau_c(oof, y)
+        if t is not None:
+            taus.append(t)
+    return {"mean": float(np.mean(taus)) if taus else None,
+            "std": float(np.std(taus)) if taus else None,
+            "n_seeds": len(taus)}
