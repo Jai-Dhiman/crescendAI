@@ -16,10 +16,12 @@
 
 | Arm | mean-fold tau-c | pooled OOF | vs anchor |
 |---|---|---|---|
-| 37 base features, regression | **0.7934 ± 0.0165** | 0.7971 | — (anchor) |
-| 37 base + 32 Transkun-unlocked | 0.7987 ± 0.0166 | 0.8028 | **+0.0058** CI [+0.0032, +0.0083] SIG |
-| 32 Transkun-unlocked only | 0.7577 ± 0.0199 | 0.7619 | −0.0352 |
-| 37 base, rank-transformed target | 0.7927 ± 0.0164 | 0.7971 | +0.0001 (tie) |
+| 37 base features, regression | **0.7929 ± 0.0159** | 0.7966 | — (anchor) |
+| 37 base + 32 Transkun-unlocked | 0.7988 ± 0.0160 | 0.8031 | **+0.0064** CI [+0.0038, +0.0090] SIG |
+| 32 Transkun-unlocked only | 0.7576 ± 0.0202 | 0.7619 | −0.0347 |
+| 37 base, rank-transformed target | 0.7920 ± 0.0162 | 0.7968 | +0.0002 (tie) |
+
+Regenerate with `--stage extract --workers 10` (~8 min) then `--stage cv --boot 2000` (~2 min). The extractor SHA is recorded in the feature cache and `--stage cv` refuses to run against a stale one, so an edited feature can never be scored through old values.
 
 **The feature wall is real and the frontier is close to exhausted.** #137 tested the last untested feature premise — that every prior null was measured on offset-blind features — and the new offset/pedal family delivered a significant but negligible **+0.0058**. It takes only **8.6% of LightGBM gain** while `pitch_lz_complexity` alone takes **66.9%**. Hand-crafted symbolic features have hit their limit; the remaining unrefuted lever is an end-to-end encoder fine-tune (#138).
 
@@ -80,6 +82,6 @@ Note: **PSyllabus is audio** (matches the task's audio input) — the primary tr
 - **2026-07-03** — Track A spec captured from MIREX task page; assets mapped (strong fit). Deep research NOT yet done — next session should run the Research checklist before /brainstorm. Provisional lean: this is the higher-value track (real asset transfer vs Track B's no-moat).
 - **2026-07-22 (#125 Stage-1)** — Transkun adopted over aria-amt for the symbolic stream (offset F1 0.79 vs 0.37, MIT licence). Swap measured neutral on difficulty tau-c on its own; the adopt decision stood on transcription quality, not on a difficulty win.
 - **2026-07-31 (#135)** — Full-scale Stage-2 re-fit gate came back **MARGINAL**: re-training the head on Transkun features rather than clean MIDI gave B−A = +0.016 at n=5,798. Diagnosis: the 37 features exclude offsets *by design*, so they are transcriber-robust and clean-vs-Transkun barely differs — the gate tested the wrong lever. Motivated the #137/#138 split.
-- **2026-08-01 (#137) — FEATURE FRONTIER CLOSED.** Built 32 Transkun-unlocked features (articulation via duration/IOI ratio, duration entropy/LZ, true time-weighted voicing, chord-release dispersion, pedal timing) and a composer-disjoint CV tau-c ablation with fixed folds shared by all arms and a paired bootstrap over pieces. Result: **+0.0058 tau-c** (0.7934 → 0.7987), significant but negligible; the new family is ~90% redundant with the 37 and takes 8.6% of model gain. **This was the last untested feature premise** — every prior null was measured on offset-blind features, and removing that blindness did not move the wall. Two by-products: (a) established that the **0.824 anchor is train-on-test contaminated**; (b) established that **Transkun cannot express pedal depth** (binary CC64). Harness: `model/src/claim_measurement/difficulty/{transkun_features,tk_ablation}.py`, 26 unit tests.
+- **2026-08-01 (#137) — FEATURE FRONTIER CLOSED.** Built 32 Transkun-unlocked features (articulation via duration/IOI ratio, duration entropy/LZ, true time-weighted voicing, chord-release dispersion, pedal timing) and a composer-disjoint CV tau-c ablation with fixed folds shared by all arms and a paired bootstrap over pieces. Result: **+0.0064 tau-c** (0.7929 → 0.7988), significant but negligible; the new family is ~90% redundant with the 37 and takes 8.6% of model gain. **This was the last untested feature premise** — every prior null was measured on offset-blind features, and removing that blindness did not move the wall. Two by-products: (a) established that the **0.824 anchor is train-on-test contaminated**; (b) established that **Transkun cannot express pedal depth** (binary CC64). Harness: `model/src/claim_measurement/difficulty/{transkun_features,tk_ablation}.py`, 26 unit tests.
   - *Not refuted, still open:* the lambdarank arm scored −0.139 but used **one query group per fold**, and NDCG is top-heavy while tau-c scores the whole list — a formulation bug, not a verdict on rank-native objectives. Multi-scale / per-section aggregation of the new features remains untried.
 - **Standing implication** — with hand-crafted symbolic features exhausted, **#138 (end-to-end encoder fine-tune) is the remaining unrefuted lever** before the 2026-10-01 deadline.
