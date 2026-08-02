@@ -6,6 +6,7 @@ Run: cd model && uv run python -m pytest src/claim_measurement/difficulty/ -q --
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from claim_measurement.difficulty.moonbeam_backbone import MoonBeamBackbone
 
@@ -19,3 +20,8 @@ def test_embed_computes_mean_pool_and_last_token_from_injected_loader():
     assert set(result) == {"mean_pool", "last_token"}
     np.testing.assert_allclose(result["mean_pool"], [3.0, 2.0])
     np.testing.assert_allclose(result["last_token"], [5.0, 6.0])
+
+
+def test_construction_without_loader_fails_loudly():
+    with pytest.raises(ValueError, match="isolated MoonBeam venv"):
+        MoonBeamBackbone(loader=None)
