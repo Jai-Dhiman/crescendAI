@@ -12,11 +12,39 @@ the canvas rendering are covered elsewhere.
 from __future__ import annotations
 
 import json
+import socketserver
+import threading
+import urllib.error
+import urllib.request
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
 
 from follower_eval import validate_tool as vt
+
+
+@contextmanager
+def _running_server(handler):
+    server = socketserver.ThreadingTCPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
+
+
+def _post_json(url: str, payload: dict):
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    return urllib.request.urlopen(request)
 
 
 def _write_piece_id(tmp_path, rows):
@@ -235,3 +263,64 @@ def test_save_validation_rejects_path_traversal(tmp_path):
                 "follower_confidence": 0.8,
             },
         )
+
+
+def test_http_save_uses_server_side_score_provenance(tmp_path):
+    bundles = tmp_path / "bundles"
+    score_id = "chopin.etudes_op_25.5"
+    clip = {
+        "piece": "fantaisie_impromptu",
+        "video_id": "x",
+        "wav_path": tmp_path / "x.wav",
+        "score_id": score_id,
+        "score_source": "piece_id",
+    }
+    cache = vt._view_cache_path(bundles, clip["piece"], clip["video_id"], score_id)
+    cache.parent.mkdir(parents=True)
+    cache.write_text(
+        json.dumps(
+            {
+                "score_id": score_id,
+                "score_source": "piece_id",
+                "median_confidence": 0.84,
+            }
+        )
+    )
+    handler = vt.make_handler([clip], bundles, tmp_path / "scores")
+
+    with _running_server(handler) as base_url:
+        with _post_json(
+            f"{base_url}/save-validate",
+            {
+                "piece": clip["piece"],
+                "video_id": clip["video_id"],
+                "verdict": "tracked",
+                "score_id": "client.lie",
+                "score_source": "label",
+                "follower_confidence": 0.01,
+            },
+        ) as response:
+            assert response.status == 200
+
+    saved = json.loads((bundles / clip["piece"] / "x.validate.json").read_text())
+    assert saved["score_id"] == score_id
+    assert saved["score_source"] == "piece_id"
+    assert saved["follower_confidence"] == 0.84
+
+
+def test_http_save_rejects_clip_outside_session(tmp_path):
+    handler = vt.make_handler([], tmp_path / "bundles", tmp_path / "scores")
+
+    with _running_server(handler) as base_url:
+        with pytest.raises(urllib.error.HTTPError) as error:
+            _post_json(
+                f"{base_url}/save-validate",
+                {
+                    "piece": "../outside",
+                    "video_id": "x",
+                    "verdict": "tracked",
+                },
+            )
+
+    assert error.value.code == 400
+    assert not (tmp_path / "outside").exists()
