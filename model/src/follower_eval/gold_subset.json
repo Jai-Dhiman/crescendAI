@@ -1,0 +1,325 @@
+{
+ "description": "Curated ~30-clip gold-labeling subset for #133 S3: per rep piece, the lowest- and highest-confidence v1 proxy clip, spanning skill/confidence. video_ids reference the gitignored realaudio_bundles corpus.",
+ "clips": [
+  {
+   "piece": "bach_invention_1",
+   "video_id": "bbdD99A0s60",
+   "v1_confidence": 0.2609,
+   "v1_coverage": 0.5116,
+   "v1_span_frac": 1.0,
+   "v1_backward_frac": 0.035,
+   "n_perf": 561,
+   "conf_tier": "low"
+  },
+  {
+   "piece": "bach_invention_1",
+   "video_id": "yTjQ4igLMGo",
+   "v1_confidence": 0.9672,
+   "v1_coverage": 0.8599,
+   "v1_span_frac": 1.0,
+   "v1_backward_frac": 0.0012,
+   "n_perf": 949,
+   "conf_tier": "high"
+  },
+  {
+   "piece": "bach_prelude_c_wtc1",
+   "video_id": "A_wTcQZoyxM",
+   "v1_confidence": 0.0617,
+   "v1_coverage": 0.3297,
+   "v1_span_frac": 0.7298,
+   "v1_backward_frac": 0.0436,
+   "n_perf": 837,
+   "conf_tier": "low"
+  },
+  {
+   "piece": "bach_prelude_c_wtc1",
+   "video_id": "w03EKJjOTJE",
+   "v1_confidence": 0.9677,
+   "v1_coverage": 0.9909,
+   "v1_span_frac": 1.0,
+   "v1_backward_frac": 0.0,
+   "n_perf": 551,
+   "conf_tier": "high"
+  },
+  {
+   "piece": "chopin_ballade_1",
+   "video_id": "4rYcV99yhOM",
+   "v1_confidence": 0.0921,
+   "v1_coverage": 0.4568,
+   "v1_span_frac": 0.9286,
+   "v1_backward_frac": 0.0443,
+   "n_perf": 1237,
+   "conf_tier": "low"
+  },
+  {
+   "piece": "chopin_ballade_1",
+   "video_id": "rO-1s8GVjfI",
+   "v1_confidence": 0.9523,
+   "v1_coverage": 0.8185,
+   "v1_span_frac": 0.1144,
+   "v1_backward_frac": 0.0,
+   "n_perf": 325,
+   "conf_tier": "high"
+  },
+  {
+   "piece": "chopin_etude_op10no4",
+   "video_id": "IrcWuIMRoBU",
+   "v1_confidence": 0.2512,
+   "v1_coverage": 0.6058,
+   "v1_span_frac": 0.9169,
+   "v1_backward_frac": 0.0174,
+   "n_perf": 1517,
+   "conf_tier": "low"
+  },
+  {
+   "piece": "chopin_etude_op10no4",
+   "video_id": "1gehoxFPzXo",
+   "v1_confidence": 0.9527,
+   "v1_coverage": 0.8266,
+   "v1_span_frac": 1.0,
+   "v1_backward_frac": 0.0009,
+   "n_perf": 2612,
+   "conf_tier": "high"
+  },
+  {
+   "piece": "chopin_waltz_csm",
+   "video_id": "AK2JnAISEn4",
+   "v1_confidence": 0.1165,
+   "v1_coverage": 0.4321,
+   "v1_span_frac": 0.9139,
+   "v1_backward_frac": 0.0562,
+   "n_perf": 1238,
+   "conf_tier": "low"
+  },
+  {
+   "piece": "chopin_waltz_csm",
+   "video_id": "cAo5RtmpFVU",
+   "v1_confidence": 0.8952,
+   "v1_coverage": 0.7926,
+   "v1_span_frac": 0.2073,
+   "v1_backward_frac": 0.0,
+   "n_perf": 323,
+   "conf_tier": "high"
+  },
+  {
+   "piece": "clair_de_lune",
+   "video_id": "3kQtBFJWjRw",
+   "v1_confidence": 0.7231,
+   "v1_coverage": 0.5586,
+   "v1_span_frac": 0.3605,
+   "v1_backward_frac": 0.0,
+   "n_perf": 555,
+   "conf_tier": "low"
+  },
+  {
+   "piece": "clair_de_lune",
+   "video_id": "KcXXHKtmOIQ",
+   "v1_confidence": 0.9521,
+   "v1_coverage": 0.8134,
+   "v1_span_frac": 0.6074,
+   "v1_backward_frac": 0.0,
+   "n_perf": 434,
+   "conf_tier": "high"
+  },
+  {
+   "piece": "debussy_arabesque_1",
+   "video_id": "3-HfNcE4x-M",
+   "v1_confidence": 0.3522,
+   "v1_coverage": 0.833,
+   "v1_span_frac": 0.9629,
+   "v1_backward_frac": 0.0176,
+   "n_perf": 1090,
+   "conf_tier": "low"
+  },
+  {
+   "piece": "debussy_arabesque_1",
+   "video_id": "4LSMwt1jTsU",
+   "v1_confidence": 0.9651,
+   "v1_coverage": 0.8776,
+   "v1_span_frac": 1.0,
+   "v1_backward_frac": 0.0,
+   "n_perf": 1422,
+   "conf_tier": "high"
+  },
+  {
+   "piece": "fantaisie_impromptu",
+   "video_id": "JbYGHXsQiqk",
+   "v1_confidence": 0.0325,
+   "v1_coverage": 0.3033,
+   "v1_span_frac": 0.9805,
+   "v1_backward_frac": 0.0216,
+   "n_perf": 2298,
+   "conf_tier": "low"
+  },
+  {
+   "piece": "fantaisie_impromptu",
+   "video_id": "0vfr4fego3Q",
+   "v1_confidence": 0.9475,
+   "v1_coverage": 0.8956,
+   "v1_span_frac": 1.0,
+   "v1_backward_frac": 0.0,
+   "n_perf": 3026,
+   "conf_tier": "high"
+  },
+  {
+   "piece": "fur_elise",
+   "video_id": "BShLXl02VvQ",
+   "v1_confidence": 0.0384,
+   "v1_coverage": 0.2965,
+   "v1_span_frac": 0.891,
+   "v1_backward_frac": 0.036,
+   "n_perf": 5534,
+   "conf_tier": "low"
+  },
+  {
+   "piece": "fur_elise",
+   "video_id": "6WnlGpfDM1s",
+   "v1_confidence": 0.9117,
+   "v1_coverage": 0.9428,
+   "v1_span_frac": 1.0,
+   "v1_backward_frac": 0.0,
+   "n_perf": 769,
+   "conf_tier": "high"
+  },
+  {
+   "piece": "liszt_liebestraum_3",
+   "video_id": "KBsZuxQLp9k",
+   "v1_confidence": 0.2323,
+   "v1_coverage": 0.4735,
+   "v1_span_frac": 0.9377,
+   "v1_backward_frac": 0.0409,
+   "n_perf": 1396,
+   "conf_tier": "low"
+  },
+  {
+   "piece": "liszt_liebestraum_3",
+   "video_id": "265L-U-NHGk",
+   "v1_confidence": 0.9663,
+   "v1_coverage": 0.9,
+   "v1_span_frac": 0.2447,
+   "v1_backward_frac": 0.0,
+   "n_perf": 340,
+   "conf_tier": "high"
+  },
+  {
+   "piece": "moonlight_sonata_mvt1",
+   "video_id": "_KGpW2ROcwA",
+   "v1_confidence": 0.0653,
+   "v1_coverage": 0.36,
+   "v1_span_frac": 0.9586,
+   "v1_backward_frac": 0.028,
+   "n_perf": 1689,
+   "conf_tier": "low"
+  },
+  {
+   "piece": "moonlight_sonata_mvt1",
+   "video_id": "NTbi0V2SVHA",
+   "v1_confidence": 0.9642,
+   "v1_coverage": 0.8504,
+   "v1_span_frac": 1.0,
+   "v1_backward_frac": 0.002,
+   "n_perf": 1183,
+   "conf_tier": "high"
+  },
+  {
+   "piece": "mozart_k545_mvt1",
+   "video_id": "znDedazaZ6Q",
+   "v1_confidence": 0.1581,
+   "v1_coverage": 0.5101,
+   "v1_span_frac": 0.9966,
+   "v1_backward_frac": 0.0417,
+   "n_perf": 990,
+   "conf_tier": "low"
+  },
+  {
+   "piece": "mozart_k545_mvt1",
+   "video_id": "rGxW1iMHR0U",
+   "v1_confidence": 0.9635,
+   "v1_coverage": 0.8207,
+   "v1_span_frac": 1.0,
+   "v1_backward_frac": 0.0,
+   "n_perf": 1350,
+   "conf_tier": "high"
+  },
+  {
+   "piece": "nocturne_op9no2",
+   "video_id": "rNkfVVKbICk",
+   "v1_confidence": 0.0474,
+   "v1_coverage": 0.3644,
+   "v1_span_frac": 1.0,
+   "v1_backward_frac": 0.023,
+   "n_perf": 2393,
+   "conf_tier": "low"
+  },
+  {
+   "piece": "nocturne_op9no2",
+   "video_id": "gTjALGhaaFI",
+   "v1_confidence": 0.9298,
+   "v1_coverage": 0.7744,
+   "v1_span_frac": 1.0,
+   "v1_backward_frac": 0.0,
+   "n_perf": 1303,
+   "conf_tier": "high"
+  },
+  {
+   "piece": "pathetique_mvt2",
+   "video_id": "IqbxUz9xi1c",
+   "v1_confidence": 0.0696,
+   "v1_coverage": 0.3266,
+   "v1_span_frac": 0.9368,
+   "v1_backward_frac": 0.0428,
+   "n_perf": 3509,
+   "conf_tier": "low"
+  },
+  {
+   "piece": "pathetique_mvt2",
+   "video_id": "yer-1UGSc10",
+   "v1_confidence": 0.699,
+   "v1_coverage": 0.7794,
+   "v1_span_frac": 1.0,
+   "v1_backward_frac": 0.0016,
+   "n_perf": 1573,
+   "conf_tier": "high"
+  },
+  {
+   "piece": "rachmaninoff_prelude_csm",
+   "video_id": "v80RecqrtJ8",
+   "v1_confidence": 0.0567,
+   "v1_coverage": 0.431,
+   "v1_span_frac": 0.796,
+   "v1_backward_frac": 0.0343,
+   "n_perf": 1355,
+   "conf_tier": "low"
+  },
+  {
+   "piece": "rachmaninoff_prelude_csm",
+   "video_id": "l5Nu_4p9UHU",
+   "v1_confidence": 0.9389,
+   "v1_coverage": 0.7551,
+   "v1_span_frac": 0.4855,
+   "v1_backward_frac": 0.0,
+   "n_perf": 735,
+   "conf_tier": "high"
+  },
+  {
+   "piece": "schumann_traumerei",
+   "video_id": "A9zEB2mWbrI",
+   "v1_confidence": 0.0966,
+   "v1_coverage": 0.2531,
+   "v1_span_frac": 1.0,
+   "v1_backward_frac": 0.0331,
+   "n_perf": 719,
+   "conf_tier": "low"
+  },
+  {
+   "piece": "schumann_traumerei",
+   "video_id": "usOjzNZdNtg",
+   "v1_confidence": 0.9477,
+   "v1_coverage": 0.7632,
+   "v1_span_frac": 1.0,
+   "v1_backward_frac": 0.0028,
+   "n_perf": 473,
+   "conf_tier": "high"
+  }
+ ]
+}
