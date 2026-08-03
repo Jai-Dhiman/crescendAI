@@ -90,6 +90,27 @@ Median fraction of playback flagged wrong: 0.0 (p90 0.0).
 1. **No high-confidence failure was observed.** Every `wrong` and `junk` clip sits in the low-confidence stratum; no clip was confidently mistracked. This is the human-adjudicated form of the "knows when it's lost" property the proxy track could only suggest. It is an observation of zero failures in 22 high-confidence clips, not a measured failure *rate* — the upper bound is loose at this n.
 2. **Where the piece is verified, the follower tracked it — 21 of 21** (20 `tracked`, 1 `recovered`). The 11 unverified-label rows cannot support a verified accuracy claim in either direction: 7 were judged `junk`, which is consistent with the follower correctly declining an unusable or unidentifiable clip, and the 2 `wrong` rows are ambiguous between follower failure and a wrong score on screen.
 
+### Abstain-resolution retry (2026-08-03) — mostly a negative result
+
+The 11 abstained clips were re-run at a 4× verify window (`--window-sec 120 --k 12`, vs the original 30 s/k6) to de-confound the two `wrong` verdicts, both of which sat in the unverified-score stratum. Results in `_piece_id_retry120.json` (kept **separate** from the trusted `_piece_id.json`).
+
+**Only 1 of 11 resolved.** A longer window is not the lever:
+
+- Label-piece confidence rose in 9 of 11 clips but *fell* in 2 (`mozart_k545_mvt1/znDedazaZ6Q` 0.47 → 0.20), so it is not monotone in evidence.
+- 6 of 11 still rank the label at position ≥2, several far down (`fur_elise/BShLXl02VvQ` 11th, `nocturne_op9no2/rNkfVVKbICk` 12th). `fur_elise/BShLXl02VvQ` is a known 13-minute mixed practice session. **The abstain set is dominated by clips that are not a single piece**, and a longer window makes multi-piece clips worse. The lever is segmentation (detect piece changes within a clip), not more evidence per window.
+- **Abstain agrees with the human `junk` verdict on 7 of 11 clips** — two independent routes to "this clip is unusable", which corroborates that abstaining is well-calibrated rather than merely conservative.
+
+**What it settled about the two `wrong` verdicts:**
+
+| clip | label rank @120 s | label conf 30 s → 120 s | reading |
+|---|---|---|---|
+| `liszt_liebestraum_3/KBsZuxQLp9k` | 1 (ngram + label agree) | 0.11 → 0.24 | score probably correct → **candidate genuine follower failure** |
+| `schumann_traumerei/A9zEB2mWbrI` | 7 | 0.12 → 0.10 | score probably wrong → **mislabeled clip, not a follower failure** |
+
+**This does NOT satisfy #108's resume trigger.** That trigger requires *trusted* evidence of a measured follower failure; the liszt clip is at confidence 0.24 against a 0.50 accept floor. Treating "label ranked first, below the floor" as verification would convert a null result into a pass. It is one strong candidate failure, and one failure removed from the pool — not a confirmation.
+
+**Pending decision:** `chopin_waltz_csm/cAo5RtmpFVU` resolved to `chopin.waltzes.64-2` (0.46 → 0.88), which is the same score it was already validated against — only its verification status changed. Merging it into `_piece_id.json` moves it from the unverified to the verified stratum (verified successes 21 → 22). Not merged yet, because it changes a reported number.
+
 **The subset is extreme-sampled, not representative.** `gold_subset.json` takes the lowest- and highest-confidence clip per piece by design, so these counts are not corpus rates and must not be reported as such. A representative rate needs a random-sample pass over the 279-clip corpus.
 
 **PASS bars remain unset — deliberately, and this is a human-lit call.** The distribution needed to set them now exists (above, plus Track A's per-beat errors), but choosing thresholds is research-gate interpretation, not a derivation. Candidate shape, for a decision rather than as a decision: gate on *no high-confidence failures* plus a floor on verified-score success, and keep `recovered` separate from `tracked` since relocking is partial evidence. Do not gate on the pooled 32-clip success fraction — it mixes strata that mean different things.
