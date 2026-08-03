@@ -27,8 +27,8 @@ Regenerate with `--stage extract --workers 10` (~8 min) then `--stage cv --boot 
 
 **Transcriber constraint worth remembering: Transkun's pedal head is BINARY.** It emits CC64 as only 0 and 127, alternating. Pedal *depth* features (depth mean, value entropy, half-pedal fraction) are constant across the entire corpus and are therefore not expressible from this transcriber — recovering them needs a different model, not a different feature. Pedal *timing* (change rate, on-fraction, segment length) does survive and is the strongest single contribution of the new family.
 
-## Why this is the stronger track (thesis-aligned)
-The task is **difficulty scoring of solo-piano audio** — the same modality, encoder, and ordinal-ranking machinery CrescendAI already runs. Unlike Track B, our assets map directly:
+## Why we committed to this track (thesis-aligned)
+The task is **difficulty scoring of solo-piano audio** — the same modality, encoder, and ordinal-ranking machinery CrescendAI already runs. Our assets map directly:
 - **MuQ (frozen, on piano)** — our production audio encoder is *already* solo-piano-oriented; here that's an advantage, not a liability.
 - **Ordinal ranking head** — our deployed A1-Max head already trains BCE-pairwise + **ListMLE** ranking + CCC regression on frozen MuQ embeddings (`model/src/model_improvement/audio_encoders.py`). The task's metric is **Kendall Tau-c** (ordinal agreement) — a near-exact match to what we already optimize.
 - **PercePiano + T2/T5 ordinal data** — we already curate piano ordinal/skill data.
@@ -61,15 +61,15 @@ Note: **PSyllabus is audio** (matches the task's audio input) — the primary tr
 
 - **Spine:** frozen MuQ (piano) embeddings → our existing ordinal-ranking head, retargeted to a single difficulty scalar, trained on **PSyllabus audio**, optimized for Kendall Tau-c ordering. This is almost entirely reuse of the A1-Max stack.
 - **Baseline to beat:** Ramoneda et al.'s own published difficulty models (audio + symbolic). *Research needed — find their reported Tau/accuracy.*
-- **Edge hypothesis:** our piano-specialized frozen encoder + ordinal head may be genuinely competitive here (unlike Track B). This is the transferable-asset story worth testing.
+- **Edge hypothesis:** our piano-specialized frozen encoder + ordinal head may be genuinely competitive here. This is the transferable-asset story worth testing.
 
-## Research checklist (DO THIS — mirror Track B's method)
+## Research checklist
 - [ ] Fetch/read the PSyllabus, CIPI, Mikrokosmos papers (Ramoneda et al.) — exact schemas, label semantics, licenses, train/test protocol.
 - [ ] Find the **published SOTA** difficulty-prediction numbers (Tau-c / Acc±1) and architectures — what's the bar?
 - [ ] Confirm the reference Docker template / inference wrapper once released; nail the exact I/O contract.
 - [ ] Determine whether audio-only (PSyllabus) or audio+score hybrid is stronger; does transcription help or hurt?
 - [ ] Map our A1-Max head → single-scalar difficulty regression/ranking; what changes?
-- [ ] Licenses of PSyllabus/CIPI (commercial-use fork question, as with Track B).
+- [ ] Licenses of PSyllabus/CIPI (commercial-use fork question).
 - [ ] The "human vs synthesized rendering" aggregation — does it bias toward performance-quality vs score-difficulty? (This is subtle: the task says *difficulty*, but a human *performance* encodes execution quality too.)
 - [ ] Open questions for the captains (Ramoneda/Zhang).
 
@@ -103,4 +103,5 @@ Note: **PSyllabus is audio** (matches the task's audio input) — the primary tr
   - `features37_ridge − aria_eos` = **+0.0298 [+0.0099, +0.0496]**, P=0.001. **The shipped frozen Aria embedding was worse than the 37 hand features on this protocol** — the Phase 0 headline partly measured how weak the incumbent was.
   - *Caveat on this sample:* 900 pieces spanning 900 **distinct** composers (one piece each), so the composer-disjoint constraint is vacuous here and these folds are effectively random splits — unlike `tk_ablation.py`'s 5,798 pieces over 1,066 composers, where the constraint bites. Trust the paired within-protocol deltas, not the levels.
   - **Phase 1 gate:** a fine-tuned MoonBeam must clear **0.8048** on these folds, not 0.7790 and not 0.7929. Beating frozen 0.8257 without clearing the feature baseline by a paired-bootstrap-significant margin is a partial result.
+- **2026-08-03 — TRACK B DROPPED; Track A is the sole MIREX 2026 submission.** The parallel Task-2 (CMI-RewardBench) exploration is closed: its issues (#105, #106, #107, #122, #123, #124) were already closed, and its standalone repo, cached corpora, and R2 archive have been deleted. Rationale and the one transferable finding (CLAP window granularity, not head architecture, was the lever) are recorded in [README.md](./README.md). All remaining MIREX effort goes to #137/#138 under this doc.
 - **Standing implication** — with hand-crafted symbolic features exhausted, **#138 Phase 1 (LoRA fine-tune of MoonBeam-839M, pairwise ranking + ordinal aux) is the remaining unrefuted lever** before the 2026-10-01 deadline.
