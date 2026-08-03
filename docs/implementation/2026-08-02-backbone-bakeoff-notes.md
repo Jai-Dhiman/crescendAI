@@ -30,16 +30,20 @@ already guarded against empty `.npz` directories (`if not npz_paths:
 continue` before any `np.stack` call). The eval-stage test passed
 immediately, no implementation change needed.
 
+## Pre-GPU-run resume guard (DONE 2026-08-02)
+`extract_embeddings` now takes `skip_existing=True` (default): an entry whose
+`.npz` is already on disk is counted in the new `ExtractionReport.skipped` and
+the backbone is never called, so an interrupted GPU extraction resumes on the
+remainder. That is only safe because `write_embedding_npz` is now atomic —
+`tempfile.mkstemp` in the destination directory, `np.savez` into the open file
+handle, then `os.replace` — so a present `.npz` is a complete `.npz`, and a
+crash mid-write leaves neither a truncated target nor a stray temp file. The
+temp suffix is `.npz.tmp`, which deliberately does not match the eval stage's
+`*.npz` glob. Caveat: any `.npz` written before this change would be trusted by
+the resume path without a completeness check (none exist yet — no real
+extraction has run).
+
 ## Known follow-ups flagged by review (not blockers, noted per /challenge's PROCEED_WITH_CAUTION)
-- `extract_embeddings` has no resume/skip-existing logic — a human running
-  the real ~900-piece MoonBeam-839M GPU extraction should pre-filter
-  `entries` to exclude already-written `seg_id`s before calling it, or a
-  crash/interrupt mid-run means re-extracting everything, not just the
-  remainder. Not fixed in this build per the challenge review's guidance
-  (worth a one-line pre-filter or documented limitation before the real GPU
-  run, not before this offline harness build).
-- `write_embedding_npz` writes directly via `np.savez` (no write-to-temp-then-rename).
-  A crash mid-write during the real GPU run could leave a truncated `.npz`.
 - `run_bakeoff.py`'s `_stage_eval` has no dedicated regression test for the
   empty-`.npz`-directory guard path, though the code correctly handles it
   (verified by wave-2 review via code inspection).

@@ -389,8 +389,9 @@ Aria inference runs in parallel with MuQ on the same HF endpoint (or a separate 
 
 | Decision | Chosen | Rationale |
 |----------|--------|-----------|
-| Symbolic encoder | Aria (EleutherAI, 650M) | SOTA on 6 benchmarks, 820K MIDI pretraining, Apache 2.0, eliminates 6-12mo custom FM research |
-| Score conditioning | Immediate (via Aria delta) | Aria encodes both perf and score MIDI natively; no reason to defer |
+| Symbolic encoder | MoonBeam-839M (updated 2026-08-03, replaces Aria) | Won the #138 Phase 0 frozen bake-off on the Transkun domain: tau-c 0.8257 vs Aria 0.7790, composer-disjoint 5-fold x 5 seeds, n=900. Confound-free -- see the pooling control below. Apache 2.0, MIDI-native |
+| Symbolic-encoder pooling | Mean over tokens (MoonBeam) | Backbone-specific: +0.046 tau-c for MoonBeam, ~0 for Aria (whose contrastively-trained EOS position is already a pooled global vector) |
+| Score conditioning | Immediate (encoder delta) | The symbolic encoder encodes both perf and score MIDI natively; no reason to defer |
 | Encoder-combination strategy | Parallel streams (updated 2026-05-27, replaces gated fusion) | Measure error correlation as viability gate; both stream outputs + MPM extraction feed the teacher LLM; disagreement is signal, not noise |
 | Training data mix | 20% PercePiano + 80% ordinal | Expert annotations as anchor, competition data for scale |
 | Contrastive pretraining | Symmetric (both MuQ and Aria) | Both encoders get quality-aware embeddings to make their independent per-stream quality scores more reliable |
@@ -409,7 +410,8 @@ Aria inference runs in parallel with MuQ on the same HF endpoint (or a separate 
 |-----------|--------|-------------------------|
 | A1-Max heads | AVAILABLE | Historical six-score baseline loaded over frozen MuQ embeddings |
 | Stock MuQ backbone | AVAILABLE | Frozen instrumentation and baseline; released weights are noncommercial |
-| Aria base + embedding | AVAILABLE (HuggingFace) | Symbolic encoder, score encoder |
+| MoonBeam-839M | AVAILABLE (local: `model/data/weights/moonbeam/`) | Symbolic encoder for MIREX Track A difficulty (chosen 2026-08-03, #138 Phase 0) |
+| Aria base + embedding | AVAILABLE (HuggingFace) | Superseded as the symbolic encoder; retained as the #138 bake-off reference arm and as a paper artifact |
 | Two-stage subagent | IMPLEMENTED | Same architecture, richer inputs |
 | Transkun | LOCAL ONLY | Current `/transcribe` substrate; prod = Tier 3 while endpoint is unset |
 | Score following (DTW) | COMPLETE | Bar alignment for score conditioning |
