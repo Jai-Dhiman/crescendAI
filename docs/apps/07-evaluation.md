@@ -187,7 +187,7 @@ A runtime-level `after_model` middleware that re-scores compound outputs in prod
 ### Realized cross-performance eval (#96, 2026-06-26)
 
 The T5 design above is now realized at scale by `model/src/score_library/pieceid_crossperf_verify.py`
-(`just catalog-pieceid-crossperf-verify`), which runs the **frozen production gate** against
+(`just corpus::catalog-pieceid-crossperf-verify`), which runs the **frozen production gate** against
 **1,066 held-out ASAP performance MIDIs** (242 works) vs the 11,046-piece catalog, with
 gate-independent ground truth (`discover.derive_piece_id` + a score-MIDI oracle, 203/203
 agreement). It measures cross-performance recall, leave-one-out open-set false-accept (decomposed
@@ -212,7 +212,7 @@ threshold re-tuned 0.0935 → 0.13.
 
 ### Comprehensive edge-case eval + autoresearch harness (#96, 2026-06-27)
 
-`model/src/score_library/pieceid_comprehensive_eval.py` (`just catalog-pieceid-comprehensive-eval`)
+`model/src/score_library/pieceid_comprehensive_eval.py` (`just corpus::catalog-pieceid-comprehensive-eval`)
 closes the edge-case gaps the cross-performance harness could not see. It reuses the frozen gate
 (every axis is a query transform; gate algo + Rust parity untouched) and a parsed-catalog pickle
 cache (`--catalog-cache`) that turns the ~8min, ~9GB JSON re-parse into a ~10s load. Axes
@@ -228,14 +228,14 @@ cache (`--catalog-cache`) that turns the ~8min, ~9GB JSON re-parse into a ~10s l
   (ECE 0.15, non-monotone near 0.13); a margin→P(correct) map would fix the exposed `confidence`.
 - **G notes-to-lock latency** — median first lock ~300 notes/~33s, 7.8% of locks flip id over time.
 - **Dedup of the 72 exact twins** lifts opening recognition 75.6→90.9% (orthogonal to B/C).
-- **A real-audio→AMT** (`pieceid_amt_axis.py`, `just catalog-pieceid-amt-axis-stream`) — paired
+- **A real-audio→AMT** (`pieceid_amt_axis.py`, `just corpus::catalog-pieceid-amt-axis-stream`) — paired
   clean-MIDI-vs-AMT recognition over the 519 ASAP↔MAESTRO matches, streaming each WAV from HF and
   deleting it (disk-bounded). Under Transkun (#128) the old aria-amt checkpoint-placement blocker
   is gone — Transkun self-manages its bundled weights, so the AMT server needs no manual checkpoint.
 
 **Autoresearch loop:** `pieceid_experimental.py` is the single editable knob-board (shortlist
 mode/K, margin, absolute-cost floor, source-aware AMT strictness); `pieceid_autoresearch_eval.py`
-(`just catalog-pieceid-autoresearch`) emits one scalar `AUTORESEARCH_METRIC` rewarding opening +
+(`just corpus::catalog-pieceid-autoresearch`) emits one scalar `AUTORESEARCH_METRIC` rewarding opening +
 mid-piece recognition while penalizing genuine FAs above 5% (the anti-gaming guard). Baseline
 reproduces this eval exactly (0.65496); ground-truth labels are frozen at the baseline gate (a
 leakage guard). A winning lever is a **proposal to port** to the Rust/WASM gate, never an automatic

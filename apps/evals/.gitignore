@@ -10,7 +10,6 @@ teaching_knowledge/data/playbook_round1_clusters.json
 teaching_knowledge/data/amt_comparison_*.mid
 
 # Audio gate results
-audio_gate/results/
 
 # Python
 __pycache__/
