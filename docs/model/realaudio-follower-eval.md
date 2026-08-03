@@ -33,13 +33,17 @@ Only performances whose MAESTRO audio is present locally can run in audio mode (
 
 **Track A through-audio result (2026-07-27, 55 performances, 13 composers).** 56 ASAP performances transcribed from MAESTRO audio through Transkun; 55 have a usable ASAP alignment (1 excluded: `Scriabin/Sonatas/5/ChernovA06M` is not `score_and_performance_aligned`).
 
-| Track A mode | full-follow median | cold-start median | cold-start within-1-beat |
+Paired over the **same 55 performances and the same windows**, so the only variable is the note source:
+
+| Track A note source | full-follow median | cold-start median | cold-start pooled within-1-beat |
 |---|---|---|---|
-| MAESTRO audio → Transkun (55 perfs) | **0.005 beats** | **0.005 beats** | **0.9205** (440 windows) |
+| ASAP performance MIDI (matcher isolation) | 0.000 beats | 0.000 beats | 0.9242 (440 windows) |
+| **MAESTRO audio → Transkun** | **0.005 beats** | **0.005 beats** | **0.9205** (440 windows) |
+| transcription cost | +0.005 beats | +0.005 beats | **−0.37 pp** |
 
 Transcription fidelity: AMT note count vs the reference MIDI is a **median 0.991** of the reference (worst: dense virtuoso writing — Liszt Ballade 2 0.91, Islamey 0.92). Transcription cost is ~0.27× realtime on CPU.
 
-Reading: going through the real transcriber barely moves localization — the follower is not transcription-limited on competition-grade recordings. **Evidence basis:** the 55-perf audio numbers above, plus a paired MIDI-vs-audio comparison on the 8 performances that were transcribed first (MIDI full-follow 0.000 / within-1-beat 0.9184 vs audio 0.005 / 0.9205 — i.e. no measurable penalty). The paired MIDI baseline over all 55 was still computing when this was written; it lands in `data/evals/trackA_midi_paired.json` and should replace the 8-perf pairing here. The weakest clips are `Schumann/Arabeske/Min09M` (within-1-beat 0.76) and `Schubert/Impromptu_op.90_D.899/4_no_repeat` (0.66), both of which are also the weakest on clean MIDI, so they are matcher/repeat-structure cases rather than audio cases.
+Reading: going through the real transcriber costs **0.005 beats of median localization and 0.37 percentage points of within-1-beat**, on a fully paired 55-performance comparison (`data/evals/trackA_audio_8.json` vs `trackA_midi_paired.json`). The follower is not transcription-limited on competition-grade recordings. Scope limit: these are competition recordings from MAESTRO, not phone or room audio, and not amateur playing — Track B covers that population and has no independent position truth. The weakest clips are `Schumann/Arabeske/Min09M` (within-1-beat 0.76) and `Schubert/Impromptu_op.90_D.899/4_no_repeat` (0.66), both of which are also the weakest on clean MIDI, so they are matcher/repeat-structure cases rather than audio cases.
 
 **Track B — light-touch human validation of the amateur clips (`validate_tool.py`).** The amateur clips have no independent position truth, and ASAP has neither phone audio nor amateur restarts. The tool draws two note strips on one score-time axis: played notes at the follower's inferred positions over the score reference. The human holds SPACE over wrong spans and chooses `tracked`, `recovered`, `wrong`, or `junk`. `validate_report.py` keeps those outcomes separate and crosses them with confidence computed against the resolved score; it does not collapse `junk`, `recovered`, and `tracked` into one success number. Follower views are cached because `follow_hmm` is O(performance notes × score notes).
 
