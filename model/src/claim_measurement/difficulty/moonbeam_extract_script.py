@@ -83,7 +83,7 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader) -> int:
     backbone = MoonBeamBackbone(loader=loader_factory(args.checkpoint))
     report = extract_embeddings(backbone, entries, midi_dir=args.midi_dir,
                                  out_dir=args.out_dir, composer_index_path=args.composer_index)
-    print(f"ok={report.ok} failed={len(report.failed)}")
+    print(f"ok={report.ok} skipped={report.skipped} failed={len(report.failed)}")
     for f in report.failed[:10]:
         print(f"  FAIL {f}")
     return 0 if not report.failed else 1

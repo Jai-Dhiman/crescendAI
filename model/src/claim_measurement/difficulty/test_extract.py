@@ -3,7 +3,7 @@
 Run: cd model && uv run python -m pytest src/claim_measurement/difficulty/ -q --no-cov
 """
 from claim_measurement.difficulty.backbone import FakeBackbone
-from claim_measurement.difficulty.bakeoff_npz import read_embedding_npz
+from claim_measurement.difficulty.bakeoff_npz import read_embedding_npz, write_embedding_npz
 from claim_measurement.difficulty.bakeoff_sampling import ManifestEntry
 from claim_measurement.difficulty.extract import extract_embeddings
 
@@ -28,6 +28,44 @@ def test_extract_embeddings_with_fake_backbone_produces_conformant_npz(tmp_path)
     assert rec_a.grade == 3
     rec_b = read_embedding_npz(out_dir / "b.npz")
     assert rec_a.composer_id != rec_b.composer_id
+
+
+def test_extract_embeddings_skips_entries_already_on_disk(tmp_path):
+    """Resume path: a crashed GPU run must re-extract only the remainder."""
+    class NeverCallOnA:
+        def embed(self, midi_path):
+            if midi_path.stem == "a":
+                raise AssertionError("backbone called for an already-extracted seg_id")
+            return {"mean_pool": __import__("numpy").ones(3, dtype="float32")}
+
+    entries = [
+        ManifestEntry(seg_id="a", key="A.mid", grade=3, composer="Czerny"),
+        ManifestEntry(seg_id="b", key="B.mid", grade=7, composer="Bach"),
+    ]
+    out_dir = tmp_path / "emb"
+    write_embedding_npz(out_dir / "a.npz", {"mean_pool": [9.0, 9.0, 9.0]}, grade=3, composer_id=0)
+
+    report = extract_embeddings(NeverCallOnA(), entries, midi_dir=tmp_path / "mid",
+                                 out_dir=out_dir, composer_index_path=tmp_path / "idx.json")
+
+    assert report.ok == 1
+    assert report.skipped == 1
+    assert report.failed == []
+    assert read_embedding_npz(out_dir / "a.npz").embeddings["mean_pool"][0] == 9.0
+    assert (out_dir / "b.npz").exists()
+
+
+def test_extract_embeddings_skip_existing_disabled_reextracts(tmp_path):
+    entries = [ManifestEntry(seg_id="a", key="A.mid", grade=3, composer="Czerny")]
+    out_dir = tmp_path / "emb"
+    write_embedding_npz(out_dir / "a.npz", {"mean_pool": [9.0, 9.0, 9.0, 9.0]}, grade=3, composer_id=0)
+
+    report = extract_embeddings(FakeBackbone(pooling_names=("mean_pool",), dim=4), entries,
+                                 midi_dir=tmp_path / "mid", out_dir=out_dir,
+                                 composer_index_path=tmp_path / "idx.json", skip_existing=False)
+
+    assert (report.ok, report.skipped) == (1, 0)
+    assert read_embedding_npz(out_dir / "a.npz").embeddings["mean_pool"][0] != 9.0
 
 
 def test_extract_embeddings_records_failures_and_continues(tmp_path):
