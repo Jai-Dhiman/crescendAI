@@ -1,6 +1,6 @@
 # Real-Audio Score-Follower Eval — Provisional
 
-**Status:** Track A is complete on 55 competition-grade recordings. Track B's validator is built and browser-verified, but its human labeling pass and PASS bars are unfinished. This eval is therefore **not yet the score-follower source of truth**. The bar-tap approach is superseded: labeling by ear requires bar numbers against scores the labeler does not have. Track A uses ASAP's alignment, and Track B asks the listener only to watch and flag disagreements.
+**Status:** Track A is complete on 55 competition-grade recordings. Track B's human labeling pass is **complete on the 32-clip subset** (2026-08-03) — no high-confidence failure observed, 21/21 tracked where the piece is verified — but that subset is extreme-sampled by construction, and PASS bars are still unset. This eval is therefore **not yet the score-follower source of truth**: it needs a representative-sample pass and agreed bars. The bar-tap approach is superseded: labeling by ear requires bar numbers against scores the labeler does not have. Track A uses ASAP's alignment, and Track B asks the listener only to watch and flag disagreements.
 
 ## Why this exists
 
@@ -68,7 +68,29 @@ Reading: going through the real transcriber barely moves localization — the fo
 
 Reading: the follower traverses the full score on most amateur clips and raises a low-confidence signal on about 21%. These are behavior proxies, not accuracy. A confidently wrong alignment can produce the same coverage and span, and the recordings do not establish a controlled phone-audio domain. Track B must adjudicate the clips before this result can license a product claim.
 
-**PASS bars are deliberately not finalized.** Track A supplies per-beat errors on real competition recordings. Track B will supply separate amateur outcomes and confidence calibration. Set bars only after the human pass; do not derive them from clean MIDI or collapse unlike outcomes.
+## Track B human pass — result (2026-08-03, 32 clips)
+
+All 32 subset clips are labeled. Outcomes stratified by resolved-score confidence (threshold 0.5) and by score source:
+
+| stratum | tracked | recovered | wrong | junk |
+|---|---|---|---|---|
+| high confidence (≥0.5) | 21 | 1 | **0** | **0** |
+| low confidence | 1 | 0 | 2 | 7 |
+| score **verified** by piece-ID | 20 | 1 | **0** | **0** |
+| score **unverified** (piece-ID abstained) | 2 | 0 | 2 | 7 |
+
+Median fraction of playback flagged wrong: 0.0 (p90 0.0).
+
+**Two findings, both stated at the strength the sample supports.**
+
+1. **No high-confidence failure was observed.** Every `wrong` and `junk` clip sits in the low-confidence stratum; no clip was confidently mistracked. This is the human-adjudicated form of the "knows when it's lost" property the proxy track could only suggest. It is an observation of zero failures in 22 high-confidence clips, not a measured failure *rate* — the upper bound is loose at this n.
+2. **Where the piece is verified, the follower tracked it — 21 of 21** (20 `tracked`, 1 `recovered`). The 11 unverified-label rows cannot support a verified accuracy claim in either direction: 7 were judged `junk`, which is consistent with the follower correctly declining an unusable or unidentifiable clip, and the 2 `wrong` rows are ambiguous between follower failure and a wrong score on screen.
+
+**The subset is extreme-sampled, not representative.** `gold_subset.json` takes the lowest- and highest-confidence clip per piece by design, so these counts are not corpus rates and must not be reported as such. A representative rate needs a random-sample pass over the 279-clip corpus.
+
+**PASS bars remain unset — deliberately, and this is a human-lit call.** The distribution needed to set them now exists (above, plus Track A's per-beat errors), but choosing thresholds is research-gate interpretation, not a derivation. Candidate shape, for a decision rather than as a decision: gate on *no high-confidence failures* plus a floor on verified-score success, and keep `recovered` separate from `tracked` since relocking is partial evidence. Do not gate on the pooled 32-clip success fraction — it mixes strata that mean different things.
+
+**Provenance note.** Six records (the 2026-08-01 labeling session) predate `validate_tool` recording score provenance and were **backfilled**, not re-labeled: `score_id` / `score_source` recomputed via `resolve_score_id`, `follower_confidence` read from that clip's cached view. Those three fields are derived and were verified byte-identical to what the validator writes on all 26 natively-saved records; the human verdicts and wrong spans are untouched. The migrated records carry `provenance: "backfilled"`. Five of the six are the re-labeled clips, so if any result hinges on them, re-label rather than trust the migration.
 
 ## How to run the accuracy tracks (#133 S3)
 
