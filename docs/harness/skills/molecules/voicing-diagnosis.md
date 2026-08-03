@@ -2,7 +2,7 @@
 name: voicing-diagnosis
 tier: molecule
 description: |
-  Diagnoses imbalance between melody and accompaniment voicing in homophonic textures. fires when MuQ dynamics is below baseline by >= 1 stddev AND AMT velocity-curve shows top-voice/bass-voice ratio is inverted. fires when teacher-style "bring out the melody" feedback would apply. fires when phrasing-arc-analysis flags a missing dynamic peak in the melodic line. fires when exercise-proposal needs a voicing-rooted issue. fires on a passage with >= 4 simultaneous notes. does NOT fire on monophonic passages. does NOT fire when the texture is not predominantly homophonic. does NOT call other molecules.
+  Diagnoses imbalance between melody and accompaniment voicing in homophonic textures. fires when MuQ dynamics is below baseline by >= 1 stddev AND AMT velocity-curve shows top-voice/bass-voice ratio is inverted. fires when teacher-style "bring out the melody" feedback would apply. fires when phrasing-arc-analysis flags a missing dynamic peak in the melodic line. fires when exercise routing needs a voicing-rooted issue. fires on a passage with >= 4 simultaneous notes. does NOT fire on monophonic passages. does NOT fire when the texture is not predominantly homophonic. does NOT call other molecules.
 dimensions: [dynamics, phrasing]
 reads:
   signals: 'MuQ 6-dim scores, AMT midi_notes, score-alignment for the bar range'

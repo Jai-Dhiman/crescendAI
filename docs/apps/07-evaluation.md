@@ -534,6 +534,17 @@ Teacher-rater study: 100+ routing decisions reviewed by piano teachers rating di
 
 ### Shipped harness — chroma-DTW follower (#13)
 
+The eval exists because the original free-start chroma design failed three
+basic real-audio checks. A beginner's opening teleported to bars 261–262 of a
+264-bar score; correct and incorrect alignment costs overlapped; and silent
+chunks produced the lowest, most confident-looking costs while locking to the
+wrong bars. The continuity-aware design then failed its Task-0 global-margin
+gate: the correct opening cost 189.97 while the wrong teleport cost 160.64.
+A local in-band margin recovered the correct opening on that one fixture, but
+one recording could not justify a production change. That negative result is
+why follower changes must pass a multi-piece external-correctness harness
+before promotion.
+
 `model/src/chroma_dtw_eval/` is a real **external-correctness** eval that needs no expert bar annotations. AMT (Transkun, MIT/ISMIR 2024) transcribes each practice recording, parangonar aligns the transcription to the score, and the resulting monotonic perf→score time-map is the **pseudo-truth** (`just amt-regen-pseudo-truth <piece> <video_id>`). The follower's per-chunk predicted score position is then scored as **absolute error in seconds** against that map (`just chroma-eval-verify`), against a frozen `model/data/evals/chroma_dtw/baseline.json` plus 5 guards (teleport, silence, monotonicity, cost-vs-error AUC, continuity). Ratchet a genuine, guard-clean improvement with `just chroma-eval-ratchet`.
 
 - **Pseudo-truth acceptance is distributional, not a count ratio:** ≥100 monotonic anchors, ≥85% audio span, ≤8s max gap. (The original `matched/amt_notes ≥ 0.5` gate was unreachable under the old Aria-AMT substrate, which over-transcribed ~2.8x as same-pitch re-onsets; amt_regen deduped those and uses sec-as-beat parangonar init. Under Transkun (#128) the re-onset artifact is gone, so the dedup window is 0.0 — a pass-through — and Gate 1 re-checks recall on regenerated pseudo-truth.)

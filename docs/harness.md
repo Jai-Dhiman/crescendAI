@@ -2,7 +2,7 @@
 
 Anchor doc for CrescendAI's middle system -- everything between the model outputs and the student's screen. Parallel to `docs/architecture.md` (system-level view) and `docs/model/00-research-timeline.md` (model-level view).
 
-> **Status (2026-04-26):** V5 SHIPPED. Three-tier skill catalog is fully implemented: 14 atoms, 9 molecules, 4 compounds live in `docs/harness/skills/`. Typed Zod artifact contracts (`DiagnosisArtifact`, `ExerciseArtifact`, `SynthesisArtifact`) and a catalog validator with cross-file dependency checks live in `apps/api/src/harness/`. Naming doc otherwise unchanged — `docs/apps/` contains implementation detail.
+> **Status (2026-08-02):** The runtime-consumed catalog contains 14 atoms, 7 registered molecules, and 4 compounds. Typed Zod artifact contracts and the catalog validator live in `apps/api/src/harness/`. The former Qwen training program is historical; the catalog now serves the provider-agnostic V6 harness and its evaluations.
 
 ---
 
@@ -14,7 +14,7 @@ CrescendAI's competitive advantage is not which audio model it calls. The advant
 
 The architecture has four systems, not two. A recent distinction from the deep-agents-runtime literature: **harness shapes model behavior; runtime handles machinery.** Conflating the two produces doc drift.
 
-- **Model system** (`docs/model/`) -- MuQ, Aria, AMT, encoders, training data, loss discipline. Outputs signals.
+- **Model system** (`docs/model/`) -- frozen MuQ instrumentation, Transkun AMT, score alignment, research encoders, training data, and measurement discipline. Outputs signals.
 - **Harness system** (this doc) -- context graph, skills, agent loop, student memory, contracts, artifacts. Markdown-first. Turns signals into teaching.
 - **Runtime system** -- Cloudflare Workers + Durable Objects + D1 + R2 + AI Gateway + Sentry. Handles durable execution, checkpointing, multi-tenancy, observability, sandbox. Invisible to skill authors.
 - **Client system** (`apps/ios/`, `apps/web/`) -- capture, playback, UI, local-first sync. Surfaces teaching.
@@ -64,11 +64,11 @@ Same code runs prod and eval. Playbook.yaml style injection wired everywhere. Si
 **Tier:** NOW. P0 beta blocker.
 
 ### V5 -- Skills (Atoms / Molecules / Compounds)
-Three-tier skill catalog. 14 atoms, 9 molecules, 4 compounds. Each with YAML frontmatter (tier, dimensions, reads, writes, depends_on), 5 required body sections (When-to-fire, When-NOT-to-fire, Procedure, Concrete example, Post-conditions), and a typed artifact output contract. Three Zod artifact schemas (`DiagnosisArtifact`, `ExerciseArtifact`, `SynthesisArtifact`) in `apps/api/src/harness/artifacts/`. Skill catalog validator (`validator.ts`) enforces frontmatter schema, body sections, and cross-file `depends_on` resolution. Training target for the Qwen finetune. Doc home: `docs/harness/skills/`.
-**Tier:** SHIPPED (2026-04-26). Gates Qwen data collection and Phase 1 judge design.
+Three-tier skill catalog. 14 atoms, 7 registered molecules, 4 compounds. Each has YAML frontmatter, 5 required body sections, and a typed artifact output contract. Three Zod artifact schemas (`DiagnosisArtifact`, `ExerciseArtifact`, `SynthesisArtifact`) live in `apps/api/src/harness/artifacts/`. The validator enforces frontmatter, body sections, and cross-file dependencies. Doc home: `docs/harness/skills/`.
+**Tier:** SHIPPED (2026-04-26). Current work is production/eval parity under #28.
 
 ### V6 -- Agent Loop & Orchestration
-Teacher loop with deferred tool loading, NLAH contracts, event hooks + middleware hooks. Writes stay single-threaded: skills contribute intelligence, one teacher path writes. Capability-router across providers (Workers AI / Sonnet / eventually Qwen). Doc home: `docs/apps/02-pipeline.md` (Target section).
+Teacher loop with deferred tool loading, NLAH contracts, event hooks + middleware hooks. Writes stay single-threaded: skills contribute intelligence, one teacher path writes. Providers remain replaceable behind capability and evaluation gates. Doc home: `docs/apps/02-pipeline.md` (Target section).
 **Tier:** Core loop SHIPPED (2026-04-29) -- two-phase compound loop, `compound-registry` with `OnSessionEnd` + `OnChatMessage` bindings, `HARNESS_V6_ENABLED=true` in prod. NEXT: capability-router across providers, deferred tool loading, remaining hooks (`OnWeeklyReview`, `OnPieceDetected`).
 
 ### V7 -- Student Memory / Personalization
@@ -118,7 +118,7 @@ Drawn from external sources (Mahler wiki: Agent Harnesses, Natural Language Harn
 
 11. **Harness vs runtime split.** Harness = prompts + skills + tools + contracts (markdown). Runtime = durable execution + checkpointing + memory storage + multi-tenancy + observability + sandbox (CF Workers + DO + D1 + R2 + AI Gateway). Middleware hooks live in the runtime; they wrap every model call with PII redaction, tool-call limits, retries, HITL gates, online eval. See *The runtime behind production deep agents*.
 
-12. **Provider-agnostic skills; capability-router providers.** Skills are markdown; the same file runs under Sonnet today and under the Qwen finetune tomorrow. Provider choice is a runtime decision. The Workers AI / Anthropic / Qwen mix is a **capability router** (each model handles what it is best at), not a difficulty escalator. See *Multi-Agents: What's Actually Working*.
+12. **Provider-agnostic skills; capability-router providers.** Skills are markdown and do not commit the system to one language model. Provider choice is a runtime decision gated by capability and evaluation evidence. See *Multi-Agents: What's Actually Working*.
 
 13. **Signal ablation is non-negotiable.** Periodically substitute MuQ/AMT signals with plausible fakes. If synthesis outputs are unchanged, the harness is doing text-only reasoning and signals are decorative. See *Music AI Systems* (MuChoMusic finding).
 
@@ -138,7 +138,7 @@ Drawn from external sources (Mahler wiki: Agent Harnesses, Natural Language Harn
 
 **NEXT** -- V1 continued (Phase B/C with tightened SemiSupCon positive-mining + musically-informed AMT eval), V3 (compaction policy), V6 (agent loop + event hooks + middleware hooks), V8a (direct-action tools + chat tool_use).
 
-**LATER** -- V7 (student memory typed entries + MIA retrieval), V8b (iOS native inference client), Qwen 27B finetune (gated on V4 plateau + V5 molecules locked + 7B probe pass).
+**LATER** -- V7 (student memory typed entries + MIA retrieval), V8b (iOS native inference client). The former Qwen 27B fine-tune was closed and is not a standing roadmap item.
 
 ---
 

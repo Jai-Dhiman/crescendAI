@@ -2,7 +2,7 @@
 name: align-performance-to-score
 tier: atom
 description: |
-  Aligns AMT-transcribed performance midi_notes to a score MIDI via DTW on (onset, pitch). fires when any timing molecule needs per-note score correspondence. fires when cross-modal contradiction check needs aligned context. fires when bar-range slicing requires score-anchored bar timings. fires when score-following bar regressions are computed. fires when exercise-proposal anchors a drill to specific bars. does NOT fire when score MIDI is not available. does NOT call other skills.
+  Aligns AMT-transcribed performance midi_notes to a score MIDI via DTW on (onset, pitch). fires when any timing molecule needs per-note score correspondence. fires when cross-modal contradiction check needs aligned context. fires when bar-range slicing requires score-anchored bar timings. fires when score-following bar regressions are computed. fires when exercise routing anchors a drill to specific bars. does NOT fire when score MIDI is not available. does NOT call other skills.
 dimensions: [timing, articulation]
 reads:
   signals: 'AMT performance midi_notes (pitch, onset_ms, duration_ms) and reference score MIDI (pitch, expected_onset_ms)'

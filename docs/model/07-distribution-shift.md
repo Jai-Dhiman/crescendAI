@@ -1,6 +1,6 @@
 # Distribution Shift — Practice vs Training
 
-> Last updated: 2026-04-20
+> **Status (2026-08-02):** Practice-augmentation and OOD-harness infrastructure shipped, but the planned model-v2 sweep never ran. Synthetic corruption cannot establish ecological validity. This document now owns #139's phone/room, learner, piece, restart, and longitudinal distribution-shift policy.
 
 CrescendAI is trained on finished performances (PercePiano, MAESTRO,
 competition, YouTube curated clips) but deployed on practice audio (phone mic,
@@ -24,9 +24,9 @@ contact with a piece.
 extrapolates outside the training manifold. Predictions become arbitrary; σ
 (if calibrated) inflates.
 
-**Mitigation.** Practice augmentation (MIDI corruption) synthesizes beginner-
-like recordings from MAESTRO MIDI. See
-`docs/plans/2026-04-20-practice-augmentation.md`.
+**Mitigation.** The repository can synthesize MIDI corruptions, but synthetic
+practice remains an ablation population. Real beginner and intermediate phone
+recordings are required for the headline result.
 
 ### Skew 2 — Acoustic context
 
@@ -60,7 +60,7 @@ middle of a 15s window.
 
 ---
 
-## Solo-feasible mitigations (shipping Q2–Q3 2026)
+## Historical solo-feasible mitigations
 
 1. **Practice augmentation.** Fully solo-executable. No external labelers
    needed, all primitives operate on MIDI or audio signal.
@@ -83,7 +83,7 @@ It's deferred because:
 - requires FERPA-adjacent data handling (student recordings)
 - requires teacher-side incentive design (unpaid labor is not sustainable)
 
-Gate on post-PMF traction (per `docs/plans/2026-04-20-model-year-roadmap.md`).
+Successor #139 moves this work behind ethics approval and an explicitly bounded pilot.
 
 ### DANN (Domain-Adversarial Neural Networks)
 
@@ -140,6 +140,6 @@ Every sweep emits (wired in #76: `run_ood_test` runs per fold in
 - OOD-minus-fold gap (clean − OOD; the number that matters)
 - Per-dim collapse score on OOD (is the collapse structure domain-dependent?)
 
-Track the gap over time. The practice-augmentation plan's exit criterion is
-gap ≤ 10pp; this is the first measurable deliverable against distribution
-shift in the repo's history.
+Track the gap by learner, piece, device, room, and practice behavior. Report
+synthetic and real populations separately; only held-out real audio can open a
+teacher-capability gate.

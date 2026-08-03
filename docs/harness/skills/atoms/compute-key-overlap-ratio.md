@@ -2,7 +2,7 @@
 name: compute-key-overlap-ratio
 tier: atom
 description: |
-  Computes the average ratio of (note_off_ms - next_note_on_ms) to total note duration, an articulation proxy where high values indicate legato and low values indicate staccato. fires when articulation-clarity check runs. fires when cross-modal contradiction check needs an AMT-side articulation scalar. fires when phrasing-arc-analysis distinguishes legato vs detached phrases. fires when piece-onboarding compares articulation against reference style. fires when exercise-proposal needs articulation prerequisite check. does NOT fire when fewer than 3 consecutive notes exist. does NOT call other skills.
+  Computes the average ratio of (note_off_ms - next_note_on_ms) to total note duration, an articulation proxy where high values indicate legato and low values indicate staccato. fires when cross-modal contradiction check needs an AMT-side articulation scalar. fires when phrasing-arc-analysis distinguishes legato vs detached phrases. fires when piece-onboarding compares articulation against reference style. fires when exercise routing needs an articulation prerequisite check. does NOT fire when fewer than 3 consecutive notes exist. does NOT call other skills.
 dimensions: [articulation]
 reads:
   signals: 'AMT midi_notes (onset_ms, duration_ms) for adjacent notes within bar_range'

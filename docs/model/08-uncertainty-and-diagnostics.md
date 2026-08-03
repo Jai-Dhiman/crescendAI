@@ -1,6 +1,6 @@
 # Uncertainty and Diagnostics
 
-> Last updated: 2026-04-20 — heteroscedastic heads shipped (P0 complete)
+> **Status (2026-08-02):** Heteroscedastic heads and the per-chunk sigma gate shipped, but the planned calibration sweeps never ran before model v2 closed. The default 0.15 threshold is implemented behavior, not a validated risk guarantee. #139 must calibrate abstention on held-out learners, rooms, and pieces.
 
 This doc explains how the model reports what it doesn't know, how the harness
 consumes those signals, and how the Chunk A diagnostics let us see dimension
@@ -32,7 +32,9 @@ or is effectively a scalar replicated 6x?"**
 ### Signal 1 — Per-dim σ (heteroscedastic output head)
 
 **Implemented 2026-04-20.** Every dim outputs a `(μ, σ)` pair.
-See `docs/plans/2026-04-20-heteroscedastic-heads.md`.
+The implementation lives in `model/src/model_improvement/heads.py`,
+`model/src/model_improvement/calibration.py`, and
+`apps/api/src/services/confidence_gate.ts`.
 
 - Low σ on a dim → model is confident; surface the per-dim feedback.
 - High σ on a dim → model is uncertain; suppress or soften.
@@ -123,8 +125,8 @@ failure mode from collapse and is more urgent to fix.
 
 ### stream_disagreement_stats
 
-For dual-stream models (once MuQ + Aria parallel streams land — superseded
-gated fusion 2026-05-27). For each dimension d, compute distribution of
+For any future dual-stream model. The planned MuQ + Aria production streams
+never landed. For each dimension d, compute the distribution of
 `|audio_scores[d] - symbolic_scores[d]|` across chunks. High mean disagreement
 on a dimension means the streams are genuinely seeing different things —
 diagnostic value for the teacher LLM. Near-zero disagreement on a dimension
@@ -233,4 +235,4 @@ interpretation -0.474    0.589    0.642    0.223    0.655    1.000
 ```
 
 > Numbers captured from `data/results/a1_max_sweep_results.json`.
-> Re-run `model/scripts/stamp_baseline_diagnostics.py` to refresh after the sweep completes.
+> This is a historical snapshot from the closed model-v2 sweep program.

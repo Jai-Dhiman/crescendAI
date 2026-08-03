@@ -8,7 +8,7 @@ reads:
   signals: 'streaming MuQ 6-dim scores, AMT midi_notes, AMT pedal CC, score-alignment for each 15s chunk as it arrives'
   artifacts: []
 writes: DiagnosisArtifact
-depends_on: [cross-modal-contradiction-check, rubato-coaching, classify-stop-moment]
+depends_on: [cross-modal-contradiction-check, rubato-coaching]
 triggered_by: OnRecordingActive
 ---
 

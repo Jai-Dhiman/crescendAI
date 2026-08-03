@@ -2,7 +2,7 @@
 name: fetch-similar-past-observation
 tier: atom
 description: |
-  Fetches the most similar prior diagnosis artifact for a given student, dimension, and bar context. fires when a diagnosis molecule wants to know if this finding is recurring. fires when session-synthesis needs to surface a repeating issue. fires when exercise-proposal wants prior-exercise context for the same diagnosis pattern. fires when weekly review groups recurring patterns. fires when piece-onboarding looks for analogous prior pieces. does NOT fire for cross-student lookups (privacy boundary). does NOT call other skills.
+  Fetches the most similar prior diagnosis artifact for a given student, dimension, and bar context. fires when a diagnosis molecule wants to know if this finding is recurring. fires when session-synthesis needs to surface a repeating issue. fires when exercise routing needs prior-exercise context for the same diagnosis pattern. fires when weekly review groups recurring patterns. fires when piece-onboarding looks for analogous prior pieces. does NOT fire for cross-student lookups (privacy boundary). does NOT call other skills.
 dimensions: [dynamics, timing, pedaling, articulation, phrasing, interpretation]
 reads:
   signals: 'student diagnosis artifact store, indexed by (student_id, dimension, piece_id, bar_range_overlap)'

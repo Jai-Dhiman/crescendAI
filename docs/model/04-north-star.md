@@ -2,7 +2,7 @@
 
 Vision document for the ideal piano performance evaluation system, from recording to actionable feedback. Captures the complete 8-stage pipeline, phased implementation roadmap, and the rationale behind every architectural decision.
 
-> **Status (2026-05-27):** Vision document. **Phase 1 (score infrastructure) COMPLETE.** Phase 0+3 collapsed into "Model v2" (Aria + MuQ as parallel streams + MPM-style extracted features, replacing earlier gated fusion plan — see [[project_parallel_streams_decision]]). Clean-fold baseline optimized: **A1-Max 79.85% pairwise, R2=0.336** (4-fold mean, optimized weights). E1 audio gate PASSED (>75%). See `03-encoders.md` for encoder details and Aria architecture.
+> **Status (2026-08-02):** The modular grounding insight survives, but the MuQ/Aria model-v2 roadmap below is historical. Successor #139 starts with audio + score -> localized evidence -> calibrated abstention -> intervention -> retry measurement. The current implementation uses frozen MuQ instrumentation, Transkun, symbolic alignment, typed evidence, and an interchangeable language model. A native audio-score-language teacher remains a gated destination, never its own verifier.
 
 ---
 
@@ -147,7 +147,7 @@ The model v2 system targets 7 perceptual capabilities, from immediate inference 
 
 | # | Capability | Description | Encoder | Status |
 |---|-----------|-------------|---------|--------|
-| 1 | **AMT** | Automatic music transcription (audio -> MIDI) | Aria-AMT (Whisper-class, replaces ByteDance) | LOCAL ONLY (#9; prod = Tier 3) |
+| 1 | **AMT** | Automatic music transcription (audio -> MIDI) | Transkun (MIT, ISMIR 2024) | LOCAL ONLY (prod = Tier 3) |
 | 2 | **Piece identification** | Fuzzy matching against score library | Score following (DTW) | COMPLETE |
 | 3 | **Quality assessment** | 6-dimension relative quality scoring | MuQ + Aria (parallel streams + MPM extraction, supersedes gated fusion 2026-05-27) | BASELINE ESTABLISHED (clean folds: 77.5% pairwise, optimized weights found) |
 | 4 | **Skill level** | Beginner/intermediate/advanced classification | MuQ + Aria (ordinal training) | NOT STARTED (A1-Max has zero discrimination) |
@@ -203,11 +203,11 @@ Start with ASAP score MIDIs (242 pieces, covers standard classical repertoire). 
 
 Per-score data model (V1, MIDI-only): bar structure, tempo markings, pedal events (CC64), key/time signatures, per-bar note data (pitch, velocity, onset, duration, track). Richer annotations (explicit dynamics text like pp/ff/cresc., articulation marks, section labels, difficulty annotations per bar) require MusicXML import -- deferred to a future enrichment pass.
 
-Design spec: `docs/superpowers/specs/2026-03-14-score-midi-library-design.md`
+Operational guidance: `docs/model/10-score-library-catalog.md`.
 
 ### AMT Service (local-only)
 
-Aria-AMT (Whisper-class, ~49M params, MAESTRO F1 0.86; replaces ByteDance, which was validated at 0% pairwise drop on MAESTRO / 79.9% agreement on mediocre YouTube audio). Runs as a separate HF endpoint, currently **LOCAL ONLY**: prod `AMT_ENDPOINT` is unset, so prod sessions degrade to Tier 3. Deploy tracked in #9. Locally, single upload yields two outputs (scores + MIDI + pedal CC64).
+Transkun runs behind the frozen `/transcribe` contract and returns notes, offsets, and pedal events. It is currently **LOCAL ONLY**: prod `AMT_ENDPOINT` is unset, so prod sessions degrade to Tier 3. The migration passed its locked compatibility gates in #128; real phone/room validity remains a separate #133/#139 requirement.
 
 ### Score Following
 
@@ -307,7 +307,7 @@ Pedal resonance subtlety (sympathetic vibration, half-pedaling), piano character
 
 ---
 
-## Phased Implementation Roadmap
+## Historical phased implementation roadmap
 
 ### Phase 1: Score Infrastructure (COMPLETE)
 
@@ -315,7 +315,7 @@ Built: score MIDI library (242 pieces), cloud AMT service, score following (DTW)
 
 Result: Same A1-Max scores, but teacher says "In bars 12-16, the crescendo is timid" instead of "dynamics score 0.35."
 
-### Model v2: Aria + MuQ Parallel Streams + MPM Extraction (2-4 months, engineering + ML) [updated 2026-05-27]
+### CLOSED: Model v2 Aria + MuQ parallel streams
 
 *Collapses previous Phase 0 (A2 multi-tier) and Phase 3 (Symbolic FM) into a single effort.*
 
@@ -407,11 +407,11 @@ Aria inference runs in parallel with MuQ on the same HF endpoint (or a separate 
 
 | Component | Status | Role in Perfect Pipeline |
 |-----------|--------|-------------------------|
-| A1-Max (deployed, numbers invalid) | DEPLOYED (needs retrain) | Audio stream encoder (parallel-stream architecture, 2026-05-27) |
-| MuQ backbone (160K hrs) | DEPLOYED | Pretrained audio foundation |
+| A1-Max heads | AVAILABLE | Historical six-score baseline loaded over frozen MuQ embeddings |
+| Stock MuQ backbone | AVAILABLE | Frozen instrumentation and baseline; released weights are noncommercial |
 | Aria base + embedding | AVAILABLE (HuggingFace) | Symbolic encoder, score encoder |
 | Two-stage subagent | IMPLEMENTED | Same architecture, richer inputs |
-| Aria-AMT (replaces ByteDance) | LOCAL ONLY | Pending CF Container deploy (#9); prod = Tier 3 |
+| Transkun | LOCAL ONLY | Current `/transcribe` substrate; prod = Tier 3 while endpoint is unset |
 | Score following (DTW) | COMPLETE | Bar alignment for score conditioning |
 | Bar-aligned analysis (6 dims) | COMPLETE | Structured musical facts |
 | Score MIDI library (242 pieces) | COMPLETE | Score conditioning input |

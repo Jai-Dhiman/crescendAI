@@ -2,7 +2,7 @@
 
 **Status:** PILOT COMPLETE (2026-06-01). Three clips of chopin_ballade_1 transcribed via local AMT, aligned via parangonar, analyzed for noise floor. Findings drive the harness rework that follows.
 
-**Picks up from:** `docs/implementation/2026-05-31-chroma-dtw-eval-pivot.md` (harness shipped) + brainstorm pivot to practice-distribution primary scalar.
+**Picks up from:** the chroma-follower failure record now consolidated in `docs/apps/07-evaluation.md`, plus the pivot to a practice-distribution primary scalar.
 
 ---
 

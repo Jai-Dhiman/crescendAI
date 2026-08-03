@@ -1,8 +1,8 @@
 # Encoder Status
 
-Living document tracking audio and symbolic encoder architectures, training results, and next experiments.
+Historical encoder results and the current inference-loading contract.
 
-> **Status (2026-05-27):** A1-Max DEPLOYED. Clean-fold optimized: **79.85% pairwise, R2=0.336** (4-fold mean). Loss weight autoresearch + best-checkpoint fix recovered nearly all leaked-fold performance (was 80.8% leaked, now 79.9% clean). Aria (EleutherAI) selected as primary symbolic encoder. Dual-encoder viability validated (phi=0.043). **Architecture: parallel streams (replaces gated fusion as of 2026-05-27); both MuQ and Aria emit independent per-dim quality scores fed to the teacher LLM alongside MPM-style extracted features. See [[project_parallel_streams_decision]].** **Update (2026-06-26):** Aria Phase C T1 baseline trained locally on MPS (#78) -- 4-fold mean **0.6988 pairwise** > 59.6% frozen probe (+10.3pts); lower bound on AMT timbre proxy. See Phase C below.
+> **Status (2026-08-02):** The serving loader uses the frozen stock `OpenMuQ/MuQ-large-msd-iter` checkpoint plus separately trained attention, encoder, and regression/Gaussian heads. It does not load MuQ LoRA adapters; the pretrained-MuQ training path raises `NotImplementedError`. The clean-fold A1-Max result (**79.85% pairwise, R2=0.336**) and Aria experiments below remain historical evidence. The MuQ/Aria parallel-stream training program is closed; #139 owns the benchmark-first successor.
 
 **Notebooks:** `model/notebooks/model_improvement/01_audio_training.ipynb`, `02_symbolic_training.ipynb`
 **Code:** `model/src/model_improvement/`
@@ -20,7 +20,7 @@ Numbers are retained below for relative comparison only (all experiments used th
 
 ## Audio Encoder
 
-### Architecture: A1-Max (MuQ + LoRA)
+### Historical training recipe: A1-Max (MuQ + LoRA)
 
 Frozen MuQ backbone (pretrained on 160K hours of music) with LoRA rank-32 adapters on layers 7-12 (<1% of MuQ params). Multi-task training on PercePiano (1,202 segments, 6 teacher-grounded dimensions, 4-fold piece-stratified CV).
 
@@ -51,12 +51,12 @@ SemiSupCon's fix, which we adopt, is threefold:
 2. **Hard negatives from labels.** Labeled samples with *different* quality levels serve as hard negatives even when their style features overlap (same piece, same performer, different takes).
 3. **Quality-orthogonal augmentation.** Augmentations that preserve style but perturb quality (or vice versa) are deliberately included to prevent the encoder from collapsing the two axes.
 
-This discipline applies across the 20%/80% PercePiano-anchor / ordinal mix (`docs/plans/2026-04-20-percepiano-anchor-emphasis.md`) and the SemiSupCon loss plan (`docs/plans/2026-04-20-semi-sup-con-loss.md`). Audit during Phase B training: verify that positive pairs carry quality-label agreement, not just piece-identity agreement, and that hard negatives include style-similar / quality-different pairs.
+This discipline shaped the retired 20%/80% PercePiano-anchor/ordinal program. Its infrastructure shipped, but the gated sweeps did not run before the program closed. Any future reuse must verify that positive pairs carry quality-label agreement, not only piece identity.
 
-### Deployed Configuration
+### Current inference-loading contract
 
-- **Endpoint:** HuggingFace inference endpoint (cloud-only)
-- **Model:** A1-Max 4-fold ensemble (average predictions across all 4 fold models)
+- **Backbone:** frozen stock `OpenMuQ/MuQ-large-msd-iter`
+- **Heads:** four separately trained pooling/prediction heads loaded from fold checkpoints
 - **Input:** 15-second audio chunks at 24kHz mono
 - **Output:** 6 dimension scores (0-1 range)
 - **Calibration:** MAESTRO calibration stats in `model/data/maestro_cache/calibration_stats.json`
@@ -100,7 +100,7 @@ The +2.35pp pairwise gain comes from two fixes: (1) optimized loss weights (cont
 
 ### Results (INVALID -- fold leak, retained for relative comparison only)
 
-#### A1-Max 4-Fold Ensemble (Deployed)
+#### A1-Max 4-Fold Ensemble (historical leaked-fold result)
 
 | Metric | Value (INVALID) | vs A1 Baseline |
 |--------|-----------------|---------------|
@@ -173,7 +173,7 @@ Error correlation (phi): **0.043** -- near-zero. Models make completely independ
 
 MuQ dominates all dimensions from frozen embeddings. This is expected: MuQ was pretrained on 160K hours of audio for music understanding tasks, while Aria was pretrained on MIDI for generation/identity tasks (not quality). The key finding is that Aria has quality signal (significantly above 50% chance) despite never being trained for quality, and its errors are independent from MuQ's.
 
-### MuQ Continued Pretraining Plan: Quality-Aware Contrastive
+### Historical MuQ continued-pretraining plan
 
 Before fine-tuning on PercePiano, apply symmetric contrastive pretraining to MuQ so that its embeddings become quality-aware (not just content-aware). This mirrors what Aria's SimCSE contrastive stage does for symbolic.
 
@@ -187,7 +187,7 @@ Before fine-tuning on PercePiano, apply symmetric contrastive pretraining to MuQ
 
 This is symmetric with Aria's contrastive pretraining -- both encoders get quality-aware contrastive training before fine-tuning.
 
-### Audio Next Experiments
+### Historical audio experiments
 
 | Experiment | Effort | Expected Impact |
 |-----------|--------|-----------------|
@@ -200,7 +200,7 @@ This is symmetric with Aria's contrastive pretraining -- both encoders get quali
 
 ---
 
-## Symbolic Encoder: Aria (PRIMARY)
+## Historical symbolic encoder: Aria
 
 ### Why Aria
 
@@ -252,7 +252,7 @@ Temporal structure: 5000ms segments marked by `<T>` tokens. 10ms temporal resolu
 
 These benchmarks demonstrate that Aria has learned rich representations of musical style, structure, and expression -- exactly the capabilities needed for quality assessment.
 
-### Fine-Tuning Strategy for CrescendAI
+### Historical fine-tuning strategy
 
 **Direct fine-tuning on PercePiano:**
 - Learning rate: 1e-5
@@ -300,7 +300,7 @@ Articulation weakest (AMT velocity estimation noisiest). Interpretation/dynamics
 
 ---
 
-## Parallel-Stream Architecture (updated 2026-05-27)
+## Historical parallel-stream architecture
 
 > Replaces the prior gated-fusion design. See [[project_parallel_streams_decision]] for full rationale and the historical fusion section preserved below.
 
@@ -360,11 +360,11 @@ Based on MuQ probing R2 and prior cross-modality analysis, we expect different d
 
 These are hypotheses to be validated empirically by per-dimension stream-disagreement statistics (see `08-uncertainty-and-diagnostics.md`).
 
-### Training Protocol
+### Historical training protocol
 
 1. **Phase A -- Frozen linear probe (COMPLETE 2026-03-19):** Validated Aria captures quality signal (59.6% pairwise from frozen embeddings). Error correlation phi=0.043 (near-zero) confirms dual-encoder viability. See "Aria vs MuQ: Frozen Linear Probe Comparison" above.
 2. **Phase B -- Contrastive pretraining:** Quality-aware contrastive training for both MuQ and Aria on T2 competition + T5 YouTube Skill data. Teaches quality ordering before fine-tuning; improves the reliability of each stream's per-dim scores.
-3. **Phase C -- Independent fine-tuning (T1 BASELINE TRAINED 2026-06-26; full multi-tier run still gated on T5):** LoRA fine-tune MuQ and Aria separately on all tiers. Establish independent baselines on clean folds. `AriaLoRAModel` in `model/src/model_improvement/aria_encoder.py` (LoRA rank-32, layers 8-15). **Aria-on-T1 baseline (#78, epic #71) trained locally on Apple-Silicon MPS via `model/scripts/train_aria_phase_c.py`: 4 clean piece-stratified folds, mean pairwise 0.6988 (folds 0.672 / 0.713 / 0.729 / 0.680, std 0.023), R2_mean 0.194 (dynamics +0.32, interpretation +0.32, timing +0.25 strongest; pedaling +0.03 weak) -- beats the 59.6% frozen-probe baseline by +10.3pts, validating assumption D1 (LoRA adaptation extracts real ranking signal the frozen probe cannot).** LOWER BOUND: T1 AMT MIDI is a fluidsynth timbre proxy (original Pianoteq audio gone), and per-epoch pair subsampling was used for MPS tractability (final eval on the FULL val set, so the metric is honest). The full multi-tier convergence run (T1+T2+T3+T5) remains blocked on T5 labeling (#33); the G2 post-fine-tune decorrelation verdict is tracked separately (#80/#92). Smoke test: `model/scripts/smoke_test_aria.py`.
+3. **Phase C -- Historical independent fine-tuning result (2026-06-26):** `AriaLoRAModel` in `model/src/model_improvement/aria_encoder.py` used LoRA rank-32 on layers 8-15. The T1-only run produced mean pairwise 0.6988 and R2=0.194 on four clean piece-stratified folds. Its audio was a fluidsynth proxy, and the full multi-tier run never happened before the program closed; the removed one-off training and smoke scripts are not current entry points.
 4. **Phase D -- Per-stream heads + MPM extraction (replaces "gated fusion training"):** Freeze both encoders. Train small per-dimension heads on each stream's frozen embeddings. PercePiano as anchor (20% of training), ordinal competition data (80%). In parallel: build deterministic MPM-style feature extraction on AMT + score alignment output (split tempo/rubato, fit dynamics transition curves, structured serialization). Validate by re-running ASCF eval with the enriched teacher briefing.
 5. **Phase E (optional):** End-to-end fine-tuning of top layers per stream, with very low LR (1e-6). Each stream tunes independently; no cross-modal joint training.
 
@@ -418,7 +418,7 @@ Best leaked-fold results for context only: S2 71.3% / S2H 70.2% / S3 70.0% / S1 
 
 ---
 
-## What This Means for the Product
+## Historical product interpretation
 
 ### Teaching Moment Selection -- Workable
 
@@ -434,7 +434,7 @@ The LLM receives structured context like `"pedaling": 0.35, baseline: 0.62`. Whe
 
 ### Progress Tracking -- Noisy but Usable
 
-R2~0.50 means model explains roughly half the variance. Individual sessions noisy, but averaging across sessions and trend detection makes this usable by sessions 5-10.
+The leaked-fold R2~0.50 did not license a product claim. The clean-fold value is 0.336, and real-practice validity remains unproven.
 
 ### Score Conditioning -- Immediate with Aria
 
