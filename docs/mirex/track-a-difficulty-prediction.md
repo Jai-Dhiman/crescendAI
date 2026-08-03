@@ -1,6 +1,6 @@
 # Track A (Task 1) — Music Performance Difficulty Prediction
 
-**Status:** PIPELINE BUILT AND MEASURED; on the feature wall · **Issue:** [#104](https://github.com/Jai-Dhiman/crescendAI/issues/104) · **Updated:** 2026-08-01 · **Deadline:** 2026-10-01
+**Status:** PIPELINE BUILT AND MEASURED; feature frontier closed, encoder chosen (MoonBeam-839M), Phase 1 fine-tune pending · **Issue:** [#104](https://github.com/Jai-Dhiman/crescendAI/issues/104) · **Updated:** 2026-08-03 · **Deadline:** 2026-10-01
 
 > The spec below (task, datasets, I/O contract) is current. The **"Provisional approach" section is SUPERSEDED** — the shipped pipeline is not frozen MuQ + the A1-Max head. See "Measured state" for what actually runs and what it scores.
 
@@ -20,6 +20,8 @@
 | 37 base + 32 Transkun-unlocked | 0.7988 ± 0.0160 | 0.8031 | **+0.0064** CI [+0.0038, +0.0090] SIG |
 | 32 Transkun-unlocked only | 0.7576 ± 0.0202 | 0.7619 | −0.0347 |
 | 37 base, rank-transformed target | 0.7920 ± 0.0162 | 0.7968 | +0.0002 (tie) |
+
+**These 0.79xx levels are `tk_ablation.py`'s protocol (LightGBM + GroupKFold, n=5,798) and are NOT the #138 Phase 1 bar.** The same 37 features scored through `bakeoff_cv.py`'s folds (RidgeCV, n=900) give **0.8048** — that is what a fine-tuned encoder must clear. See the 2026-08-03 decision-log entries.
 
 Regenerate with `--stage extract --workers 10` (~8 min) then `--stage cv --boot 2000` (~2 min). The extractor SHA is recorded in the feature cache and `--stage cv` refuses to run against a stale one, so an edited feature can never be scored through old values.
 
