@@ -2,7 +2,7 @@
 name: extract-bar-range-signals
 tier: atom
 description: |
-  Slices the enrichment cache to return all signals (MuQ scores, AMT midi_notes, score-alignment, pedal CC) overlapping a bar range. fires when any molecule needs a unified view of signals over a passage. fires when cross-modal contradiction check needs all extractions for one slice. fires when phrasing-arc-analysis pulls a phrase. fires when exercise-proposal anchors a drill to specific bars. fires when bar-analyzer-style aggregation runs. does NOT fire across non-contiguous bar ranges (caller should call once per contiguous slice). does NOT call other skills.
+  Slices the enrichment cache to return all signals (MuQ scores, AMT midi_notes, score-alignment, pedal CC) overlapping a bar range. fires when any molecule needs a unified view of signals over a passage. fires when cross-modal contradiction check needs all extractions for one slice. fires when phrasing-arc-analysis pulls a phrase. fires when exercise routing anchors a drill to specific bars. fires when bar-analyzer-style aggregation runs. does NOT fire across non-contiguous bar ranges (caller should call once per contiguous slice). does NOT call other skills.
 dimensions: [dynamics, timing, pedaling, articulation, phrasing, interpretation]
 reads:
   signals: 'enrichment cache entries (MuQ-quality, AMT-transcription, score-alignment, pedal CC) keyed by chunk_id with bar timing metadata'

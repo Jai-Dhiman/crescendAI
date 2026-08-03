@@ -1,5 +1,9 @@
 # Piano Performance Evaluation with Audio Foundation Models
 
+> Historical paper and model artifact. For current research decisions and the
+> benchmark-first teacher program, start with
+> [`docs/model/00-research-timeline.md`](../docs/model/00-research-timeline.md).
+
 Audio foundation model (MuQ) for automated piano performance evaluation, achieving state-of-the-art results on the PercePiano benchmark.
 
 **Paper**: "Audio Foundation Models Outperform Symbolic Representations for Piano Performance Evaluation" (ISMIR 2026 submission)

@@ -8,7 +8,7 @@ reads:
   signals: 'first-pass enrichment cache for the new piece; reference performance MuQ scores and AMT for the same piece (cohort)'
   artifacts: []
 writes: SynthesisArtifact
-depends_on: [phrasing-arc-analysis, dynamic-range-audit, fetch-reference-percentile, prioritize-diagnoses, exercise-proposal]
+depends_on: [phrasing-arc-analysis, dynamic-range-audit, fetch-reference-percentile, prioritize-diagnoses]
 triggered_by: OnPieceDetected
 ---
 
@@ -30,14 +30,14 @@ PHASE 2 (cohort comparison):
 
 PHASE 3 (prioritize and propose):
 4. Call atom prioritize-diagnoses on the orientation diagnoses (which all have severity='minor').
-5. For top 2 focus areas, call exercise-proposal per Option B; mark exercises as 'gentle introductory' via exercise_subtype.
+5. Route any introductory prescription through the `ExerciseRoutingDecision` contract; this compound does not call a proposal molecule.
 
 PHASE 4 (single write):
-6. Compose SynthesisArtifact: session_id, synthesis_scope='piece_onboarding', strengths (any cohort comparisons where student is above 60th percentile), focus_areas (all severity='minor', up to 3), proposed_exercises, dominant_dimension (lowest cohort percentile), recurring_pattern=null (no longitudinal data for new piece), next_session_focus (one suggestion for the next play of this piece), diagnosis_refs, headline derived LAST in orientation/excitement teacher voice (300-500 chars), e.g., "Welcome to the Chopin Ballade -- here is where the music sits for you right now and where to grow into it."
+6. Compose SynthesisArtifact: session_id, synthesis_scope='piece_onboarding', strengths (any cohort comparisons where student is above 60th percentile), focus_areas (all severity='minor', up to 3), prescribed_exercise (at most one decision from PHASE 3), dominant_dimension (lowest cohort percentile), recurring_pattern=null (no longitudinal data for new piece), next_session_focus (one suggestion for the next play of this piece), diagnosis_refs, headline derived LAST in orientation/excitement teacher voice (300-500 chars), e.g., "Welcome to the Chopin Ballade -- here is where the music sits for you right now and where to grow into it."
 
 ## Concrete example
 Input: student stu_42 plays first 60s of Chopin Ballade Op 23 (never before recorded), reference cohort exists.
-Output: SynthesisArtifact { session_id:'sess_43', synthesis_scope:'piece_onboarding', strengths:[{dimension:'timing', one_liner:'Tempo sat naturally in the opening; you are at the 70th cohort percentile.'}], focus_areas:[{dimension:'pedaling', one_liner:'Pedaling sits at the 35th cohort percentile -- worth attention as you grow into the piece.', severity:'minor'},{dimension:'phrasing', one_liner:'The second-theme arc is asking for a clearer peak.', severity:'minor'}], proposed_exercises:['ex:onb_1','ex:onb_2'], dominant_dimension:'pedaling', recurring_pattern:null, next_session_focus:'Spend the first 5 minutes hearing the slow-movement pedal release.', diagnosis_refs:['diag:onb_1','diag:onb_2'], headline:'Welcome to the Chopin Ballade -- this is a piece that rewards slow listening before fast playing. Your tempo settled naturally in the opening, which is the harder thing. Where to grow into it: the slow movement asks for very particular pedal handling, and the second theme wants a clearer peak in the line. Both are habits that develop over weeks.' }.
+Output: SynthesisArtifact { session_id:'sess_43', synthesis_scope:'piece_onboarding', strengths:[{dimension:'timing', one_liner:'Tempo sat naturally in the opening; you are at the 70th cohort percentile.'}], focus_areas:[{dimension:'pedaling', one_liner:'Pedaling sits at the 35th cohort percentile -- worth attention as you grow into the piece.', severity:'minor'},{dimension:'phrasing', one_liner:'The second-theme arc is asking for a clearer peak.', severity:'minor'}], prescribed_exercise:{kind:'own_passage_loop',target_dimension:'pedaling',bar_range:[12,16],tempo_factor:0.7}, dominant_dimension:'pedaling', recurring_pattern:null, next_session_focus:'Spend the first 5 minutes hearing the slow-movement pedal release.', diagnosis_refs:['diag:onb_1','diag:onb_2'], headline:'Welcome to the Chopin Ballade -- this is a piece that rewards slow listening before fast playing. Your tempo settled naturally in the opening, which is the harder thing. Where to grow into it: the slow movement asks for very particular pedal handling, and the second theme wants a clearer peak in the line. Both are habits that develop over weeks.' }.
 
 ## Post-conditions
 Output validates as SynthesisArtifact with synthesis_scope='piece_onboarding' AND every focus_areas[].severity='minor' (Zod-enforced). recurring_pattern is null (no longitudinal data for new piece). Exactly ONE artifact written.

@@ -4,7 +4,7 @@ Pedagogical moves. Each molecule chains 2-10 atoms with explicit when-to-invoke 
 
 **Final size:** 7 molecules.
 
-**Training target.** Molecules are the Qwen finetune data-collection target -- each has a precise input/output spec and per-skill eval signal for atomic RL.
+**Evaluation unit.** Each molecule has a precise input/output contract and a per-skill evaluation signal. The former Qwen fine-tune target is historical.
 
 ## Diagnosis molecules (write DiagnosisArtifact)
 - `voicing-diagnosis` -- detect imbalance between melody and accompaniment voicing in homophonic textures
