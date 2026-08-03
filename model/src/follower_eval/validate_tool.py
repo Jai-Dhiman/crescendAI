@@ -261,6 +261,13 @@ def get_clip_view(
 def save_validation(bundles_root: Path, payload: dict) -> Path:
     """Write ``<piece>/<vid>.validate.json`` from a POSTed validation."""
     piece, vid = payload["piece"], payload["video_id"]
+    if (
+        Path(piece).name != piece
+        or Path(vid).name != vid
+        or piece in {".", ".."}
+        or vid in {".", ".."}
+    ):
+        raise ValidateToolError(f"unsafe clip identifier {piece}/{vid}")
     verdict = payload.get("verdict")
     if verdict not in VALID_VERDICTS:
         raise ValidateToolError(
@@ -605,6 +612,21 @@ class ValidateHandler(http.server.BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length", 0))
         try:
             payload = json.loads(self.rfile.read(n))
+            key = f"{payload['piece']}/{payload['video_id']}"
+            if key not in self._clip_by_key:
+                raise ValidateToolError(f"clip {key} is not in this validation session")
+            clip = self._clip_by_key[key]
+            view = get_clip_view(
+                clip["piece"],
+                clip["video_id"],
+                self.bundles_root,
+                self.scores_root,
+                clip["score_id"],
+                clip["score_source"],
+            )
+            payload["score_id"] = view["score_id"]
+            payload["score_source"] = view["score_source"]
+            payload["follower_confidence"] = view["median_confidence"]
             path = save_validation(self.bundles_root, payload)
             self._json({"ok": True, "path": path.name})
         except Exception as e:
@@ -727,7 +749,7 @@ def main() -> None:
         print("  ... run with --precompute (once), then --serve to validate")
         return
     handler = make_handler(clips, args.bundles_root, args.scores_root)
-    with socketserver.ThreadingTCPServer(("", args.port), handler) as httpd:
+    with socketserver.ThreadingTCPServer(("127.0.0.1", args.port), handler) as httpd:
         httpd.daemon_threads = True
         print(f"Validator: http://localhost:{args.port}   (Ctrl+C to stop)")
         try:

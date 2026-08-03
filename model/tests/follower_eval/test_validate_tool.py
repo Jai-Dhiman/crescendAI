@@ -220,3 +220,18 @@ def test_save_validation_requires_score_provenance(tmp_path):
             tmp_path,
             {"piece": "fur_elise", "video_id": "y", "verdict": "tracked"},
         )
+
+
+def test_save_validation_rejects_path_traversal(tmp_path):
+    with pytest.raises(vt.ValidateToolError, match="unsafe clip identifier"):
+        vt.save_validation(
+            tmp_path,
+            {
+                "piece": "../outside",
+                "video_id": "x",
+                "verdict": "tracked",
+                "score_id": "score",
+                "score_source": "piece_id",
+                "follower_confidence": 0.8,
+            },
+        )
