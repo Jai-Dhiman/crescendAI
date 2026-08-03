@@ -7,13 +7,18 @@ import pytest
 from follower_eval import validate_report as vr
 
 
-def _validation(verdict: str, confidence: float | None) -> dict:
+def _validation(
+    verdict: str,
+    confidence: float | None,
+    score_source: str = "piece_id",
+) -> dict:
     return {
         "piece": "piece",
         "video_id": verdict,
         "verdict": verdict,
         "fraction_wrong": 0.25,
         "follower_confidence": confidence,
+        "score_source": score_source,
     }
 
 
@@ -46,6 +51,14 @@ def test_summarize_keeps_verdicts_separate_and_uses_resolved_confidence():
         "wrong": 1,
         "junk": 0,
     }
+    assert summary["score_source_outcomes"]["verified"] == summary["verdicts"]
+
+
+def test_summarize_stratifies_unverified_folder_scores():
+    summary = vr.summarize([_validation("wrong", 0.2, score_source="label")])
+
+    assert summary["score_source_outcomes"]["unverified_label"]["wrong"] == 1
+    assert summary["score_source_outcomes"]["verified"]["wrong"] == 0
 
 
 def test_summarize_keeps_missing_confidence_visible():
@@ -62,8 +75,14 @@ def test_summarize_rejects_old_validation_without_score_corrected_confidence():
         vr.summarize([validation])
 
 
+def test_summarize_rejects_unknown_score_source():
+    with pytest.raises(vr.ValidateReportError, match="score source"):
+        vr.summarize([_validation("tracked", 0.8, score_source="mystery")])
+
+
 def test_format_does_not_report_collapsed_success():
     output = vr._format(vr.summarize([_validation("junk", 0.9)]))
 
     assert "success" not in output.lower()
     assert "high-confidence junk" in output
+    assert "unverified_label" in output

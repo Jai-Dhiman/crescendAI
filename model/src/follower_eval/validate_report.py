@@ -46,13 +46,16 @@ def load_validations(bundles_root: Path) -> list[dict]:
 
 
 def summarize(validations: list[dict]) -> dict:
-    """Verdict counts, fraction-wrong stats, and the low/high-confidence
-    adjudication split."""
+    """Verdict counts, fraction-wrong stats, and confidence/source strata."""
     verdicts = {verdict: 0 for verdict in VERDICTS}
     fw: list[float] = []
     confidence_outcomes = {
         bucket: {verdict: 0 for verdict in VERDICTS}
         for bucket in ("low", "high", "unscored")
+    }
+    score_source_outcomes = {
+        source: {verdict: 0 for verdict in VERDICTS}
+        for source in ("verified", "unverified_label")
     }
     for v in validations:
         verdict = v["verdict"]
@@ -65,18 +68,29 @@ def summarize(validations: list[dict]) -> dict:
                 f"{v['piece']}/{v['video_id']} predates resolved-score confidence; "
                 "reload the current validator and re-save it"
             )
+        score_source = v.get("score_source")
+        if score_source not in {"piece_id", "label"}:
+            raise ValidateReportError(
+                f"unknown score source {score_source!r} in {v['piece']}/{v['video_id']}"
+            )
+
         verdicts[verdict] += 1
         if v.get("fraction_wrong") is not None:
             fw.append(float(v["fraction_wrong"]))
+
         conf = v["follower_confidence"]
-        bucket = (
+        confidence_bucket = (
             "unscored"
             if conf is None
             else "low"
             if conf < CONFIDENCE_THRESHOLD
             else "high"
         )
-        confidence_outcomes[bucket][verdict] += 1
+        confidence_outcomes[confidence_bucket][verdict] += 1
+
+        source_bucket = "verified" if score_source == "piece_id" else "unverified_label"
+        score_source_outcomes[source_bucket][verdict] += 1
+
     n = len(validations)
     return {
         "n_validated": n,
@@ -89,6 +103,7 @@ def summarize(validations: list[dict]) -> dict:
         else None,
         "confidence_threshold": CONFIDENCE_THRESHOLD,
         "confidence_outcomes": confidence_outcomes,
+        "score_source_outcomes": score_source_outcomes,
     }
 
 
@@ -108,29 +123,44 @@ def _format(summary: dict) -> str:
             "  ...python -m follower_eval.validate_tool --serve        # then label"
         )
         return "\n".join(L)
+
     L.append("")
     L.append("verdicts:")
-    for k in VERDICTS:
-        L.append(f"  {k:<10} {summary['verdicts'].get(k, 0)}")
+    for verdict in VERDICTS:
+        L.append(f"  {verdict:<10} {summary['verdicts'][verdict]}")
+
     L.append("")
     L.append(
         "fraction of playback flagged wrong: median "
         f"{summary['median_fraction_wrong']} "
         f"p90 {summary['p90_fraction_wrong']}"
     )
+
     L.append("")
     L.append(
         "CONFIDENCE x OUTCOME (resolved-score confidence; threshold "
         f"{summary['confidence_threshold']}):"
     )
-    outcomes = summary["confidence_outcomes"]
     for bucket in ("low", "high", "unscored"):
-        counts = outcomes[bucket]
-        L.append(f"  {bucket:<8} " + " ".join(f"{v}={counts[v]}" for v in VERDICTS))
+        counts = summary["confidence_outcomes"][bucket]
+        L.append(
+            f"  {bucket:<8} "
+            + " ".join(f"{verdict}={counts[verdict]}" for verdict in VERDICTS)
+        )
     L.append("  high-confidence junk and wrong clips are calibration failures;")
     L.append(
         "  recovered clips remain separate because relocking is only partial evidence."
     )
+
+    L.append("")
+    L.append("SCORE SOURCE x OUTCOME:")
+    for source in ("verified", "unverified_label"):
+        counts = summary["score_source_outcomes"][source]
+        L.append(
+            f"  {source:<16} "
+            + " ".join(f"{verdict}={counts[verdict]}" for verdict in VERDICTS)
+        )
+    L.append("  unverified_label rows cannot support a verified accuracy claim.")
     return "\n".join(L)
 
 
