@@ -23,6 +23,7 @@ Transkun is CPU whole-clip, minutes per multi-minute video):
     --bundles-root data/evals/realaudio_bundles \
     --manifest data/evals/realaudio_bundles/_build_manifest.json
 """
+
 from __future__ import annotations
 
 import argparse
@@ -36,7 +37,9 @@ import yaml
 
 from piece_id_eval.acquire import AcquireError, acquire_audio
 
-TRANSCRIBER_ID = "transkun"  # production /transcribe engine (#128); stamped into every bundle
+TRANSCRIBER_ID = (
+    "transkun"  # production /transcribe engine (#128); stamped into every bundle
+)
 
 
 def _import_transcribe_wav():
@@ -49,14 +52,18 @@ def _import_transcribe_wav():
             if (cand / "transkun_cli.py").exists():
                 sys.path.insert(0, str(cand))
                 from transkun_cli import transcribe_wav  # type: ignore
+
                 return transcribe_wav
-    raise RuntimeError("could not locate apps/inference/amt/transkun_cli.py from CWD or module path")
+    raise RuntimeError(
+        "could not locate apps/inference/amt/transkun_cli.py from CWD or module path"
+    )
 
 
 @dataclass
 class BuildOutcome:
     """One video's build result. status in {ok, skip, download_fail,
     transcribe_fail, empty}. Exactly the fields the manifest records."""
+
     piece: str
     video_id: str
     status: str
@@ -65,7 +72,9 @@ class BuildOutcome:
     error: str | None = None
 
 
-def approved_videos(practice_root: Path, pieces: list[str] | None = None) -> dict[str, list[dict]]:
+def approved_videos(
+    practice_root: Path, pieces: list[str] | None = None
+) -> dict[str, list[dict]]:
     """piece_id -> approved recordings, read from every candidates.yaml under
     practice_root. Only ``approved: true`` rows are returned."""
     out: dict[str, list[dict]] = {}
@@ -74,14 +83,22 @@ def approved_videos(practice_root: Path, pieces: list[str] | None = None) -> dic
         if pieces and piece not in pieces:
             continue
         data = yaml.safe_load(cand.read_text()) or {}
-        approved = [r for r in (data.get("recordings") or []) if r.get("approved") is True]
+        approved = [
+            r for r in (data.get("recordings") or []) if r.get("approved") is True
+        ]
         if approved:
             out[piece] = approved
     return out
 
 
-def build_one(piece: str, rec: dict, audio_dir: Path, bundle_path: Path,
-              transcribe_wav, force: bool = False) -> BuildOutcome:
+def build_one(
+    piece: str,
+    rec: dict,
+    audio_dir: Path,
+    bundle_path: Path,
+    transcribe_wav,
+    force: bool = False,
+) -> BuildOutcome:
     """Download + transcribe one approved video into a bundle. Idempotent: an
     existing bundle short-circuits unless force. Never writes an empty-notes
     bundle -- an empty transcription is a loud ``empty`` outcome."""
@@ -93,18 +110,33 @@ def build_one(piece: str, rec: dict, audio_dir: Path, bundle_path: Path,
     try:
         wav = acquire_audio(vid, audio_dir)
     except AcquireError as exc:
-        return BuildOutcome(piece, vid, "download_fail", elapsed_s=round(time.perf_counter() - t0, 1),
-                            error=str(exc)[:400])
+        return BuildOutcome(
+            piece,
+            vid,
+            "download_fail",
+            elapsed_s=round(time.perf_counter() - t0, 1),
+            error=str(exc)[:400],
+        )
 
     try:
         notes, pedals = transcribe_wav(wav)
     except Exception as exc:  # TranskunError or anything the subprocess throws
-        return BuildOutcome(piece, vid, "transcribe_fail", elapsed_s=round(time.perf_counter() - t0, 1),
-                            error=f"{type(exc).__name__}: {exc}"[:400])
+        return BuildOutcome(
+            piece,
+            vid,
+            "transcribe_fail",
+            elapsed_s=round(time.perf_counter() - t0, 1),
+            error=f"{type(exc).__name__}: {exc}"[:400],
+        )
 
     if not notes:
-        return BuildOutcome(piece, vid, "empty", elapsed_s=round(time.perf_counter() - t0, 1),
-                            error="transkun returned zero notes")
+        return BuildOutcome(
+            piece,
+            vid,
+            "empty",
+            elapsed_s=round(time.perf_counter() - t0, 1),
+            error="transkun returned zero notes",
+        )
 
     bundle = {
         "piece_id": piece,
@@ -119,13 +151,25 @@ def build_one(piece: str, rec: dict, audio_dir: Path, bundle_path: Path,
     }
     bundle_path.parent.mkdir(parents=True, exist_ok=True)
     bundle_path.write_text(json.dumps(bundle))
-    return BuildOutcome(piece, vid, "ok", n_notes=len(notes),
-                        elapsed_s=round(time.perf_counter() - t0, 1))
+    return BuildOutcome(
+        piece,
+        vid,
+        "ok",
+        n_notes=len(notes),
+        elapsed_s=round(time.perf_counter() - t0, 1),
+    )
 
 
-def run(practice_root: Path, audio_root: Path, bundles_root: Path, manifest_path: Path,
-        pieces: list[str] | None = None, limit_per_piece: int | None = None,
-        limit: int | None = None, force: bool = False) -> list[BuildOutcome]:
+def run(
+    practice_root: Path,
+    audio_root: Path,
+    bundles_root: Path,
+    manifest_path: Path,
+    pieces: list[str] | None = None,
+    limit_per_piece: int | None = None,
+    limit: int | None = None,
+    force: bool = False,
+) -> list[BuildOutcome]:
     """Build bundles for every approved video (optionally capped). Writes the
     manifest after EACH video so an interrupted long run keeps its record."""
     by_piece = approved_videos(practice_root, pieces)
@@ -144,12 +188,17 @@ def run(practice_root: Path, audio_root: Path, bundles_root: Path, manifest_path
             if limit is not None and n_done >= limit:
                 break
             bundle_path = bundles_root / piece / f"{rec['video_id']}.json"
-            outcome = build_one(piece, rec, audio_dir, bundle_path, transcribe_wav, force=force)
+            outcome = build_one(
+                piece, rec, audio_dir, bundle_path, transcribe_wav, force=force
+            )
             outcomes.append(outcome)
             n_done += 1
-            print(f"[{n_done}/{total}] {piece}/{outcome.video_id}: {outcome.status}"
-                  f"{f' ({outcome.n_notes} notes, {outcome.elapsed_s}s)' if outcome.status == 'ok' else ''}"
-                  f"{f' -- {outcome.error}' if outcome.error else ''}", flush=True)
+            print(
+                f"[{n_done}/{total}] {piece}/{outcome.video_id}: {outcome.status}"
+                f"{f' ({outcome.n_notes} notes, {outcome.elapsed_s}s)' if outcome.status == 'ok' else ''}"  # noqa: E501
+                f"{f' -- {outcome.error}' if outcome.error else ''}",
+                flush=True,
+            )
             _write_manifest(manifest_path, outcomes)
         if limit is not None and n_done >= limit:
             break
@@ -161,34 +210,68 @@ def _write_manifest(manifest_path: Path, outcomes: list[BuildOutcome]) -> None:
     for o in outcomes:
         counts[o.status] = counts.get(o.status, 0) + 1
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(json.dumps(
-        {"transcriber": TRANSCRIBER_ID, "counts": counts, "n": len(outcomes),
-         "outcomes": [asdict(o) for o in outcomes]}, indent=1))
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "transcriber": TRANSCRIBER_ID,
+                "counts": counts,
+                "n": len(outcomes),
+                "outcomes": [asdict(o) for o in outcomes],
+            },
+            indent=1,
+        )
+    )
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Build real-audio follower-eval corpus (#133 Slice 2)")
-    ap.add_argument("--practice-root", type=Path, default=Path("data/evals/practice_eval"))
-    ap.add_argument("--audio-root", type=Path, default=Path("data/evals/practice_eval"),
-                    help="per-piece <root>/<piece>/audio/<vid>.wav download cache")
-    ap.add_argument("--bundles-root", type=Path, default=Path("data/evals/realaudio_bundles"))
-    ap.add_argument("--manifest", type=Path, default=None,
-                    help="run manifest path (default: <bundles-root>/_build_manifest.json)")
+    ap = argparse.ArgumentParser(
+        description="Build real-audio follower-eval corpus (#133 Slice 2)"
+    )
+    ap.add_argument(
+        "--practice-root", type=Path, default=Path("data/evals/practice_eval")
+    )
+    ap.add_argument(
+        "--audio-root",
+        type=Path,
+        default=Path("data/evals/practice_eval"),
+        help="per-piece <root>/<piece>/audio/<vid>.wav download cache",
+    )
+    ap.add_argument(
+        "--bundles-root", type=Path, default=Path("data/evals/realaudio_bundles")
+    )
+    ap.add_argument(
+        "--manifest",
+        type=Path,
+        default=None,
+        help="run manifest path (default: <bundles-root>/_build_manifest.json)",
+    )
     ap.add_argument("--pieces", nargs="+", default=None)
     ap.add_argument("--limit-per-piece", type=int, default=None)
     ap.add_argument("--limit", type=int, default=None, help="global cap (smoke runs)")
-    ap.add_argument("--force", action="store_true", help="rebuild even if a bundle exists")
+    ap.add_argument(
+        "--force", action="store_true", help="rebuild even if a bundle exists"
+    )
     args = ap.parse_args()
 
     manifest = args.manifest or (args.bundles_root / "_build_manifest.json")
     t0 = time.perf_counter()
-    outcomes = run(args.practice_root, args.audio_root, args.bundles_root, manifest,
-                   pieces=args.pieces, limit_per_piece=args.limit_per_piece,
-                   limit=args.limit, force=args.force)
+    outcomes = run(
+        args.practice_root,
+        args.audio_root,
+        args.bundles_root,
+        manifest,
+        pieces=args.pieces,
+        limit_per_piece=args.limit_per_piece,
+        limit=args.limit,
+        force=args.force,
+    )
     counts: dict[str, int] = {}
     for o in outcomes:
         counts[o.status] = counts.get(o.status, 0) + 1
-    print(f"\nDONE in {time.perf_counter() - t0:.0f}s  counts={counts}  manifest={manifest}")
+    print(
+        f"\nDONE in {time.perf_counter() - t0:.0f}s  counts={counts}  "
+        f"manifest={manifest}"
+    )
 
 
 if __name__ == "__main__":

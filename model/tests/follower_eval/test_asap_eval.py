@@ -3,18 +3,23 @@
 follower and the ASAP loaders are covered elsewhere; here we pin the beat-error
 math, the cold-start windowing, and the deterministic random-start sampling on
 constructed inputs with KNOWN answers."""
+
 from __future__ import annotations
 
 import pytest
 
 from follower_bench.follower import MatchedNote
-
 from follower_eval import asap_eval as ae
 
 
 def _mn(perf_time: float, score_position: float) -> MatchedNote:
-    return MatchedNote(perf_index=0, score_index=0, perf_time=perf_time,
-                       score_position=score_position, confidence=0.9)
+    return MatchedNote(
+        perf_index=0,
+        score_index=0,
+        perf_time=perf_time,
+        score_position=score_position,
+        confidence=0.9,
+    )
 
 
 # perf beats at 0,10,20,30,40s map to score beats 0,2,4,6,8s (perf 5x slower).
@@ -68,10 +73,10 @@ def test_summarize_empty():
 def test_rng_starts_deterministic_and_bounded():
     a = ae._rng_starts(TRUTH, n=4, window_sec=10.0, seed=7)
     b = ae._rng_starts(TRUTH, n=4, window_sec=10.0, seed=7)
-    assert a == b                                   # reproducible
+    assert a == b  # reproducible
     assert len(a) == 4
-    assert a == sorted(a)                           # returned sorted
-    assert all(0.0 <= t <= 30.0 for t in a)         # leaves a 10s window before last beat (40)
+    assert a == sorted(a)  # returned sorted
+    assert all(0.0 <= t <= 30.0 for t in a)  # leaves a 10s window before last beat (40)
 
 
 def test_rng_starts_no_room_returns_empty():

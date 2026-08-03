@@ -1,4 +1,5 @@
 # model/src/follower_eval/gold_report.py
+# ruff: noqa: E501
 """Gold-track report + PASS/FAIL verdict for the real-audio follower eval (#133 S3).
 
 Scans ``<bundles-root>/<piece>/<vid>.gold.json`` (written by
@@ -15,6 +16,7 @@ RUNNING (from the PRIMARY checkout so data/ + the venv resolve):
     --bundles-root data/evals/realaudio_bundles --scores-root data/scores \
     --out /tmp/gold_report.json
 """
+
 from __future__ import annotations
 
 import argparse
@@ -43,7 +45,7 @@ from follower_eval.realaudio import (
 # score cursor needs: land on the right measure (within 1 bar) on the large
 # majority of downbeats.
 PROVISIONAL_PASS = {
-    "min_within_1bar_frac": 0.85,   # >=85% of taps localized to within one bar
+    "min_within_1bar_frac": 0.85,  # >=85% of taps localized to within one bar
     "max_median_abs_err_bars": 0.50,  # typical error under half a bar
 }
 
@@ -53,6 +55,7 @@ def _load_measure_table(score_path: Path) -> tuple[list, tuple, list[dict]]:
     accuracy metric needs). Reuses the proxy runner's loader, then re-reads the
     measure_table (load_score drops it)."""
     from chroma_dtw_eval.amt_regen import _load_bach_json_score
+
     score_notes, bar_boundaries, _span = load_score(score_path)
     _na, measure_table, _sha, _beat = _load_bach_json_score(score_path)
     return score_notes, bar_boundaries, measure_table
@@ -73,7 +76,8 @@ def discover_gold(bundles_root: Path) -> dict[str, list[tuple[Path, Path]]]:
             bundle = piece_dir / f"{vid}.json"
             if not bundle.exists():
                 raise RealAudioEvalError(
-                    f"gold label {gold} has no bundle {bundle.name} (rebuild corpus?)")
+                    f"gold label {gold} has no bundle {bundle.name} (rebuild corpus?)"
+                )
             pairs.append((bundle, gold))
         if pairs:
             out[piece] = pairs
@@ -94,16 +98,34 @@ def run(bundles_root: Path, scores_root: Path, pieces: list[str] | None = None) 
         try:
             score_notes, bar_boundaries, measure_table = _load_measure_table(score_path)
         except Exception as exc:
-            failures.append({"piece": piece, "bundle": None,
-                             "error": f"score load: {type(exc).__name__}: {exc}"})
+            failures.append(
+                {
+                    "piece": piece,
+                    "bundle": None,
+                    "error": f"score load: {type(exc).__name__}: {exc}",
+                }
+            )
             continue
         for bundle_path, gold_path in pairs:
             try:
-                clips.append(evaluate_clip(piece, bundle_path, gold_path,
-                                           score_notes, bar_boundaries, measure_table))
+                clips.append(
+                    evaluate_clip(
+                        piece,
+                        bundle_path,
+                        gold_path,
+                        score_notes,
+                        bar_boundaries,
+                        measure_table,
+                    )
+                )
             except Exception as exc:
-                failures.append({"piece": piece, "bundle": bundle_path.stem,
-                                 "error": f"{type(exc).__name__}: {exc}"})
+                failures.append(
+                    {
+                        "piece": piece,
+                        "bundle": bundle_path.stem,
+                        "error": f"{type(exc).__name__}: {exc}",
+                    }
+                )
 
     pooled = _pool(clips)
     verdict = _verdict(pooled)
@@ -114,7 +136,10 @@ def run(bundles_root: Path, scores_root: Path, pieces: list[str] | None = None) 
         "verdict": verdict,
         "n_clips": len(clips),
         "n_pieces": len({c.piece for c in clips}),
-        "tolerances": {"lenient_bars": TOL_BARS_LENIENT, "strict_bars": TOL_BARS_STRICT},
+        "tolerances": {
+            "lenient_bars": TOL_BARS_LENIENT,
+            "strict_bars": TOL_BARS_STRICT,
+        },
     }
 
 
@@ -145,8 +170,12 @@ def _pool(clips: list[ClipAccuracy]) -> dict | None:
         "median_abs_err_sec": round(statistics.median(errs_sec), 3),
         "median_abs_err_bars": round(statistics.median(errs_bars), 3),
         "p90_abs_err_bars": round(_pctl(errs_bars, 0.9), 3),
-        "within_1bar_frac": round(sum(e <= TOL_BARS_LENIENT for e in errs_bars) / len(errs_bars), 4),
-        "within_half_bar_frac": round(sum(e <= TOL_BARS_STRICT for e in errs_bars) / len(errs_bars), 4),
+        "within_1bar_frac": round(
+            sum(e <= TOL_BARS_LENIENT for e in errs_bars) / len(errs_bars), 4
+        ),
+        "within_half_bar_frac": round(
+            sum(e <= TOL_BARS_STRICT for e in errs_bars) / len(errs_bars), 4
+        ),
         "n_restarts": n_restarts,
         "n_restart_relocked": len(relock),
         "n_restart_no_relock": n_no_relock,
@@ -169,15 +198,22 @@ def _verdict(pooled: dict | None) -> dict:
     """PROVISIONAL PASS/FAIL against placeholder bars. reasons[] always lists
     every check so the printout is self-explanatory even on a partial label set."""
     if not pooled or not pooled.get("n_decoded"):
-        return {"status": "NO_DATA", "provisional": True,
-                "reasons": ["no gold-labeled clips decoded yet -- run the tap tool"]}
+        return {
+            "status": "NO_DATA",
+            "provisional": True,
+            "reasons": ["no gold-labeled clips decoded yet -- run the tap tool"],
+        }
     w1 = pooled["within_1bar_frac"]
     med = pooled["median_abs_err_bars"]
     checks = [
-        (w1 >= PROVISIONAL_PASS["min_within_1bar_frac"],
-         f"within_1bar_frac {w1:.3f} vs >= {PROVISIONAL_PASS['min_within_1bar_frac']}"),
-        (med <= PROVISIONAL_PASS["max_median_abs_err_bars"],
-         f"median_abs_err_bars {med:.3f} vs <= {PROVISIONAL_PASS['max_median_abs_err_bars']}"),
+        (
+            w1 >= PROVISIONAL_PASS["min_within_1bar_frac"],
+            f"within_1bar_frac {w1:.3f} vs >= {PROVISIONAL_PASS['min_within_1bar_frac']}",
+        ),
+        (
+            med <= PROVISIONAL_PASS["max_median_abs_err_bars"],
+            f"median_abs_err_bars {med:.3f} vs <= {PROVISIONAL_PASS['max_median_abs_err_bars']}",
+        ),
     ]
     passed = all(ok for ok, _ in checks)
     return {
@@ -188,45 +224,81 @@ def _verdict(pooled: dict | None) -> dict:
 
 
 def _format(result: dict) -> str:
-    L = ["=" * 82,
-         "REAL-AUDIO FOLLOWER EVAL (#133) -- GOLD track -- human bar-tap accuracy",
-         "=" * 82,
-         f"labeled clips: {result['n_clips']}   pieces: {result['n_pieces']}   "
-         f"failures: {len(result['failures'])}"]
+    L = [
+        "=" * 82,
+        "REAL-AUDIO FOLLOWER EVAL (#133) -- GOLD track -- human bar-tap accuracy",
+        "=" * 82,
+        f"labeled clips: {result['n_clips']}   pieces: {result['n_pieces']}   "
+        f"failures: {len(result['failures'])}",
+    ]
     if result["n_clips"] == 0:
         L.append("")
         L.append("No *.gold.json labels found. Tap some clips first:")
-        L.append("  PYTHONPATH=<wt>/model/src .venv/bin/python -m follower_eval.tap_tool --serve")
+        L.append(
+            "  PYTHONPATH=<wt>/model/src .venv/bin/python -m follower_eval.tap_tool --serve"
+        )
     else:
-        hdr = (f"{'piece':<22}{'clip':<13}{'taps':>5}{'dec':>5}{'errsec':>8}"
-               f"{'errbar':>8}{'<=1bar':>8}{'<=.5':>7}{'rst':>5}{'relok_s':>9}")
+        hdr = (
+            f"{'piece':<22}{'clip':<13}{'taps':>5}{'dec':>5}{'errsec':>8}"
+            f"{'errbar':>8}{'<=1bar':>8}{'<=.5':>7}{'rst':>5}{'relok_s':>9}"
+        )
         L.append("")
         L.append(hdr)
         L.append("-" * len(hdr))
         for c in sorted(result["clips"], key=lambda c: (c.piece, c.bundle)):
-            eb = f"{c.median_abs_err_bars:.2f}" if c.median_abs_err_bars is not None else " n/a"
-            es = f"{c.median_abs_err_sec:.2f}" if c.median_abs_err_sec is not None else " n/a"
-            w1 = f"{c.within_1bar_frac:.2f}" if c.within_1bar_frac is not None else " n/a"
-            wh = f"{c.within_half_bar_frac:.2f}" if c.within_half_bar_frac is not None else " n/a"
-            rl = (f"{statistics.median(c.relock_latencies_sec):.1f}"
-                  if c.relock_latencies_sec else ("none" if c.n_restarts else "-"))
-            L.append(f"{c.piece:<22}{c.bundle[:12]:<13}{c.n_taps:>5}{c.n_decoded:>5}"
-                     f"{es:>8}{eb:>8}{w1:>8}{wh:>7}{c.n_restarts:>5}{rl:>9}")
+            eb = (
+                f"{c.median_abs_err_bars:.2f}"
+                if c.median_abs_err_bars is not None
+                else " n/a"
+            )
+            es = (
+                f"{c.median_abs_err_sec:.2f}"
+                if c.median_abs_err_sec is not None
+                else " n/a"
+            )
+            w1 = (
+                f"{c.within_1bar_frac:.2f}"
+                if c.within_1bar_frac is not None
+                else " n/a"
+            )
+            wh = (
+                f"{c.within_half_bar_frac:.2f}"
+                if c.within_half_bar_frac is not None
+                else " n/a"
+            )
+            rl = (
+                f"{statistics.median(c.relock_latencies_sec):.1f}"
+                if c.relock_latencies_sec
+                else ("none" if c.n_restarts else "-")
+            )
+            L.append(
+                f"{c.piece:<22}{c.bundle[:12]:<13}{c.n_taps:>5}{c.n_decoded:>5}"
+                f"{es:>8}{eb:>8}{w1:>8}{wh:>7}{c.n_restarts:>5}{rl:>9}"
+            )
         L.append("-" * len(hdr))
         p = result["pooled"]
         L.append("POOLED (tap-level, all clips):")
-        L.append(f"  n_taps={p['n_taps']} decoded={p['n_decoded']}  "
-                 f"median_err={p.get('median_abs_err_sec')}s / {p.get('median_abs_err_bars')} bars  "
-                 f"p90={p.get('p90_abs_err_bars')} bars")
-        L.append(f"  within 1 bar={p.get('within_1bar_frac')}  within 0.5 bar={p.get('within_half_bar_frac')}")
+        L.append(
+            f"  n_taps={p['n_taps']} decoded={p['n_decoded']}  "
+            f"median_err={p.get('median_abs_err_sec')}s / {p.get('median_abs_err_bars')} bars  "
+            f"p90={p.get('p90_abs_err_bars')} bars"
+        )
+        L.append(
+            f"  within 1 bar={p.get('within_1bar_frac')}  within 0.5 bar={p.get('within_half_bar_frac')}"
+        )
         mr = p.get("median_relock_sec")
         pr = p.get("p90_relock_sec")
         rl = f"median relock={mr}s p90={pr}s" if mr is not None else "no relock events"
-        L.append(f"  restarts={p.get('n_restarts')} relocked={p.get('n_restart_relocked')} "
-                 f"never={p.get('n_restart_no_relock')}  {rl}")
+        L.append(
+            f"  restarts={p.get('n_restarts')} relocked={p.get('n_restart_relocked')} "
+            f"never={p.get('n_restart_no_relock')}  {rl}"
+        )
     v = result["verdict"]
     L.append("")
-    L.append(f"VERDICT: {v['status']}" + ("  (PROVISIONAL bars -- see doc)" if v.get("provisional") else ""))
+    L.append(
+        f"VERDICT: {v['status']}"
+        + ("  (PROVISIONAL bars -- see doc)" if v.get("provisional") else "")
+    )
     for r in v["reasons"]:
         L.append(f"  - {r}")
     if result["failures"]:
@@ -244,8 +316,12 @@ def _to_jsonable(result: dict) -> dict:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Real-audio follower eval -- gold track report (#133)")
-    ap.add_argument("--bundles-root", type=Path, default=Path("data/evals/realaudio_bundles"))
+    ap = argparse.ArgumentParser(
+        description="Real-audio follower eval -- gold track report (#133)"
+    )
+    ap.add_argument(
+        "--bundles-root", type=Path, default=Path("data/evals/realaudio_bundles")
+    )
     ap.add_argument("--scores-root", type=Path, default=Path("data/scores"))
     ap.add_argument("--pieces", nargs="+", default=None)
     ap.add_argument("--out", type=Path, default=None, help="write the JSON report here")

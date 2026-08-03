@@ -1,10 +1,10 @@
-# Real-Audio Score-Follower Eval — SOURCE OF TRUTH
+# Real-Audio Score-Follower Eval — Provisional
 
-**Status:** v1 proxy track live (2026-07-26). Accuracy is measured two ways (2026-07-27, #133 S3): **Track A** — automatic, against ASAP's human-verified beat alignment (live; first numbers in) — and **Track B** — a light-touch human validator for the real amateur clips (tool built, browser-verified; awaiting a labeling pass). The **bar-tap tool is superseded**: labeling by ear needs bar numbers against scores the labeler doesn't have — Track A gets ground truth from ASAP instead, Track B needs only "watch and flag." This eval is the **source of truth** for score-follower quality; the synthetic `follower_bench` (below) is superseded and slated for removal once the accuracy tracks are trusted.
+**Status:** Track A is complete on 55 competition-grade recordings. Track B's validator is built and browser-verified, but its human labeling pass and PASS bars are unfinished. This eval is therefore **not yet the score-follower source of truth**. The bar-tap approach is superseded: labeling by ear requires bar numbers against scores the labeler does not have. Track A uses ASAP's alignment, and Track B asks the listener only to watch and flag disagreements.
 
 ## Why this exists
 
-The follower's job is production: track where an amateur is in the score from **real phone-recorded audio**. The prior benchmark (`model/src/follower_bench/`) measured the follower on *pristine ASAP MIDI with hand-spliced pathologies* — no audio, no AMT, no amateurs. It could not answer "does this survive real inputs." This eval closes that gap by running the follower on real YouTube recordings of amateurs practicing rep pieces, transcribed by the **exact production transcriber**. No synthetic clips, no augmentation.
+The follower's product job is to track an amateur from ordinary room or phone audio. The prior benchmark (`model/src/follower_bench/`) used pristine ASAP MIDI with hand-spliced pathologies. Track A now measures real performed audio through the production transcriber, but on competition-grade recordings. Track B covers amateur YouTube practice, but lacks independent position truth until the human pass is complete. Together they narrow the gap; neither alone proves phone-recorded, non-linear practice performance.
 
 ## Corpus
 
@@ -41,7 +41,7 @@ Transcription fidelity: AMT note count vs the reference MIDI is a **median 0.991
 
 Reading: going through the real transcriber barely moves localization — the follower is not transcription-limited on competition-grade recordings. **Evidence basis:** the 55-perf audio numbers above, plus a paired MIDI-vs-audio comparison on the 8 performances that were transcribed first (MIDI full-follow 0.000 / within-1-beat 0.9184 vs audio 0.005 / 0.9205 — i.e. no measurable penalty). The paired MIDI baseline over all 55 was still computing when this was written; it lands in `data/evals/trackA_midi_paired.json` and should replace the 8-perf pairing here. The weakest clips are `Schumann/Arabeske/Min09M` (within-1-beat 0.76) and `Schubert/Impromptu_op.90_D.899/4_no_repeat` (0.66), both of which are also the weakest on clean MIDI, so they are matcher/repeat-structure cases rather than audio cases.
 
-**Track B — light-touch human validation of the amateur clips (`validate_tool.py`).** The amateur phone-audio clips have no independent ground truth and ASAP has neither phone audio nor amateur restarts, so the real target still needs a human — but not bar numbers. The tool draws two note-strips on one score-time axis: the played notes *where the follower placed them* (`decode_at` of each onset) over the score reference, with a playhead driven by the follower's decoded position. When the follower is right the rows line up; when wrong they clash (visibly and against the audio). The human holds SPACE over wrong spans and picks one verdict (`tracked` / `recovered` / `wrong` / `junk`). `validate_report.py` aggregates these into a success fraction and, crucially, the **low-confidence adjudication**: a low-conf clip marked `junk` = the follower was right to abstain; marked `wrong` = a real failure. Follower views are cached to disk (`--precompute`) because `follow_hmm` is O(perf×score) — big clips take minutes to compute but then load instantly.
+**Track B — light-touch human validation of the amateur clips (`validate_tool.py`).** The amateur clips have no independent position truth, and ASAP has neither phone audio nor amateur restarts. The tool draws two note strips on one score-time axis: played notes at the follower's inferred positions over the score reference. The human holds SPACE over wrong spans and chooses `tracked`, `recovered`, `wrong`, or `junk`. `validate_report.py` keeps those outcomes separate and crosses them with confidence computed against the resolved score; it does not collapse `junk`, `recovered`, and `tracked` into one success number. Follower views are cached because `follow_hmm` is O(performance notes × score notes).
 
 **Piece-ID over the 32-clip subset (2026-07-27): 16 label-confirmed, 5 RE-LABELED, 11 abstain.** 16% of the subset had been validated against the wrong score:
 
@@ -55,7 +55,7 @@ Reading: going through the real transcriber barely moves localization — the fo
 
 **This resolves the v1 "21% low-confidence" question: confidence is a working score-mismatch detector.** Re-running the follower on the corrected score moves every re-labeled clip from **0.03–0.07 to 0.67–0.88** confidence, while the 11 abstained clips stay at **0.11–0.39** on their (probably correct) label score. So low confidence has two distinct causes and they separate cleanly: *wrong score* recovers when corrected, *hard/hesitant playing* does not. The residual low-confidence set is performance difficulty, not mislabeling. Of the 11 abstains, 4 already rank the folder-label piece first (at low confidence), so a wider `--k` shortlist would not help — only a longer verify window might.
 
-**The validator follows the piece-ID'd score, not the folder label.** The corpus labels are known-wrong, so `validate_tool` resolves each clip's score through `piece_id.py` (`load_piece_id_map` → `resolve_score_id`). A clip the ID stage abstained on still gets validated, but against the folder label and flagged **SCORE UNVERIFIED** in the UI, so a labeling failure is never recorded as a follower failure. A missing piece-ID map is a loud error naming the command to run; `--trust-labels` is the explicit opt-in to the old wrong-score behavior. The view cache is keyed by clip **and score**, so a re-labeled clip is never served a view computed against its old score.
+**The validator follows the piece-ID'd score, not the folder label.** `validate_tool` resolves each clip through `piece_id.py`. When piece-ID abstains, the UI labels the folder-score fallback **SCORE UNVERIFIED**; reports must stratify those rows and must not present them as verified follower accuracy. Each saved validation records the resolved score, score source, and confidence from that exact follower view. A missing piece-ID map is a loud error, and `--trust-labels` is an explicit diagnostic override. The view cache is keyed by clip and score.
 
 ## v1 proxy results (279 clips, 0 harness failures)
 
@@ -66,9 +66,9 @@ Reading: going through the real transcriber barely moves localization — the fo
 | confidence | 0.89 | p10 0.18 → p90 0.96; 21% of clips <0.5 |
 | clips with ≥1 repeat/restart | — | 72% |
 
-Reading: the follower traverses the full score on the large majority of real amateur clips, is robust to real AMT + phone-audio noise, and raises a self-doubt signal on ~21% (the beginner-heavy, hesitation-heavy pieces — `fur_elise`, `pathetique`). **Accuracy remains unverified** — high coverage/confidence/span is *consistent with* good following but is not proof; a confidently-wrong alignment yields the same proxies. That is the gap the gold track fills.
+Reading: the follower traverses the full score on most amateur clips and raises a low-confidence signal on about 21%. These are behavior proxies, not accuracy. A confidently wrong alignment can produce the same coverage and span, and the recordings do not establish a controlled phone-audio domain. Track B must adjudicate the clips before this result can license a product claim.
 
-**PASS bars are deliberately not yet finalized.** Track A gives a per-beat error distribution over real performances; Track B gives the amateur-clip success fraction and the low-confidence adjudication. Bars get set from the observed distributions once the MAESTRO-audio Track A run and a Track B labeling pass are in — not from the clean-MIDI numbers, which are the easy end.
+**PASS bars are deliberately not finalized.** Track A supplies per-beat errors on real competition recordings. Track B will supply separate amateur outcomes and confidence calibration. Set bars only after the human pass; do not derive them from clean MIDI or collapse unlike outcomes.
 
 ## How to run the accuracy tracks (#133 S3)
 
@@ -98,13 +98,13 @@ PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.validate_report \
   --bundles-root data/evals/realaudio_bundles                                       # aggregate + adjudicate low-conf
 ```
 
-Track B outputs `data/evals/realaudio_bundles/<piece>/<vid>.validate.json` (verdict + wrong-spans; gitignored, resumable). Modules: `asap_eval.py` (Track A), `validate_tool.py` + `validate_report.py` (Track B); tests in `tests/follower_eval/test_asap_eval.py`.
+Track B outputs `data/evals/realaudio_bundles/<piece>/<vid>.validate.json` with the verdict, wrong spans, resolved score, score source, and resolved-score confidence. Modules: `asap_eval.py` (Track A), and `validate_tool.py` plus `validate_report.py` (Track B). Tests live under `tests/follower_eval/`.
 
-**Superseded:** the bar-tap gold tool (`tap_tool.py` / `accuracy.py` / `gold_report.py`, `gold_subset.json`) — labeling by ear needs bar numbers the labeler can't produce without scores. Kept for now (the `decode_at` + error core is reused by Track A/B); removable once the two tracks are trusted.
+**Superseded:** `tap_tool.py` and `gold_report.py`. `accuracy.py` remains because Track A and Track B reuse its decoding and error core. `gold_subset.json` remains the committed clip selection. Delete the superseded tools only in the separately approved cleanup batch.
 
 ## Piece-ID — the corpus is mislabeled (`piece_id.py`)
 
-**Finding (2026-07-27):** the practice corpus is labeled by the folder a YouTube video was curated into, and those labels are unreliable — VERIFIED cases: `fantaisie_impromptu/JbYGHXsQiqk` is someone sightreading **Chopin Op.25/5** (title confirms); `nocturne_op9no2/rNkfVVKbICk` is **op.9 no.1**, not the no.2 score shown; `fur_elise/BShLXl02VvQ` is a 13-min mixed session (5534 notes vs 905, pitch-class cosine 0.32). The follower was handed the **wrong score** — its low confidence on those clips was *correct* (a mismatch detector), not failure. This reframes the v1 "21% low-confidence" set as largely **score mismatch**, not follower difficulty. (Track A on ASAP is unaffected — its score↔performance pairings are verified.)
+**Finding (2026-07-27):** corpus folder labels are unreliable. The 32-clip pass confirmed 16 labels, relabeled five clips, and abstained on 11. Correcting the five scores raised their confidence from 0.03–0.07 to 0.67–0.88. The 11 abstentions remained at 0.11–0.39 on their likely labels. Mislabeling explains the five relabeled clips; it does not explain the residual low-confidence group.
 
 **Stage:** per clip, identify the score actually played against the 10,494-score catalog — ngram trigram shortlist (`data/fingerprints/ngram_index.json`) UNION the folder label translated via `SCORE_FILENAME_BY_PIECE`, then follower-verify each candidate on a 60 s window, decide by **coverage × confidence** with an abstain floor (confidence is the arbiter; a wrong score can cover a tonal window but never earns high posterior). Catalog scores are all `load_score`-compatible, so any candidate is followable. VERIFIED: fantaisie → RE-LABELED `chopin.etudes_op_25.5` (cov 0.62/conf 0.84 vs 0.51/0.06); bach_prelude → CONFIRMED `bach.prelude.bwv_846` (cov 0.99/conf 0.97 via the label channel, since ngram is blind to its arpeggios).
 
@@ -113,7 +113,7 @@ PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.piece_id \
   --clips fantaisie_impromptu/JbYGHXsQiqk bach_prelude_c_wtc1/w03EKJjOTJE --k 6 --window-sec 30
 ```
 
-Limits: verify is a ~25-way transpose search × K candidates (~30–60 s/clip — background the corpus pass); the ngram+label shortlist misses clips that are *both* mislabeled *and* arpeggiated (neither channel surfaces the truth → abstain), which a pitch-histogram/chroma shortlist channel would recover. NOT YET DONE: corpus-wide relabel pass; wiring the identified score into `validate_tool`.
+Limits: verification is a transpose search across K candidates and costs about 30–60 seconds per clip. The n-gram-plus-label shortlist can miss clips that are both mislabeled and arpeggiated. The validator wiring is complete; a corpus-wide relabel pass is not.
 
 ## Rebuild
 
@@ -130,4 +130,4 @@ PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.realaudio \
 
 ## Relationship to synthetic `follower_bench` (superseded)
 
-`follower_bench/` supplied the matcher development history (#115 monotonic DP → #118 jump DP → #119 HMM) on synthetic clips. The **matchers survive** (`follower.py`, `hmm.py`), as do `metric.py`'s scorer core and `score_notes.py` — this eval reuses them. The **synthetic clip/pathology machinery** (`clip_generator`, `pathologies`, `segments`, `trajectory`, `asap_alignment`, `gap_report`) and the `claim_measurement/gate1/` corruption layer are slated for removal **once the gold track validates this eval as the trusted source of truth** (#133 S5).
+`follower_bench/` supplied the matcher development history (#115 monotonic DP → #118 jump DP → #119 HMM) on synthetic clips. The matchers, metric core, and score-note loader remain. The synthetic clip/pathology machinery and `claim_measurement/gate1/` corruption layer remain until Track B is labeled, PASS bars are fixed, and #133 closes. Their later removal requires the approved destructive-cleanup batch.

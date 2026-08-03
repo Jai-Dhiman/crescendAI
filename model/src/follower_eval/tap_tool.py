@@ -1,4 +1,5 @@
 # model/src/follower_eval/tap_tool.py
+# ruff: noqa: E501
 """Human bar-tap gold-labeling tool for the real-audio follower eval (#133 S3).
 
 A local web page (modeled on ``src/data_collection/review_candidates.py``) that,
@@ -22,6 +23,7 @@ RUNNING (from the PRIMARY checkout so data/ + the WAVs resolve):
   PYTHONPATH=<worktree>/model/src .venv/bin/python -m follower_eval.tap_tool --serve
   # then open http://localhost:8766
 """
+
 from __future__ import annotations
 
 import argparse
@@ -39,6 +41,7 @@ SUBSET_JSON = Path(__file__).resolve().parent / "gold_subset.json"
 @dataclass(frozen=True)
 class GoldClip:
     """One subset clip resolved to its on-disk bundle + WAV + any prior taps."""
+
     piece: str
     video_id: str
     wav_path: Path
@@ -54,8 +57,9 @@ class TapToolError(RuntimeError):
     silent skip that would let the labeler tap a clip we can't score."""
 
 
-def load_clips(subset_json: Path, bundles_root: Path,
-               pieces: list[str] | None = None) -> list[GoldClip]:
+def load_clips(
+    subset_json: Path, bundles_root: Path, pieces: list[str] | None = None
+) -> list[GoldClip]:
     """Resolve every subset clip to its bundle (for the WAV path) + prior gold
     taps. Loud if a bundle or WAV is missing (the corpus must be built first)."""
     subset = json.loads(subset_json.read_text())
@@ -66,7 +70,9 @@ def load_clips(subset_json: Path, bundles_root: Path,
             continue
         bundle_path = bundles_root / piece / f"{vid}.json"
         if not bundle_path.exists():
-            raise TapToolError(f"missing bundle {bundle_path} -- build the corpus first")
+            raise TapToolError(
+                f"missing bundle {bundle_path} -- build the corpus first"
+            )
         bundle = json.loads(bundle_path.read_text())
         wav_path = Path(bundle["audio_path"])
         if not wav_path.exists():
@@ -75,12 +81,18 @@ def load_clips(subset_json: Path, bundles_root: Path,
         existing = []
         if gold_path.exists():
             existing = json.loads(gold_path.read_text()).get("bar_taps", [])
-        clips.append(GoldClip(
-            piece=piece, video_id=vid, wav_path=wav_path,
-            title=c.get("title") or bundle.get("title"),
-            v1_confidence=c.get("v1_confidence"), v1_coverage=c.get("v1_coverage"),
-            v1_span_frac=c.get("v1_span_frac"), existing_taps=existing,
-        ))
+        clips.append(
+            GoldClip(
+                piece=piece,
+                video_id=vid,
+                wav_path=wav_path,
+                title=c.get("title") or bundle.get("title"),
+                v1_confidence=c.get("v1_confidence"),
+                v1_coverage=c.get("v1_coverage"),
+                v1_span_frac=c.get("v1_span_frac"),
+                existing_taps=existing,
+            )
+        )
     if not clips:
         raise TapToolError(f"no clips resolved from {subset_json} (pieces={pieces})")
     return clips
@@ -94,8 +106,13 @@ def save_gold(bundles_root: Path, payload: dict) -> Path:
     taps = payload.get("bar_taps") or []
     if not taps:
         raise TapToolError(f"refusing to save {piece}/{vid}: zero taps")
-    clean = [{"bar_number": int(t["bar_number"]), "audio_sec": round(float(t["audio_sec"]), 4)}
-             for t in taps]
+    clean = [
+        {
+            "bar_number": int(t["bar_number"]),
+            "audio_sec": round(float(t["audio_sec"]), 4),
+        }
+        for t in taps
+    ]
     clean.sort(key=lambda t: t["audio_sec"])
     out = {
         "piece": piece,
@@ -335,9 +352,9 @@ renderList();
 
 
 class TapHandler(http.server.BaseHTTPRequestHandler):
-    clips: list[GoldClip]     # set by factory
-    bundles_root: Path        # set by factory
-    _wav_by_key: dict         # set by factory: "piece/vid" -> Path
+    clips: list[GoldClip]  # set by factory
+    bundles_root: Path  # set by factory
+    _wav_by_key: dict  # set by factory: "piece/vid" -> Path
 
     def do_GET(self):
         if self.path in ("/", "/index.html"):
@@ -348,7 +365,7 @@ class TapHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(html)
         elif self.path.startswith("/audio/"):
-            self._serve_wav(self.path[len("/audio/"):])
+            self._serve_wav(self.path[len("/audio/") :])
         else:
             self.send_response(404)
             self.end_headers()
@@ -365,7 +382,7 @@ class TapHandler(http.server.BaseHTTPRequestHandler):
         partial = False
         if rng and rng.startswith("bytes="):
             partial = True
-            s, _, e = rng[len("bytes="):].partition("-")
+            s, _, e = rng[len("bytes=") :].partition("-")
             start = int(s) if s else 0
             end = int(e) if e else size - 1
             end = min(end, size - 1)
@@ -431,18 +448,24 @@ def make_handler(clips: list[GoldClip], bundles_root: Path):
 def main() -> None:
     ap = argparse.ArgumentParser(description="Human bar-tap gold labeler (#133 S3)")
     ap.add_argument("--subset", type=Path, default=SUBSET_JSON)
-    ap.add_argument("--bundles-root", type=Path, default=Path("data/evals/realaudio_bundles"))
+    ap.add_argument(
+        "--bundles-root", type=Path, default=Path("data/evals/realaudio_bundles")
+    )
     ap.add_argument("--pieces", nargs="+", default=None)
     ap.add_argument("--serve", action="store_true", help="start the local server")
     ap.add_argument("--port", type=int, default=8766)
     args = ap.parse_args()
 
     clips = load_clips(args.subset, args.bundles_root, pieces=args.pieces)
-    print(f"Resolved {len(clips)} clips ({sum(1 for c in clips if c.existing_taps)} already labeled)")
+    print(
+        f"Resolved {len(clips)} clips ({sum(1 for c in clips if c.existing_taps)} already labeled)"
+    )
     if not args.serve:
         print("Run with --serve to label. Clips:")
         for c in clips:
-            print(f"  {c.piece}/{c.video_id}  ({len(c.existing_taps)} taps)  {c.wav_path}")
+            print(
+                f"  {c.piece}/{c.video_id}  ({len(c.existing_taps)} taps)  {c.wav_path}"
+            )
         return
     handler = make_handler(clips, args.bundles_root)
     # ThreadingTCPServer: a WAV Range stream must not block the /save-gold POST.

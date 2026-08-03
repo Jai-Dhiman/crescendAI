@@ -2,6 +2,7 @@
 """Unit tests for the real-audio eval's OWN proxy logic (issue #133). The HMM
 matcher itself is covered by follower_bench tests; here we pin the anchor-free
 statistics, the loud loaders, and bundle discovery."""
+
 from __future__ import annotations
 
 import json
@@ -22,7 +23,7 @@ def test_mono_stats_counts_backward_beyond_tolerance():
     # -0.5s tolerance, so the 0.3s chord-noise wobble is correctly ignored.
     steps, frac, max_back = ra._mono_stats([0.0, 5.0, 3.0, 3.3, 3.0])
     assert steps == 1
-    assert frac == pytest.approx(0.25)   # 1 of 4 deltas
+    assert frac == pytest.approx(0.25)  # 1 of 4 deltas
     assert max_back == pytest.approx(2.0)
 
 
@@ -32,9 +33,13 @@ def test_mono_stats_short_input():
 
 
 def test_spearman_perfect_and_degenerate():
-    assert ra._spearman([1.0, 2.0, 3.0, 4.0], [1.0, 2.0, 3.0, 4.0]) == pytest.approx(1.0)
-    assert ra._spearman([1.0, 2.0], [1.0, 2.0]) is None          # n<3
-    assert ra._spearman([1.0, 1.0, 1.0, 1.0], [1.0, 2.0, 3.0, 4.0]) is None  # zero variance
+    assert ra._spearman([1.0, 2.0, 3.0, 4.0], [1.0, 2.0, 3.0, 4.0]) == pytest.approx(
+        1.0
+    )
+    assert ra._spearman([1.0, 2.0], [1.0, 2.0]) is None  # n<3
+    assert (
+        ra._spearman([1.0, 1.0, 1.0, 1.0], [1.0, 2.0, 3.0, 4.0]) is None
+    )  # zero variance
 
 
 def test_load_bundle_notes_loud_on_empty(tmp_path: Path):
@@ -46,10 +51,16 @@ def test_load_bundle_notes_loud_on_empty(tmp_path: Path):
 
 def test_load_bundle_notes_sorts_by_onset(tmp_path: Path):
     p = tmp_path / "b.json"
-    p.write_text(json.dumps({"notes": [
-        {"onset": 2.0, "offset": 2.5, "pitch": 60, "velocity": 50},
-        {"onset": 0.5, "offset": 1.0, "pitch": 62, "velocity": 40},
-    ]}))
+    p.write_text(
+        json.dumps(
+            {
+                "notes": [
+                    {"onset": 2.0, "offset": 2.5, "pitch": 60, "velocity": 50},
+                    {"onset": 0.5, "offset": 1.0, "pitch": 62, "velocity": 40},
+                ]
+            }
+        )
+    )
     notes = ra.load_bundle_notes(p)
     assert [n.onset for n in notes] == [0.5, 2.0]
     assert notes[0].pitch == 62

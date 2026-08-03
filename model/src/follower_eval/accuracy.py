@@ -36,6 +36,7 @@ RUNNING (from the PRIMARY checkout so data/ + the venv resolve):
   PYTHONPATH=<worktree>/model/src .venv/bin/python -m follower_eval.gold_report \
     --bundles-root data/evals/realaudio_bundles --scores-root data/scores
 """
+
 from __future__ import annotations
 
 import bisect
@@ -45,7 +46,6 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from follower_bench.hmm import TUNED_HMM_PARAMS, follow_hmm
-
 from follower_eval.realaudio import RealAudioEvalError, load_bundle_notes
 
 # A tap is "correctly localized" if the follower's decoded score-second is within
@@ -60,6 +60,7 @@ TOL_BARS_STRICT = 0.5
 @dataclass(frozen=True)
 class BarTap:
     """One human bar-downbeat tap: which score bar, at what WAV playback second."""
+
     bar_number: int
     audio_sec: float
 
@@ -67,23 +68,25 @@ class BarTap:
 @dataclass(frozen=True)
 class TapError:
     """Per-tap localization result (score-render seconds unless noted)."""
+
     bar_number: int
     audio_sec: float
     true_score_sec: float
     decoded_score_sec: float | None  # None if no follower match brackets this tap
     abs_err_sec: float | None
-    abs_err_bars: float | None       # abs_err_sec / local bar duration
+    abs_err_bars: float | None  # abs_err_sec / local bar duration
     local_bar_sec: float
-    is_restart: bool                 # this tap's bar_number < the previous tap's
+    is_restart: bool  # this tap's bar_number < the previous tap's
 
 
 @dataclass(frozen=True)
 class ClipAccuracy:
     """One gold-labeled clip's accuracy against the follower."""
+
     piece: str
     bundle: str
     n_taps: int
-    n_decoded: int                   # taps the follower could place (bracketed)
+    n_decoded: int  # taps the follower could place (bracketed)
     median_abs_err_sec: float | None
     p90_abs_err_sec: float | None
     median_abs_err_bars: float | None
@@ -91,8 +94,8 @@ class ClipAccuracy:
     within_1bar_frac: float | None
     within_half_bar_frac: float | None
     n_restarts: int
-    relock_latencies_sec: tuple[float, ...]   # one per restart that relocked
-    n_restart_no_relock: int                  # restarts that never came back within tol
+    relock_latencies_sec: tuple[float, ...]  # one per restart that relocked
+    n_restart_no_relock: int  # restarts that never came back within tol
     transpose_semitones: int
     tap_errors: tuple[TapError, ...]
 
@@ -109,12 +112,17 @@ def load_gold(gold_path: Path) -> list[BarTap]:
     taps = body.get("bar_taps")
     if not taps:
         raise RealAudioEvalError(f"{gold_path.name}: no 'bar_taps' (unlabeled?)")
-    out = [BarTap(bar_number=int(t["bar_number"]), audio_sec=float(t["audio_sec"])) for t in taps]
+    out = [
+        BarTap(bar_number=int(t["bar_number"]), audio_sec=float(t["audio_sec"]))
+        for t in taps
+    ]
     out.sort(key=lambda t: t.audio_sec)
     return out
 
 
-def bar_second_table(measure_table: list[dict]) -> tuple[dict[int, float], dict[int, float]]:
+def bar_second_table(
+    measure_table: list[dict],
+) -> tuple[dict[int, float], dict[int, float]]:
     """(bar_number -> true start_sec, bar_number -> local bar duration in sec).
 
     Local duration = next bar's start - this bar's start; the final bar reuses
@@ -133,7 +141,9 @@ def bar_second_table(measure_table: list[dict]) -> tuple[dict[int, float], dict[
     return starts, durs
 
 
-def decode_at(perf_times: list[float], score_positions: list[float], t: float) -> float | None:
+def decode_at(
+    perf_times: list[float], score_positions: list[float], t: float
+) -> float | None:
     """Follower's decoded score-second at WAV time ``t``: linear interpolation of
     the ``perf_time -> score_position`` match staircase.
 
@@ -170,8 +180,12 @@ def _pctl(values: list[float], q: float) -> float:
     return xs[lo] + (xs[hi] - xs[lo]) * (pos - lo)
 
 
-def evaluate_taps(taps: list[BarTap], matches, bar_starts: dict[int, float],
-                  bar_durs: dict[int, float]) -> list[TapError]:
+def evaluate_taps(
+    taps: list[BarTap],
+    matches,
+    bar_starts: dict[int, float],
+    bar_durs: dict[int, float],
+) -> list[TapError]:
     """Compare each gold tap to the follower's decoded position.
 
     Args:
@@ -192,22 +206,29 @@ def evaluate_taps(taps: list[BarTap], matches, bar_starts: dict[int, float],
         if tap.bar_number not in bar_starts:
             raise RealAudioEvalError(
                 f"tapped bar {tap.bar_number} not in score measure_table "
-                f"(bars {min(bar_starts)}-{max(bar_starts)})")
+                f"(bars {min(bar_starts)}-{max(bar_starts)})"
+            )
         true_sec = bar_starts[tap.bar_number]
         local_bar = bar_durs[tap.bar_number]
         decoded = decode_at(perf_times, score_positions, tap.audio_sec)
         abs_err = abs(decoded - true_sec) if decoded is not None else None
-        abs_err_bars = (abs_err / local_bar) if (abs_err is not None and local_bar > 0) else None
-        errors.append(TapError(
-            bar_number=tap.bar_number,
-            audio_sec=tap.audio_sec,
-            true_score_sec=round(true_sec, 3),
-            decoded_score_sec=round(decoded, 3) if decoded is not None else None,
-            abs_err_sec=round(abs_err, 3) if abs_err is not None else None,
-            abs_err_bars=round(abs_err_bars, 3) if abs_err_bars is not None else None,
-            local_bar_sec=round(local_bar, 3),
-            is_restart=(prev_bar is not None and tap.bar_number < prev_bar),
-        ))
+        abs_err_bars = (
+            (abs_err / local_bar) if (abs_err is not None and local_bar > 0) else None
+        )
+        errors.append(
+            TapError(
+                bar_number=tap.bar_number,
+                audio_sec=tap.audio_sec,
+                true_score_sec=round(true_sec, 3),
+                decoded_score_sec=round(decoded, 3) if decoded is not None else None,
+                abs_err_sec=round(abs_err, 3) if abs_err is not None else None,
+                abs_err_bars=round(abs_err_bars, 3)
+                if abs_err_bars is not None
+                else None,
+                local_bar_sec=round(local_bar, 3),
+                is_restart=(prev_bar is not None and tap.bar_number < prev_bar),
+            )
+        )
         prev_bar = tap.bar_number
     return errors
 
@@ -236,8 +257,14 @@ def _relock(tap_errors: list[TapError], tol_bars: float) -> tuple[list[float], i
     return latencies, no_relock
 
 
-def evaluate_clip(piece: str, bundle_path: Path, gold_path: Path,
-                  score_notes, bar_boundaries, measure_table: list[dict]) -> ClipAccuracy:
+def evaluate_clip(
+    piece: str,
+    bundle_path: Path,
+    gold_path: Path,
+    score_notes,
+    bar_boundaries,
+    measure_table: list[dict],
+) -> ClipAccuracy:
     """Full gold accuracy for one clip: run the follower, compare to its taps."""
     taps = load_gold(gold_path)
     perf = load_bundle_notes(bundle_path)
@@ -246,11 +273,23 @@ def evaluate_clip(piece: str, bundle_path: Path, gold_path: Path,
     bar_starts, bar_durs = bar_second_table(measure_table)
     tap_errors = evaluate_taps(taps, est.matches, bar_starts, bar_durs)
 
-    decoded_errs_sec = [te.abs_err_sec for te in tap_errors if te.abs_err_sec is not None]
-    decoded_errs_bars = [te.abs_err_bars for te in tap_errors if te.abs_err_bars is not None]
+    decoded_errs_sec = [
+        te.abs_err_sec for te in tap_errors if te.abs_err_sec is not None
+    ]
+    decoded_errs_bars = [
+        te.abs_err_bars for te in tap_errors if te.abs_err_bars is not None
+    ]
     n_decoded = len(decoded_errs_sec)
-    within_1 = ([te.abs_err_bars <= TOL_BARS_LENIENT for te in tap_errors if te.abs_err_bars is not None])
-    within_half = ([te.abs_err_bars <= TOL_BARS_STRICT for te in tap_errors if te.abs_err_bars is not None])
+    within_1 = [
+        te.abs_err_bars <= TOL_BARS_LENIENT
+        for te in tap_errors
+        if te.abs_err_bars is not None
+    ]
+    within_half = [
+        te.abs_err_bars <= TOL_BARS_STRICT
+        for te in tap_errors
+        if te.abs_err_bars is not None
+    ]
     latencies, no_relock = _relock(tap_errors, TOL_BARS_LENIENT)
 
     return ClipAccuracy(
@@ -258,12 +297,22 @@ def evaluate_clip(piece: str, bundle_path: Path, gold_path: Path,
         bundle=bundle_path.stem,
         n_taps=len(taps),
         n_decoded=n_decoded,
-        median_abs_err_sec=round(statistics.median(decoded_errs_sec), 3) if decoded_errs_sec else None,
-        p90_abs_err_sec=round(_pctl(decoded_errs_sec, 0.9), 3) if decoded_errs_sec else None,
-        median_abs_err_bars=round(statistics.median(decoded_errs_bars), 3) if decoded_errs_bars else None,
-        p90_abs_err_bars=round(_pctl(decoded_errs_bars, 0.9), 3) if decoded_errs_bars else None,
+        median_abs_err_sec=round(statistics.median(decoded_errs_sec), 3)
+        if decoded_errs_sec
+        else None,
+        p90_abs_err_sec=round(_pctl(decoded_errs_sec, 0.9), 3)
+        if decoded_errs_sec
+        else None,
+        median_abs_err_bars=round(statistics.median(decoded_errs_bars), 3)
+        if decoded_errs_bars
+        else None,
+        p90_abs_err_bars=round(_pctl(decoded_errs_bars, 0.9), 3)
+        if decoded_errs_bars
+        else None,
         within_1bar_frac=round(sum(within_1) / len(within_1), 4) if within_1 else None,
-        within_half_bar_frac=round(sum(within_half) / len(within_half), 4) if within_half else None,
+        within_half_bar_frac=round(sum(within_half) / len(within_half), 4)
+        if within_half
+        else None,
         n_restarts=sum(1 for te in tap_errors if te.is_restart),
         relock_latencies_sec=tuple(latencies),
         n_restart_no_relock=no_relock,

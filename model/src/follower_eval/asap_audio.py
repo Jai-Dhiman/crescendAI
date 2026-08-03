@@ -18,6 +18,7 @@ silently corrupted the number rather than failing. Both MIDIs are on disk, so we
 DERIVE the offset by matching notes and refuse to proceed below
 ``MIN_MATCH_FRAC`` agreement.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -38,11 +39,11 @@ DEFAULT_MAESTRO_MIDI_ROOT = Path("data/raw/maestro-v3.0.0")
 DEFAULT_MAESTRO_AUDIO_ROOT = Path("data/raw/maestro/files")
 DEFAULT_CACHE = Path("data/evals/asap_audio_bundles")
 
-TRANSCRIBER_ID = "transkun"   # production /transcribe engine (#128)
-SAMPLE_RATE = 16000           # production preprocessing: 16 kHz mono
-ONSET_TOL = 0.01              # two notes are "the same note" within 10 ms
-MIN_MATCH_FRAC = 0.98         # below this the shift is not trustworthy -> raise
-PAD_SEC = 2.0                 # lead-in/out kept around the clip when slicing
+TRANSCRIBER_ID = "transkun"  # production /transcribe engine (#128)
+SAMPLE_RATE = 16000  # production preprocessing: 16 kHz mono
+ONSET_TOL = 0.01  # two notes are "the same note" within 10 ms
+MIN_MATCH_FRAC = 0.98  # below this the shift is not trustworthy -> raise
+PAD_SEC = 2.0  # lead-in/out kept around the clip when slicing
 
 
 class AsapAudioError(RuntimeError):
@@ -53,9 +54,9 @@ class AsapAudioError(RuntimeError):
 
 @dataclass(frozen=True)
 class Shift:
-    seconds: float          # asap_time = maestro_time - seconds
-    match_frac: float       # fraction of ASAP notes explained at this shift
-    metadata_start: float   # what the CSV claimed, for the record
+    seconds: float  # asap_time = maestro_time - seconds
+    match_frac: float  # fraction of ASAP notes explained at this shift
+    metadata_start: float  # what the CSV claimed, for the record
 
 
 def load_metadata(asap_root: Path) -> dict[str, dict]:
@@ -74,7 +75,9 @@ def maestro_paths(row: dict, midi_root: Path, audio_root: Path) -> tuple[Path, P
     """
     link = row.get("maestro_audio_performance") or ""
     if not link:
-        raise AsapAudioError(f"{row['midi_performance']}: no maestro_audio_performance link")
+        raise AsapAudioError(
+            f"{row['midi_performance']}: no maestro_audio_performance link"
+        )
     rel = Path(link).relative_to("{maestro}")
     audio = audio_root / rel
     midi = midi_root / Path(row["maestro_midi_performance"]).relative_to("{maestro}")
@@ -97,7 +100,9 @@ def derive_shift(asap_midi: Path, maestro_midi: Path, metadata_start: float) -> 
     a = pa.load_performance_midi(str(asap_midi)).note_array()
     m = pa.load_performance_midi(str(maestro_midi)).note_array()
     if len(a) == 0 or len(m) == 0:
-        raise AsapAudioError(f"empty note array: {asap_midi} ({len(a)}) / {maestro_midi} ({len(m)})")
+        raise AsapAudioError(
+            f"empty note array: {asap_midi} ({len(a)}) / {maestro_midi} ({len(m)})"
+        )
 
     by_pitch: dict[int, list[float]] = {}
     for t, p in zip(m["onset_sec"], m["pitch"]):
@@ -109,22 +114,34 @@ def derive_shift(asap_midi: Path, maestro_midi: Path, metadata_start: float) -> 
         for mt in by_pitch.get(int(p), []):
             votes[round(mt - float(t), 3)] += 1
     if not votes:
-        raise AsapAudioError(f"no shared pitches between {asap_midi} and {maestro_midi}")
+        raise AsapAudioError(
+            f"no shared pitches between {asap_midi} and {maestro_midi}"
+        )
 
     best, best_frac = 0.0, -1.0
     for cand, _ in votes.most_common(8):
-        hit = sum(1 for t, p in zip(a["onset_sec"], a["pitch"])
-                  if any(abs(mt - cand - float(t)) < ONSET_TOL for mt in by_pitch.get(int(p), [])))
+        hit = sum(
+            1
+            for t, p in zip(a["onset_sec"], a["pitch"])
+            if any(
+                abs(mt - cand - float(t)) < ONSET_TOL for mt in by_pitch.get(int(p), [])
+            )
+        )
         frac = hit / len(a)
         if frac > best_frac:
             best, best_frac = cand, frac
     if best_frac < MIN_MATCH_FRAC:
         raise AsapAudioError(
-            f"{asap_midi.name}: could not derive a time offset against {maestro_midi.name} "
+            f"{asap_midi.name}: could not derive a time offset against "
+            f"{maestro_midi.name} "
             f"(best shift {best:.3f}s explains only {best_frac:.1%} of {len(a)} notes; "
-            f"metadata start was {metadata_start:.3f}). Refusing to guess.")
-    return Shift(seconds=float(best), match_frac=round(best_frac, 4),
-                 metadata_start=metadata_start)
+            f"metadata start was {metadata_start:.3f}). Refusing to guess."
+        )
+    return Shift(
+        seconds=float(best),
+        match_frac=round(best_frac, 4),
+        metadata_start=metadata_start,
+    )
 
 
 def clip_bounds(asap_midi: Path, shift: float) -> tuple[float, float]:
@@ -140,11 +157,27 @@ def slice_audio(src: Path, dst: Path, lo: float, hi: float) -> Path:
     """Cut [lo, hi] out of a MAESTRO recording as 16 kHz mono WAV -- the same
     preprocessing the production path feeds the transcriber."""
     dst.parent.mkdir(parents=True, exist_ok=True)
-    cmd = ["ffmpeg", "-nostdin", "-y", "-ss", f"{lo:.3f}", "-to", f"{hi:.3f}",
-           "-i", str(src), "-ac", "1", "-ar", str(SAMPLE_RATE), str(dst)]
+    cmd = [
+        "ffmpeg",
+        "-nostdin",
+        "-y",
+        "-ss",
+        f"{lo:.3f}",
+        "-to",
+        f"{hi:.3f}",
+        "-i",
+        str(src),
+        "-ac",
+        "1",
+        "-ar",
+        str(SAMPLE_RATE),
+        str(dst),
+    ]
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0 or not dst.exists():
-        raise AsapAudioError(f"ffmpeg failed slicing {src.name} [{lo:.2f},{hi:.2f}]: {r.stderr[-400:]}")
+        raise AsapAudioError(
+            f"ffmpeg failed slicing {src.name} [{lo:.2f},{hi:.2f}]: {r.stderr[-400:]}"
+        )
     return dst
 
 
@@ -152,9 +185,16 @@ def bundle_path(cache_dir: Path, asap_piece: str) -> Path:
     return cache_dir / (asap_piece.replace("/", "__").removesuffix(".mid") + ".json")
 
 
-def build_one(asap_piece: str, asap_root: Path, midi_root: Path, audio_root: Path,
-              cache_dir: Path, transcribe_wav, meta: dict[str, dict],
-              force: bool = False) -> dict:
+def build_one(
+    asap_piece: str,
+    asap_root: Path,
+    midi_root: Path,
+    audio_root: Path,
+    cache_dir: Path,
+    transcribe_wav,
+    meta: dict[str, dict],
+    force: bool = False,
+) -> dict:
     """Transcribe one ASAP performance from MAESTRO audio into a cached bundle
     whose note onsets are already in ASAP's clock. Idempotent unless ``force``."""
     out = bundle_path(cache_dir, asap_piece)
@@ -193,16 +233,19 @@ def build_one(asap_piece: str, asap_root: Path, midi_root: Path, audio_root: Pat
         "notes": notes,
         "pedal_events": pedals,
         "elapsed_s": round(time.perf_counter() - t0, 1),
-        "substrate_versions": {"transcriber": TRANSCRIBER_ID, "device": "cpu",
-                               "sample_rate": SAMPLE_RATE},
+        "substrate_versions": {
+            "transcriber": TRANSCRIBER_ID,
+            "device": "cpu",
+            "sample_rate": SAMPLE_RATE,
+        },
     }
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(bundle))
     return bundle
 
 
-HF_AUDIO_REPO = "ddPn08/maestro-v3.0.0"   # per-file MAESTRO audio; same repo the
-                                          # piece-ID axis already streams from
+HF_AUDIO_REPO = "ddPn08/maestro-v3.0.0"  # per-file MAESTRO audio; same repo the
+# piece-ID axis already streams from
 
 
 def fetch_audio(row: dict, audio_root: Path, repo: str = HF_AUDIO_REPO) -> Path:
@@ -210,26 +253,40 @@ def fetch_audio(row: dict, audio_root: Path, repo: str = HF_AUDIO_REPO) -> Path:
     ``<year>/<name>.wav``, which is exactly the local tree). Downloading the full
     v3 audio is ~100 GB; Track A only needs the ASAP-linked files, one at a time."""
     from huggingface_hub import hf_hub_download
+
     link = row.get("maestro_audio_performance") or ""
     if not link:
-        raise AsapAudioError(f"{row['midi_performance']}: no maestro_audio_performance link")
+        raise AsapAudioError(
+            f"{row['midi_performance']}: no maestro_audio_performance link"
+        )
     rel = str(Path(link).relative_to("{maestro}"))
     dest = audio_root / rel
     if dest.exists():
         return dest
     audio_root.mkdir(parents=True, exist_ok=True)
     try:
-        return Path(hf_hub_download(repo_id=repo, filename=rel, repo_type="dataset",
-                                    local_dir=str(audio_root)))
-    except Exception as exc:   # a 404/network error on one perf must not kill the batch
-        raise AsapAudioError(f"fetch {rel} from {repo} failed: {type(exc).__name__}: {exc}") from exc
+        return Path(
+            hf_hub_download(
+                repo_id=repo,
+                filename=rel,
+                repo_type="dataset",
+                local_dir=str(audio_root),
+            )
+        )
+    except Exception as exc:  # a 404/network error on one perf must not kill the batch
+        raise AsapAudioError(
+            f"fetch {rel} from {repo} failed: {type(exc).__name__}: {exc}"
+        ) from exc
 
 
 def linked_pieces(asap_root: Path) -> list[str]:
     """Every ASAP piece key that carries a MAESTRO audio link (519 of 1066),
     whether or not the audio is downloaded yet."""
-    return sorted(k for k, r in load_metadata(asap_root).items()
-                  if (r.get("maestro_audio_performance") or "").strip())
+    return sorted(
+        k
+        for k, r in load_metadata(asap_root).items()
+        if (r.get("maestro_audio_performance") or "").strip()
+    )
 
 
 def available_pieces(asap_root: Path, midi_root: Path, audio_root: Path) -> list[str]:
@@ -246,27 +303,42 @@ def available_pieces(asap_root: Path, midi_root: Path, audio_root: Path) -> list
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Build MAESTRO-audio->Transkun bundles for Track A (#133)")
+    ap = argparse.ArgumentParser(
+        description="Build MAESTRO-audio->Transkun bundles for Track A (#133)"
+    )
     ap.add_argument("--asap-root", type=Path, default=DEFAULT_ASAP_ROOT)
     ap.add_argument("--maestro-midi-root", type=Path, default=DEFAULT_MAESTRO_MIDI_ROOT)
-    ap.add_argument("--maestro-audio-root", type=Path, default=DEFAULT_MAESTRO_AUDIO_ROOT)
+    ap.add_argument(
+        "--maestro-audio-root", type=Path, default=DEFAULT_MAESTRO_AUDIO_ROOT
+    )
     ap.add_argument("--cache", type=Path, default=DEFAULT_CACHE)
-    ap.add_argument("--pieces", nargs="+", default=None, help="ASAP piece keys; default = all locally available")
+    ap.add_argument(
+        "--pieces",
+        nargs="+",
+        default=None,
+        help="ASAP piece keys; default = all locally available",
+    )
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--force", action="store_true")
-    ap.add_argument("--list", action="store_true", help="list locally-available pieces and exit")
-    ap.add_argument("--fetch", action="store_true",
-                    help=f"download missing MAESTRO audio from {HF_AUDIO_REPO} (~50-150 MB/perf); "
-                         "with --limit this grows the Track A subset")
+    ap.add_argument(
+        "--list", action="store_true", help="list locally-available pieces and exit"
+    )
+    ap.add_argument(
+        "--fetch",
+        action="store_true",
+        help=f"download missing MAESTRO audio from {HF_AUDIO_REPO} (~50-150 MB/perf); "
+        "with --limit this grows the Track A subset",
+    )
     args = ap.parse_args()
 
     if args.fetch:
         pieces = args.pieces or linked_pieces(args.asap_root)
     else:
-        pieces = args.pieces or available_pieces(args.asap_root, args.maestro_midi_root,
-                                                 args.maestro_audio_root)
+        pieces = args.pieces or available_pieces(
+            args.asap_root, args.maestro_midi_root, args.maestro_audio_root
+        )
     if args.limit:
-        pieces = pieces[:args.limit]
+        pieces = pieces[: args.limit]
     if args.list:
         print(f"{len(pieces)} ASAP performances have MAESTRO audio locally:")
         for p in pieces:
@@ -274,6 +346,7 @@ def main() -> None:
         return
 
     from follower_eval.build_corpus import _import_transcribe_wav
+
     transcribe_wav = _import_transcribe_wav()
     meta = load_metadata(args.asap_root)
 
@@ -282,11 +355,24 @@ def main() -> None:
         try:
             if args.fetch:
                 fetch_audio(meta[p], args.maestro_audio_root)
-            b = build_one(p, args.asap_root, args.maestro_midi_root, args.maestro_audio_root,
-                          args.cache, transcribe_wav, meta, force=args.force)
+            b = build_one(
+                p,
+                args.asap_root,
+                args.maestro_midi_root,
+                args.maestro_audio_root,
+                args.cache,
+                transcribe_wav,
+                meta,
+                force=args.force,
+            )
             ok += 1
-            print(f"[{i}/{len(pieces)}] {p}: {len(b['notes'])} notes, shift {b['shift_sec']:.3f}s "
-                  f"(match {b['shift_match_frac']:.1%}, metadata said {b['metadata_start']:.3f})", flush=True)
+            print(
+                f"[{i}/{len(pieces)}] {p}: {len(b['notes'])} notes, "
+                f"shift {b['shift_sec']:.3f}s "
+                f"(match {b['shift_match_frac']:.1%}, "
+                f"metadata said {b['metadata_start']:.3f})",
+                flush=True,
+            )
         except AsapAudioError as exc:
             print(f"[{i}/{len(pieces)}] {p}: FAILED {exc}", flush=True)
     print(f"\n{ok}/{len(pieces)} bundles in {args.cache}")

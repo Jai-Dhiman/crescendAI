@@ -1,4 +1,5 @@
 # model/src/follower_eval/validate_tool.py
+# ruff: noqa: E501
 """Light-touch human VALIDATION tool for the amateur clips (issue #133, Track B).
 
 The tap tool asked the impossible (name the bar by ear, with no score). This
@@ -27,6 +28,7 @@ RUNNING (from the PRIMARY checkout so data/ + the WAVs resolve):
   PYTHONPATH=<worktree>/model/src .venv/bin/python -m follower_eval.validate_tool --serve
   # then open http://localhost:8767
 """
+
 from __future__ import annotations
 
 import argparse
@@ -34,11 +36,11 @@ import datetime as dt
 import http.server
 import json
 import socketserver
+import statistics
 import sys
 from pathlib import Path
 
 from follower_bench.hmm import TUNED_HMM_PARAMS, follow_hmm
-
 from follower_eval.accuracy import decode_at
 from follower_eval.realaudio import (
     SCORE_FILENAME_BY_PIECE,
@@ -47,6 +49,7 @@ from follower_eval.realaudio import (
 )
 
 SUBSET_JSON = Path(__file__).resolve().parent / "gold_subset.json"
+VALID_VERDICTS = {"tracked", "recovered", "wrong", "junk"}
 
 
 class ValidateToolError(RuntimeError):
@@ -90,9 +93,13 @@ def resolve_score_id(piece: str, vid: str, id_map: dict[str, str]) -> tuple[str,
     return SCORE_FILENAME_BY_PIECE[piece].removesuffix(".json"), "label"
 
 
-def list_clips(subset_json: Path, bundles_root: Path,
-               use_all: bool, pieces: list[str] | None,
-               id_map: dict[str, str] | None = None) -> list[dict]:
+def list_clips(
+    subset_json: Path,
+    bundles_root: Path,
+    use_all: bool,
+    pieces: list[str] | None,
+    id_map: dict[str, str] | None = None,
+) -> list[dict]:
     """Resolve the clips to validate -> [{piece, video_id, wav_path, title,
     v1_confidence, existing, score_id, score_source}]. Default source is the
     committed gold subset (spans confidence); ``use_all`` enumerates every bundle
@@ -105,14 +112,25 @@ def list_clips(subset_json: Path, bundles_root: Path,
             if piece_dir.name not in SCORE_FILENAME_BY_PIECE:
                 continue
             for b in sorted(piece_dir.glob("*.json")):
-                if b.name.endswith(".meta.json") or b.name in ("_index.json",) \
-                   or b.name.endswith(".gold.json") or b.name.endswith(".validate.json"):
+                if (
+                    b.name.endswith(".meta.json")
+                    or b.name in ("_index.json",)
+                    or b.name.endswith(".gold.json")
+                    or b.name.endswith(".validate.json")
+                ):
                     continue
-                entries.append({"piece": piece_dir.name, "video_id": b.stem, "v1_confidence": None})
+                entries.append(
+                    {"piece": piece_dir.name, "video_id": b.stem, "v1_confidence": None}
+                )
     else:
         for c in json.loads(subset_json.read_text())["clips"]:
-            entries.append({"piece": c["piece"], "video_id": c["video_id"],
-                            "v1_confidence": c.get("v1_confidence")})
+            entries.append(
+                {
+                    "piece": c["piece"],
+                    "video_id": c["video_id"],
+                    "v1_confidence": c.get("v1_confidence"),
+                }
+            )
 
     out: list[dict] = []
     for e in entries:
@@ -129,22 +147,38 @@ def list_clips(subset_json: Path, bundles_root: Path,
         vpath = bundles_root / piece / f"{vid}.validate.json"
         score_id, score_source = resolve_score_id(piece, vid, id_map)
         label_sid = SCORE_FILENAME_BY_PIECE.get(piece, "").removesuffix(".json")
-        out.append({
-            "relabeled": score_source == "piece_id" and score_id != label_sid,
-            "piece": piece, "video_id": vid, "wav_path": wav,
-            "title": bundle.get("title"), "v1_confidence": e["v1_confidence"],
-            "existing": vpath.exists(),
-            "score_id": score_id, "score_source": score_source,
-        })
+        out.append(
+            {
+                "relabeled": score_source == "piece_id" and score_id != label_sid,
+                "piece": piece,
+                "video_id": vid,
+                "wav_path": wav,
+                "title": bundle.get("title"),
+                "v1_confidence": e["v1_confidence"],
+                "existing": vpath.exists(),
+                "score_id": score_id,
+                "score_source": score_source,
+            }
+        )
     if not out:
         raise ValidateToolError(f"no clips resolved (all={use_all}, pieces={pieces})")
     # low-confidence first: those are the clips the validation most needs to adjudicate
-    out.sort(key=lambda c: (c["v1_confidence"] is None, c["v1_confidence"] if c["v1_confidence"] is not None else 1.0))
+    out.sort(
+        key=lambda c: (
+            c["v1_confidence"] is None,
+            c["v1_confidence"] if c["v1_confidence"] is not None else 1.0,
+        )
+    )
     return out
 
 
-def build_clip_view(piece: str, bundle_path: Path, scores_root: Path,
-                    score_id: str, score_source: str = "piece_id") -> dict:
+def build_clip_view(
+    piece: str,
+    bundle_path: Path,
+    scores_root: Path,
+    score_id: str,
+    score_source: str = "piece_id",
+) -> dict:
     """Run the follower once and precompute everything the canvas needs: the
     score notes, the played notes mapped to score position by the follower, the
     decoded trajectory (for the playhead), and the median confidence.
@@ -157,7 +191,9 @@ def build_clip_view(piece: str, bundle_path: Path, scores_root: Path,
     """
     score_path = scores_root / f"{score_id}.json"
     if not score_path.exists():
-        raise ValidateToolError(f"missing score {score_path} for {piece}/{bundle_path.stem}")
+        raise ValidateToolError(
+            f"missing score {score_path} for {piece}/{bundle_path.stem}"
+        )
     score_notes, bar_boundaries, score_span = load_score(score_path)
     perf = load_bundle_notes(bundle_path)
     est = follow_hmm(perf, score_notes, TUNED_HMM_PARAMS, bar_boundaries=bar_boundaries)
@@ -168,8 +204,14 @@ def build_clip_view(piece: str, bundle_path: Path, scores_root: Path,
     confs = [m.confidence for m in ms if m.confidence is not None]
 
     # each played note -> the score position the follower places it at
-    played = [{"sx": round(decode_at(pt, sp, n.onset) or 0.0, 3), "t": round(n.onset, 3),
-               "pitch": n.pitch} for n in perf]
+    played = [
+        {
+            "sx": round(decode_at(pt, sp, n.onset) or 0.0, 3),
+            "t": round(n.onset, 3),
+            "pitch": n.pitch,
+        }
+        for n in perf
+    ]
     score = [{"sx": round(n.position, 3), "pitch": n.pitch} for n in score_notes]
     return {
         "piece": piece,
@@ -181,7 +223,7 @@ def build_clip_view(piece: str, bundle_path: Path, scores_root: Path,
         # decoded trajectory (audio_sec -> score_sec) for the JS playhead
         "traj_t": [round(x, 3) for x in pt],
         "traj_s": [round(x, 3) for x in sp],
-        "median_confidence": round(sum(confs) / len(confs), 3) if confs else None,
+        "median_confidence": round(statistics.median(confs), 3) if confs else None,
         "transpose_semitones": est.transpose_semitones,
     }
 
@@ -192,9 +234,15 @@ def _view_cache_path(bundles_root: Path, piece: str, vid: str, score_id: str) ->
     return bundles_root / "_view_cache" / f"{piece}__{vid}__{score_id}.view.json"
 
 
-def get_clip_view(piece: str, vid: str, bundles_root: Path, scores_root: Path,
-                  score_id: str, score_source: str = "piece_id",
-                  force: bool = False) -> dict:
+def get_clip_view(
+    piece: str,
+    vid: str,
+    bundles_root: Path,
+    scores_root: Path,
+    score_id: str,
+    score_source: str = "piece_id",
+    force: bool = False,
+) -> dict:
     """build_clip_view with a disk cache. ``follow_hmm`` is O(perf x score) and
     the big amateur clips take minutes -- caching the precomputed view to
     ``_view_cache/`` makes the labeler load instantly. Cache is keyed by clip AND
@@ -202,8 +250,9 @@ def get_clip_view(piece: str, vid: str, bundles_root: Path, scores_root: Path,
     cache = _view_cache_path(bundles_root, piece, vid, score_id)
     if cache.exists() and not force:
         return json.loads(cache.read_text())
-    view = build_clip_view(piece, bundles_root / piece / f"{vid}.json", scores_root,
-                           score_id, score_source)
+    view = build_clip_view(
+        piece, bundles_root / piece / f"{vid}.json", scores_root, score_id, score_source
+    )
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text(json.dumps(view))
     return view
@@ -213,12 +262,28 @@ def save_validation(bundles_root: Path, payload: dict) -> Path:
     """Write ``<piece>/<vid>.validate.json`` from a POSTed validation."""
     piece, vid = payload["piece"], payload["video_id"]
     verdict = payload.get("verdict")
-    if not verdict:
-        raise ValidateToolError(f"refusing to save {piece}/{vid}: no verdict")
-    spans = [[round(float(a), 3), round(float(b), 3)] for a, b in payload.get("wrong_spans", [])]
+    if verdict not in VALID_VERDICTS:
+        raise ValidateToolError(
+            f"refusing to save {piece}/{vid}: verdict must be one of {sorted(VALID_VERDICTS)}"
+        )
+    provenance = ("score_id", "score_source", "follower_confidence")
+    missing = [field for field in provenance if field not in payload]
+    if missing:
+        raise ValidateToolError(
+            f"refusing to save {piece}/{vid}: missing score provenance {missing}; "
+            "reload the validator so confidence is computed against the resolved score"
+        )
+    spans = [
+        [round(float(a), 3), round(float(b), 3)]
+        for a, b in payload.get("wrong_spans", [])
+    ]
     out = {
-        "piece": piece, "video_id": vid,
-        "verdict": verdict,                         # tracked | recovered | wrong | junk
+        "piece": piece,
+        "video_id": vid,
+        "verdict": verdict,  # tracked | recovered | wrong | junk
+        "score_id": payload["score_id"],
+        "score_source": payload["score_source"],
+        "follower_confidence": payload["follower_confidence"],
         "wrong_spans": spans,
         "audio_duration_sec": payload.get("audio_duration_sec"),
         "fraction_wrong": payload.get("fraction_wrong"),
@@ -237,10 +302,19 @@ def save_validation(bundles_root: Path, payload: dict) -> Path:
 
 
 def generate_html(clips: list[dict]) -> str:
-    state = [{"piece": c["piece"], "video_id": c["video_id"], "title": c["title"] or c["video_id"],
-              "v1_confidence": c["v1_confidence"], "existing": c["existing"],
-              "score_id": c["score_id"], "score_source": c["score_source"],
-              "relabeled": c["relabeled"]} for c in clips]
+    state = [
+        {
+            "piece": c["piece"],
+            "video_id": c["video_id"],
+            "title": c["title"] or c["video_id"],
+            "v1_confidence": c["v1_confidence"],
+            "existing": c["existing"],
+            "score_id": c["score_id"],
+            "score_source": c["score_source"],
+            "relabeled": c["relabeled"],
+        }
+        for c in clips
+    ]
     n_done = sum(1 for c in clips if c["existing"])
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8">
@@ -418,6 +492,8 @@ function saveClip() {{
   st.textContent='saving...';
   fetch('/save-validate',{{method:'POST',headers:{{'Content-Type':'application/json'}},
     body:JSON.stringify({{piece:c.piece,video_id:c.video_id,verdict,wrong_spans:wrongSpans,
+      score_id:view.score_id,score_source:view.score_source,
+      follower_confidence:view.median_confidence,
       audio_duration_sec:D, fraction_wrong: D? +(wrong/D).toFixed(4): null}})}})
   .then(r=>r.json()).then(d=>{{ if(d.error) throw new Error(d.error);
     CLIPS[cur].existing=true; st.textContent='saved -> '+d.path; renderList(); }})
@@ -458,20 +534,28 @@ class ValidateHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(html)
         elif self.path.startswith("/clip/"):
-            self._serve_clip(self.path[len("/clip/"):])
+            self._serve_clip(self.path[len("/clip/") :])
         elif self.path.startswith("/audio/"):
-            self._serve_wav(self.path[len("/audio/"):])
+            self._serve_wav(self.path[len("/audio/") :])
         else:
-            self.send_response(404); self.end_headers()
+            self.send_response(404)
+            self.end_headers()
 
     def _serve_clip(self, key: str):
         if key in self._view_cache:
-            self._json(self._view_cache[key]); return
+            self._json(self._view_cache[key])
+            return
         try:
             piece, vid = key.split("/", 1)
             c = self._clip_by_key[key]
-            view = get_clip_view(piece, vid, self.bundles_root, self.scores_root,
-                                 c["score_id"], c["score_source"])
+            view = get_clip_view(
+                piece,
+                vid,
+                self.bundles_root,
+                self.scores_root,
+                c["score_id"],
+                c["score_source"],
+            )
             self._view_cache[key] = view
             self._json(view)
         except Exception as e:
@@ -480,13 +564,15 @@ class ValidateHandler(http.server.BaseHTTPRequestHandler):
     def _serve_wav(self, key: str):
         wav = self._wav_by_key.get(key)
         if wav is None or not wav.exists():
-            self.send_response(404); self.end_headers(); return
+            self.send_response(404)
+            self.end_headers()
+            return
         size = wav.stat().st_size
         rng = self.headers.get("Range")
         start, end, partial = 0, size - 1, False
         if rng and rng.startswith("bytes="):
             partial = True
-            s, _, e = rng[len("bytes="):].partition("-")
+            s, _, e = rng[len("bytes=") :].partition("-")
             start = int(s) if s else 0
             end = int(e) if e else size - 1
             end = min(end, size - 1)
@@ -513,7 +599,9 @@ class ValidateHandler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         if self.path != "/save-validate":
-            self.send_response(404); self.end_headers(); return
+            self.send_response(404)
+            self.end_headers()
+            return
         n = int(self.headers.get("Content-Length", 0))
         try:
             payload = json.loads(self.rfile.read(n))
@@ -531,6 +619,7 @@ def make_handler(clips, bundles_root, scores_root):
 
     class Bound(ValidateHandler):
         pass
+
     Bound.clips = clips
     Bound.bundles_root = bundles_root
     Bound.scores_root = scores_root
@@ -541,52 +630,94 @@ def make_handler(clips, bundles_root, scores_root):
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Light-touch follower validator (#133 Track B)")
+    ap = argparse.ArgumentParser(
+        description="Light-touch follower validator (#133 Track B)"
+    )
     ap.add_argument("--subset", type=Path, default=SUBSET_JSON)
-    ap.add_argument("--bundles-root", type=Path, default=Path("data/evals/realaudio_bundles"))
+    ap.add_argument(
+        "--bundles-root", type=Path, default=Path("data/evals/realaudio_bundles")
+    )
     ap.add_argument("--scores-root", type=Path, default=Path("data/scores"))
-    ap.add_argument("--all", action="store_true", help="validate every bundle, not just the gold subset")
+    ap.add_argument(
+        "--all",
+        action="store_true",
+        help="validate every bundle, not just the gold subset",
+    )
     ap.add_argument("--pieces", nargs="+", default=None)
     ap.add_argument("--serve", action="store_true")
-    ap.add_argument("--precompute", action="store_true",
-                    help="run the follower on every clip and cache the views to disk, then exit "
-                         "(do this once -- big clips take minutes -- so the labeler loads instantly)")
-    ap.add_argument("--force", action="store_true", help="with --precompute: rebuild cached views")
+    ap.add_argument(
+        "--precompute",
+        action="store_true",
+        help="run the follower on every clip and cache the views to disk, then exit "
+        "(do this once -- big clips take minutes -- so the labeler loads instantly)",
+    )
+    ap.add_argument(
+        "--force", action="store_true", help="with --precompute: rebuild cached views"
+    )
     ap.add_argument("--port", type=int, default=8767)
-    ap.add_argument("--piece-id", type=Path, default=None,
-                    help="piece-ID results JSON (default <bundles-root>/_piece_id.json); "
-                         "decides which score each clip is validated against")
-    ap.add_argument("--trust-labels", action="store_true",
-                    help="validate against the corpus folder label instead of a piece-ID run "
-                         "(the labels are known-wrong -- only for a label-free smoke test)")
+    ap.add_argument(
+        "--piece-id",
+        type=Path,
+        default=None,
+        help="piece-ID results JSON (default <bundles-root>/_piece_id.json); "
+        "decides which score each clip is validated against",
+    )
+    ap.add_argument(
+        "--trust-labels",
+        action="store_true",
+        help="validate against the corpus folder label instead of a piece-ID run "
+        "(the labels are known-wrong -- only for a label-free smoke test)",
+    )
     args = ap.parse_args()
 
     id_map: dict[str, str] = {}
     if not args.trust_labels:
-        id_map = load_piece_id_map(args.piece_id or args.bundles_root / "_piece_id.json")
+        id_map = load_piece_id_map(
+            args.piece_id or args.bundles_root / "_piece_id.json"
+        )
 
     clips = list_clips(args.subset, args.bundles_root, args.all, args.pieces, id_map)
     n_id = sum(1 for c in clips if c["score_source"] == "piece_id")
     n_relabel = sum(1 for c in clips if c["relabeled"])
-    print(f"Resolved {len(clips)} clips ({sum(1 for c in clips if c['existing'])} already validated)")
-    print(f"  score source: {n_id} identified ({n_relabel} RE-LABELED off the folder label), "
-          f"{len(clips) - n_id} falling back to the unverified label")
+    print(
+        f"Resolved {len(clips)} clips ({sum(1 for c in clips if c['existing'])} already validated)"
+    )
+    print(
+        f"  score source: {n_id} identified ({n_relabel} RE-LABELED off the folder label), "
+        f"{len(clips) - n_id} falling back to the unverified label"
+    )
 
     if args.precompute:
         import time
+
         for i, c in enumerate(clips, 1):
             key = f"{c['piece']}/{c['video_id']}"
-            cache = _view_cache_path(args.bundles_root, c["piece"], c["video_id"], c["score_id"])
+            cache = _view_cache_path(
+                args.bundles_root, c["piece"], c["video_id"], c["score_id"]
+            )
             if cache.exists() and not args.force:
                 print(f"[{i}/{len(clips)}] {key}: cached", flush=True)
                 continue
             t0 = time.perf_counter()
             try:
-                get_clip_view(c["piece"], c["video_id"], args.bundles_root, args.scores_root,
-                              c["score_id"], c["score_source"], force=args.force)
-                print(f"[{i}/{len(clips)}] {key}: built in {time.perf_counter()-t0:.1f}s", flush=True)
+                get_clip_view(
+                    c["piece"],
+                    c["video_id"],
+                    args.bundles_root,
+                    args.scores_root,
+                    c["score_id"],
+                    c["score_source"],
+                    force=args.force,
+                )
+                print(
+                    f"[{i}/{len(clips)}] {key}: built in {time.perf_counter() - t0:.1f}s",
+                    flush=True,
+                )
             except Exception as e:
-                print(f"[{i}/{len(clips)}] {key}: FAILED {type(e).__name__}: {e}", flush=True)
+                print(
+                    f"[{i}/{len(clips)}] {key}: FAILED {type(e).__name__}: {e}",
+                    flush=True,
+                )
         return
 
     if not args.serve:

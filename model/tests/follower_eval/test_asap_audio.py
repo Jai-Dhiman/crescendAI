@@ -8,6 +8,7 @@ is wrong by 0.5 s for at least one real row (Bach/Fugue/bwv_858/Zhang01M) --
 enough to wreck a beat-level number while still looking plausible. These tests
 pin that we derive the offset from the notes and refuse to guess when we can't.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -21,17 +22,25 @@ from follower_eval import asap_audio as aa
 def _na(onsets, pitches, durations=None):
     """A partitura-shaped note_array."""
     d = durations if durations is not None else [0.2] * len(onsets)
-    return np.array(list(zip(onsets, pitches, d)),
-                    dtype=[("onset_sec", "f8"), ("pitch", "i4"), ("duration_sec", "f8")])
+    return np.array(
+        list(zip(onsets, pitches, d)),
+        dtype=[("onset_sec", "f8"), ("pitch", "i4"), ("duration_sec", "f8")],
+    )
 
 
 def _patch_midis(monkeypatch, by_path):
     """Stub partitura so the tests exercise shift logic, not MIDI parsing."""
+
     class _P:
-        def __init__(self, na): self._na = na
-        def note_array(self): return self._na
-    monkeypatch.setattr(aa.pa, "load_performance_midi",
-                        lambda p: _P(by_path[Path(p).name]))
+        def __init__(self, na):
+            self._na = na
+
+        def note_array(self):
+            return self._na
+
+    monkeypatch.setattr(
+        aa.pa, "load_performance_midi", lambda p: _P(by_path[Path(p).name])
+    )
 
 
 def test_derive_shift_ignores_a_wrong_metadata_start(monkeypatch):
@@ -44,14 +53,16 @@ def test_derive_shift_ignores_a_wrong_metadata_start(monkeypatch):
     s = aa.derive_shift(Path("a.mid"), Path("m.mid"), metadata_start=90.33)
     assert s.seconds == pytest.approx(89.83, abs=0.005)
     assert s.match_frac == 1.0
-    assert s.metadata_start == 90.33     # recorded, but not used
+    assert s.metadata_start == 90.33  # recorded, but not used
 
 
 def test_derive_shift_zero_offset_case(monkeypatch):
     pitches = [60, 62, 64, 65, 67, 69, 71, 72, 60, 62]
     na = _na([1.0 + i for i in range(10)], pitches)
     _patch_midis(monkeypatch, {"a.mid": na, "m.mid": na})
-    assert aa.derive_shift(Path("a.mid"), Path("m.mid"), 0.0).seconds == pytest.approx(0.0)
+    assert aa.derive_shift(Path("a.mid"), Path("m.mid"), 0.0).seconds == pytest.approx(
+        0.0
+    )
 
 
 def test_derive_shift_refuses_when_no_offset_explains_the_notes(monkeypatch):
@@ -59,7 +70,9 @@ def test_derive_shift_refuses_when_no_offset_explains_the_notes(monkeypatch):
     # shift lines the notes up -> must raise, never return a best-effort offset
     # that silently misplaces the truth
     asap = _na([0.5 * i for i in range(30)], [60 + (i % 12) for i in range(30)])
-    maestro = _na([0.37 * i ** 1.3 for i in range(30)], [60 + (i % 12) for i in range(30)])
+    maestro = _na(
+        [0.37 * i**1.3 for i in range(30)], [60 + (i % 12) for i in range(30)]
+    )
     _patch_midis(monkeypatch, {"a.mid": asap, "m.mid": maestro})
     with pytest.raises(aa.AsapAudioError, match="could not derive a time offset"):
         aa.derive_shift(Path("a.mid"), Path("m.mid"), 0.0)
@@ -85,14 +98,19 @@ def test_clip_bounds_never_negative(monkeypatch):
 
 def test_maestro_paths_missing_link_is_loud(tmp_path):
     with pytest.raises(aa.AsapAudioError, match="no maestro_audio_performance"):
-        aa.maestro_paths({"midi_performance": "X/y.mid", "maestro_audio_performance": ""},
-                         tmp_path, tmp_path)
+        aa.maestro_paths(
+            {"midi_performance": "X/y.mid", "maestro_audio_performance": ""},
+            tmp_path,
+            tmp_path,
+        )
 
 
 def test_maestro_paths_missing_audio_is_loud(tmp_path):
-    row = {"midi_performance": "X/y.mid",
-           "maestro_audio_performance": "{maestro}/2006/rec.wav",
-           "maestro_midi_performance": "{maestro}/2006/rec.midi"}
+    row = {
+        "midi_performance": "X/y.mid",
+        "maestro_audio_performance": "{maestro}/2006/rec.wav",
+        "maestro_midi_performance": "{maestro}/2006/rec.midi",
+    }
     with pytest.raises(aa.AsapAudioError, match="missing MAESTRO audio"):
         aa.maestro_paths(row, tmp_path, tmp_path)
 

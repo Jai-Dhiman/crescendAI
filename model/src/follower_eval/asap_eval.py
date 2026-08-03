@@ -32,6 +32,7 @@ RUNNING (from the PRIMARY checkout so data/raw/asap resolves):
   PYTHONPATH=<worktree>/model/src .venv/bin/python -m follower_eval.asap_eval \
     --pieces "Bach/Prelude/bwv_846/Shi05M.mid" --random-starts 8 --window-sec 20
 """
+
 from __future__ import annotations
 
 import argparse
@@ -50,7 +51,6 @@ from follower_bench.follower import bar_boundary_columns
 from follower_bench.hmm import TUNED_HMM_PARAMS, follow_hmm
 from follower_bench.score_notes import ScoreNote, load_score_notes_from_midi
 from follower_bench.segments import PerfNote
-
 from follower_eval.accuracy import _pctl, decode_at
 
 # A decoded beat is "localized" if within this many beats of its true score
@@ -70,6 +70,7 @@ class AsapEvalError(RuntimeError):
 class BeatTruth:
     """The answer key for one performance: paired perf-time / score-second beat
     anchors, plus the local score-beat spacing at each (for beat-unit errors)."""
+
     perf_times: tuple[float, ...]
     score_secs: tuple[float, ...]
     beat_spacing: tuple[float, ...]
@@ -78,7 +79,8 @@ class BeatTruth:
 @dataclass(frozen=True)
 class WindowResult:
     """One follow run's localization error over its evaluated beats."""
-    label: str                 # "full" or "start@<t>s"
+
+    label: str  # "full" or "start@<t>s"
     t_start: float
     n_beats_eval: int
     median_abs_err_sec: float | None
@@ -93,6 +95,7 @@ class WindowResult:
 @dataclass(frozen=True)
 class AsapClipResult:
     """A performance's full-follow result and its cold-start windows."""
+
     asap_piece: str
     n_perf_notes: int
     n_score_notes: int
@@ -106,16 +109,21 @@ def _load_perf_notes(path: Path) -> list[PerfNote]:
     ppart = pa.load_performance_midi(str(path))
     na = ppart.note_array()
     notes = [
-        PerfNote(onset=float(r["onset_sec"]), offset=float(r["onset_sec"] + r["duration_sec"]),
-                 pitch=int(r["pitch"]), velocity=int(r["velocity"]))
+        PerfNote(
+            onset=float(r["onset_sec"]),
+            offset=float(r["onset_sec"] + r["duration_sec"]),
+            pitch=int(r["pitch"]),
+            velocity=int(r["velocity"]),
+        )
         for r in na
     ]
     notes.sort(key=lambda n: n.onset)
     return notes
 
 
-def load_asap_clip(asap_piece: str, asap_root: Path, audio_cache: Path | None = None
-                   ) -> tuple[list[PerfNote], list[ScoreNote], tuple[int, ...], BeatTruth]:
+def load_asap_clip(
+    asap_piece: str, asap_root: Path, audio_cache: Path | None = None
+) -> tuple[list[PerfNote], list[ScoreNote], tuple[int, ...], BeatTruth]:
     """Load one ASAP performance into everything the follower + metric need:
     (perf_notes, score_notes, bar_boundaries, beat_truth).
 
@@ -137,8 +145,11 @@ def load_asap_clip(asap_piece: str, asap_root: Path, audio_cache: Path | None = 
             missing, or ``audio_cache`` has no bundle for it.
     """
     try:
-        al = load_alignment(asap_piece, asap_root=asap_root,
-                            annotations_path=asap_root / "asap_annotations.json")
+        al = load_alignment(
+            asap_piece,
+            asap_root=asap_root,
+            annotations_path=asap_root / "asap_annotations.json",
+        )
     except (AsapAlignmentMissingError, FileNotFoundError) as exc:
         raise AsapEvalError(f"{asap_piece}: {type(exc).__name__}: {exc}") from exc
 
@@ -147,15 +158,20 @@ def load_asap_clip(asap_piece: str, asap_root: Path, audio_cache: Path | None = 
     else:
         from follower_eval.asap_audio import bundle_path
         from follower_eval.realaudio import load_bundle_notes
+
         b = bundle_path(audio_cache, asap_piece)
         if not b.exists():
             raise AsapEvalError(
                 f"{asap_piece}: no audio bundle at {b} -- build it first with "
-                f"`python -m follower_eval.asap_audio --pieces {asap_piece}`")
+                f"`python -m follower_eval.asap_audio --pieces {asap_piece}`"
+            )
         perf_notes = load_bundle_notes(b)
     score_notes = load_score_notes_from_midi(al.score_midi_path)
     if not perf_notes or not score_notes:
-        raise AsapEvalError(f"{asap_piece}: empty perf ({len(perf_notes)}) or score ({len(score_notes)}) notes")
+        raise AsapEvalError(
+            f"{asap_piece}: empty perf ({len(perf_notes)}) "
+            f"or score ({len(score_notes)}) notes"
+        )
 
     downbeats = sorted(al.midi_score_downbeats) or sorted(al.midi_score_beats)
     bar_boundaries = bar_boundary_columns([n.position for n in score_notes], downbeats)
@@ -171,12 +187,15 @@ def load_asap_clip(asap_piece: str, asap_root: Path, audio_cache: Path | None = 
             spacing.append(ss[i] - ss[i - 1])
         else:
             spacing.append(0.0)
-    truth = BeatTruth(perf_times=tuple(ps), score_secs=tuple(ss), beat_spacing=tuple(spacing))
+    truth = BeatTruth(
+        perf_times=tuple(ps), score_secs=tuple(ss), beat_spacing=tuple(spacing)
+    )
     return perf_notes, score_notes, bar_boundaries, truth
 
 
-def _beat_errors(matches, truth: BeatTruth,
-                 window: tuple[float, float] | None) -> list[tuple[float, float]]:
+def _beat_errors(
+    matches, truth: BeatTruth, window: tuple[float, float] | None
+) -> list[tuple[float, float]]:
     """(abs_err_sec, abs_err_beats) at each truth beat inside `window` (or all).
     Uses the follower's decoded score-position interpolated at the beat's
     perf-time."""
@@ -184,7 +203,9 @@ def _beat_errors(matches, truth: BeatTruth,
     pt = [m.perf_time for m in ms]
     sp = [m.score_position for m in ms]
     out: list[tuple[float, float]] = []
-    for p_time, s_true, spc in zip(truth.perf_times, truth.score_secs, truth.beat_spacing):
+    for p_time, s_true, spc in zip(
+        truth.perf_times, truth.score_secs, truth.beat_spacing
+    ):
         if window is not None and not (window[0] <= p_time <= window[1]):
             continue
         decoded = decode_at(pt, sp, p_time)
@@ -195,8 +216,9 @@ def _beat_errors(matches, truth: BeatTruth,
     return out
 
 
-def _summarize(label: str, t_start: float, errs: list[tuple[float, float]],
-               transpose: int) -> WindowResult:
+def _summarize(
+    label: str, t_start: float, errs: list[tuple[float, float]], transpose: int
+) -> WindowResult:
     """Errors -> a WindowResult (median/p90 in sec & beats, within-tol rates)."""
     secs = [e[0] for e in errs]
     beats = [e[1] for e in errs]
@@ -208,15 +230,29 @@ def _summarize(label: str, t_start: float, errs: list[tuple[float, float]],
         p90_abs_err_sec=round(_pctl(secs, 0.9), 3) if secs else None,
         median_abs_err_beats=round(statistics.median(beats), 3) if beats else None,
         p90_abs_err_beats=round(_pctl(beats, 0.9), 3) if beats else None,
-        within_1beat_frac=round(sum(b <= TOL_BEATS_LENIENT for b in beats) / len(beats), 4) if beats else None,
-        within_half_beat_frac=round(sum(b <= TOL_BEATS_STRICT for b in beats) / len(beats), 4) if beats else None,
+        within_1beat_frac=round(
+            sum(b <= TOL_BEATS_LENIENT for b in beats) / len(beats), 4
+        )
+        if beats
+        else None,
+        within_half_beat_frac=round(
+            sum(b <= TOL_BEATS_STRICT for b in beats) / len(beats), 4
+        )
+        if beats
+        else None,
         transpose_semitones=transpose,
     )
 
 
-def follow_window(perf_notes: list[PerfNote], score_notes: list[ScoreNote],
-                  bar_boundaries: tuple[int, ...], truth: BeatTruth,
-                  t_start: float, window_sec: float | None, label: str) -> WindowResult:
+def follow_window(
+    perf_notes: list[PerfNote],
+    score_notes: list[ScoreNote],
+    bar_boundaries: tuple[int, ...],
+    truth: BeatTruth,
+    t_start: float,
+    window_sec: float | None,
+    label: str,
+) -> WindowResult:
     """Cold-start the follower at `t_start` (feed only notes with onset >=
     t_start) and score the beats in [t_start, t_start+window_sec]. window_sec
     None => to the end (the 'full' run uses t_start=0, window None)."""
@@ -235,6 +271,7 @@ def _rng_starts(truth: BeatTruth, n: int, window_sec: float, seed: int) -> list[
     """n reproducible random start-times, each leaving room for a full window
     before the last beat. Uses random.Random(seed) so runs are deterministic."""
     import random
+
     lo = truth.perf_times[0]
     hi = truth.perf_times[-1] - window_sec
     if hi <= lo:
@@ -243,18 +280,39 @@ def _rng_starts(truth: BeatTruth, n: int, window_sec: float, seed: int) -> list[
     return sorted(rng.uniform(lo, hi) for _ in range(n))
 
 
-def evaluate_clip(asap_piece: str, asap_root: Path, random_starts: int = 8,
-                  window_sec: float = 20.0, seed: int = 0,
-                  audio_cache: Path | None = None) -> AsapClipResult:
+def evaluate_clip(
+    asap_piece: str,
+    asap_root: Path,
+    random_starts: int = 8,
+    window_sec: float = 20.0,
+    seed: int = 0,
+    audio_cache: Path | None = None,
+) -> AsapClipResult:
     """Full-follow + `random_starts` cold-start windows for one ASAP performance.
     ``audio_cache`` switches the note source to MAESTRO-audio->Transkun."""
-    perf_notes, score_notes, bar_boundaries, truth = load_asap_clip(asap_piece, asap_root, audio_cache)
-    full = follow_window(perf_notes, score_notes, bar_boundaries, truth,
-                         t_start=0.0, window_sec=None, label="full")
+    perf_notes, score_notes, bar_boundaries, truth = load_asap_clip(
+        asap_piece, asap_root, audio_cache
+    )
+    full = follow_window(
+        perf_notes,
+        score_notes,
+        bar_boundaries,
+        truth,
+        t_start=0.0,
+        window_sec=None,
+        label="full",
+    )
     starts = _rng_starts(truth, random_starts, window_sec, seed)
     windows = tuple(
-        follow_window(perf_notes, score_notes, bar_boundaries, truth,
-                      t_start=ts, window_sec=window_sec, label=f"start@{ts:.0f}s")
+        follow_window(
+            perf_notes,
+            score_notes,
+            bar_boundaries,
+            truth,
+            t_start=ts,
+            window_sec=window_sec,
+            label=f"start@{ts:.0f}s",
+        )
         for ts in starts
     )
     return AsapClipResult(
@@ -271,10 +329,14 @@ def aligned_pieces(annotations_path: Path, limit: int | None = None) -> list[str
     """ASAP piece keys with a usable score<->performance alignment (the same
     filter load_alignment enforces), sorted. Used to run the whole corpus."""
     data = json.loads(annotations_path.read_text())
-    keys = [k for k, v in data.items()
-            if v.get("score_and_performance_aligned")
-            and len(v.get("performance_beats") or []) >= 4
-            and len(v.get("performance_beats") or []) == len(v.get("midi_score_beats") or [])]
+    keys = [
+        k
+        for k, v in data.items()
+        if v.get("score_and_performance_aligned")
+        and len(v.get("performance_beats") or []) >= 4
+        and len(v.get("performance_beats") or [])
+        == len(v.get("midi_score_beats") or [])
+    ]
     keys.sort()
     return keys[:limit] if limit else keys
 
@@ -302,34 +364,59 @@ def _pool_random_starts(results: list[AsapClipResult]) -> dict | None:
 
 
 def _format(results: list[AsapClipResult]) -> str:
-    L = ["=" * 92,
-         "REAL-AUDIO FOLLOWER EVAL (#133) -- TRACK A -- ASAP beat-alignment ground truth",
-         "=" * 92,
-         f"performances: {len(results)}"]
-    hdr = (f"{'piece':<46}{'beats':>6}{'full_eb':>8}{'full<=1':>8}"
-           f"{'rs_eb':>7}{'rs<=1':>7}")
+    L = [
+        "=" * 92,
+        "REAL-AUDIO FOLLOWER EVAL (#133) -- TRACK A -- "
+        "ASAP beat-alignment ground truth",
+        "=" * 92,
+        f"performances: {len(results)}",
+    ]
+    hdr = (
+        f"{'piece':<46}{'beats':>6}{'full_eb':>8}{'full<=1':>8}{'rs_eb':>7}{'rs<=1':>7}"
+    )
     L.append("")
     L.append(hdr)
     L.append("-" * len(hdr))
     for r in sorted(results, key=lambda r: r.asap_piece):
-        feb = f"{r.full.median_abs_err_beats:.2f}" if r.full.median_abs_err_beats is not None else " n/a"
-        fw1 = f"{r.full.within_1beat_frac:.2f}" if r.full.within_1beat_frac is not None else " n/a"
+        feb = (
+            f"{r.full.median_abs_err_beats:.2f}"
+            if r.full.median_abs_err_beats is not None
+            else " n/a"
+        )
+        fw1 = (
+            f"{r.full.within_1beat_frac:.2f}"
+            if r.full.within_1beat_frac is not None
+            else " n/a"
+        )
         rs = [w for w in r.random_starts if w.median_abs_err_beats is not None]
-        reb_vals = [w.median_abs_err_beats for w in rs if w.median_abs_err_beats is not None]
+        reb_vals = [
+            w.median_abs_err_beats for w in rs if w.median_abs_err_beats is not None
+        ]
         rw1_vals = [w.within_1beat_frac for w in rs if w.within_1beat_frac is not None]
         reb = f"{statistics.median(reb_vals):.2f}" if reb_vals else " n/a"
         rw1 = f"{statistics.median(rw1_vals):.2f}" if rw1_vals else " n/a"
-        L.append(f"{r.asap_piece[:45]:<46}{r.n_beats:>6}{feb:>8}{fw1:>8}{reb:>7}{rw1:>7}")
+        L.append(
+            f"{r.asap_piece[:45]:<46}{r.n_beats:>6}{feb:>8}{fw1:>8}{reb:>7}{rw1:>7}"
+        )
     L.append("-" * len(hdr))
-    full_eb = [r.full.median_abs_err_beats for r in results if r.full.median_abs_err_beats is not None]
+    full_eb = [
+        r.full.median_abs_err_beats
+        for r in results
+        if r.full.median_abs_err_beats is not None
+    ]
     if full_eb:
-        L.append(f"FULL-FOLLOW  median clip err = {statistics.median(full_eb):.3f} beats "
-                 f"over {len(full_eb)} clips")
+        L.append(
+            f"FULL-FOLLOW  median clip err = {statistics.median(full_eb):.3f} beats "
+            f"over {len(full_eb)} clips"
+        )
     rs_pool = _pool_random_starts(results)
     if rs_pool:
-        L.append(f"COLD-START   median window err = {rs_pool['median_window_median_err_beats']:.3f} beats, "
-                 f"pooled within-1-beat = {rs_pool['pooled_within_1beat_frac']} "
-                 f"({rs_pool['n_windows']} windows)")
+        L.append(
+            "COLD-START   median window err = "
+            f"{rs_pool['median_window_median_err_beats']:.3f} beats, "
+            f"pooled within-1-beat = {rs_pool['pooled_within_1beat_frac']} "
+            f"({rs_pool['n_windows']} windows)"
+        )
     return "\n".join(L)
 
 
@@ -337,9 +424,15 @@ def _to_jsonable(results: list[AsapClipResult]) -> dict:
     return {
         "n_performances": len(results),
         "clips": [
-            {**{k: v for k, v in asdict(r).items() if k not in ("full", "random_starts")},
-             "full": asdict(r.full),
-             "random_starts": [asdict(w) for w in r.random_starts]}
+            {
+                **{
+                    k: v
+                    for k, v in asdict(r).items()
+                    if k not in ("full", "random_starts")
+                },
+                "full": asdict(r.full),
+                "random_starts": [asdict(w) for w in r.random_starts],
+            }
             for r in results
         ],
         "random_start_pool": _pool_random_starts(results),
@@ -347,44 +440,94 @@ def _to_jsonable(results: list[AsapClipResult]) -> dict:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Real-audio follower eval -- Track A (ASAP ground truth, #133)")
-    ap.add_argument("--asap-root", type=Path, default=Path("data/raw/asap-dataset"),
-                    help="ASAP tree (CWD-relative; run from the PRIMARY checkout where data/ lives)")
-    ap.add_argument("--pieces", nargs="+", default=None,
-                    help="ASAP piece keys (default: all aligned pieces, capped by --limit)")
-    ap.add_argument("--limit", type=int, default=None, help="cap #pieces when running the corpus")
-    ap.add_argument("--random-starts", type=int, default=8, help="cold-start windows per clip")
-    ap.add_argument("--window-sec", type=float, default=20.0, help="cold-start window length")
+    ap = argparse.ArgumentParser(
+        description="Real-audio follower eval -- Track A (ASAP ground truth, #133)"
+    )
+    ap.add_argument(
+        "--asap-root",
+        type=Path,
+        default=Path("data/raw/asap-dataset"),
+        help=(
+            "ASAP tree (CWD-relative; run from the PRIMARY checkout where data/ lives)"
+        ),
+    )
+    ap.add_argument(
+        "--pieces",
+        nargs="+",
+        default=None,
+        help="ASAP piece keys (default: all aligned pieces, capped by --limit)",
+    )
+    ap.add_argument(
+        "--limit", type=int, default=None, help="cap #pieces when running the corpus"
+    )
+    ap.add_argument(
+        "--random-starts",
+        type=int,
+        default=8,
+        help="cold-start windows per clip",
+    )
+    ap.add_argument(
+        "--window-sec", type=float, default=20.0, help="cold-start window length"
+    )
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", type=Path, default=None, help="write the JSON report here")
-    ap.add_argument("--perf-source", choices=("midi", "audio"), default="midi",
-                    help="midi = ASAP performance MIDI (isolation: matcher only); "
-                         "audio = MAESTRO audio through Transkun (the production chain)")
-    ap.add_argument("--audio-cache", type=Path, default=Path("data/evals/asap_audio_bundles"),
-                    help="bundles built by follower_eval.asap_audio (used with --perf-source audio)")
+    ap.add_argument(
+        "--perf-source",
+        choices=("midi", "audio"),
+        default="midi",
+        help="midi = ASAP performance MIDI (isolation: matcher only); "
+        "audio = MAESTRO audio through Transkun (the production chain)",
+    )
+    ap.add_argument(
+        "--audio-cache",
+        type=Path,
+        default=Path("data/evals/asap_audio_bundles"),
+        help=(
+            "bundles built by follower_eval.asap_audio (used with --perf-source audio)"
+        ),
+    )
     args = ap.parse_args()
 
     audio_cache = args.audio_cache if args.perf_source == "audio" else None
     if audio_cache is not None and not args.pieces:
         # only pieces we actually transcribed can run in audio mode
-        args.pieces = sorted(p.stem.replace("__", "/") + ".mid"
-                             for p in audio_cache.glob("*.json"))
+        args.pieces = sorted(
+            p.stem.replace("__", "/") + ".mid" for p in audio_cache.glob("*.json")
+        )
         if not args.pieces:
-            raise SystemExit(f"no audio bundles in {audio_cache} -- run follower_eval.asap_audio first")
+            raise SystemExit(
+                f"no audio bundles in {audio_cache} -- run "
+                "follower_eval.asap_audio first"
+            )
 
-    pieces = args.pieces or aligned_pieces(args.asap_root / "asap_annotations.json", limit=args.limit)
+    pieces = args.pieces or aligned_pieces(
+        args.asap_root / "asap_annotations.json", limit=args.limit
+    )
     results: list[AsapClipResult] = []
     failures: list[dict] = []
     for p in pieces:
         try:
-            results.append(evaluate_clip(p, args.asap_root, random_starts=args.random_starts,
-                                         window_sec=args.window_sec, seed=args.seed,
-                                         audio_cache=audio_cache))
+            results.append(
+                evaluate_clip(
+                    p,
+                    args.asap_root,
+                    random_starts=args.random_starts,
+                    window_sec=args.window_sec,
+                    seed=args.seed,
+                    audio_cache=audio_cache,
+                )
+            )
         except AsapEvalError as exc:
             failures.append({"piece": p, "error": str(exc)})
 
-    print(f"perf-note source: {args.perf_source}"
-          + (f"  ({audio_cache})" if audio_cache else "  (ASAP performance MIDI -- matcher isolation)"))
+    print(
+        f"perf-note source: {args.perf_source}"
+        + (
+            f"  ({audio_cache})"
+            if audio_cache
+            else "  (ASAP performance MIDI -- matcher isolation)"
+        )
+    )
     print(_format(results))
     if failures:
         print(f"\nFAILURES ({len(failures)}):")
