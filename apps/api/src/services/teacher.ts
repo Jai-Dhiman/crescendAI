@@ -1,5 +1,4 @@
 import * as Sentry from "@sentry/cloudflare";
-import { InferenceError } from "../lib/errors";
 import type { ServiceContext } from "../lib/types";
 import { runHook } from "../harness/loop/runHook";
 import { runStreamingHook } from "../harness/loop/runStreamingHook";
@@ -14,17 +13,14 @@ import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
 import {
 	type AnthropicContentBlock,
 	type AnthropicSystemBlock,
-	callAnthropic,
 	callAnthropicStream,
 	callWorkersAIStream,
 } from "./llm";
 import { routeModel } from "../harness/loop/route-model";
 import type { AnthropicChatRequest } from "../harness/loop/tool-format";
-import { buildMemoryContext } from "./memory";
-import { buildSynthesisFraming, UNIFIED_TEACHER_SYSTEM } from "./prompts";
+import { UNIFIED_TEACHER_SYSTEM } from "./prompts";
 import * as segmentLoopsService from "./segment-loops";
 import {
-	getAnthropicToolSchemas,
 	type InlineComponent,
 	processToolUse,
 	type ToolResult,
@@ -879,97 +875,6 @@ export async function* chatV6(
 		systemBlocks,
 		messages,
 	);
-}
-
-// ---------------------------------------------------------------------------
-// synthesize
-// ---------------------------------------------------------------------------
-
-const SYNTHESIS_TIMEOUT_MS = 25_000;
-
-export async function synthesize(
-	ctx: ServiceContext,
-	input: SynthesisInput,
-): Promise<TeacherResponse> {
-	const controller = new AbortController();
-	const timeoutId = setTimeout(() => controller.abort(), SYNTHESIS_TIMEOUT_MS);
-
-	try {
-		const memoryContext = await buildMemoryContext(ctx, input.studentId);
-
-		const composer =
-			(input.pieceMetadata as { composer?: string } | null | undefined)
-				?.composer ?? "";
-		const synthesisFraming = buildSynthesisFraming(
-			input.sessionDurationMs,
-			input.practicePattern,
-			input.topMoments,
-			input.drillingRecords,
-			input.pieceMetadata,
-			memoryContext,
-			composer,
-			input.referenceMode ?? null,
-		);
-
-		const systemBlocks: AnthropicSystemBlock[] = [
-			{
-				type: "text",
-				text: UNIFIED_TEACHER_SYSTEM,
-				cache_control: { type: "ephemeral" },
-			},
-			{ type: "text", text: synthesisFraming },
-		];
-
-		const response = await callAnthropic(ctx.env, {
-			model: "claude-sonnet-4-20250514",
-			max_tokens: 2048,
-			system: systemBlocks,
-			messages: [
-				{ role: "user", content: "Please provide your session synthesis." },
-			],
-			tools: getAnthropicToolSchemas(),
-			tool_choice: { type: "auto" },
-		});
-
-		let rawText = "";
-		const toolResults: ToolResult[] = [];
-
-		for (const block of response.content) {
-			if (block.type === "text" && block.text) {
-				rawText += block.text;
-			} else if (block.type === "tool_use" && block.name) {
-				const result = await processToolUse(
-					ctx,
-					input.studentId,
-					block.name,
-					block.input,
-				);
-				toolResults.push(result);
-			}
-		}
-
-		const text = stripAnalysis(rawText);
-
-		console.log(
-			JSON.stringify({
-				level: "info",
-				message: "synthesis complete",
-				studentId: input.studentId,
-				conversationId: input.conversationId,
-				toolCount: toolResults.length,
-				textLength: text.length,
-			}),
-		);
-
-		return { text, toolResults };
-	} catch (err) {
-		if (err instanceof Error && err.name === "AbortError") {
-			throw new InferenceError("Synthesis timed out after 25 seconds");
-		}
-		throw err;
-	} finally {
-		clearTimeout(timeoutId);
-	}
 }
 
 // ---------------------------------------------------------------------------

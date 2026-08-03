@@ -54,6 +54,9 @@ class SynthesisResult:
     is_fallback: bool
     eval_context: dict = field(default_factory=dict)
     prescribed_exercise: dict | None = None
+    # Full SynthesisArtifact. `text` is only artifact.headline (what the student
+    # sees); the judge grades render_artifact_text(), which needs the rest (#28).
+    artifact: dict | None = None
 
 
 @dataclass
@@ -242,16 +245,23 @@ async def run_recording(
 
             try:
                 while True:
-                    raw = await asyncio.wait_for(ws.recv(), timeout=60.0)
+                    # 60s was tuned for the single-prompt legacy path. The grounded
+                    # two-phase V6 pipeline on a cold glm needs far longer (#28).
+                    raw = await asyncio.wait_for(ws.recv(), timeout=240.0)
                     response = json.loads(raw)
                     msg_type = response.get("type", "")
 
                     if msg_type == "synthesis":
+                        eval_context = response.get("eval_context", {})
                         synthesis_result = SynthesisResult(
                             text=response.get("text", ""),
-                            is_fallback=response.get("is_fallback", False),
-                            eval_context=response.get("eval_context", {}),
-                            prescribed_exercise=response.get("eval_context", {}).get("prescribed_exercise"),
+                            # The DO emits camelCase `isFallback` (session-brain.ts
+                            # buildV6WsPayload). Reading `is_fallback` silently
+                            # returned False for every session (#28).
+                            is_fallback=response["isFallback"],
+                            eval_context=eval_context,
+                            prescribed_exercise=eval_context.get("prescribed_exercise"),
+                            artifact=eval_context.get("artifact"),
                         )
                     elif msg_type == "observation":
                         observations.append(_parse_observation(response))
@@ -286,6 +296,43 @@ async def run_recording(
         chunk_send_duration_ms=chunk_send_duration_ms,
         synthesis_latency_ms=synthesis_latency_ms,
     )
+
+
+def render_artifact_text(synthesis: SynthesisResult) -> str:
+    """Render the full SynthesisArtifact as prose for the judge.
+
+    `synthesis.text` is only `artifact.headline` -- the one paragraph delivered to
+    the student. Judging that alone grades a fraction of what the system produced
+    and ignores the structured reasoning (strengths, focus areas, suggestions,
+    next-session focus) the V6 harness exists to generate (#28).
+
+    Falls back to the headline when no artifact is attached (non-eval sessions).
+    """
+    artifact = synthesis.artifact
+    if not artifact:
+        return synthesis.text
+
+    parts: list[str] = [artifact.get("headline", synthesis.text)]
+
+    strengths = artifact.get("strengths") or []
+    if strengths:
+        parts.append("\nStrengths:")
+        parts.extend(f"- {s['dimension']}: {s['one_liner']}" for s in strengths)
+
+    focus_areas = artifact.get("focus_areas") or []
+    if focus_areas:
+        parts.append("\nFocus areas:")
+        parts.extend(
+            f"- {f['dimension']} ({f['severity']}): {f['one_liner']}" for f in focus_areas
+        )
+
+    if artifact.get("recurring_pattern"):
+        parts.append(f"\nRecurring pattern: {artifact['recurring_pattern']}")
+
+    if artifact.get("next_session_focus"):
+        parts.append(f"\nNext session focus: {artifact['next_session_focus']}")
+
+    return "\n".join(parts)
 
 
 def _parse_observation(response: dict) -> PipelineObservation:
