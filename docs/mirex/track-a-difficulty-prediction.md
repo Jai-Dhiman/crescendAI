@@ -27,8 +27,8 @@ Regenerate with `--stage extract --workers 10` (~8 min) then `--stage cv --boot 
 
 **Transcriber constraint worth remembering: Transkun's pedal head is BINARY.** It emits CC64 as only 0 and 127, alternating. Pedal *depth* features (depth mean, value entropy, half-pedal fraction) are constant across the entire corpus and are therefore not expressible from this transcriber — recovering them needs a different model, not a different feature. Pedal *timing* (change rate, on-fraction, segment length) does survive and is the strongest single contribution of the new family.
 
-## Why this is the stronger track (thesis-aligned)
-The task is **difficulty scoring of solo-piano audio** — the same modality, encoder, and ordinal-ranking machinery CrescendAI already runs. Unlike Track B, our assets map directly:
+## Why we committed to this track (thesis-aligned)
+The task is **difficulty scoring of solo-piano audio** — the same modality, encoder, and ordinal-ranking machinery CrescendAI already runs. Our assets map directly:
 - **MuQ (frozen, on piano)** — our production audio encoder is *already* solo-piano-oriented; here that's an advantage, not a liability.
 - **Ordinal ranking head** — our deployed A1-Max head already trains BCE-pairwise + **ListMLE** ranking + CCC regression on frozen MuQ embeddings (`model/src/model_improvement/audio_encoders.py`). The task's metric is **Kendall Tau-c** (ordinal agreement) — a near-exact match to what we already optimize.
 - **PercePiano + T2/T5 ordinal data** — we already curate piano ordinal/skill data.
@@ -61,15 +61,15 @@ Note: **PSyllabus is audio** (matches the task's audio input) — the primary tr
 
 - **Spine:** frozen MuQ (piano) embeddings → our existing ordinal-ranking head, retargeted to a single difficulty scalar, trained on **PSyllabus audio**, optimized for Kendall Tau-c ordering. This is almost entirely reuse of the A1-Max stack.
 - **Baseline to beat:** Ramoneda et al.'s own published difficulty models (audio + symbolic). *Research needed — find their reported Tau/accuracy.*
-- **Edge hypothesis:** our piano-specialized frozen encoder + ordinal head may be genuinely competitive here (unlike Track B). This is the transferable-asset story worth testing.
+- **Edge hypothesis:** our piano-specialized frozen encoder + ordinal head may be genuinely competitive here. This is the transferable-asset story worth testing.
 
-## Research checklist (DO THIS — mirror Track B's method)
+## Research checklist
 - [ ] Fetch/read the PSyllabus, CIPI, Mikrokosmos papers (Ramoneda et al.) — exact schemas, label semantics, licenses, train/test protocol.
 - [ ] Find the **published SOTA** difficulty-prediction numbers (Tau-c / Acc±1) and architectures — what's the bar?
 - [ ] Confirm the reference Docker template / inference wrapper once released; nail the exact I/O contract.
 - [ ] Determine whether audio-only (PSyllabus) or audio+score hybrid is stronger; does transcription help or hurt?
 - [ ] Map our A1-Max head → single-scalar difficulty regression/ranking; what changes?
-- [ ] Licenses of PSyllabus/CIPI (commercial-use fork question, as with Track B).
+- [ ] Licenses of PSyllabus/CIPI (commercial-use fork question).
 - [ ] The "human vs synthesized rendering" aggregation — does it bias toward performance-quality vs score-difficulty? (This is subtle: the task says *difficulty*, but a human *performance* encodes execution quality too.)
 - [ ] Open questions for the captains (Ramoneda/Zhang).
 
@@ -85,3 +85,4 @@ Note: **PSyllabus is audio** (matches the task's audio input) — the primary tr
 - **2026-08-01 (#137) — FEATURE FRONTIER CLOSED.** Built 32 Transkun-unlocked features (articulation via duration/IOI ratio, duration entropy/LZ, true time-weighted voicing, chord-release dispersion, pedal timing) and a composer-disjoint CV tau-c ablation with fixed folds shared by all arms and a paired bootstrap over pieces. Result: **+0.0064 tau-c** (0.7929 → 0.7988), significant but negligible; the new family is ~90% redundant with the 37 and takes 8.6% of model gain. **This was the last untested feature premise** — every prior null was measured on offset-blind features, and removing that blindness did not move the wall. Two by-products: (a) established that the **0.824 anchor is train-on-test contaminated**; (b) established that **Transkun cannot express pedal depth** (binary CC64). Harness: `model/src/claim_measurement/difficulty/{transkun_features,tk_ablation}.py`, 26 unit tests.
   - *Not refuted, still open:* the lambdarank arm scored −0.139 but used **one query group per fold**, and NDCG is top-heavy while tau-c scores the whole list — a formulation bug, not a verdict on rank-native objectives. Multi-scale / per-section aggregation of the new features remains untried.
 - **Standing implication** — with hand-crafted symbolic features exhausted, **#138 (end-to-end encoder fine-tune) is the remaining unrefuted lever** before the 2026-10-01 deadline.
+- **2026-08-03 — TRACK B DROPPED; Track A is the sole MIREX 2026 submission.** The parallel Task-2 (CMI-RewardBench) exploration is closed: its issues (#105, #106, #107, #122, #123, #124) were already closed, and its standalone repo, cached corpora, and R2 archive have been deleted. Rationale and the one transferable finding (CLAP window granularity, not head architecture, was the lever) are recorded in [README.md](./README.md). All remaining MIREX effort goes to #137/#138 under this doc.
