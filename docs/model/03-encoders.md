@@ -200,7 +200,56 @@ This is symmetric with Aria's contrastive pretraining -- both encoders get quali
 
 ---
 
-## Historical symbolic encoder: Aria
+## Current symbolic encoder: MoonBeam-839M (chosen 2026-08-03, #138 Phase 0)
+
+MoonBeam-839M (`guozixunnicolas/moonbeam-midi-foundation-model`, Apache 2.0)
+replaced Aria as the symbolic encoder after a frozen bake-off on the **Transkun
+domain** -- the domain the difficulty head actually trains on, rather than the
+clean PSyllabus MIDIs the earlier Aria numbers were measured on. Scope: this is
+the encoder for MIREX Track A difficulty (#138). It does not reopen the closed
+MuQ/Aria parallel-stream program; #139 still owns the successor architecture.
+
+**Composer-disjoint 5-fold x 5 seeds, RidgeCV, n=900 Transkun MIDIs across 900
+distinct composers, all arms on byte-identical folds:**
+
+| encoder | pooling | tau-c | std |
+|---|---|---|---|
+| Aria-medium | EOS-position (its shipped scheme) | 0.7790 | 0.0030 |
+| Aria-medium | mean over tokens | 0.7702 | 0.0030 |
+| **MoonBeam-839M** | **mean over tokens** | **0.8257** | 0.0018 |
+| MoonBeam-839M | last token | 0.7827 | 0.0016 |
+
+Paired bootstrap over pieces (2000 resamples): `moonbeam_mean - aria_eos` =
++0.0540 [+0.0379, +0.0710]; under **matched** pooling `moonbeam_mean -
+aria_mean` = **+0.0619 [+0.0446, +0.0787]**, P(diff<=0) = 0.000.
+
+**The pooling confound was tested and refuted.** MoonBeam gains +0.046 from
+mean-over-tokens vs last-token, which first read as the bake-off measuring
+pooling rather than the backbone. The control -- same Aria checkpoint, same
+300-note chunks, both poolings from one forward pass, `eos_pool` reproducing the
+deployed `get_global_embedding_from_midi` path bit-exactly -- showed mean
+pooling does **not** help Aria (-0.0079, CI straddles 0). The pooling gain is
+backbone-specific, and under matched pooling MoonBeam's lead grows. Plausible
+mechanism (not measured): `aria-medium-embedding` is contrastively trained so
+its EOS position already IS the pooled global vector, while MoonBeam is a plain
+causal LM whose difficulty signal is distributed across tokens.
+
+**Do not compare 0.8257 across harnesses.** It is RidgeCV + seeded
+composer-disjoint folds (`bakeoff_cv.py`), not comparable to #137's 37-feature
+anchor 0.7929/0.7971 (LightGBM + GroupKFold, `tk_ablation.py`), to the old
+frozen-Aria 0.744 (clean-MIDI, n=600), or to the train-on-test 0.824.
+
+Harness: `model/src/claim_measurement/difficulty/{run_bakeoff,extract,
+moonbeam_extract_script,aria_pooling_backbone}.py`. Weights and the fork pinned
+at commit `4e2c015` live in `model/data/weights/moonbeam/` (gitignored).
+
+---
+
+## Historical symbolic encoder: Aria (superseded 2026-08-03)
+
+Retained as the #138 bake-off reference arm and as a paper artifact -- the
+`model/src/model_improvement/aria_*.py` modules are released by the arXiv paper
+and implement the reference arm above, so they are not dead code.
 
 ### Why Aria
 
