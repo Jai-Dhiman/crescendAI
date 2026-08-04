@@ -80,9 +80,46 @@ Note: **PSyllabus is audio** (matches the task's audio input) — the primary tr
 2. Whether difficulty is meant as **score difficulty** (composition) or **performance difficulty** (execution) — the two-recordings-per-piece design suggests they want a piece-level score robust to performer, i.e. score difficulty. Confirm.
 3. PSyllabus/CIPI licenses.
 
+## Stage 2 — Transkun difficulty-head re-fit (#135, closed — final verdict MARGINAL, see the 2026-07-31 decision-log entry)
+
+**Why:** aria-amt was replaced repo-wide by Transkun (#128). Swapping the transcriber *alone* is tau-c-neutral because the deployed LightGBM head was trained on **clean** score note-counts and overfit the transcriber's biases. The fix is to **re-fit the head on Transkun-transcribed features**. The Stage-2 learning-curve gate confirmed this is worth it:
+
+| eval N | arm B (transkun-trained) | deployed 7.9k-clean on transkun | B − A (matched-N) | verdict |
+|---|---|---|---|---|
+| 39 | — | — | +0.035 CI[−0.058,+0.129] | underpowered (looked dead) |
+| 161 | — | 0.812 | +0.043 CI[+0.007,+0.081] | marginally significant |
+| **604** | **0.807** | **0.804** | **+0.050 CI[+0.029,+0.071]** | **STRONG green** |
+
+At n=604 a head trained on just 604 Transkun pieces already matches the deployed head trained on all 7,899 clean pieces (reading Transkun), and is still climbing → the full re-fit should beat deployed by ~**+0.04–0.05 tau-c** (full task).
+
+**Harness:** `model/src/claim_measurement/transcription_bench/stage2_refit_curve.py` (stages: `prep` | `transcribe` | `pipeline` | `curve`). Data lands in `model/data/results/amt_gap_curve/` (gitignored). Imports the #104 difficulty feature code by absolute path (the `.worktrees/issue-104-mirex-difficulty` worktree must exist).
+
+### Runbook (full 7.9k transcription)
+
+Run the pipeline (per piece: download → Transkun → drop wav; disk-safe, resumable, skips pieces that already have a MIDI). It auto-resumes on any non-zero exit and `caffeinate` blocks system sleep — **lid open, on AC**:
+
+```
+caffeinate -is bash -c 'until uv run --script /Users/jdhiman/Documents/crescendai/.worktrees/issue-135-transkun-refit/model/src/claim_measurement/transcription_bench/stage2_refit_curve.py --stage pipeline --all --workers 4; do echo "[$(date)] stopped; resuming in 15s"; sleep 15; done'
+```
+
+Watch progress in a second terminal (climbs toward ~7,100–7,300; ~8.5% of pieces are unavailable on YouTube):
+
+```
+watch -n 30 'ls /Users/jdhiman/Documents/crescendai/model/data/results/amt_gap_curve/transkun_mid/*.mid | wc -l; df -h /Users/jdhiman/Documents/crescendai | tail -1'
+```
+
+When the count plateaus, re-run the gate curve at full N:
+
+```
+uv run --script /Users/jdhiman/Documents/crescendai/.worktrees/issue-135-transkun-refit/model/src/claim_measurement/transcription_bench/stage2_refit_curve.py --stage curve
+```
+
+**Still to build** (after the data lands): the retrain+eval stage — extract the 37 difficulty features from all Transkun MIDIs, retrain the LightGBM head (`DEPLOYED_PARAMS`) on Transkun features, CV-eval vs the clean-trained deployed head; if it wins, that head is the MIREX Track A submission.
+
 ## Decision log (append-only)
 - **2026-07-03** — Track A spec captured from MIREX task page; assets mapped (strong fit). Deep research NOT yet done — next session should run the Research checklist before /brainstorm. Provisional lean: this is the higher-value track (real asset transfer vs Track B's no-moat).
 - **2026-07-22 (#125 Stage-1)** — Transkun adopted over aria-amt for the symbolic stream (offset F1 0.79 vs 0.37, MIT licence). Swap measured neutral on difficulty tau-c on its own; the adopt decision stood on transcription quality, not on a difficulty win.
+- **2026-07-27** — Stage-2 Transkun re-fit gate = STRONG green at n=604 (#135); full 7.9k transcription launched (user-driven, see Runbook). Earlier #104 "closed research line / feature wall ~0.76" conclusions predate the head-re-fit lever, which the n=39 probe was too underpowered to detect.
 - **2026-07-31 (#135)** — Full-scale Stage-2 re-fit gate came back **MARGINAL**: re-training the head on Transkun features rather than clean MIDI gave B−A = +0.016 at n=5,798. Diagnosis: the 37 features exclude offsets *by design*, so they are transcriber-robust and clean-vs-Transkun barely differs — the gate tested the wrong lever. Motivated the #137/#138 split.
 - **2026-08-01 (#137) — FEATURE FRONTIER CLOSED.** Built 32 Transkun-unlocked features (articulation via duration/IOI ratio, duration entropy/LZ, true time-weighted voicing, chord-release dispersion, pedal timing) and a composer-disjoint CV tau-c ablation with fixed folds shared by all arms and a paired bootstrap over pieces. Result: **+0.0064 tau-c** (0.7929 → 0.7988), significant but negligible; the new family is ~90% redundant with the 37 and takes 8.6% of model gain. **This was the last untested feature premise** — every prior null was measured on offset-blind features, and removing that blindness did not move the wall. Two by-products: (a) established that the **0.824 anchor is train-on-test contaminated**; (b) established that **Transkun cannot express pedal depth** (binary CC64). Harness: `model/src/claim_measurement/difficulty/{transkun_features,tk_ablation}.py`, 26 unit tests.
   - *Not refuted, still open:* the lambdarank arm scored −0.139 but used **one query group per fold**, and NDCG is top-heavy while tau-c scores the whole list — a formulation bug, not a verdict on rank-native objectives. Multi-scale / per-section aggregation of the new features remains untried.
