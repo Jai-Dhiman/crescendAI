@@ -20,5 +20,13 @@
 		}
 	},
 	"include": ["src/**/*.ts"],
-	"exclude": ["node_modules"]
+	// Node-only sources live in tsconfig.node.json: they import node: modules
+	// that do not exist in workerd, so they must not be typechecked as Worker code.
+	"exclude": [
+		"node_modules",
+		"src/scripts/**",
+		"src/harness/skills/validator.ts",
+		"src/harness/skills/validator.test.ts",
+		"src/harness/skills/__catalog__/**"
+	]
 }
