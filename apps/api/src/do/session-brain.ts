@@ -598,7 +598,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 		await this.ctx.blockConcurrencyWhile(async () => {
 			const state = await this.readState();
 			state.chunksInFlight++;
-			state.receivedRealInferenceChunk = true;  // mark: this session used real inference
 			await this.ctx.storage.put("state", state);
 		});
 
