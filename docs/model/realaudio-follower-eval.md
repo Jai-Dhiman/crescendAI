@@ -1,6 +1,6 @@
 # Real-Audio Score-Follower Eval — Provisional
 
-**Status:** Track A is complete on 55 competition-grade recordings. Track B's human labeling pass is **complete on the 32-clip subset** (2026-08-03) — no high-confidence failure observed, 21/21 tracked where the piece is verified — but that subset is extreme-sampled by construction, and PASS bars are still unset. This eval is therefore **not yet the score-follower source of truth**: it needs a representative-sample pass and agreed bars. The bar-tap approach is superseded: labeling by ear requires bar numbers against scores the labeler does not have. Track A uses ASAP's alignment, and Track B asks the listener only to watch and flag disagreements.
+**Status:** Track A is complete on 55 competition-grade recordings. Track B's human labeling pass is **complete on the 32-clip subset** (2026-08-03) — no high-confidence failure observed, 22/22 tracked or recovered where the piece is verified — but that subset is extreme-sampled by construction, and PASS bars are still unset. This eval is therefore **not yet the score-follower source of truth**: it needs a representative-sample pass and agreed bars. The bar-tap approach is superseded: labeling by ear requires bar numbers against scores the labeler does not have. Track A uses ASAP's alignment, and Track B asks the listener only to watch and flag disagreements.
 
 ## Why this exists
 
