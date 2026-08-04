@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Fast mechanical layer (target: a few seconds). Scoped to STAGED files so that
-# pre-existing lint debt stays visible without blocking unrelated commits.
+# Fast mechanical layer (target: a few seconds). Scoped to the LINES this commit
+# changed, so pre-existing lint debt stays visible without blocking unrelated
+# commits. Scoping to staged *files* was not enough: with lint-api red across
+# 161 files (#142), nearly every commit to a busy file was blocked by findings
+# it did not introduce, and --no-verify became the default (#147).
 # Break glass: git commit --no-verify
 set -uo pipefail
 
@@ -14,18 +17,8 @@ fail=0
 
 python3 scripts/standards_check.py --staged || fail=1
 
-for app in api web; do
-    files=$(printf '%s\n' "$staged" | grep -E "^apps/$app/.*\.(ts|tsx|js|jsx)$" | sed "s|^apps/$app/||") || true
-    if [ -n "$files" ]; then
-        # shellcheck disable=SC2086
-        (cd "apps/$app" && printf '%s\n' "$files" | xargs bunx biome check) || fail=1
-    fi
-done
-
-pyfiles=$(printf '%s\n' "$staged" | grep -E '\.py$') || true
-if [ -n "$pyfiles" ]; then
-    printf '%s\n' "$pyfiles" | xargs ruff check --config model/pyproject.toml || fail=1
-fi
+# biome + ruff, filtered to the lines this commit changed.
+python3 scripts/lint_changed.py || fail=1
 
 if [ "$fail" -ne 0 ]; then
     echo ""
