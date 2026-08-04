@@ -5,9 +5,9 @@ import { parseCatalog } from "./catalog-codegen";
 const SKILLS_DIR = resolve(__dirname, "../../../docs/harness/skills");
 
 describe("parseCatalog atoms", () => {
-	it("returns 15 atoms with non-empty name and description", () => {
+	it("returns 14 atoms with non-empty name and description", () => {
 		const catalog = parseCatalog(SKILLS_DIR);
-		expect(catalog.atoms).toHaveLength(15);
+		expect(catalog.atoms).toHaveLength(14);
 		for (const atom of catalog.atoms) {
 			expect(typeof atom.name).toBe("string");
 			expect(atom.name.length).toBeGreaterThan(0);
@@ -18,9 +18,9 @@ describe("parseCatalog atoms", () => {
 });
 
 describe("parseCatalog molecules", () => {
-	it("returns 9 molecules with non-empty name and description", () => {
+	it("returns 7 molecules with non-empty name and description", () => {
 		const catalog = parseCatalog(SKILLS_DIR);
-		expect(catalog.molecules).toHaveLength(9);
+		expect(catalog.molecules).toHaveLength(7);
 		for (const m of catalog.molecules) {
 			expect(typeof m.name).toBe("string");
 			expect(m.name.length).toBeGreaterThan(0);
