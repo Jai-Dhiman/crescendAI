@@ -71,6 +71,7 @@ import type {
 	ScoreContext,
 	ScoredChunk,
 	StudentBaselines,
+	TeachingMoment,
 } from "../services/wasm-bridge";
 // WASM bridge — imported at top level (bridge handles missing pkg gracefully)
 import * as wasm from "../services/wasm-bridge";
@@ -126,6 +127,70 @@ export function buildEvalContext(
 		...snapshot,
 		artifact,
 		prescribed_exercise: artifact.prescribed_exercise ?? null,
+	};
+}
+
+/**
+ * Per-chunk analysis context attached to an observation for eval sessions only.
+ * Null for real sessions — see buildObservationPayload.
+ */
+export interface ObservationEvalDetail {
+	predictions: [number, number, number, number, number, number];
+	baselines: StudentBaselines | null;
+	analysisFacts: unknown | null;
+	barRange: [number, number] | null;
+	analysisTier: number;
+}
+
+/**
+ * Build the `observation` WebSocket message.
+ *
+ * The student-facing payload is deliberately four keys: the product does not put
+ * raw dimension scores on the wire (the teacher prompt is explicit that numbers
+ * are not shown), so `evalDetail` MUST be null for real sessions.
+ *
+ * For eval sessions the same message carries an `eval_context` block, mirroring
+ * what the synthesis path already does. Without it the observation-quality eval
+ * read `chunk_index`/`score`/`baseline`/`reasoning_trace` off a payload that
+ * never contained them — `.get(key, default)` does not raise, so every
+ * observation silently reported chunk 0 and zeroed scores, collapsing every
+ * trace file onto one filename and grading each observation against an empty
+ * context (#143).
+ */
+export function buildObservationPayload(
+	moment: TeachingMoment,
+	evalDetail: ObservationEvalDetail | null,
+): {
+	type: "observation";
+	text: string;
+	dimension: string;
+	framing: string;
+	eval_context?: Record<string, unknown>;
+} {
+	const payload = {
+		type: "observation" as const,
+		text: moment.is_positive
+			? `Nice work on your ${moment.dimension}.`
+			: `I'm noticing something in your ${moment.dimension} -- let's talk after.`,
+		dimension: moment.dimension,
+		framing: moment.is_positive ? "recognition" : "correction",
+	};
+
+	if (evalDetail === null) return payload;
+
+	return {
+		...payload,
+		eval_context: {
+			chunk_index: moment.chunk_index,
+			score: moment.score,
+			baseline: moment.baseline,
+			reasoning_trace: moment.reasoning,
+			predictions: evalDetail.predictions,
+			baselines: evalDetail.baselines,
+			analysis_facts: evalDetail.analysisFacts,
+			bar_range: evalDetail.barRange,
+			analysis_tier: evalDetail.analysisTier,
+		},
 	};
 }
 
@@ -1189,19 +1254,21 @@ export class SessionBrain extends DurableObject<Bindings> {
 					if (!dimSuppressed) {
 						acc.accumulateMoment(accMoment);
 
-						// Send lightweight observation to client
-						const obsText = moment.is_positive
-							? `Nice work on your ${moment.dimension}.`
-							: `I'm noticing something in your ${moment.dimension} -- let's talk after.`;
-
-						const framing = moment.is_positive ? "recognition" : "correction";
-
-						this.sendWs(ws, {
-							type: "observation",
-							text: obsText,
-							dimension: moment.dimension,
-							framing,
-						});
+						this.sendWs(
+							ws,
+							buildObservationPayload(
+								moment,
+								currentState.isEvalSession
+									? {
+											predictions: scoresArray,
+											baselines,
+											analysisFacts: accMoment.llmAnalysis,
+											barRange: chunkBarRange,
+											analysisTier: chunkAnalysisTier,
+										}
+									: null,
+							),
+						);
 					}
 				}
 			} catch (err) {
@@ -1489,16 +1556,21 @@ export class SessionBrain extends DurableObject<Bindings> {
 					};
 					acc.accumulateMoment(accMoment);
 
-					const obsText = moment.is_positive
-						? `Nice work on your ${moment.dimension}.`
-						: `I'm noticing something in your ${moment.dimension} -- let's talk after.`;
-
-					this.sendWs(ws, {
-						type: "observation",
-						text: obsText,
-						dimension: moment.dimension,
-						framing: moment.is_positive ? "recognition" : "correction",
-					});
+					this.sendWs(
+						ws,
+						buildObservationPayload(
+							moment,
+							state.isEvalSession
+								? {
+										predictions: scoresArray,
+										baselines,
+										analysisFacts: accMoment.llmAnalysis,
+										barRange: chunkBarRange,
+										analysisTier: chunkAnalysisTier,
+									}
+								: null,
+						),
+					);
 				}
 			} catch {
 				// WASM unavailable
