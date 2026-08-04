@@ -16,15 +16,23 @@
 #                            found" and was mistaken for clean)
 #   just lint-web    PASSES (was 120 biome errors)
 #
-# Still opt-in, with the reason each is not blocking yet:
-#   just test-api    FAILS on main -- 7 failures out of 604 (5 catalog-codegen,
-#                    1 synthesizeV6, 1 GET /health). #144 fixed the workerd
-#                    ECONNREFUSED abort, so the suite now runs to completion;
-#                    these 7 are real and predate #142. Promote once green.
+# Measured 2026-08-04 on issue-151-test-api, promoted here:
+#   just test-api    PASSES in ~40s -- 599 workerd + 384 node = 983 tests.
+#                    Was 7 failures: 5 were scripts/catalog-codegen.test.ts,
+#                    a node-only suite (readdirSync, node:os) that the workerd
+#                    config also matched, so it passed under one runtime and
+#                    failed under the other; it is now excluded there. The
+#                    other 2 were stale expectations -- the catalog counts
+#                    (15/9 -> 14/7, two molecules and one atom retired in
+#                    32d0f73c and 221e697f) and GET /health's dropped
+#                    version/stack fields.
+#
+# Still opt-in, with the reason it is not blocking yet:
 #   just test-model  ~10 minutes (865 tests). Too slow to block a push.
 #
-# PREREQUISITE for check-api: apps/api/src/wasm/*/pkg/ is gitignored wasm-pack
-# output. A fresh clone has none, so tsc reports 2 extra TS2307 until you run
+# PREREQUISITE for check-api and test-api: apps/api/src/wasm/*/pkg/ is
+# gitignored wasm-pack output. A fresh clone has none, so tsc reports 2 extra
+# TS2307 and the workerd suite cannot load real WASM until you run
 # `cd apps/api && bun run build:wasm`.
 #
 # Full run:    CRESCENDAI_FULL_PREPUSH=1 git push
@@ -58,6 +66,7 @@ uv run --no-project --with pytest pytest scripts/test_standards_check.py -q || f
 if touched '^apps/api/'; then
     just check-api || fail=1
     just lint-api || fail=1
+    just test-api || fail=1
 fi
 if touched '^apps/web/'; then
     just check-web || fail=1
@@ -66,19 +75,13 @@ fi
 
 # Still opt-in -- see the header for why each is not blocking yet.
 if [ "${CRESCENDAI_FULL_PREPUSH:-0}" = "1" ]; then
-    if touched '^apps/api/'; then
-        just test-api || fail=1
-    fi
     if touched '^(model|apps/inference)/'; then
         just test-model || fail=1
     fi
 else
-    scopes=""
-    touched '^apps/api/' && scopes="$scopes test-api"
-    touched '^(model|apps/inference)/' && scopes="$scopes test-model"
-    if [ -n "$scopes" ]; then
-        echo "pre-push: skipping$scopes (not yet blocking -- see the header)."
-        echo "          run them with: CRESCENDAI_FULL_PREPUSH=1 git push"
+    if touched '^(model|apps/inference)/'; then
+        echo "pre-push: skipping test-model (not yet blocking -- see the header)."
+        echo "          run it with: CRESCENDAI_FULL_PREPUSH=1 git push"
     fi
 fi
 

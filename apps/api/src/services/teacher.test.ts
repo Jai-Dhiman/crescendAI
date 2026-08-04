@@ -661,8 +661,20 @@ describe("synthesizeV6 adapter", () => {
 			),
 		);
 
+		// synthesizeV6 calls buildGroundedDigest, which reads per-session
+		// dimension means. Empty session => no observation rows.
 		const ctx = {
-			db: {} as ServiceContext["db"],
+			db: {
+				select: () => ({
+					from: () => ({
+						where: () => ({
+							groupBy: () => ({
+								orderBy: () => ({ limit: () => Promise.resolve([]) }),
+							}),
+						}),
+					}),
+				}),
+			} as unknown as ServiceContext["db"],
 			env: {
 				AI_GATEWAY_ENDPOINT: "https://gw.example",
 				AI_GATEWAY_TOKEN: "test-gw-token",

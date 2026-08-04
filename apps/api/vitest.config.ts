@@ -6,8 +6,12 @@ export default defineWorkersConfig({
 		// array silently drops "**/node_modules/**". Without it the pool matches
 		// 573 files instead of 133 -- the extra 477 are vendored suites, mostly
 		// zod's own tests reached via @better-auth/core (#144).
+		// node-only suites (real fs: readdirSync over docs/harness/skills,
+		// node:os tmpdir) belong to vitest.node.config.ts. workerd has no such
+		// modules, so matching them here fails the file, not the code (#151).
 		exclude: [
 			"**/node_modules/**",
+			"scripts/**",
 			"src/harness/skills/__catalog__/**",
 			"src/harness/skills/validator.test.ts",
 		],
