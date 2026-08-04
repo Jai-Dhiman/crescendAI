@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Fast mechanical layer (target: a few seconds). Scoped to STAGED files so that
+# pre-existing lint debt stays visible without blocking unrelated commits.
+# Break glass: git commit --no-verify
+set -uo pipefail
+
+ROOT=$(git rev-parse --show-toplevel)
+cd "$ROOT"
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
+
+fail=0
+
+python3 scripts/standards_check.py --staged || fail=1
+
+for app in api web; do
+    files=$(printf '%s\n' "$staged" | grep -E "^apps/$app/.*\.(ts|tsx|js|jsx)$" | sed "s|^apps/$app/||") || true
+    if [ -n "$files" ]; then
+        # shellcheck disable=SC2086
+        (cd "apps/$app" && printf '%s\n' "$files" | xargs bunx biome check) || fail=1
+    fi
+done
+
+pyfiles=$(printf '%s\n' "$staged" | grep -E '\.py$') || true
+if [ -n "$pyfiles" ]; then
+    printf '%s\n' "$pyfiles" | xargs ruff check --config model/pyproject.toml || fail=1
+fi
+
+if [ "$fail" -ne 0 ]; then
+    echo ""
+    echo "pre-commit: blocked. Fix the findings above, or run 'git commit --no-verify'"
+    echo "to break glass (and say so in the commit message)."
+    exit 1
+fi
