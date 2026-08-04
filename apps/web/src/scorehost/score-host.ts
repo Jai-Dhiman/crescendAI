@@ -9,6 +9,7 @@ import type { ScoreIR } from "../lib/score-ir";
 import type { ClipPlaybackResult } from "../lib/score-worker";
 import type {
 	InlineComponent,
+	PassageManifest,
 	PlayPassageConfig,
 	ScoreHighlightConfig,
 } from "../lib/types";
@@ -149,7 +150,14 @@ async function fetchScoreBytes(pieceId: string): Promise<ArrayBuffer> {
 	}
 	for (const ext of ["mei", "mxl"]) {
 		const res = await fetch(`./scores/${pieceId}.${ext}`);
-		if (res.ok) {
+		// res.ok alone is not "the asset exists": any SPA catch-all (vite preview,
+		// the deployed static host) answers a missing .mei with 200 + index.html,
+		// which then reaches Verovio as "corrupt MXL". Reject HTML explicitly so a
+		// miss stays a miss and the .mxl probe gets its turn.
+		if (
+			res.ok &&
+			!(res.headers.get("content-type") ?? "").includes("text/html")
+		) {
 			return res.arrayBuffer();
 		}
 	}
@@ -182,22 +190,35 @@ async function ensureLoaded(pieceId: string): Promise<void> {
 }
 
 // apps/api processPlayPassage emits sessionId, bars, dimension and annotation,
-// and never a pieceId. The scorehost has no way to turn a session into a piece
-// yet -- the web PlayPassageCard does it by fetching a passage manifest, which
-// this bridge does not do. Fail loudly here rather than calling
-// fetchScoreBytes(undefined) and reporting a confusing downstream error.
-// Implementing this function is the whole of the fix.
-function resolvePieceId(config: PlayPassageConfig): string {
-	throw new Error(
-		`renderPlayPassage: play_passage carries no pieceId (session ${config.sessionId}, ` +
-			"bars " +
-			`${config.bars[0]}-${config.bars[1]}); the scorehost cannot yet resolve a piece ` +
-			"from a session.",
+// and never a pieceId -- the piece is only known to live DO state
+// (state.pieceIdentification.pieceId), which does not exist when the artifact is
+// written. Resolve it the same way the web PlayPassageCard does: fetch the
+// passage manifest for the session and read its pieceId. The relative /api/ path
+// is deliberate -- patchFetchForScorehost above prepends __SCOREHOST_API_BASE
+// for the file:// / custom-scheme case.
+async function resolvePieceId(config: PlayPassageConfig): Promise<string> {
+	const [startBar, endBar] = config.bars;
+	const res = await fetch(
+		`/api/sessions/${config.sessionId}/passage?bars=${startBar}-${endBar}`,
+		{ credentials: "include" },
 	);
+	if (!res.ok) {
+		throw new Error(
+			`resolvePieceId: passage manifest failed for session ${config.sessionId} ` +
+				`bars ${startBar}-${endBar}: HTTP ${res.status}`,
+		);
+	}
+	const manifest = (await res.json()) as PassageManifest;
+	if (!manifest.pieceId) {
+		throw new Error(
+			`resolvePieceId: passage manifest for session ${config.sessionId} carries no pieceId`,
+		);
+	}
+	return manifest.pieceId;
 }
 
 async function renderPlayPassage(config: PlayPassageConfig): Promise<void> {
-	const pieceId = resolvePieceId(config);
+	const pieceId = await resolvePieceId(config);
 	await ensureLoaded(pieceId);
 
 	const [startBar, endBar] = config.bars;
