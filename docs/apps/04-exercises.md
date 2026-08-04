@@ -3,6 +3,7 @@
 > **Status (2026-03-19):** Exercise DB schema DEFINED. Endpoints IMPLEMENTED (`GET /api/exercises`, exercise tracking). CEO review (2026-03-19): Exercises ship as artifacts in the unified container system (see `05-ui-system.md`). Exercise artifact is the only artifact type in the web beta. Focus mode DEFERRED to Phase 3.
 >
 > **Status update (2026-06-10, S1 shipped — #29):** The legacy `proposed_exercises` (synthesis) and `create_exercise` (chat tool) paths have been removed and replaced by the `ExerciseRoutingDecision` contract. All exercise prescriptions — whether emitted during post-session synthesis or via the `prescribe_exercise` chat tool — now produce a typed routing decision that persists to `pending_exercises`. See [S1 Contract](#s1-exercise-routing-contract-shipped-29) below.
+> The former rebuild index is retired. This document is the durable home for the shipped FILTER -> RANK -> ADAPT design and its remaining gates.
 >
 > **Status update (2026-06-11, own-passage loop playback shipped — #45):** `ExerciseSetCard` redesigned with score-first layout and `LoopTransport` interactive playback. `LoopPlayer` (smplr piano + metronome + `LoopClock`) drives audio. `useLoopPlayer` hook manages countdown/playback state. `score-worker` gained `get_clip_playback` message for IR + playback notes. `tempoFactor` flows from the prescription routing decision into the transport slider.
 >
@@ -62,7 +63,7 @@ Schema change: `pending_exercises` dropped `exercise_id` (FK to catalog) and gai
 ### Deferred follow-ons
 
 - **Eval ASCF baseline re-lock:** `run_eval.py` now renders `prescribed_exercise` into prose so the eval pipeline runs green, but the locked baseline number is NOT re-locked (credit-gated — deferred to a dedicated eval session).
-- **`exercise-proposal.md` catalog cleanup:** the harness skill catalog entry and `depends_on` narrative are out of date (the `exercise-proposal` molecule is deleted). Cleanup deferred; the validators that catch it are excluded from the default runner (matches prior precedent from other removed skills).
+- **Harness catalog cleanup:** completed in #140. Exercise routing uses the typed contract above, not an `exercise-proposal` molecule.
 
 ---
 

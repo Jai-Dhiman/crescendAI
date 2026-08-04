@@ -59,13 +59,13 @@ From *The runtime behind production deep agents* (Mahler wiki): "building a good
 
 ### Model System (`docs/model/`)
 
-The audio intelligence layer. A finetuned MuQ foundation model (A1-Max) outputs 6 teacher-grounded dimensions: dynamics, timing, pedaling, articulation, phrasing, interpretation. Deployed as a 4-fold ensemble on HuggingFace Inference Endpoints (79.85% pairwise accuracy on clean folds; the older 80.8% figure was from a leaked-fold run -- see `docs/model/00-research-timeline.md`). Populates the enrichment cache (Layer 1 of the context graph) with prompt-aware extraction keys. The parallel symbolic stream derives its note-level features (velocity, offset, pedal) from Transkun (MIT, ISMIR 2024) audio-to-MIDI transcription -- the non-LLM transcriber behind the frozen `/transcribe` service. The model taxonomy, encoder architecture, training pipeline, and research roadmap live here.
+The audio intelligence layer. A1-Max loads the frozen public `OpenMuQ/MuQ-large-msd-iter` checkpoint and four separately trained pooling/prediction heads; the serving path does not load a fine-tuned MuQ backbone. The historical clean-fold A1-Max training result was 79.85% pairwise accuracy and R2=0.336, but it is not evidence that this serving configuration generalizes to real practice. Transkun (MIT, ISMIR 2024) supplies the parallel note, offset, and pedal stream behind the frozen `/transcribe` contract. These outputs remain research signals rather than trustworthy diagnoses; the benchmark-first teacher program in #139 requires real-audio verification and calibrated abstention before broader claims.
 
 Entry point: [`docs/model/00-research-timeline.md`](model/00-research-timeline.md)
 
 ### Harness System (`docs/harness.md`)
 
-The behavior-shaping layer, markdown-first. Context graph (content/entity/fact), three-tier skill catalog (atoms / molecules / compounds), agent loop, student memory, eval harness. Skills, contracts, artifacts, and hook definitions are inspectable and diffable markdown. Provider-agnostic: the same skill files run under Sonnet today and under the Qwen finetune tomorrow.
+The behavior-shaping layer, markdown-first. Context graph (content/entity/fact), three-tier skill catalog (atoms / molecules / compounds), agent loop, student memory, eval harness. Skills, contracts, artifacts, and hook definitions are inspectable and diffable markdown. The catalog is provider-agnostic; the abandoned Qwen fine-tune was one historical consumer, not the current plan.
 
 Entry point: [`docs/harness.md`](harness.md) | Skills: [`docs/harness/skills/`](harness/skills/)
 

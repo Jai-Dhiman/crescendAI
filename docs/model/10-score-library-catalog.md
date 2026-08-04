@@ -156,7 +156,7 @@ is the input for a deferred cleanliness pass. Full history in memory
 > fingerprints whole-piece chroma recall collapses (opening 80%→44%), so **real
 > shipped recall is ~44–62%, not 94%** (production queries the live ~1,200-note
 > buffer ≈ mid-piece → ~50–60% honest expectation). Fix SHIPPED to branch
-> `issue-96-autoresearch` (UNMERGED, deploy-gated): an **additive hybrid shortlist**
+> `issue-96-autoresearch` (merged as `d26a80ab`, deploy-gated): an **additive hybrid shortlist**
 > (whole-piece top-20 ∪ windowed top-K, 400-note windows) — recall-only, the
 > certified gate + golden parity fixture untouched (`cargo test` 28/0). Recovers
 > full-piece opening to ~57–62% but **ceilings ~62%** (12-dim-chroma limit; breaking

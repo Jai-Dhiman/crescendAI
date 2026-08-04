@@ -229,10 +229,6 @@ train-sweep:
 train-sweep-local:
     cd model && uv run python -m model_improvement.a1_max_sweep --top-n-configs 1 --num-workers 4
 
-# Stamp A1-Max baseline diagnostics into all Wave 1 plan files (run after either sweep)
-stamp-baseline:
-    cd model && uv run python scripts/stamp_baseline_diagnostics.py
-
 # Run API type check
 check-api:
     cd apps/api && bun run typecheck

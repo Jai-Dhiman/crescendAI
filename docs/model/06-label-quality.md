@@ -1,6 +1,6 @@
 # Label Quality Under Solo-Dev Constraints
 
-> Last updated: 2026-04-20
+> **Status (2026-08-02):** The 2026 model-v2 reweighting infrastructure shipped, but its gated sweeps never ran before that program closed. This document now owns label-quality policy for #139's 2027–28 annotation program: preserve rater disagreement, separate diagnosis from pedagogy, and freeze split and adjudication rules before collection.
 
 This doc is the canonical treatment of label noise, rater drift, and the
 explicit decisions we're making about which noise we accept vs measure vs fix.
@@ -22,9 +22,9 @@ It is not a plan — it is the stable reference the plans cite.
 - **Coverage.** 3 pieces limits piece-stratified CV to 3 folds. Dangerously few
   for claims about generalization, so we report per-piece pairwise alongside
   overall pairwise and flag regressions on any single piece.
-- **Our status.** Sole source of per-dimension supervision. Promoted from 20%
-  of training mix to 30–35% per
-  `docs/plans/2026-04-20-percepiano-anchor-emphasis.md`.
+- **Our status.** Historical sole source of per-dimension supervision. The
+  30–35% reweighting infrastructure shipped, but the sweep never established a
+  winning ratio.
 
 ### T2 — Competition placements (ordinal, scalar)
 
@@ -77,9 +77,8 @@ and route around the lack of per-dim signal:
 - Heteroscedastic σ tells the harness per-session whether the 6-vector
   actually carries 6-dim information or is effectively a scalar.
 
-This decision is revisited if and only if external annotators become available
-(partnership program in year 2, see
-`docs/plans/2026-04-20-model-year-roadmap.md`).
+This decision is revisited only through #139's ethics-approved expert-annotation
+program, with agreement and adjudication measured before scale-up.
 
 ### Expert-annotated practice set is also deferred
 
@@ -101,7 +100,7 @@ per-dim labels exist.
 
 ---
 
-## Fixes landing this quarter (Q2 2026)
+## Historical Q2 2026 fixes
 
 ### Fix #1 — Preserve PercePiano rater variance
 
@@ -153,11 +152,9 @@ of aggregated variance.
 
 ---
 
-## Not in this doc
+## Related decisions
 
-- The *plan* for lifting PercePiano's training weight → see
-  `docs/plans/2026-04-20-percepiano-anchor-emphasis.md`.
-- The *plan* for heteroscedastic σ → see
-  `docs/plans/2026-04-20-heteroscedastic-heads.md`.
-- The dimension-collapse measurement details → see
+- The former PercePiano-emphasis and heteroscedastic-head sweeps never ran;
+  their program was closed before producing evidence.
+- The dimension-collapse measurement details live in
   `docs/model/08-uncertainty-and-diagnostics.md`.

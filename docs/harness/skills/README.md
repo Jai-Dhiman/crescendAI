@@ -20,7 +20,7 @@ Chain 2-10 atoms with explicit when-to-invoke instructions. **Minimize runtime a
 
 Each molecule is one pedagogical move -- what we were previously calling an "atomic pedagogical skill." The correction from *Skill Graphs 2*: these are chains of atoms, not atoms themselves. Voicing diagnosis reads baseline, computes velocity balance, compares to reference percentile, fetches similar past observation, proposes finding. That is a chain, not a primitive.
 
-**Examples:** `voicing-diagnosis`, `pedal-triage`, `rubato-coaching`, `phrasing-arc-analysis`, `tempo-stability-triage`, `dynamic-range-audit`, `articulation-clarity-check`, `exercise-proposal`, `cross-modal-contradiction-check`.
+**Examples:** `voicing-diagnosis`, `pedal-triage`, `rubato-coaching`, `phrasing-arc-analysis`, `tempo-stability-triage`, `dynamic-range-audit`, `cross-modal-contradiction-check`.
 
 ### Compounds (`compounds/`)
 High-level orchestrators. Run multiple molecules. One compound per hook (event or schedule). Grant the agent meaningful autonomy within a defined scope. Expected target size: 3-5 files.
@@ -39,8 +39,8 @@ Every atom must be solid; every molecule must chain dependably; every compound m
 ### Leverage (operator brain RAM)
 The human operator's limiting resource is brain RAM -- the capacity to context-switch across parallel agent threads. Driving atoms wastes that capacity. Driving compounds multiplies output: one compound spans ~10 molecules, spans ~50-100 atomic units of work. For CrescendAI this means the student-facing surface should be at the compound level (sessions, weekly reviews), not at the atom level (raw signals).
 
-### Training (Qwen finetune target)
-Molecules are the natural training target. Each molecule has a precise input-output spec and an unambiguous eval signal -- the prerequisite for per-skill reward functions in atomic RL. Composite compound-level training would overfit to task structure; atom-level training is too narrow to capture pedagogical reasoning.
+### Evaluation and future training
+Molecules expose precise input-output contracts and per-skill evaluation signals. The abandoned Qwen program once treated them as a fine-tuning target; any future training use must pass the benchmark and verifier gates in #139.
 
 ---
 

@@ -2,7 +2,7 @@
 name: prioritize-diagnoses
 tier: atom
 description: |
-  Ranks a list of DiagnosisArtifacts by severity, then confidence, then dimension priority. fires when session-synthesis selects top-N focus areas. fires when weekly-review surfaces dominant patterns. fires when live-practice-companion picks which diagnosis to surface first. fires when exercise-proposal needs diagnosis ranking to pick which to address. fires when prioritize ranking is needed for any compound aggregation. does NOT fire on a single diagnosis (no ordering needed). does NOT call other skills.
+  Ranks a list of DiagnosisArtifacts by severity, then confidence, then dimension priority. fires when session-synthesis selects top-N focus areas. fires when weekly-review surfaces dominant patterns. fires when live-practice-companion picks which diagnosis to surface first. fires when exercise routing needs diagnosis ranking to pick which issue to address. fires when prioritize ranking is needed for any compound aggregation. does NOT fire on a single diagnosis (no ordering needed). does NOT call other skills.
 dimensions: [dynamics, timing, pedaling, articulation, phrasing, interpretation]
 reads:
   signals: 'list of DiagnosisArtifact objects passed in by caller (not from cache)'

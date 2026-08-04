@@ -9,6 +9,11 @@ Stages:
     extract-moonbeam  -- points at moonbeam_extract_script.py, which must run
                           under the isolated MoonBeam venv (see that file's
                           docstring)
+    features37        -- write the #137 37-feature vectors into
+                          emb/features37/ so `eval` scores the hand-feature
+                          baseline through the SAME folds as the encoder arms
+                          (offline: reads tk_ablation.py's feature cache, no
+                          MIDI parsing, no model)
     eval              -- composer-disjoint tau-c for whichever backbone(s)
                           have extracted embeddings under
                           --data-root/results/bakeoff/emb/{backbone}/
@@ -30,8 +35,14 @@ from claim_measurement.difficulty.bakeoff_cv import oof_tau_ridge
 from claim_measurement.difficulty.bakeoff_npz import read_embedding_npz
 from claim_measurement.difficulty.bakeoff_paths import resolve_paths
 from claim_measurement.difficulty.bakeoff_sampling import (
+    ManifestEntry,
     composer_stratified_sample,
     load_bakeoff_manifest,
+)
+from claim_measurement.difficulty.extract import extract_embeddings
+from claim_measurement.difficulty.features37_backbone import (
+    CachedFeature37Backbone,
+    load_feature37_cache,
 )
 
 N_FOLDS = 5
@@ -45,6 +56,28 @@ def _stage_sample(paths, target_n: int) -> None:
     out = paths.emb_root / "sample_manifest.json"
     out.write_text(json.dumps([e.__dict__ for e in sample], indent=2))
     print(f"sampled {len(sample)}/{len(entries)} eligible pieces -> {out}")
+
+
+def _stage_features37(paths) -> None:
+    """Score-ready feature arm: one .npz per sampled piece holding the 37
+    cached hand features, written through the same extract_embeddings path the
+    encoder arms used so grades, composer ids, and the .npz contract are
+    identical by construction."""
+    sample = json.loads((paths.emb_root / "sample_manifest.json").read_text())
+    entries = [ManifestEntry(**e) for e in sample]
+    backbone = CachedFeature37Backbone(
+        by_key=load_feature37_cache(paths.feature37_cache),
+        seg_id_to_key={e.seg_id: e.key for e in entries},
+    )
+    report = extract_embeddings(
+        backbone, entries,
+        midi_dir=paths.transkun_mid_dir,
+        out_dir=paths.emb_root / "emb" / "features37",
+        composer_index_path=paths.emb_root / "composer_index.json")
+    print(f"features37: ok={report.ok} skipped={report.skipped} "
+          f"failed={len(report.failed)}")
+    for failure in report.failed[:10]:
+        print(f"  fail {failure}")
 
 
 def _stage_eval(paths) -> dict:
@@ -77,7 +110,9 @@ def _stage_eval(paths) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--stage", required=True, choices=["sample", "extract-aria", "extract-moonbeam", "eval"])
+    ap.add_argument("--stage", required=True,
+                    choices=["sample", "extract-aria", "extract-moonbeam",
+                             "features37", "eval"])
     ap.add_argument("--data-root", type=Path, default=None)
     ap.add_argument("--target-n", type=int, default=900)
     args = ap.parse_args(argv)
@@ -91,6 +126,8 @@ def main(argv: list[str] | None = None) -> int:
               "+ claim_measurement.difficulty.extract.extract_embeddings directly (see design spec)")
     elif args.stage == "extract-moonbeam":
         print("Run under the isolated MoonBeam venv: see moonbeam_extract_script.py's module docstring")
+    elif args.stage == "features37":
+        _stage_features37(paths)
     elif args.stage == "eval":
         print(json.dumps(_stage_eval(paths), indent=2))
     return 0

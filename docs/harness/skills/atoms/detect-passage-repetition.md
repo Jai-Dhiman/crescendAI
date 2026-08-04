@@ -2,7 +2,7 @@
 name: detect-passage-repetition
 tier: atom
 description: |
-  Detects whether the same score bar range was practiced multiple times in close temporal succession within a session. fires when session-synthesis aggregates per-passage attempts. fires when exercise-proposal checks if the student is already drilling a passage. fires when live-practice-companion identifies repeated trouble spots. fires when weekly-review counts repetitions across sessions. fires when piece-onboarding observes practice strategy. does NOT fire across sessions (use session-history for that). does NOT call other skills.
+  Detects whether the same score bar range was practiced multiple times in close temporal succession within a session. fires when session-synthesis aggregates per-passage attempts. fires when exercise routing checks if the student is already drilling a passage. fires when live-practice-companion identifies repeated trouble spots. fires when weekly-review counts repetitions across sessions. fires when piece-onboarding observes practice strategy. does NOT fire across sessions (use session-history for that). does NOT call other skills.
 dimensions: [dynamics, timing, pedaling, articulation, phrasing, interpretation]
 reads:
   signals: 'score-alignment entries within a session, grouped by chunk_id and timestamped'

@@ -5,24 +5,21 @@
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare_Workers-F38020?logo=cloudflare&logoColor=white)
 ![HuggingFace](https://img.shields.io/badge/HuggingFace-yellow?logo=huggingface)
 [![MuQ](https://img.shields.io/badge/MuQ-6366f1)](https://github.com/tencent-ailab/MuQ)
-[![Aria](https://img.shields.io/badge/Aria_650M-8b5cf6)](https://github.com/EleutherAI/aria)
 ![License](https://img.shields.io/badge/license-CC--BY--NC--4.0-blue)
 
 # CrescendAI
 
 **A teacher for every pianist.**
 
-Multi-platform (iOS + web) practice companion that evaluates *how* a piano performance sounds -- dynamics, timing, pedaling, articulation, phrasing, interpretation -- not just note accuracy like MIDI-based apps. A finetuned MuQ audio foundation model scores 6 teacher-grounded dimensions from audio alone. A two-stage LLM pipeline (fast subagent analysis + quality teacher delivery) turns those scores into one actionable observation per practice moment.
+Pre-beta, local-first iOS and web practice companion for evidence-backed piano feedback. The current inference path combines a frozen public MuQ checkpoint with separately trained A1-Max heads for six research scores, plus Transkun transcription and symbolic score alignment. The V6 harness turns those signals into one actionable observation and preserves uncertainty rather than treating any model score as ground truth.
 
-## Key Result
+## Historical Model Benchmark
 
 **79.85% pairwise accuracy** on PercePiano benchmark (A1-Max, 4-fold piece-stratified CV, clean folds)
 
 | Encoder | Type | Pairwise Accuracy | Notes |
 |---------|------|-------------------|-------|
-| A1-Max (4-fold ensemble) | Audio | 79.85% | MuQ + LoRA rank-32, ListMLE+CCC. Deployed on HF endpoint |
-| Aria (frozen, Phase A) | Symbolic | 59.6% | 650M params, error correlation phi=0.043 vs MuQ -- strong fusion signal |
-| Aria (LoRA, Phase C -- T1) | Symbolic | 69.9% | 650M + LoRA rank-32 (layers 8-15), 4-fold clean folds. Beats frozen probe (+10.3pts); lower bound on AMT timbre proxy (#78) |
+| A1-Max (4-fold ensemble) | Audio | 79.85% | Historical clean-fold training result; the current loader serves stock MuQ plus the saved heads, not the fine-tuned backbone |
 
 > **Fold integrity note:** Earlier results (80.8%, S2 GNN 71.3%) were computed with leaked folds where segments from the same piece appeared in both train and val splits. Those numbers are invalid. All current results use piece-stratified CV only.
 
@@ -63,13 +60,13 @@ Multi-platform (iOS + web) practice companion that evaluates *how* a piano perfo
 
 | Component | Details |
 |-----------|---------|
-| Cloud inference | HF Inference Endpoint -- A1-Max 4-fold ensemble (MuQ audio scoring) |
-| AMT | Cloudflare Containers + ONNX Runtime CPU (Aria-AMT, MAESTRO F1 0.86) |
+| Audio scoring | A1-Max inference code loads the frozen `OpenMuQ/MuQ-large-msd-iter` checkpoint plus four trained heads |
+| AMT | Transkun transcription service in `apps/inference/amt/`; production deployment remains deferred |
 | iOS app | SwiftUI, AVAudioEngine, SwiftData (local-first) |
 | Web app | TanStack Start (`crescend.ai`) -- chat, recording, real-time observations via WebSocket |
 | API backend | TypeScript/Hono on Cloudflare Workers (`api.crescend.ai`) -- inference proxy, SessionBrain DO, two-stage LLM pipeline, score following |
-| LLM pipeline | Two AI Gateways: `crescendai-teacher` (Anthropic) + `crescendai-background` (Workers AI). Post-session synthesis via SessionAccumulator. |
-| Score following | Onset+pitch DTW aligning AMT output to score MIDI -- feedback references bar numbers, not timestamps |
+| LLM pipeline | V6 two-phase harness on Workers AI, with Anthropic retained as a selectable provider. Post-session synthesis runs through SessionBrain. |
+| Score following | Transkun notes aligned against a known score; #133 is validating the follower on real audio before it becomes the trusted ruler |
 | Storage | PlanetScale Postgres + Drizzle ORM (via Hyperdrive), R2 (audio chunks), Durable Objects (practice sessions + WebSocket) |
 | Auth | better-auth -- Sign in with Apple + Google |
 
@@ -81,7 +78,7 @@ apps/api/          TypeScript/Hono API Worker (Cloudflare Workers)
 apps/web/          TanStack Start web practice companion (React, Tailwind CSS v4)
 apps/inference/    HuggingFace inference handler (MuQ) + AMT server (CF Containers)
 evals/             E2E pipeline evaluation infrastructure (teaching quality, synthesis eval)
-model/             PyTorch Lightning training pipeline (MuQ + Aria)
+model/             Research pipelines, evaluation harnesses, and historical MuQ/Aria experiments
 docs/              Architecture and documentation
   docs/apps/       Apps layer (status, product vision, pipeline, memory, exercises, UI)
   docs/model/      ML layer (research timeline, data, taxonomy, encoders, north star)

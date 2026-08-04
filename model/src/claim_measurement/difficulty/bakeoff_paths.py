@@ -20,6 +20,7 @@ class BakeoffPaths:
     labels: Path
     transkun_mid_dir: Path
     emb_root: Path
+    feature37_cache: Path
 
 
 def resolve_paths(data_root: Path | None = None) -> BakeoffPaths:
@@ -29,4 +30,5 @@ def resolve_paths(data_root: Path | None = None) -> BakeoffPaths:
         labels=root / "raw" / "psyllabus" / "new_clean_data.json",
         transkun_mid_dir=root / "results" / "amt_gap_curve" / "transkun_mid",
         emb_root=root / "results" / "bakeoff",
+        feature37_cache=root / "results" / "mirex_137_tk_features.json",
     )
