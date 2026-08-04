@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
-# Slow mechanical layer: typecheck and tests for the scopes actually touched by
-# the pushed range. Fires rarely (this repo merges locally), so it runs the full
-# recipes rather than a staged subset.
+# Push-time mechanical layer.
+#
+# Blocking by default: only the checks that are fast AND currently green.
+# Measured 2026-08-04 on main -- the scope suites are neither:
+#   just check-api   FAILS (20 tsc errors across 14 files)
+#   just lint-api    FAILS (226 biome errors across 161 files)
+#   just test-model  ~10 minutes (865 tests)
+# A gate that is red before you touch anything cannot tell your regression from
+# the pre-existing debt, and one that costs ten minutes gets bypassed until it
+# means nothing. Same promotion ramp as docs/standards/rules.json: run them
+# on demand, promote each to blocking once it is green.
+#
+# Full run:    CRESCENDAI_FULL_PREPUSH=1 git push
 # Break glass: git push --no-verify
 set -uo pipefail
 
@@ -28,15 +38,26 @@ fail=0
 python3 scripts/standards_check.py --all || fail=1
 uv run --no-project --with pytest pytest scripts/test_standards_check.py -q || fail=1
 
-if touched '^apps/api/'; then
-    just check-api || fail=1
-    just test-api || fail=1
-fi
-if touched '^apps/web/'; then
-    just check-web || fail=1
-fi
-if touched '^(model|apps/inference)/'; then
-    just test-model || fail=1
+if [ "${CRESCENDAI_FULL_PREPUSH:-0}" = "1" ]; then
+    if touched '^apps/api/'; then
+        just check-api || fail=1
+        just test-api || fail=1
+    fi
+    if touched '^apps/web/'; then
+        just check-web || fail=1
+    fi
+    if touched '^(model|apps/inference)/'; then
+        just test-model || fail=1
+    fi
+else
+    scopes=""
+    touched '^apps/api/' && scopes="$scopes check-api test-api"
+    touched '^apps/web/' && scopes="$scopes check-web"
+    touched '^(model|apps/inference)/' && scopes="$scopes test-model"
+    if [ -n "$scopes" ]; then
+        echo "pre-push: skipping$scopes (not yet blocking -- see the header)."
+        echo "          run them with: CRESCENDAI_FULL_PREPUSH=1 git push"
+    fi
 fi
 
 if [ "$fail" -ne 0 ]; then
