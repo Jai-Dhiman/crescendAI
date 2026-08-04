@@ -28,6 +28,10 @@ TEXT_SUFFIXES = {
 }
 TEXT_NAMES = {"justfile", "makefile"}  # compared lowercased
 
+# This file's fixtures deliberately contain violations of every rule below, so
+# scanning it would report the test data as findings.
+FIXTURE_EXEMPT = {"scripts/test_standards_check.py"}
+
 
 class Finding:
     def __init__(
@@ -59,6 +63,8 @@ def tracked_files(mode: str) -> list[Path]:
     paths = []
     for name in out.splitlines():
         p = REPO_ROOT / name
+        if name in FIXTURE_EXEMPT:
+            continue
         if (p.suffix in TEXT_SUFFIXES or p.name.lower() in TEXT_NAMES) and p.is_file():
             paths.append(p)
     return paths
@@ -73,7 +79,7 @@ def read_lines(path: Path) -> list[str]:
 
 # --- mechanical checks -------------------------------------------------------
 
-MIGRATE_RE = re.compile(r"(?:^|&&|\|\||;|\$)\s*bun\s+run\s+migrate\b", re.MULTILINE)
+MIGRATE_RE = re.compile(r"bun\s+run\s+migrate\b")
 # apps/api/package.json defines the script itself; the justfile recipe is the
 # production path and is human-lit by policy.
 # Compared lowercased; the tracked file is "Justfile".
@@ -88,7 +94,8 @@ def check_bare_migrate(files: list[Path], rules: dict) -> list[Finding]:
         if rel.lower() in MIGRATE_EXEMPT:
             continue
         for i, line in enumerate(read_lines(path), 1):
-            if MIGRATE_RE.search(line) and "DATABASE_URL" not in line:
+            m = MIGRATE_RE.search(line)
+            if m and not in_prose(line, m.start()) and "DATABASE_URL" not in line:
                 findings.append(
                     Finding(
                         "OPS-001",
@@ -104,11 +111,18 @@ def check_bare_migrate(files: list[Path], rules: dict) -> list[Finding]:
     return findings
 
 
-# Only match in command position: start of line, or right after a shell separator.
-# Prose *about* the rule ("`uv run --with X` mutates the venv") is not a footgun;
-# a copy-pasteable command is.
-UV_RUN_RE = re.compile(r"(?:^|&&|\|\||;|\$)\s*(uv\s+run\b[^\n&|;]*)", re.MULTILINE)
+# A copy-pasteable command is a footgun; prose *about* the rule is not. The
+# discriminator is the character immediately before the match: quoting it
+# ("`uv run --with X` mutates the venv") marks it as a mention, not an
+# instruction. Anchoring on shell separators instead would miss the common
+# docstring form `"""Run: uv run --with pytest ..."""`.
+QUOTE_CHARS = "`'\""
+UV_RUN_RE = re.compile(r"(uv\s+run\b[^\n&|;`'\"]*)")
 CD_RE = re.compile(r"\bcd\s+([\w./\-]+)")
+
+
+def in_prose(line: str, start: int) -> bool:
+    return start > 0 and line[start - 1] in QUOTE_CHARS
 
 
 def uv_project_dirs() -> set[str]:
@@ -136,7 +150,7 @@ def check_uv_run_isolation(files: list[Path], rules: dict) -> list[Finding]:
         rel = path.relative_to(REPO_ROOT).as_posix()
         for i, line in enumerate(read_lines(path), 1):
             m = UV_RUN_RE.search(line)
-            if not m:
+            if not m or in_prose(line, m.start(1)):
                 continue
             cmd = m.group(1)
             # The rule only bites where uv actually resolves a project: either the
@@ -261,10 +275,7 @@ def main() -> int:
         findings.extend(CHECKS[check_name](files, rules))
 
     def is_blocking(f: Finding) -> bool:
-        return (
-            f.rule_id == "META-001"
-            or rules.get(f.rule_id, {}).get("status") == "enforced"
-        )
+        return rules.get(f.rule_id, {}).get("status") == "enforced"
 
     blocking = [f for f in findings if is_blocking(f)]
     advisory = [f for f in findings if not is_blocking(f)]

@@ -354,6 +354,10 @@ lint-web:
 check-standards:
     python3 scripts/standards_check.py --all
 
+# Regression tests for the standards checks themselves
+test-standards:
+    uv run --no-project --with pytest pytest scripts/test_standards_check.py -q
+
 # Point git at the version-controlled hooks in .githooks/ (run once per clone)
 install-hooks:
     git config core.hooksPath .githooks

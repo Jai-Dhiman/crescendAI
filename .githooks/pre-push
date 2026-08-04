@@ -26,6 +26,7 @@ touched() { printf '%s\n' "$changed" | grep -qE "$1"; }
 
 fail=0
 python3 scripts/standards_check.py --all || fail=1
+uv run --no-project --with pytest pytest scripts/test_standards_check.py -q || fail=1
 
 if touched '^apps/api/'; then
     just check-api || fail=1
