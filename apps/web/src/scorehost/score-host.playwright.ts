@@ -59,14 +59,37 @@ test("ScoreHost play_passage renders clip and fires playback event", async ({
 		{ timeout: 5000 },
 	);
 
-	await page.evaluate(async () => {
-		await (window as any).ScoreHost.load("czerny-op299-no1");
-	});
+	// No preloading: renderPlayPassage resolves the piece itself and calls
+	// ensureLoaded, so this exercises the whole path an iOS artifact takes.
+	//
+	// play_passage carries a sessionId, never a pieceId (#150). resolvePieceId
+	// fetches the passage manifest to turn one into the other, so the manifest
+	// endpoint has to answer for the artifact to render at all.
+	let manifestHit = false;
+	await page.route(
+		"**/api/sessions/sess_playpassage/passage*",
+		async (route) => {
+			manifestHit = true;
+			await route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({
+					source: { kind: "session", sessionId: "sess_playpassage" },
+					pieceId: "chopin-nocturne-op9-no2",
+					bars: [1, 4],
+					chunks: [],
+					startOffsetSec: 0,
+					endOffsetSec: 15,
+					barTimeline: [{ bar: 1, tSec: 0 }],
+				}),
+			});
+		},
+	);
 
 	const artifactJson = JSON.stringify({
 		type: "play_passage",
 		config: {
-			pieceId: "czerny-op299-no1",
+			sessionId: "sess_playpassage",
 			bars: [1, 4],
 			dimension: "dynamics",
 			annotation: "Keep steady pulse here",
@@ -76,6 +99,9 @@ test("ScoreHost play_passage renders clip and fires playback event", async ({
 	await page.evaluate(async (json: string) => {
 		await (window as any).ScoreHost.showArtifact(json);
 	}, artifactJson);
+
+	// The piece must have been resolved through the manifest, not read off config.
+	expect(manifestHit).toBe(true);
 
 	// Clip SVG should render
 	await page.waitForSelector("svg use", { timeout: 15000 });
