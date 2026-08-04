@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
+import type { Bindings, Db, Variables } from "../lib/types";
 import { errorHandler } from "../middleware/error-handler";
 import * as exercisesService from "../services/exercises";
 import { exercisesRoutes } from "./exercises";
@@ -12,10 +13,10 @@ const noAuthApp = new Hono()
 	.route("/api/exercises", exercisesRoutes);
 
 function makeAuthApp(studentId: string) {
-	return new Hono()
+	return new Hono<{ Bindings: Bindings; Variables: Variables }>()
 		.use("*", async (c, next) => {
 			c.set("studentId", studentId);
-			c.set("db", {} as never);
+			c.set("db", {} as unknown as Db);
 			await next();
 		})
 		.onError(errorHandler)

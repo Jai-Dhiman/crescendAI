@@ -756,7 +756,7 @@ const noopOpenAITool = async (_name: string, _input: unknown) => ({
 // Tool processor that returns a fake component for "prescribe_exercise".
 const exerciseTool = async (name: string, _input: unknown) => ({
 	name,
-	componentsJson: [{ type: "exercise_card", data: { id: "ex-1" } }],
+	componentsJson: [{ type: "exercise_card", config: { id: "ex-1" } }],
 	isError: false as const,
 });
 

@@ -1,6 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
-import { segmentLoops } from "../db/schema/segment-loops";
-import type { SEGMENT_LOOP_STATUSES } from "../db/schema/segment-loops";
+import { SEGMENT_LOOP_STATUSES, segmentLoops } from "../db/schema/segment-loops";
 import { ConflictError, NotFoundError, ValidationError } from "../lib/errors";
 import { DIMS_6 } from "../lib/dims";
 import type { Db } from "../lib/types";

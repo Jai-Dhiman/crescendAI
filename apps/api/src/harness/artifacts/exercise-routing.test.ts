@@ -89,7 +89,7 @@ describe("ExerciseRoutingDecisionSchema — corpus_drill", () => {
     const { primitive_id: _omitted, ...drillWithoutPrimitiveId } = validDrill;
     const result = ExerciseRoutingDecisionSchema.safeParse(drillWithoutPrimitiveId);
     expect(result.success).toBe(true);
-    if (result.success) {
+    if (result.success && result.data.kind === "corpus_drill") {
       expect(result.data.primitive_id).toBeNull();
     }
   });

@@ -1,7 +1,7 @@
 import type { ZodTypeAny } from "zod";
-import { DiagnosisArtifactSchema, type DiagnosisArtifact } from "./diagnosis";
-import { SynthesisArtifactSchema, type SynthesisArtifact } from "./synthesis";
-import { SegmentLoopArtifactSchema, type SegmentLoopArtifact } from "./segment-loop";
+import { DiagnosisArtifactSchema } from "./diagnosis";
+import { SynthesisArtifactSchema } from "./synthesis";
+import { SegmentLoopArtifactSchema } from "./segment-loop";
 
 export { DiagnosisArtifactSchema, type DiagnosisArtifact } from "./diagnosis";
 export { SynthesisArtifactSchema, type SynthesisArtifact } from "./synthesis";

@@ -1,7 +1,6 @@
 // apps/api/src/services/inference.test.ts
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Bindings } from "../lib/types";
-import type { MuqResult } from "./inference";
 
 const VALID_SCORES = {
   dynamics: 0.6,
