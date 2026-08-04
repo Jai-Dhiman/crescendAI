@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LoopPlayer } from "../lib/loop-player";
-import type { ClipNote } from "../lib/score-worker";
 import type { ScoreIR } from "../lib/score-ir";
+import type { ClipNote } from "../lib/score-worker";
 
 export interface UseLoopPlayerConfig {
 	clipIR: ScoreIR | null;
@@ -23,7 +23,9 @@ export interface UseLoopPlayerReturn {
 	qstampSource: () => number | null;
 }
 
-export function useLoopPlayer(config: UseLoopPlayerConfig): UseLoopPlayerReturn {
+export function useLoopPlayer(
+	config: UseLoopPlayerConfig,
+): UseLoopPlayerReturn {
 	const playerRef = useRef<LoopPlayer | null>(null);
 	const [isPlaying, setIsPlaying] = useState(false);
 	const [isCounting, setIsCounting] = useState(false);
@@ -80,32 +82,35 @@ export function useLoopPlayer(config: UseLoopPlayerConfig): UseLoopPlayerReturn 
 		});
 		setIsPlaying(false);
 		setIsCounting(false);
-	// eslint-disable-next-line react-hooks/exhaustive-deps
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [config.clipIR, config.beatsPerBar, config.bpmAtUnity]);
 	// config.tempoFactor and config.clipNotes intentionally omitted from deps.
 
 	const play = useCallback(() => {
 		const player = playerRef.current;
 		if (!player) return;
-		player.play().then(() => {
-			setIsPlaying(true);
-			setIsCounting(player.state === "counting-in");
-			setAudioUnavailable(player.audioUnavailable);
-			// Poll until count-in ends (player transitions counting-in → playing).
-			// Interval clears itself once state moves past "counting-in".
-			if (player.state === "counting-in") {
-				countInWatcherRef.current = setInterval(() => {
-					if (playerRef.current?.state !== "counting-in") {
-						setIsCounting(false);
-						clearInterval(countInWatcherRef.current!);
-						countInWatcherRef.current = null;
-					}
-				}, 50);
-			}
-		}).catch((err: unknown) => {
-			console.error("[useLoopPlayer] play() failed:", err);
-			setAudioUnavailable(true);
-		});
+		player
+			.play()
+			.then(() => {
+				setIsPlaying(true);
+				setIsCounting(player.state === "counting-in");
+				setAudioUnavailable(player.audioUnavailable);
+				// Poll until count-in ends (player transitions counting-in → playing).
+				// Interval clears itself once state moves past "counting-in".
+				if (player.state === "counting-in") {
+					countInWatcherRef.current = setInterval(() => {
+						if (playerRef.current?.state !== "counting-in") {
+							setIsCounting(false);
+							clearInterval(countInWatcherRef.current!);
+							countInWatcherRef.current = null;
+						}
+					}, 50);
+				}
+			})
+			.catch((err: unknown) => {
+				console.error("[useLoopPlayer] play() failed:", err);
+				setAudioUnavailable(true);
+			});
 	}, []);
 
 	const pause = useCallback(() => {
@@ -129,5 +134,15 @@ export function useLoopPlayer(config: UseLoopPlayerConfig): UseLoopPlayerReturn 
 		return playerRef.current?.qstampSource() ?? null;
 	}, []);
 
-	return { isPlaying, isCounting, audioUnavailable, tempoFactor, play, pause, stop, setTempoFactor, qstampSource };
+	return {
+		isPlaying,
+		isCounting,
+		audioUnavailable,
+		tempoFactor,
+		play,
+		pause,
+		stop,
+		setTempoFactor,
+		qstampSource,
+	};
 }

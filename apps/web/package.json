@@ -10,6 +10,7 @@
 		"build": "vite build",
 		"preview": "bun run build && vite preview",
 		"test": "vitest run",
+		"typecheck": "tsc --noEmit",
 		"build:scorehost": "vite build --config vite.config.scorehost.ts",
 		"test:scorehost": "playwright test --config playwright.scorehost.config.ts",
 		"lint": "biome check src/",

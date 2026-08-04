@@ -483,7 +483,7 @@ export default function AppChat() {
 							);
 							const renderableComponents = components.filter(
 								(c) => c.type !== "search_catalog_result",
-							) as import("../lib/types").InlineComponent[];
+							) as unknown as import("../lib/types").InlineComponent[];
 
 							setTransientMessages((prev) => {
 								const updated = [...prev];

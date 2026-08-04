@@ -17,7 +17,9 @@ vi.mock("../lib/api", () => ({
 	},
 }));
 
-const mockArtifact = vi.fn(() => null);
+const mockArtifact = vi.fn(
+	(_component: { type: string; config: unknown }) => null,
+);
 vi.mock("./Artifact", () => ({
 	Artifact: (props: {
 		component: { type: string; config: unknown };

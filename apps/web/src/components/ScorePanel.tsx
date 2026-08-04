@@ -2,6 +2,7 @@ import { ArrowLeft, MusicNote, X } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useIsMobile } from "../hooks/useDom";
 import { useMountEffect } from "../hooks/useFoundation";
+import type { MockSessionData } from "../lib/mock-session";
 import { DIMENSION_COLORS } from "../lib/mock-session";
 import { scoreRenderer } from "../lib/score-renderer";
 import { useScorePanelStore } from "../stores/score-panel";
@@ -232,9 +233,7 @@ export function ScorePanel() {
  */
 interface ScorePanelScoreProps {
 	pieceId: string;
-	sessionData: NonNullable<
-		ReturnType<typeof useScorePanelStore>["sessionData"]
-	> | null;
+	sessionData: MockSessionData | null;
 	observations: Array<{
 		dimension: string;
 		barRange?: [number, number];
@@ -247,7 +246,6 @@ interface ScorePanelScoreProps {
 
 function ScorePanelScore({
 	pieceId,
-	sessionData,
 	observations,
 	activeAnnotationIndex,
 	onAnnotationClick,

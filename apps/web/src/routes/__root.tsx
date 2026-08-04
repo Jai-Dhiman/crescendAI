@@ -52,10 +52,8 @@ const THEME_FLASH_SCRIPT = `(function(){var path=location.pathname;if(path==="/"
 function RootDocument() {
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const isAppShell = pathname === "/signin" || pathname.startsWith("/app");
-	const theme = useThemeStore((s) => s.theme);
 
 	const pathnameRef = useSyncRef(pathname);
-	const themeRef = useSyncRef(theme);
 
 	useEffect(() => {
 		function applyTheme() {

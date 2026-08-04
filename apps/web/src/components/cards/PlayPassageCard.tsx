@@ -1,11 +1,11 @@
 // apps/web/src/components/cards/PlayPassageCard.tsx
 import { useEffect, useRef, useState } from "react";
-import { ClipSvg } from "../ClipSvg";
 import { api } from "../../lib/api";
 import { DIMENSION_COLORS } from "../../lib/mock-session";
 import { PassagePlayer } from "../../lib/passage-player";
 import { scoreRenderer } from "../../lib/score-renderer";
 import type { PassageManifest, PlayPassageConfig } from "../../lib/types";
+import { ClipSvg } from "../ClipSvg";
 
 interface PlayPassageCardProps {
 	config: PlayPassageConfig;
@@ -89,7 +89,14 @@ export function PlayPassageCard({
 			ctxRef.current = null;
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [config.sessionId, config.bars[0], config.bars[1], _mockManifest, _mockClip, _playable]);
+	}, [
+		config.sessionId,
+		config.bars[0],
+		config.bars[1],
+		_mockManifest,
+		_mockClip,
+		_playable,
+	]);
 
 	const color =
 		DIMENSION_COLORS[config.dimension as keyof typeof DIMENSION_COLORS] ??

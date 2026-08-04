@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Artifact } from "../components/Artifact";
-import { ClipSvg } from "../components/ClipSvg";
 import { ArtifactOverlay } from "../components/ArtifactOverlay";
-import { SegmentLoopArtifactCard } from "../components/cards/SegmentLoopArtifact";
+import { ClipSvg } from "../components/ClipSvg";
 import { PlayPassageCard } from "../components/cards/PlayPassageCard";
+import { SegmentLoopArtifactCard } from "../components/cards/SegmentLoopArtifact";
 import { ArtifactScrollContext } from "../contexts/artifact-scroll";
 import { ScoreCursor } from "../lib/score-cursor";
 import { scoreRenderer } from "../lib/score-renderer";
@@ -139,7 +139,11 @@ const scoreHighlightLate: ScoreHighlightConfig = {
 	],
 };
 
-const keyboardGuide: KeyboardGuideConfig = {};
+const keyboardGuide: KeyboardGuideConfig = {
+	title: "C major scale, two octaves",
+	description: "Quarter = 72. Keep the thumb tuck even in both directions.",
+	hands: "both",
+};
 
 // ---------------------------------------------------------------------------
 // PlayPassage sandbox fixtures
@@ -180,7 +184,10 @@ const MOCK_CLIP_SVG: string = MOCK_SCORE_SVG;
 // Fake manifest — chunk URLs will 404, triggering the audio_error state
 // (score + annotation still render; play button shows "Audio unavailable").
 const MOCK_MANIFEST: PassageManifest = {
-	source: { kind: "session", sessionId: "00000000-0000-0000-0000-0000000000ff" },
+	source: {
+		kind: "session",
+		sessionId: "00000000-0000-0000-0000-0000000000ff",
+	},
 	pieceId: "chopin.ballades.1",
 	bars: [5, 8],
 	chunks: [
@@ -236,14 +243,16 @@ const ppTiming: PlayPassageConfig = {
 	bars: [5, 8],
 	focusBars: [6, 7],
 	dimension: "timing",
-	annotation: "You rushed through the triplets in bar 6 — try holding each beat a hair longer to let the phrase breathe.",
+	annotation:
+		"You rushed through the triplets in bar 6 — try holding each beat a hair longer to let the phrase breathe.",
 };
 
 const ppDynamics: PlayPassageConfig = {
 	sessionId: "00000000-0000-0000-0000-0000000000ff",
 	bars: [5, 8],
 	dimension: "dynamics",
-	annotation: "The crescendo in bars 5–8 barely registers. Aim for a two-level jump in arm weight from bar 6 to bar 8.",
+	annotation:
+		"The crescendo in bars 5–8 barely registers. Aim for a two-level jump in arm weight from bar 6 to bar 8.",
 };
 
 const ppPedaling: PlayPassageConfig = {
@@ -251,7 +260,8 @@ const ppPedaling: PlayPassageConfig = {
 	bars: [5, 8],
 	focusBars: [5, 6],
 	dimension: "pedaling",
-	annotation: "Harmonic change on beat 3 of bar 5 — the pedal needs to lift and re-engage there, not carry over.",
+	annotation:
+		"Harmonic change on beat 3 of bar 5 — the pedal needs to lift and re-engage there, not carry over.",
 };
 
 const ppPhrasing: PlayPassageConfig = {
@@ -259,7 +269,8 @@ const ppPhrasing: PlayPassageConfig = {
 	bars: [1, 8],
 	focusBars: [5, 8],
 	dimension: "phrasing",
-	annotation: "The phrase peak should land on the downbeat of bar 7, not bar 5. Right now the energy peaks too early and the second half collapses.",
+	annotation:
+		"The phrase peak should land on the downbeat of bar 7, not bar 5. Right now the energy peaks too early and the second half collapses.",
 };
 
 const ppLongAnnotation: PlayPassageConfig = {
@@ -267,7 +278,8 @@ const ppLongAnnotation: PlayPassageConfig = {
 	bars: [5, 8],
 	focusBars: [6, 7],
 	dimension: "interpretation",
-	annotation: "There is a subtle but important distinction between rubato as an ornament and rubato as the structural shaping of a phrase. What you are doing in bars 6 and 7 is ornamental — small fluctuations that feel decorative. The phrase wants structural rubato: a broad elastic pull across all four bars where the time stretches through bar 6 and snaps back cleanly at bar 8.",
+	annotation:
+		"There is a subtle but important distinction between rubato as an ornament and rubato as the structural shaping of a phrase. What you are doing in bars 6 and 7 is ornamental — small fluctuations that feel decorative. The phrase wants structural rubato: a broad elastic pull across all four bars where the time stretches through bar 6 and snaps back cleanly at bar 8.",
 };
 
 const ppFetchError: PlayPassageConfig = {
@@ -275,7 +287,8 @@ const ppFetchError: PlayPassageConfig = {
 	bars: [5, 8],
 	focusBars: [6, 7],
 	dimension: "timing",
-	annotation: "This session has no alignment data — card should show the fetch-error state.",
+	annotation:
+		"This session has no alignment data — card should show the fetch-error state.",
 };
 
 // ---------------------------------------------------------------------------
@@ -289,7 +302,8 @@ const scoreHighlightError: ScoreHighlightConfig = {
 		{
 			bars: [1, 4],
 			dimension: "dynamics",
-			annotation: "Score failed to load — annotation still renders below (no clip above)",
+			annotation:
+				"Score failed to load — annotation still renders below (no clip above)",
 		},
 	],
 };
@@ -307,7 +321,11 @@ const scoreHighlightNoAnnotation: ScoreHighlightConfig = {
 const scoreHighlightSingleBar: ScoreHighlightConfig = {
 	pieceId: "chopin.ballades.1",
 	highlights: [
-		{ bars: [8, 8], dimension: "phrasing", annotation: "Isolate bar 8 only — single-measure crop edge case" },
+		{
+			bars: [8, 8],
+			dimension: "phrasing",
+			annotation: "Isolate bar 8 only — single-measure crop edge case",
+		},
 	],
 };
 
@@ -315,7 +333,11 @@ const scoreHighlightSingleBar: ScoreHighlightConfig = {
 const scoreHighlightOutOfRange: ScoreHighlightConfig = {
 	pieceId: "chopin.ballades.1",
 	highlights: [
-		{ bars: [300, 310], dimension: "interpretation", annotation: "Bars beyond piece end — expect error or empty clip" },
+		{
+			bars: [300, 310],
+			dimension: "interpretation",
+			annotation: "Bars beyond piece end — expect error or empty clip",
+		},
 	],
 };
 
@@ -441,7 +463,11 @@ const exerciseOwnPassageLoop: ExerciseSetConfig = {
 const exerciseOwnPassageLoopDense: ExerciseSetConfig = {
 	sourcePassage: "Chopin Ballade No. 1, bars 36-43",
 	targetSkill: "Even voicing in the first theme",
-	scoreClip: { pieceId: "chopin.ballades.1", bars: [36, 43], tempoFactor: 0.75 },
+	scoreClip: {
+		pieceId: "chopin.ballades.1",
+		bars: [36, 43],
+		tempoFactor: 0.75,
+	},
 	exercises: [
 		{
 			title: "Loop bars 36-43 at 75% tempo",
@@ -467,11 +493,31 @@ const slBase: Omit<SegmentLoopConfig, "status" | "attemptsCompleted"> = {
 	dimension: "timing",
 };
 
-const slPending: SegmentLoopConfig = { ...slBase, status: "pending", attemptsCompleted: 0 };
-const slActive: SegmentLoopConfig = { ...slBase, status: "active", attemptsCompleted: 1 };
-const slCompleted: SegmentLoopConfig = { ...slBase, status: "completed", attemptsCompleted: 3 };
-const slDismissed: SegmentLoopConfig = { ...slBase, status: "dismissed", attemptsCompleted: 1 };
-const slSuperseded: SegmentLoopConfig = { ...slBase, status: "superseded", attemptsCompleted: 0 };
+const slPending: SegmentLoopConfig = {
+	...slBase,
+	status: "pending",
+	attemptsCompleted: 0,
+};
+const slActive: SegmentLoopConfig = {
+	...slBase,
+	status: "active",
+	attemptsCompleted: 1,
+};
+const slCompleted: SegmentLoopConfig = {
+	...slBase,
+	status: "completed",
+	attemptsCompleted: 3,
+};
+const slDismissed: SegmentLoopConfig = {
+	...slBase,
+	status: "dismissed",
+	attemptsCompleted: 1,
+};
+const slSuperseded: SegmentLoopConfig = {
+	...slBase,
+	status: "superseded",
+	attemptsCompleted: 0,
+};
 
 // --- Artifact IDs ---
 
@@ -800,9 +846,7 @@ function ScoreCursorPanel({ pieceId }: { pieceId: string }) {
 						const elapsedSec =
 							(performance.now() - playStartedAtRef.current) / 1000;
 						const raw = pausedOffsetRef.current + elapsedSec * QSTAMP_PER_SEC;
-						const q = maxQstampRef.current > 0
-							? raw % maxQstampRef.current
-							: 0;
+						const q = maxQstampRef.current > 0 ? raw % maxQstampRef.current : 0;
 						lastQstampRef.current = q;
 						// Find current bar for debug readout.
 						const bar = ir.bars.find(
@@ -819,9 +863,7 @@ function ScoreCursorPanel({ pieceId }: { pieceId: string }) {
 				const debugInterval = window.setInterval(() => {
 					const containerEl = containerRef.current;
 					if (!containerEl) return;
-					const overlay = containerEl.querySelector(
-						"svg.score-cursor-overlay",
-					);
+					const overlay = containerEl.querySelector("svg.score-cursor-overlay");
 					const line = overlay?.querySelector("line");
 					// The Verovio SVG is the first <svg> child that isn't our overlay.
 					const verovioSvg = Array.from(
@@ -830,8 +872,7 @@ function ScoreCursorPanel({ pieceId }: { pieceId: string }) {
 					setDebug({
 						q: lastQstampRef.current ?? Number.NaN,
 						lineX: line ? Number(line.getAttribute("x1") ?? "0") : -1,
-						lineVis:
-							(line?.getAttribute("visibility") as string | null) ?? "?",
+						lineVis: (line?.getAttribute("visibility") as string | null) ?? "?",
 						bar: lastBarRef.current,
 						overlayVB: overlay?.getAttribute("viewBox") ?? "?",
 						verovioVB: verovioSvg?.getAttribute("viewBox") ?? "?",
@@ -901,7 +942,8 @@ function ScoreCursorPanel({ pieceId }: { pieceId: string }) {
 					Reset
 				</button>
 				<span className="text-body-xs text-text-tertiary">
-					page-1 qstamp: 0 → {maxQstamp.toFixed(2)} (≈ {QSTAMP_PER_SEC}/sec, loops)
+					page-1 qstamp: 0 → {maxQstamp.toFixed(2)} (≈ {QSTAMP_PER_SEC}/sec,
+					loops)
 				</span>
 			</div>
 			<div className="font-mono text-body-xs text-text-tertiary whitespace-pre">
@@ -969,16 +1011,25 @@ function makeWavBlobUrl(durationSec: number, freqs: number[]): string {
 	const view = new DataView(buf);
 	const write4 = (pos: number, val: string) =>
 		[...val].forEach((c, i) => view.setUint8(pos + i, c.charCodeAt(0)));
-	write4(0, "RIFF"); view.setUint32(4, 36 + n * 2, true);
-	write4(8, "WAVE"); write4(12, "fmt ");
-	view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
-	view.setUint32(24, sr, true); view.setUint32(28, sr * 2, true);
-	view.setUint16(32, 2, true); view.setUint16(34, 16, true);
-	write4(36, "data"); view.setUint32(40, n * 2, true);
+	write4(0, "RIFF");
+	view.setUint32(4, 36 + n * 2, true);
+	write4(8, "WAVE");
+	write4(12, "fmt ");
+	view.setUint32(16, 16, true);
+	view.setUint16(20, 1, true);
+	view.setUint16(22, 1, true);
+	view.setUint32(24, sr, true);
+	view.setUint32(28, sr * 2, true);
+	view.setUint16(32, 2, true);
+	view.setUint16(34, 16, true);
+	write4(36, "data");
+	view.setUint32(40, n * 2, true);
 	for (let i = 0; i < n; i++) {
 		const t = i / sr;
 		const decay = Math.exp(-t * 2.5);
-		const amp = freqs.reduce((s, f) => s + Math.sin(2 * Math.PI * f * t), 0) / freqs.length;
+		const amp =
+			freqs.reduce((s, f) => s + Math.sin(2 * Math.PI * f * t), 0) /
+			freqs.length;
 		view.setInt16(44 + i * 2, Math.round(amp * decay * 28000), true);
 	}
 	return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
@@ -991,7 +1042,12 @@ interface PlayablePassageSectionProps {
 	audioError?: boolean;
 }
 
-function PlayablePassageSection({ artifactId, title, config, audioError }: PlayablePassageSectionProps) {
+function PlayablePassageSection({
+	artifactId,
+	title,
+	config,
+	audioError,
+}: PlayablePassageSectionProps) {
 	const [manifest, setManifest] = useState<PassageManifest | null>(null);
 
 	useEffect(() => {
@@ -1059,7 +1115,9 @@ function ArtifactSandbox() {
 					</div>
 
 					{/* ── SCORE ─────────────────────────────────────────────────── */}
-					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">Score</h2>
+					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">
+						Score
+					</h2>
 
 					{/* Full score — resizable, bars reflow on drag-end */}
 					<section className="border border-border rounded-xl bg-surface-card p-5 flex flex-col gap-4">
@@ -1106,11 +1164,11 @@ function ArtifactSandbox() {
 								Playback Cursor
 							</h2>
 							<p className="text-body-sm text-text-secondary mt-1">
-								Loads the piece, calls scoreRenderer.getIR(), and instantiates
-								a ScoreCursor with a synthetic qstampSource that sweeps page-1
+								Loads the piece, calls scoreRenderer.getIR(), and instantiates a
+								ScoreCursor with a synthetic qstampSource that sweeps page-1
 								qstamps. Play/Pause toggles whether qstampSource returns a
-								number or null (null hides the cursor). Reset restarts the
-								sweep at qstamp 0.
+								number or null (null hides the cursor). Reset restarts the sweep
+								at qstamp 0.
 							</p>
 						</div>
 						<ScoreCursorPanel pieceId="chopin.ballades.1" />
@@ -1173,7 +1231,10 @@ function ArtifactSandbox() {
 					>
 						<Artifact
 							artifactId={SANDBOX_IDS.scoreHighlightError}
-							component={{ type: "score_highlight", config: scoreHighlightError }}
+							component={{
+								type: "score_highlight",
+								config: scoreHighlightError,
+							}}
 						/>
 					</SandboxSection>
 
@@ -1183,7 +1244,10 @@ function ArtifactSandbox() {
 					>
 						<Artifact
 							artifactId={SANDBOX_IDS.scoreHighlightNoAnnotation}
-							component={{ type: "score_highlight", config: scoreHighlightNoAnnotation }}
+							component={{
+								type: "score_highlight",
+								config: scoreHighlightNoAnnotation,
+							}}
 						/>
 					</SandboxSection>
 
@@ -1193,7 +1257,10 @@ function ArtifactSandbox() {
 					>
 						<Artifact
 							artifactId={SANDBOX_IDS.scoreHighlightSingleBar}
-							component={{ type: "score_highlight", config: scoreHighlightSingleBar }}
+							component={{
+								type: "score_highlight",
+								config: scoreHighlightSingleBar,
+							}}
 						/>
 					</SandboxSection>
 
@@ -1203,12 +1270,17 @@ function ArtifactSandbox() {
 					>
 						<Artifact
 							artifactId={SANDBOX_IDS.scoreHighlightOutOfRange}
-							component={{ type: "score_highlight", config: scoreHighlightOutOfRange }}
+							component={{
+								type: "score_highlight",
+								config: scoreHighlightOutOfRange,
+							}}
 						/>
 					</SandboxSection>
 
 					{/* ── EXERCISES ─────────────────────────────────────────────── */}
-					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">Exercises</h2>
+					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">
+						Exercises
+					</h2>
 
 					<SandboxSection
 						title="ExerciseSet — with scoreClip + exerciseId"
@@ -1277,7 +1349,10 @@ function ArtifactSandbox() {
 					>
 						<Artifact
 							artifactId={SANDBOX_IDS.exerciseOwnPassageLoop}
-							component={{ type: "exercise_set", config: exerciseOwnPassageLoop }}
+							component={{
+								type: "exercise_set",
+								config: exerciseOwnPassageLoop,
+							}}
 						/>
 					</SandboxSection>
 
@@ -1287,12 +1362,17 @@ function ArtifactSandbox() {
 					>
 						<Artifact
 							artifactId={SANDBOX_IDS.exerciseOwnPassageLoopDense}
-							component={{ type: "exercise_set", config: exerciseOwnPassageLoopDense }}
+							component={{
+								type: "exercise_set",
+								config: exerciseOwnPassageLoopDense,
+							}}
 						/>
 					</SandboxSection>
 
 					{/* ── PLAYBACK ──────────────────────────────────────────────── */}
-					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">Playback</h2>
+					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">
+						Playback
+					</h2>
 
 					<SandboxSection
 						title="PlayPassage — timing, focusBars [6,7]"
@@ -1416,7 +1496,9 @@ function ArtifactSandbox() {
 					</SandboxSection>
 
 					{/* ── KEYBOARD ──────────────────────────────────────────────── */}
-					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">Keyboard</h2>
+					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">
+						Keyboard
+					</h2>
 
 					<SandboxSection
 						title="KeyboardGuide (placeholder)"
