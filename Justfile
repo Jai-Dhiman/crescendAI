@@ -312,7 +312,7 @@ eval-scenarios:
 
 # Test playbook YAML shape (apps/shared/teacher-style/)
 test-playbook-shape:
-    cd apps/shared/teacher-style && uv run --with pyyaml --with pytest pytest test_playbook_shape.py -v
+    cd apps/shared/teacher-style && uv run --no-project --with pyyaml --with pytest pytest test_playbook_shape.py -v
 
 # Compile apps/shared/teacher-style/playbook.yaml -> apps/api/src/lib/playbook.json
 compile-playbook:
@@ -349,6 +349,15 @@ lint-api:
 # Lint web (biome)
 lint-web:
     cd apps/web && bun run lint
+
+# Deterministic checks for the mechanical rules in docs/standards/rules.json
+check-standards:
+    python3 scripts/standards_check.py --all
+
+# Point git at the version-controlled hooks in .githooks/ (run once per clone)
+install-hooks:
+    git config core.hooksPath .githooks
+    @echo "installed: pre-commit (staged lint + standards), pre-push (typecheck + tests)"
 
 # Build dtw_chunk_cli release binary so chroma-eval-verify hits its 120s budget on warm cache.
 # Run once after a clean checkout; idempotent thereafter.

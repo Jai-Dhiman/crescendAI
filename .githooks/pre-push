@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Slow mechanical layer: typecheck and tests for the scopes actually touched by
+# the pushed range. Fires rarely (this repo merges locally), so it runs the full
+# recipes rather than a staged subset.
+# Break glass: git push --no-verify
+set -uo pipefail
+
+ROOT=$(git rev-parse --show-toplevel)
+cd "$ROOT"
+
+ZERO="0000000000000000000000000000000000000000"
+changed=""
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+    [ "$local_sha" = "$ZERO" ] && continue  # branch deletion
+    if [ "$remote_sha" = "$ZERO" ]; then
+        base=$(git merge-base main "$local_sha" 2>/dev/null || echo "$local_sha")
+    else
+        base="$remote_sha"
+    fi
+    changed="$changed"$'\n'$(git diff --name-only "$base" "$local_sha")
+done
+
+[ -z "$(printf '%s' "$changed" | tr -d '[:space:]')" ] && exit 0
+
+touched() { printf '%s\n' "$changed" | grep -qE "$1"; }
+
+fail=0
+python3 scripts/standards_check.py --all || fail=1
+
+if touched '^apps/api/'; then
+    just check-api || fail=1
+    just test-api || fail=1
+fi
+if touched '^apps/web/'; then
+    just check-web || fail=1
+fi
+if touched '^(model|apps/inference)/'; then
+    just test-model || fail=1
+fi
+
+if [ "$fail" -ne 0 ]; then
+    echo ""
+    echo "pre-push: blocked. Fix the failures above, or run 'git push --no-verify'."
+    exit 1
+fi
