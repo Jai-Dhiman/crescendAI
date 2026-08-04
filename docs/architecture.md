@@ -30,20 +30,19 @@
          +--+------+------+------+----+
             |      |      |      |
             v      v      v      v
-      +-------+ +-----+ +------+ +----+
-      | HF    | | WkAI| | Anth-| | D1 |
-      | Endpt | | API | | ropic| |    |
-      | (MuQ  | | sub-| | teach| | KV |
-      | A1-Max)| | agent| | er  | | R2 |
-      +-------+ +-----+ +------+ | DO |
-                                  +----+
+      +-------+ +-----+ +------+ +--------+
+      | HF    | | WkAI| | Anth-| |Postgres|
+      | Endpt | | API | | ropic| | (Hyper-|
+      | (MuQ  | | sub-| | teach| |  drive)|
+      | A1-Max)| | agent| | er  | | R2, DO |
+      +-------+ +-----+ +------+ +--------+
 ```
 
-Both platforms upload 15-second audio chunks to the shared API worker. The worker orchestrates cloud inference (HF endpoint), teaching moment selection (deviation-magnitude gate), and a two-stage LLM pipeline (Workers AI subagent for analysis, Workers AI Qwen3-30B-A3B for teacher delivery by default). iOS receives observations on-demand ("How was that?"); web pushes them in real time via WebSocket.
+Both platforms upload 15-second audio chunks to the shared API worker. The worker orchestrates cloud inference (HF endpoint), teaching moment selection (deviation-magnitude gate), and a two-stage LLM pipeline (a Workers AI subagent for analysis, then the teacher model for delivery). Model IDs live in `apps/api/wrangler.toml` (`TEACHER_MODEL`, overridable per-provider) and drift -- do not hardcode them here. iOS receives observations on-demand ("How was that?"); web pushes them in real time via WebSocket.
 
 ### Platform Strategy (CEO Review 2026-03-19)
 
-**Web-first.** The web app ships to beta users first -- it's ~90% complete, fastest to iterate (no App Store review), and shareable via URL for growth. iOS follows after web beta validates the product.
+**Web-first.** The web app ships to beta users first -- it is furthest along, fastest to iterate (no App Store review), and shareable via URL for growth. iOS follows after web beta validates the product.
 
 **Session intelligence.** The Durable Object that manages web practice sessions is extended to serve as the "session brain" -- a practice mode state machine (warming up / drilling / running through / winding down) with mode-aware observation pacing.
 
@@ -71,7 +70,7 @@ Entry point: [`docs/harness.md`](harness.md) | Skills: [`docs/harness/skills/`](
 
 ### Runtime System
 
-The machinery layer, invisible to skill authors. Cloudflare Workers (API request handling) + Durable Objects (per-session state + checkpointing) + D1 (relational storage) + R2 (audio blobs) + AI Gateway (provider routing + shadow eval) + Sentry (observability). Handles durable execution, checkpointing across evictions, multi-tenancy, middleware hooks (`before_model`, `wrap_model_call`, `wrap_tool_call`, `after_model`), and online eval. Middleware hooks live here because they wrap every model call uniformly across every interaction mode.
+The machinery layer, invisible to skill authors. Cloudflare Workers (API request handling) + Durable Objects (per-session state + checkpointing) + Postgres via Hyperdrive (relational storage) + R2 (audio blobs and score assets) + AI Gateway (provider routing + shadow eval) + Sentry (observability). Handles durable execution, checkpointing across evictions, multi-tenancy, middleware hooks (`before_model`, `wrap_model_call`, `wrap_tool_call`, `after_model`), and online eval. Middleware hooks live here because they wrap every model call uniformly across every interaction mode.
 
 Entry point: platform docs in `apps/api/TS_STYLE.md`, runtime-level patterns documented inline in the harness doc.
 
@@ -102,7 +101,7 @@ Sign in with Apple and Google Sign In on both platforms. The API worker validate
 
 ### Sync
 
-Local-first on iOS: all student data and sessions live in SwiftData on-device. The phone is authoritative. D1 stores copies for cross-platform backup and web access. Sync is conflict-free -- the phone pushes deltas (new sessions, updated baselines) to D1 after each session. The server is authoritative only for exercise updates. On web, D1 is the primary data store.
+Local-first on iOS: all student data and sessions live in SwiftData on-device. The phone is authoritative. The server database stores copies for cross-platform backup and web access. Sync is conflict-free -- the phone pushes deltas (new sessions, updated baselines) to the server after each session. The server is authoritative only for exercise updates. On web, the server database is the primary data store.
 
 **Sync response payload:** The `POST /api/sync` response includes server-to-client updates:
 
