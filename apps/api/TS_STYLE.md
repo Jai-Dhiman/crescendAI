@@ -8,6 +8,10 @@ better-auth integration guides, and production patterns from the CF ecosystem.
 This document defines coding standards for `apps/api/`. Claude Code must follow these rules when
 editing any file under `apps/api/src/`.
 
+Normative statements carry a stable id in brackets and an RFC 2119 level. The compact index that
+agents and `scripts/standards_check.py` load is `docs/standards/rules.json`; the two are kept in
+sync by rule `META-001`. Cite the id when reporting a violation.
+
 ---
 
 ## 1. CF Workers Hard Constraints
@@ -24,7 +28,7 @@ Runtime: V8 isolates on Cloudflare's edge. Not Node.js. Not Deno.
 ### What does NOT exist
 
 - No filesystem (`fs`) in production (only in Vitest via miniflare)
-- No `process.env` -- use `c.env` (Hono) or `env` (Worker fetch handler)
+- **[TS-WRK-001]** (MUST) No `process.env` -- use `c.env` (Hono) or `env` (Worker fetch handler)
 - No long-running processes -- max 30s CPU time (paid plan)
 - No threads -- single-threaded event loop
 
@@ -40,8 +44,8 @@ Runtime: V8 isolates on Cloudflare's edge. Not Node.js. Not Deno.
 
 ### Handler structure
 
-Always chain validators and handler in a single expression. This preserves type inference
-for Hono RPC.
+**[TS-HONO-001]** (MUST) Always chain validators and handler in a single expression. This
+preserves type inference for Hono RPC.
 
 ```typescript
 // GOOD
@@ -72,7 +76,7 @@ app.post("/sessions", handleCreate);
 
 ### Route composition (critical for Hono RPC)
 
-Chain `.route()` calls and export the type from the CHAINED result.
+**[TS-HONO-002]** (MUST) Chain `.route()` calls and export the type from the CHAINED result.
 
 ```typescript
 // index.ts
@@ -98,7 +102,8 @@ export type AppType = typeof app; // untyped client
 
 ### c.env: never destructure service bindings
 
-CF service bindings (R2, KV, DO, Hyperdrive) lose their `this` context when destructured.
+**[TS-HONO-003]** (MUST) CF service bindings (R2, KV, DO, Hyperdrive) lose their `this` context
+when destructured. **[TS-HONO-004]** (MUST) Never cache request-scoped data at module level.
 
 ```typescript
 // GOOD
@@ -139,7 +144,7 @@ export const dbMiddleware = createMiddleware<{
 
 ### Zod validation with custom error response
 
-Always provide a hook to return JSON errors (default is plain text).
+**[TS-HONO-005]** (MUST) Always provide a hook to return JSON errors (default is plain text).
 
 ```typescript
 import { zValidator } from "@hono/zod-validator";
@@ -165,7 +170,7 @@ app.post("/sessions", validate("json", createSessionSchema), async (c) => {
 
 ### SSE streaming (LLM proxy)
 
-Set `Content-Encoding: Identity` to prevent wrangler dev from buffering.
+**[TS-HONO-006]** (MUST) Set `Content-Encoding: Identity` to prevent wrangler dev from buffering.
 
 ```typescript
 import { streamSSE } from "hono/streaming";
@@ -212,7 +217,7 @@ app.get("/ws/:sessionId", async (c) => {
 });
 ```
 
-Do NOT use `upgradeWebSocket` from `hono/cloudflare-workers` when routing to DOs.
+**[TS-HONO-007]** (MUST) Do NOT use `upgradeWebSocket` from `hono/cloudflare-workers` when routing to DOs.
 That creates a WebSocket in the Worker itself, not in the DO.
 
 ---
@@ -221,7 +226,8 @@ That creates a WebSocket in the Worker itself, not in the DO.
 
 ### Two-layer pattern
 
-Services throw domain errors. Handlers map them to HTTP responses.
+**[TS-ERR-002]** (MUST) Services throw domain errors. Handlers map them to HTTP responses, and
+the fallback branch logs `message` and `stack` before returning 500.
 
 ```typescript
 // lib/errors.ts -- domain errors (HTTP-agnostic)
@@ -250,7 +256,7 @@ app.onError((err, c) => {
 });
 ```
 
-Services must NEVER import `HTTPException` or return HTTP status codes.
+**[TS-ERR-001]** (MUST) Services must NEVER import `HTTPException` or return HTTP status codes.
 
 ---
 
@@ -258,7 +264,7 @@ Services must NEVER import `HTTPException` or return HTTP status codes.
 
 ### ServiceContext pattern
 
-All services receive a `ServiceContext` object, not individual dependencies.
+**[TS-SVC-001]** (MUST) All services receive a `ServiceContext` object, not individual dependencies.
 
 ```typescript
 export interface ServiceContext {
@@ -278,7 +284,7 @@ async function createObservation(db: Db, env: Bindings, inference: InferenceClie
 
 ### No module-level state
 
-Services must be stateless functions. No cached DB connections, no singletons.
+**[TS-SVC-002]** (MUST) Services must be stateless functions. No cached DB connections, no singletons.
 
 ---
 
@@ -286,7 +292,8 @@ Services must be stateless functions. No cached DB connections, no singletons.
 
 ### Connection setup (Hyperdrive)
 
-Hyperdrive transparently handles prepared statement multiplexing. Do NOT disable `prepare`.
+**[TS-DB-001]** (MUST) Hyperdrive transparently handles prepared statement multiplexing. Do NOT
+disable `prepare`.
 
 ```typescript
 import postgres from "postgres";
@@ -343,7 +350,8 @@ await db
 
 ### Transactions
 
-Use the `tx` parameter inside the callback. Never use the outer `db` inside a transaction.
+**[TS-DB-002]** (MUST) Use the `tx` parameter inside the callback. Never use the outer `db`
+inside a transaction.
 
 ```typescript
 // GOOD
@@ -360,6 +368,8 @@ await db.transaction(async (tx) => {
 
 ### Schema conventions
 
+**[TS-DB-004]** (SHOULD)
+
 - `uuid().defaultRandom().primaryKey()` for primary keys
 - `timestamp("col", { withTimezone: true }).notNull().defaultNow()` for timestamps
 - `jsonb("col").$type<MyType>()` for typed JSON columns
@@ -373,7 +383,7 @@ await db.transaction(async (tx) => {
 
 ### Per-request instance (not singleton)
 
-On CF Workers, env bindings are per-request. Auth must be created per-request.
+**[TS-AUTH-001]** (MUST) On CF Workers, env bindings are per-request. Auth must be created per-request.
 
 ```typescript
 export function createAuth(db: Db, env: Bindings) {
@@ -417,7 +427,7 @@ app.get("/api/me", (c) => {
 
 When `cookieCache` is enabled alongside `secondaryStorage`, better-auth treats an expired
 cookie cache as a logout instead of falling back to secondary storage. Users get randomly
-logged out after the cache TTL expires. Keep `cookieCache.enabled: false` until fixed.
+logged out after the cache TTL expires. **[TS-AUTH-002]** (MUST) Keep `cookieCache.enabled: false` until fixed.
 Cost: one extra DB read per session check.
 
 ---
@@ -449,12 +459,13 @@ export class SessionBrain extends DurableObject<Bindings> {
 }
 ```
 
-Never use `server.accept()` (standard API). It prevents hibernation and bills for idle time.
+**[TS-DO-001]** (MUST) Never use `server.accept()` (standard API). It prevents hibernation and
+bills for idle time.
 
 ### State versioning across awaits
 
-TypeScript DOs have no borrow checker. Another event can fire during an `await` and mutate
-shared state. Use clone-before-await + compare-and-swap.
+**[TS-DO-002]** (MUST) TypeScript DOs have no borrow checker. Another event can fire during an
+`await` and mutate shared state. Use clone-before-await + compare-and-swap.
 
 ```typescript
 // GOOD: snapshot state before async, re-read after
@@ -489,7 +500,8 @@ async processChunk(chunkData: ArrayBuffer) {
 
 ### Alarms
 
-Use alarms for scheduled work. Never use `setTimeout` (prevents hibernation, not durable).
+**[TS-DO-003]** (MUST) Use alarms for scheduled work. Never use `setTimeout` (prevents
+hibernation, not durable).
 
 ```typescript
 // Schedule
@@ -504,9 +516,12 @@ async alarm() {
 }
 ```
 
-Never set alarms in the constructor without checking for existing ones (clobbers pending alarms).
+**[TS-DO-004]** (MUST) Never set alarms in the constructor without checking for existing ones
+(clobbers pending alarms).
 
 ### Validate state with Zod on every read
+
+**[TS-DO-005]** (SHOULD)
 
 ```typescript
 const rawState = await this.ctx.storage.get("state");
@@ -517,7 +532,8 @@ const state = sessionStateSchema.parse(rawState);
 
 ## 8. Structured Logging
 
-Production: `console.log(JSON.stringify({...}))`. CF Workers Logs auto-indexes JSON fields.
+**[TS-LOG-001]** (MUST) Production: `console.log(JSON.stringify({...}))`. CF Workers Logs
+auto-indexes JSON fields.
 
 ```typescript
 console.log(JSON.stringify({
@@ -530,7 +546,7 @@ console.log(JSON.stringify({
 }));
 ```
 
-For errors, always include `message` and `stack`:
+**[TS-LOG-002]** (MUST) For errors, always include `message` and `stack`:
 
 ```typescript
 console.error(JSON.stringify({
@@ -623,6 +639,8 @@ import type { AppType } from "@crescendai/api";
 
 ### Naming
 
+**[TS-FILE-001]** (SHOULD)
+
 - Files: `kebab-case.ts`
 - Exports: `camelCase` for functions/variables, `PascalCase` for types/classes
 - Schema tables: `camelCase` in TypeScript, `snake_case` in SQL (Drizzle handles mapping)
@@ -632,13 +650,13 @@ import type { AppType } from "@crescendai/api";
 
 ## 12. What NOT to Do
 
-- Do not use `any`. Use `unknown` and narrow with Zod or type guards.
-- Do not store request-scoped data in module-level variables.
-- Do not destructure CF service bindings from `c.env`.
-- Do not use `console.log` with plain strings in production.
-- Do not use `setTimeout`/`setInterval` in Durable Objects (use alarms).
-- Do not use `server.accept()` for WebSockets (use `this.ctx.acceptWebSocket()`).
-- Do not use `db` inside a `db.transaction()` callback (use `tx`).
-- Do not create better-auth as a module-level singleton.
-- Do not import `HTTPException` in service files.
-- Do not hand-edit files in `db/migrations/`.
+- **[TS-TYPE-001]** (MUST) Do not use `any`. Use `unknown` and narrow with Zod or type guards.
+- **[TS-HONO-004]** (MUST) Do not store request-scoped data in module-level variables.
+- **[TS-HONO-003]** (MUST) Do not destructure CF service bindings from `c.env`.
+- **[TS-LOG-001]** (MUST) Do not use `console.log` with plain strings in production.
+- **[TS-DO-003]** (MUST) Do not use `setTimeout`/`setInterval` in Durable Objects (use alarms).
+- **[TS-DO-001]** (MUST) Do not use `server.accept()` for WebSockets (use `this.ctx.acceptWebSocket()`).
+- **[TS-DB-002]** (MUST) Do not use `db` inside a `db.transaction()` callback (use `tx`).
+- **[TS-AUTH-001]** (MUST) Do not create better-auth as a module-level singleton.
+- **[TS-ERR-001]** (MUST) Do not import `HTTPException` in service files.
+- **[TS-DB-003]** (MUST) Do not hand-edit files in `db/migrations/`.

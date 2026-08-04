@@ -1,4 +1,5 @@
-"""Run: cd model && uv run --with pytest pytest src/chroma_dtw_eval/test_amt_version_config.py"""
+"""Run: cd model && uv run --no-project --with pytest pytest \
+src/chroma_dtw_eval/test_amt_version_config.py"""
 from __future__ import annotations
 
 import json

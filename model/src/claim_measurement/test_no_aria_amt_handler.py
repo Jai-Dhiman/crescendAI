@@ -1,5 +1,6 @@
 """Guard: no measurer render script depends on the deleted aria EndpointHandler.
-Run: cd model && uv run --with pytest pytest src/claim_measurement/test_no_aria_amt_handler.py"""
+Run: cd model && uv run --no-project --with pytest pytest \
+src/claim_measurement/test_no_aria_amt_handler.py"""
 from __future__ import annotations
 
 from pathlib import Path
