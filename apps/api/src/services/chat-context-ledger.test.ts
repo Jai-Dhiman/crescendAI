@@ -32,9 +32,16 @@ vi.mock("./llm", async (importOriginal) => {
 		callAnthropicStream: async () => {
 			throw new Error("ledger harness forces the workers-ai path");
 		},
-		callWorkersAIStream: async (_env: unknown, body: { system: unknown; messages: unknown }) => {
+		callWorkersAIStream: async (
+			_env: unknown,
+			body: { system: unknown; messages: unknown },
+		) => {
 			// Snapshot the exact per-turn request the model would receive.
-			shared.captured.push(JSON.parse(JSON.stringify({ system: body.system, messages: body.messages })));
+			shared.captured.push(
+				JSON.parse(
+					JSON.stringify({ system: body.system, messages: body.messages }),
+				),
+			);
 			return shared.streams[shared.idx.n++];
 		},
 	};
@@ -55,7 +62,8 @@ function sseStream(chunks: Array<Record<string, unknown>>): ReadableStream {
 
 function mockDbReturning(rows: unknown): ServiceContext {
 	const chain: Record<string, unknown> = {};
-	for (const m of ["select", "from", "where", "orderBy"]) chain[m] = () => chain;
+	for (const m of ["select", "from", "where", "orderBy"])
+		chain[m] = () => chain;
 	chain.limit = () => Promise.resolve(rows);
 	return { db: chain, env: {} } as unknown as ServiceContext;
 }
@@ -106,7 +114,10 @@ describe("full-session context ledger", () => {
 										type: "function",
 										function: {
 											name: "show_session_data",
-											arguments: JSON.stringify({ query_type: "recent_sessions", limit: 5 }),
+											arguments: JSON.stringify({
+												query_type: "recent_sessions",
+												limit: 5,
+											}),
 										},
 									},
 								],
@@ -118,8 +129,22 @@ describe("full-session context ledger", () => {
 				{ choices: [{ delta: {}, finish_reason: "tool_calls" }] },
 			]),
 			sseStream([
-				{ choices: [{ delta: { content: "Your timing is really solid right now" }, finish_reason: null }] },
-				{ choices: [{ delta: { content: " — let's give pedaling some love next." }, finish_reason: "stop" }] },
+				{
+					choices: [
+						{
+							delta: { content: "Your timing is really solid right now" },
+							finish_reason: null,
+						},
+					],
+				},
+				{
+					choices: [
+						{
+							delta: { content: " — let's give pedaling some love next." },
+							finish_reason: "stop",
+						},
+					],
+				},
 			]),
 		];
 		shared.captured = [];
@@ -152,37 +177,57 @@ describe("full-session context ledger", () => {
 		shared.captured.forEach((turn, i) => {
 			const sys = turn.system as Array<{ text: string }>;
 			const msgs = turn.messages as Array<{ role: string; content: unknown }>;
-			lines.push(`--- MODEL TURN ${i + 1}: what the teacher model receives ---`);
+			lines.push(
+				`--- MODEL TURN ${i + 1}: what the teacher model receives ---`,
+			);
 			lines.push(`  system blocks: ${sys.length}`);
 			sys.forEach((b, j) => {
 				const head = String(b.text).split("\n")[0].slice(0, 70);
-				lines.push(`    [${j}] ${head}${String(b.text).length > 70 ? "…" : ""}`);
+				lines.push(
+					`    [${j}] ${head}${String(b.text).length > 70 ? "…" : ""}`,
+				);
 			});
 			lines.push(`  messages: ${msgs.length}`);
 			msgs.forEach((m) => {
 				if (typeof m.content === "string") {
-					lines.push(`    (${m.role}) text: ${JSON.stringify(m.content).slice(0, 90)}`);
+					lines.push(
+						`    (${m.role}) text: ${JSON.stringify(m.content).slice(0, 90)}`,
+					);
 				} else {
 					for (const block of m.content as Array<Record<string, unknown>>) {
 						if (block.type === "tool_use") {
-							lines.push(`    (${m.role}) tool_use → ${block.name}(${JSON.stringify(block.input)})`);
+							lines.push(
+								`    (${m.role}) tool_use → ${block.name}(${JSON.stringify(block.input)})`,
+							);
 						} else if (block.type === "tool_result") {
-							lines.push(`    (${m.role}) tool_result → ${JSON.stringify(block.content)}`);
+							lines.push(
+								`    (${m.role}) tool_result → ${JSON.stringify(block.content)}`,
+							);
 						} else if (block.type === "text") {
-							lines.push(`    (${m.role}) text: ${JSON.stringify(block.text).slice(0, 90)}`);
+							lines.push(
+								`    (${m.role}) text: ${JSON.stringify(block.text).slice(0, 90)}`,
+							);
 						}
 					}
 				}
 			});
 			const hasRaw = JSON.stringify(turn).includes(String(DISTINCT_AVG));
-			lines.push(`  >> raw score ${DISTINCT_AVG} present in this turn's model context? ${hasRaw ? "YES ❌" : "no ✅"}`);
+			lines.push(
+				`  >> raw score ${DISTINCT_AVG} present in this turn's model context? ${hasRaw ? "YES ❌" : "no ✅"}`,
+			);
 			lines.push("");
 		});
 
 		const toolResultEvent = events.find((e) => e.type === "tool_result");
-		const clientHasRaw = JSON.stringify(toolResultEvent).includes(String(DISTINCT_AVG));
-		lines.push("--- CLIENT STREAM (what the browser receives for rendering) ---");
-		lines.push(`  tool_result event carries raw score ${DISTINCT_AVG} for the chart? ${clientHasRaw ? "YES ✅" : "no ❌"}`);
+		const clientHasRaw = JSON.stringify(toolResultEvent).includes(
+			String(DISTINCT_AVG),
+		);
+		lines.push(
+			"--- CLIENT STREAM (what the browser receives for rendering) ---",
+		);
+		lines.push(
+			`  tool_result event carries raw score ${DISTINCT_AVG} for the chart? ${clientHasRaw ? "YES ✅" : "no ❌"}`,
+		);
 		lines.push("====================================================\n");
 		console.log(lines.join("\n"));
 
@@ -199,9 +244,14 @@ describe("full-session context ledger", () => {
 		// Turn 2: carries the tool_use + tool_result from turn 1. The tool_result
 		// the model sees MUST be the distilled prose, never the raw average.
 		const turn2 = shared.captured[1];
-		const turn2Msgs = turn2.messages as Array<{ role: string; content: unknown }>;
+		const turn2Msgs = turn2.messages as Array<{
+			role: string;
+			content: unknown;
+		}>;
 		expect(turn2Msgs.length).toBe(3); // user, assistant(tool_use), user(tool_result)
-		const toolResultBlock = (turn2Msgs[2].content as Array<Record<string, unknown>>)[0];
+		const toolResultBlock = (
+			turn2Msgs[2].content as Array<Record<string, unknown>>
+		)[0];
 		expect(toolResultBlock.type).toBe("tool_result");
 		expect(String(toolResultBlock.content)).toContain("timing"); // distilled ranking present
 		expect(String(toolResultBlock.content)).toContain("pedaling");

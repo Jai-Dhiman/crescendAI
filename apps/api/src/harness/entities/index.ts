@@ -1,9 +1,9 @@
 import { z } from "zod";
 
-export * from "./student";
+export * from "./exercise";
 export * from "./piece";
 export * from "./session";
-export * from "./exercise";
+export * from "./student";
 
 const studentRef = z.object({
 	kind: z.literal("student"),

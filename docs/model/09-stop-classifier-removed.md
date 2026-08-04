@@ -13,10 +13,9 @@ Source code (now deleted):
 - `apps/config/stop_config.json` — runtime weights
 - `stop_probability` field on `TeachingMoment` (Rust struct + TS interface)
 
-Kept as research artifacts:
+Historical artifacts:
 - `model/data/labels/stop_classifier_weights.json` — historical record of deployed weights
-- `model/src/masterclass_experiments/` — training pipeline (orphaned; see "Follow-ups")
-- `model/archive/notebooks/masterclass_experiments/03_stop_ablations.ipynb` — ablation notebook
+- `model/src/masterclass_experiments/` and its notebooks were deleted in commit `e1d1c607`
 
 ### Behavior swap: deviation-magnitude gate
 
@@ -78,4 +77,4 @@ If the product later needs a real-time "is this moment worth flagging" signal �
 ## Follow-ups
 
 - [ ] **Decide archive policy for `model/data/labels/stop_classifier_weights.json`.** Currently kept as research artifact. If the masterclass-experiments line of work is dead, move to the R2 archive prefix alongside other offloaded research data.
-- [ ] **Document the masterclass-experiments retirement.** `model/src/masterclass_experiments/` and notebooks 01–03 are now orphaned. Either repurpose for the next labeling effort or move to `model/archive/`.
+- [x] **Document the masterclass-experiments retirement.** The pipeline and notebooks were deleted in commit `e1d1c607`; this postmortem preserves the result.

@@ -253,7 +253,7 @@ def run_full(
         raise RuntimeError(
             "0 invocations across all sessions — V6 gate is broken or "
             "prescribed_exercise is always null in the artifact. "
-            "Check HARNESS_V6_ENABLED, seed-fingerprint, and the V6 gate condition."
+            "Check seed-fingerprint and V6 artifact validation (the HARNESS_V6_ENABLED flag and legacy path were removed in #28)."
         )
 
     last_run = {

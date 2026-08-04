@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { entityRefSchema } from "../entities";
 import { evidenceRefSchema } from "../content";
+import { entityRefSchema } from "../entities";
 
 const SIX_DIM = [
 	"dynamics",

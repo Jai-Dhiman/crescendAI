@@ -1,0 +1,19 @@
+// Node-side sources: the skill-catalog validator and its generated tests, and
+// one-off backfill scripts. These run under `vitest --config vitest.node.config.ts`
+// or `bun run`, not in workerd, so they may import node: modules.
+//
+// Worker sources they pull in transitively (skills/atoms, skills/molecules) still
+// need the CF ambient types, hence both entries in `types`.
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"types": ["@cloudflare/workers-types/2023-07-01", "node"]
+	},
+	"include": [
+		"src/scripts/**/*.ts",
+		"src/harness/skills/validator.ts",
+		"src/harness/skills/validator.test.ts",
+		"src/harness/skills/__catalog__/**/*.ts"
+	],
+	"exclude": ["node_modules"]
+}

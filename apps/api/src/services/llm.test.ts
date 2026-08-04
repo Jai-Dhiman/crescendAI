@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { callWorkersAI, callWorkersAIStream } from "./llm";
 import { InferenceError } from "../lib/errors";
 import type { Bindings } from "../lib/types";
+import { callWorkersAI, callWorkersAIStream } from "./llm";
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -62,7 +62,10 @@ describe("callWorkersAI", () => {
 	});
 });
 
-const streamMockEnv: Pick<Bindings, "AI_GATEWAY_ENDPOINT" | "AI_GATEWAY_TOKEN" | "CLOUDFLARE_API_TOKEN"> = {
+const streamMockEnv: Pick<
+	Bindings,
+	"AI_GATEWAY_ENDPOINT" | "AI_GATEWAY_TOKEN" | "CLOUDFLARE_API_TOKEN"
+> = {
 	AI_GATEWAY_ENDPOINT: "https://gateway.example.com",
 	AI_GATEWAY_TOKEN: "gw-token",
 	CLOUDFLARE_API_TOKEN: "cf-token",
@@ -83,15 +86,18 @@ describe("callWorkersAIStream", () => {
 
 	it("POSTs to workers-ai completions endpoint with stream:true and both auth headers, returns res.body", async () => {
 		const fakeBody = new ReadableStream();
-		vi.mocked(fetch).mockResolvedValue(
-			new Response(fakeBody, { status: 200 }),
-		);
+		vi.mocked(fetch).mockResolvedValue(new Response(fakeBody, { status: 200 }));
 
-		const result = await callWorkersAIStream(streamMockEnv as Bindings, stubBody);
+		const result = await callWorkersAIStream(
+			streamMockEnv as Bindings,
+			stubBody,
+		);
 
 		expect(fetch).toHaveBeenCalledOnce();
 		const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
-		expect(url).toBe("https://gateway.example.com/workers-ai/v1/chat/completions");
+		expect(url).toBe(
+			"https://gateway.example.com/workers-ai/v1/chat/completions",
+		);
 		const headers = init.headers as Record<string, string>;
 		expect(headers["cf-aig-authorization"]).toBe("Bearer gw-token");
 		expect(headers["Authorization"]).toBe("Bearer cf-token");
@@ -105,14 +111,21 @@ describe("callWorkersAIStream", () => {
 			new Response("upstream error", { status: 503 }),
 		);
 
-		await expect(callWorkersAIStream(streamMockEnv as Bindings, stubBody)).rejects.toBeInstanceOf(InferenceError);
+		await expect(
+			callWorkersAIStream(streamMockEnv as Bindings, stubBody),
+		).rejects.toBeInstanceOf(InferenceError);
 	});
 
 	it("throws InferenceError when response body is null", async () => {
-		vi.mocked(fetch).mockResolvedValue(
-			{ ok: true, status: 200, body: null, text: async () => "" } as unknown as Response,
-		);
+		vi.mocked(fetch).mockResolvedValue({
+			ok: true,
+			status: 200,
+			body: null,
+			text: async () => "",
+		} as unknown as Response);
 
-		await expect(callWorkersAIStream(streamMockEnv as Bindings, stubBody)).rejects.toBeInstanceOf(InferenceError);
+		await expect(
+			callWorkersAIStream(streamMockEnv as Bindings, stubBody),
+		).rejects.toBeInstanceOf(InferenceError);
 	});
 });

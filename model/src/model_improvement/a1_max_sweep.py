@@ -460,8 +460,6 @@ Examples:
   # Overnight local run — best config from prior results, 4 prefetch workers:
   uv run python -m model_improvement.a1_max_sweep --top-n-configs 1 --num-workers 4
 
-  # After completion, stamp results into Wave 1 plans:
-  uv run python scripts/stamp_baseline_diagnostics.py
 """,
     )
     parser.add_argument(

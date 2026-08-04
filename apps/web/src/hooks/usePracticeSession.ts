@@ -207,6 +207,7 @@ export function usePracticeSession(
 		chunkGateRef.current = "waiting";
 	}, [releaseMic]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: options is a caller-supplied object, usually an inline literal. Depending on options?.onSummary would rebuild this handler on every caller render and tear down the live WebSocket subscription. The durable fix is to hold the callbacks in a ref; that is a behavioural change to a live session hook and is out of scope here.
 	const handleWsMessage = useCallback(
 		(event: MessageEvent) => {
 			const data: PracticeWsEvent = JSON.parse(event.data);
@@ -347,6 +348,7 @@ export function usePracticeSession(
 		[cleanup],
 	);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: stateRef is read for its latest value so the socket is not rebuilt on every state transition; depending on .current defeats the ref.
 	const connectWebSocket = useCallback(
 		(sessionId: string): Promise<WebSocket> => {
 			return new Promise((resolve, reject) => {
@@ -408,6 +410,7 @@ export function usePracticeSession(
 		[handleWsMessage, cleanup],
 	);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: isOnlineRef is read for its latest value at call time; depending on .current would recreate start() on every connectivity flap.
 	const start = useCallback(
 		async (conversationId?: string) => {
 			setState("requesting-mic");
@@ -611,6 +614,7 @@ export function usePracticeSession(
 		}, WS_SUMMARY_TIMEOUT_MS);
 	}, [cleanup]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: same caller-supplied options object as handleWsMessage above; see the note there.
 	const stop = useCallback(() => {
 		if (state !== "recording") return;
 

@@ -16,7 +16,7 @@ The student opens the app and plays. Within 60 seconds, the system silently iden
 
 ### Inputs / Outputs
 
-- **In:** AMT-transcribed MIDI notes (from Aria-AMT endpoint), N-gram index + rerank features (R2 bucket), 242-piece score library
+- **In:** AMT-transcribed MIDI notes from the Transkun `/transcribe` service, N-gram index + rerank features (R2 bucket), 242-piece score library
 - **Out:** `PieceIdentification { piece_id, confidence, method, notes_consumed }` or `None`
 - **Depends on:** AMT transcription quality, score library coverage
 
@@ -46,7 +46,8 @@ Code complete and merged to main (2026-03-22). N-gram index + rerank features co
 
 - `apps/api/src/practice/piece_identify.rs` -- N-gram + rerank + DTW pipeline
 - `apps/api/src/practice/score_context.rs` -- Score/reference loading from R2
-- `apps/inference/amt_handler.py` -- Aria-AMT transcription endpoint
+- `apps/inference/amt/transcription.py` -- Transkun-backed endpoint handler
+- `apps/inference/amt/transkun_cli.py` -- shared isolated Transkun runner and MIDI parser
 
 ---
 

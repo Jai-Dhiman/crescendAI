@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { StudentSchema, resolveStudent } from "./student";
+import { resolveStudent, StudentSchema } from "./student";
 
 describe("StudentSchema", () => {
 	test("parses a valid Student row", () => {

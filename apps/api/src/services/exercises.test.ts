@@ -1,6 +1,7 @@
 import { describe, expect, it, test, vi } from "vitest";
-import { NotFoundError } from "../lib/errors";
 import { ExerciseRoutingDecisionSchema } from "../harness/artifacts/exercise-routing";
+import { NotFoundError } from "../lib/errors";
+import type { Bindings, Db } from "../lib/types";
 import { assignPendingExercise } from "./exercises";
 
 const STUDENT_ID = "student-abc";
@@ -97,8 +98,8 @@ function makeCtx({
 	};
 
 	return {
-		db: db as never,
-		env: { SCORES: { get: async () => null } } as never,
+		db: db as unknown as Db,
+		env: { SCORES: { get: async () => null } } as unknown as Bindings,
 	};
 }
 

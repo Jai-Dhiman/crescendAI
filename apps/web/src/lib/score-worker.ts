@@ -59,7 +59,10 @@ function buildMeasureIndex(tk: VerovioTk): MeasureEntry[] {
 		.map((e) => ({ qstamp: e.qstamp, measureOn: e.measureOn }));
 }
 
-export function processGetPageRequest(pageSvgs: string[], pageN: number): string | "failed" {
+export function processGetPageRequest(
+	pageSvgs: string[],
+	pageN: number,
+): string | "failed" {
 	const svg = pageSvgs[pageN - 1];
 	if (svg === undefined) return "failed";
 	return svg;
@@ -132,8 +135,12 @@ export async function processGetClipPlaybackRequest(
 	try {
 		svg = tk.renderToSVG(1) as string;
 
-		const timemap: Array<{ qstamp: number; on?: string[]; off?: string[]; measureOn?: string }> =
-			tk.renderToTimemap({ includeMeasures: true });
+		const timemap: Array<{
+			qstamp: number;
+			on?: string[];
+			off?: string[];
+			measureOn?: string;
+		}> = tk.renderToTimemap({ includeMeasures: true });
 
 		const noteQstampMap = new Map<string, number>();
 		const noteOffMap = new Map<string, number>();
@@ -191,7 +198,9 @@ export async function processGetClipPlaybackRequest(
 			// absent from the MIDI map) return undefined/null. Handle both shapes and
 			// skip anything without a numeric pitch rather than crashing on `.pitch`.
 			const raw = tk.getMIDIValuesForElement(id) as unknown;
-			const v = (Array.isArray(raw) ? raw[0] : raw) as { pitch?: unknown } | undefined;
+			const v = (Array.isArray(raw) ? raw[0] : raw) as
+				| { pitch?: unknown }
+				| undefined;
 			if (!v || typeof v.pitch !== "number") continue;
 			const midi = v.pitch;
 			const endQ = noteOffMap.get(id) ?? startQ + 1;
@@ -212,7 +221,9 @@ export async function processGetClipPlaybackRequest(
 export interface VerovioBindings {
 	module: unknown;
 	// biome-ignore lint/suspicious/noExplicitAny: dynamic Verovio ESM class
-	ToolkitClass: new (mod: unknown) => any;
+	ToolkitClass: new (
+		mod: unknown,
+	) => any;
 }
 
 export async function loadPiece(
@@ -313,7 +324,11 @@ export async function loadPiece(
 	try {
 		measures = buildMeasureIndex(tk);
 	} catch (e) {
-		console.error("[score-worker] buildMeasureIndex failed for", pieceId ?? "?", e);
+		console.error(
+			"[score-worker] buildMeasureIndex failed for",
+			pieceId ?? "?",
+			e,
+		);
 		return "failed";
 	}
 
@@ -428,11 +443,38 @@ async function extractXmlFromMxl(bytes: ArrayBuffer): Promise<string | null> {
 }
 
 type WorkerInMsg =
-	| { type: "load";             requestId: string; pieceId: string; bytes: ArrayBuffer; transpose?: number }
-	| { type: "get_page";         requestId: string; pieceId: string; pageN: number; pageWidth?: number; transpose?: number }
-	| { type: "get_clip";         requestId: string; pieceId: string; startBar: number; endBar: number; transpose?: number }
-	| { type: "get_clip_playback"; requestId: string; pieceId: string; startBar: number; endBar: number; transpose?: number }
-	| { type: "get_ir";           requestId: string; pieceId: string; transpose?: number };
+	| {
+			type: "load";
+			requestId: string;
+			pieceId: string;
+			bytes: ArrayBuffer;
+			transpose?: number;
+	  }
+	| {
+			type: "get_page";
+			requestId: string;
+			pieceId: string;
+			pageN: number;
+			pageWidth?: number;
+			transpose?: number;
+	  }
+	| {
+			type: "get_clip";
+			requestId: string;
+			pieceId: string;
+			startBar: number;
+			endBar: number;
+			transpose?: number;
+	  }
+	| {
+			type: "get_clip_playback";
+			requestId: string;
+			pieceId: string;
+			startBar: number;
+			endBar: number;
+			transpose?: number;
+	  }
+	| { type: "get_ir"; requestId: string; pieceId: string; transpose?: number };
 
 // Worker message handler — only registers when loaded as a Web Worker (window is undefined)
 if (typeof window === "undefined") {
@@ -450,7 +492,9 @@ if (typeof window === "undefined") {
 				VerovioToolkit: new (mod: unknown) => VerovioTk;
 			}>,
 		]);
-		console.log(`[score-worker] imports resolved in ${Date.now() - t0}ms, creating module`);
+		console.log(
+			`[score-worker] imports resolved in ${Date.now() - t0}ms, creating module`,
+		);
 		verovioModule = await wasm.default();
 		VerovioToolkitClass = esm.VerovioToolkit;
 		console.log(`[score-worker] WASM ready in ${Date.now() - t0}ms`);
@@ -533,7 +577,10 @@ if (typeof window === "undefined") {
 				const svg = isStatic
 					? (pageSvgs[0] ?? "")
 					: processRenderClipRequest(tk, measures, msg.startBar, msg.endBar);
-				(self as unknown as Worker).postMessage({ requestId: msg.requestId, payload: svg });
+				(self as unknown as Worker).postMessage({
+					requestId: msg.requestId,
+					payload: svg,
+				});
 			} else if (msg.type === "get_page") {
 				// If a custom pageWidth is supplied (e.g. from the sandbox's responsive-width logic),
 				// re-render that page with the adjusted width; otherwise serve from the pre-rendered cache.
@@ -557,22 +604,36 @@ if (typeof window === "undefined") {
 						error: `page ${msg.pageN} not found for ${msg.pieceId}`,
 					});
 				} else {
-					(self as unknown as Worker).postMessage({ requestId: msg.requestId, payload: svg });
+					(self as unknown as Worker).postMessage({
+						requestId: msg.requestId,
+						payload: svg,
+					});
 				}
 			} else if (msg.type === "get_ir") {
-				(self as unknown as Worker).postMessage({ requestId: msg.requestId, payload: ir });
+				(self as unknown as Worker).postMessage({
+					requestId: msg.requestId,
+					payload: ir,
+				});
 			} else if (msg.type === "get_clip_playback") {
 				// No playback for static SVG pieces (no note-position IR).
 				const playback = isStatic
 					? "failed"
-					: await processGetClipPlaybackRequest(tk, measures, msg.startBar, msg.endBar);
+					: await processGetClipPlaybackRequest(
+							tk,
+							measures,
+							msg.startBar,
+							msg.endBar,
+						);
 				if (playback === "failed") {
 					(self as unknown as Worker).postMessage({
 						requestId: msg.requestId,
 						error: `get_clip_playback failed for ${msg.pieceId} bars ${msg.startBar}-${msg.endBar}`,
 					});
 				} else {
-					(self as unknown as Worker).postMessage({ requestId: msg.requestId, payload: playback });
+					(self as unknown as Worker).postMessage({
+						requestId: msg.requestId,
+						payload: playback,
+					});
 				}
 			} else if (msg.type === "load") {
 				// load was already handled above (bytes were used to call loadPiece).
@@ -583,9 +644,13 @@ if (typeof window === "undefined") {
 				});
 			}
 		} catch (err) {
+			const WasmException = (
+				WebAssembly as unknown as {
+					Exception?: new (...args: never[]) => Error;
+				}
+			).Exception;
 			const errorMsg =
-				typeof WebAssembly !== "undefined" &&
-				err instanceof WebAssembly.Exception
+				WasmException !== undefined && err instanceof WasmException
 					? `Verovio WASM exception (${msg.type} for ${msg.pieceId}) — MXL data may be corrupt or incompatible`
 					: String(err);
 			(self as unknown as Worker).postMessage({

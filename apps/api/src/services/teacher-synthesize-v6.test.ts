@@ -1,208 +1,349 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import type { Bindings } from '../lib/types'
-import type { ServiceContext } from '../lib/types'
-import { synthesizeV6 } from './teacher'
-import type { SynthesisArtifact } from '../harness/artifacts/synthesis'
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
+import type { Bindings, ServiceContext } from "../lib/types";
+import { synthesizeV6 } from "./teacher";
 
 const MOCK_BINDINGS = {
-  AI_GATEWAY_ENDPOINT: 'https://gw.example',
-  AI_GATEWAY_TOKEN: 'test-gw-token',
-  TEACHER_PROVIDER: 'anthropic',
-} as unknown as Bindings
+	AI_GATEWAY_ENDPOINT: "https://gw.example",
+	AI_GATEWAY_TOKEN: "test-gw-token",
+	TEACHER_PROVIDER: "anthropic",
+} as unknown as Bindings;
 
 const VALID_ARTIFACT: SynthesisArtifact = {
-  session_id: 'sess-1',
-  synthesis_scope: 'session',
-  strengths: [],
-  focus_areas: [{ dimension: 'pedaling', one_liner: 'Work on pedal timing.', severity: 'moderate' }],
-  prescribed_exercise: null,
-  dominant_dimension: 'pedaling',
-  recurring_pattern: null,
-  next_session_focus: null,
-  diagnosis_refs: [],
-  headline: 'Today you played with intention across the full piece. The phrasing held up well in the opening section, and the dynamics showed real contrast. Pedaling is the area to focus on next — a few spots had overlapping notes that muddied the texture. Keep your foot ready to clear between phrases. We will zero in on bars three through five next time.',
-  assigned_loops: [],
-}
+	session_id: "sess-1",
+	synthesis_scope: "session",
+	strengths: [],
+	focus_areas: [
+		{
+			dimension: "pedaling",
+			one_liner: "Work on pedal timing.",
+			severity: "moderate",
+		},
+	],
+	prescribed_exercise: null,
+	dominant_dimension: "pedaling",
+	recurring_pattern: null,
+	next_session_focus: null,
+	diagnosis_refs: [],
+	headline:
+		"Today you played with intention across the full piece. The phrasing held up well in the opening section, and the dynamics showed real contrast. Pedaling is the area to focus on next — a few spots had overlapping notes that muddied the texture. Keep your foot ready to clear between phrases. We will zero in on bars three through five next time.",
+	assigned_loops: [],
+};
 
 const ENRICHED_CHUNK = {
-  chunkIndex: 0,
-  muq_scores: [0.6, 0.5, 0.7, 0.55, 0.6, 0.65],
-  midi_notes: [{ pitch: 60, onset_ms: 1000, duration_ms: 500, velocity: 80 }],
-  pedal_cc: [{ time_ms: 1000, value: 100 }],
-  alignment: [{ perf_index: 0, score_index: 0, expected_onset_ms: 985, bar: 3 }],
-  bar_coverage: [3, 4] as [number, number],
-}
+	chunkIndex: 0,
+	muq_scores: [0.6, 0.5, 0.7, 0.55, 0.6, 0.65],
+	midi_notes: [{ pitch: 60, onset_ms: 1000, duration_ms: 500, velocity: 80 }],
+	pedal_cc: [{ time_ms: 1000, value: 100 }],
+	alignment: [
+		{ perf_index: 0, score_index: 0, expected_onset_ms: 985, bar: 3 },
+	],
+	bar_coverage: [3, 4] as [number, number],
+};
 
-describe('synthesizeV6 digest shape', () => {
-  const fetchSpy = vi.fn()
+describe("synthesizeV6 digest shape", () => {
+	const fetchSpy = vi.fn();
 
-  beforeEach(() => {
-    fetchSpy.mockReset()
-    vi.stubGlobal('fetch', fetchSpy)
-  })
+	beforeEach(() => {
+		fetchSpy.mockReset();
+		vi.stubGlobal("fetch", fetchSpy);
+	});
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
 
-  it('renders the compact signal summary into the phase1 prompt (not the raw digest)', async () => {
-    let capturedBody: string | null = null
+	it("renders the compact signal summary into the phase1 prompt (not the raw digest)", async () => {
+		let capturedBody: string | null = null;
 
-    // Call 1: Phase 1 — capture body, return end_turn immediately
-    fetchSpy.mockImplementationOnce(async (_url: string, opts: RequestInit) => {
-      if (capturedBody === null) capturedBody = opts.body as string
-      return new Response(
-        JSON.stringify({ content: [{ type: 'text', text: 'no tools' }], stop_reason: 'end_turn' }),
-        { status: 200 },
-      )
-    })
-    // Call 2: Phase 2 — write SynthesisArtifact
-    fetchSpy.mockImplementationOnce(async () =>
-      new Response(
-        JSON.stringify({
-          content: [{ type: 'tool_use', id: 'tu_1', name: 'write_synthesis_artifact', input: VALID_ARTIFACT }],
-          stop_reason: 'tool_use',
-        }),
-        { status: 200 },
-      )
-    )
+		// Call 1: Phase 1 — capture body, return end_turn immediately
+		fetchSpy.mockImplementationOnce(async (_url: string, opts: RequestInit) => {
+			if (capturedBody === null) capturedBody = opts.body as string;
+			return new Response(
+				JSON.stringify({
+					content: [{ type: "text", text: "no tools" }],
+					stop_reason: "end_turn",
+				}),
+				{ status: 200 },
+			);
+		});
+		// Call 2: Phase 2 — write SynthesisArtifact
+		fetchSpy.mockImplementationOnce(
+			async () =>
+				new Response(
+					JSON.stringify({
+						content: [
+							{
+								type: "tool_use",
+								id: "tu_1",
+								name: "write_synthesis_artifact",
+								input: VALID_ARTIFACT,
+							},
+						],
+						stop_reason: "tool_use",
+					}),
+					{ status: 200 },
+				),
+		);
 
-    const ctx: ServiceContext = { db: { select: () => ({ from: () => ({ where: () => ({ groupBy: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }) }) }) }) }) } as never, env: MOCK_BINDINGS }
-    const events = []
-    for await (const ev of synthesizeV6(ctx, {
-      studentId: 'stu-1',
-      conversationId: null,
-      sessionDurationMs: 60000,
-      practicePattern: '{}',
-      topMoments: [],
-      drillingRecords: [],
-      pieceMetadata: null,
-      enrichedChunks: [ENRICHED_CHUNK],
-      baselines: { dynamics: 0.5, timing: 0.48, pedaling: 0.46, articulation: 0.54, phrasing: 0.52, interpretation: 0.51 },
-      sessionHistory: [],
-      pastDiagnoses: [],
-    }, 'sess-1')) {
-      events.push(ev)
-    }
+		const ctx: ServiceContext = {
+			db: {
+				select: () => ({
+					from: () => ({
+						where: () => ({
+							groupBy: () => ({
+								orderBy: () => ({ limit: () => Promise.resolve([]) }),
+							}),
+						}),
+					}),
+				}),
+			} as never,
+			env: MOCK_BINDINGS,
+		};
+		const events = [];
+		for await (const ev of synthesizeV6(
+			ctx,
+			{
+				studentId: "stu-1",
+				conversationId: null,
+				sessionDurationMs: 60000,
+				practicePattern: "{}",
+				topMoments: [],
+				drillingRecords: [],
+				pieceMetadata: null,
+				enrichedChunks: [ENRICHED_CHUNK],
+				baselines: {
+					dynamics: 0.5,
+					timing: 0.48,
+					pedaling: 0.46,
+					articulation: 0.54,
+					phrasing: 0.52,
+					interpretation: 0.51,
+				},
+				sessionHistory: [],
+				pastDiagnoses: [],
+			},
+			"sess-1",
+		)) {
+			events.push(ev);
+		}
 
-    expect(capturedBody).not.toBeNull()
-    const parsed = JSON.parse(capturedBody!)
-    const userMsg = parsed.messages?.find((m: { role: string }) => m.role === 'user')
-    expect(userMsg).toBeDefined()
-    const digestText = typeof userMsg?.content === 'string' ? userMsg.content : JSON.stringify(userMsg?.content)
-    // Post-grounding: phase1 sees the compact signal summary, not the raw digest dump.
-    // The chunk's signal (chunk id + bar coverage + muq scores) reaches the prompt;
-    // full chunk/baseline/cohort data flows to molecules via ctx server-side instead.
-    expect(digestText).toContain('chunk:0')
-    expect(digestText).toContain('muq=')
-  })
+		expect(capturedBody).not.toBeNull();
+		const parsed = JSON.parse(capturedBody!);
+		const userMsg = parsed.messages?.find(
+			(m: { role: string }) => m.role === "user",
+		);
+		expect(userMsg).toBeDefined();
+		const digestText =
+			typeof userMsg?.content === "string"
+				? userMsg.content
+				: JSON.stringify(userMsg?.content);
+		// Post-grounding: phase1 sees the compact signal summary, not the raw digest dump.
+		// The chunk's signal (chunk id + bar coverage + muq scores) reaches the prompt;
+		// full chunk/baseline/cohort data flows to molecules via ctx server-side instead.
+		expect(digestText).toContain("chunk:0");
+		expect(digestText).toContain("muq=");
+	});
 
-  it('handles null baselines without error (tiered baseline fallback, server-side)', async () => {
-    let capturedBody: string | null = null
+	it("handles null baselines without error (tiered baseline fallback, server-side)", async () => {
+		let capturedBody: string | null = null;
 
-    // Call 1: Phase 1 — capture body, return end_turn
-    fetchSpy.mockImplementationOnce(async (_url: string, opts: RequestInit) => {
-      if (capturedBody === null) capturedBody = opts.body as string
-      return new Response(JSON.stringify({ content: [{ type: 'text', text: 'x' }], stop_reason: 'end_turn' }), { status: 200 })
-    })
-    // Call 2: Phase 2 — write SynthesisArtifact
-    fetchSpy.mockImplementationOnce(async () =>
-      new Response(
-        JSON.stringify({ content: [{ type: 'tool_use', id: 'tu_2', name: 'write_synthesis_artifact', input: VALID_ARTIFACT }], stop_reason: 'tool_use' }),
-        { status: 200 },
-      )
-    )
+		// Call 1: Phase 1 — capture body, return end_turn
+		fetchSpy.mockImplementationOnce(async (_url: string, opts: RequestInit) => {
+			if (capturedBody === null) capturedBody = opts.body as string;
+			return new Response(
+				JSON.stringify({
+					content: [{ type: "text", text: "x" }],
+					stop_reason: "end_turn",
+				}),
+				{ status: 200 },
+			);
+		});
+		// Call 2: Phase 2 — write SynthesisArtifact
+		fetchSpy.mockImplementationOnce(
+			async () =>
+				new Response(
+					JSON.stringify({
+						content: [
+							{
+								type: "tool_use",
+								id: "tu_2",
+								name: "write_synthesis_artifact",
+								input: VALID_ARTIFACT,
+							},
+						],
+						stop_reason: "tool_use",
+					}),
+					{ status: 200 },
+				),
+		);
 
-    const ctx: ServiceContext = { db: { select: () => ({ from: () => ({ where: () => ({ groupBy: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }) }) }) }) }) } as never, env: MOCK_BINDINGS }
-    for await (const _ of synthesizeV6(ctx, {
-      studentId: 'stu-1', conversationId: null, sessionDurationMs: 0, practicePattern: '{}',
-      topMoments: [], drillingRecords: [], pieceMetadata: null,
-      enrichedChunks: [], baselines: null, sessionHistory: [], pastDiagnoses: [],
-    }, 'sess-1')) { /* drain */ }
+		const ctx: ServiceContext = {
+			db: {
+				select: () => ({
+					from: () => ({
+						where: () => ({
+							groupBy: () => ({
+								orderBy: () => ({ limit: () => Promise.resolve([]) }),
+							}),
+						}),
+					}),
+				}),
+			} as never,
+			env: MOCK_BINDINGS,
+		};
+		for await (const _ of synthesizeV6(
+			ctx,
+			{
+				studentId: "stu-1",
+				conversationId: null,
+				sessionDurationMs: 0,
+				practicePattern: "{}",
+				topMoments: [],
+				drillingRecords: [],
+				pieceMetadata: null,
+				enrichedChunks: [],
+				baselines: null,
+				sessionHistory: [],
+				pastDiagnoses: [],
+			},
+			"sess-1",
+		)) {
+			/* drain */
+		}
 
-    // Post-grounding: null baselines flow through without crashing (the tiered baseline
-    // falls back to a within-session reference server-side; nothing baseline-shaped is
-    // dumped into the prompt). The phase1 call still happens.
-    expect(capturedBody).not.toBeNull()
-    const parsedBody = JSON.parse(capturedBody!)
-    const userMsg = parsedBody.messages?.find((m: { role: string }) => m.role === 'user')
-    expect(userMsg).toBeDefined()
-  })
-})
+		// Post-grounding: null baselines flow through without crashing (the tiered baseline
+		// falls back to a within-session reference server-side; nothing baseline-shaped is
+		// dumped into the prompt). The phase1 call still happens.
+		expect(capturedBody).not.toBeNull();
+		const parsedBody = JSON.parse(capturedBody!);
+		const userMsg = parsedBody.messages?.find(
+			(m: { role: string }) => m.role === "user",
+		);
+		expect(userMsg).toBeDefined();
+	});
+});
 
 const GUARDRAIL =
-  "This is the student's first session -- describe only what happened within this session; do not reference past sessions or claim improvement over time."
+	"This is the student's first session -- describe only what happened within this session; do not reference past sessions or claim improvement over time.";
 
-describe('synthesizeV6 first-session guardrail', () => {
-  const fetchSpy = vi.fn()
+describe("synthesizeV6 first-session guardrail", () => {
+	const fetchSpy = vi.fn();
 
-  beforeEach(() => {
-    fetchSpy.mockReset()
-    vi.stubGlobal('fetch', fetchSpy)
-  })
+	beforeEach(() => {
+		fetchSpy.mockReset();
+		vi.stubGlobal("fetch", fetchSpy);
+	});
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
 
-  // Runs synthesizeV6, returning the captured phase1 and phase2 request bodies.
-  async function runWith(referenceMode: 'within_session' | null) {
-    let phase1Body: string | null = null
-    let phase2Body: string | null = null
+	// Runs synthesizeV6, returning the captured phase1 and phase2 request bodies.
+	async function runWith(referenceMode: "within_session" | null) {
+		let phase1Body: string | null = null;
+		let phase2Body: string | null = null;
 
-    // Call 1: Phase 1 — capture body, end turn with no tools
-    fetchSpy.mockImplementationOnce(async (_url: string, opts: RequestInit) => {
-      phase1Body = opts.body as string
-      return new Response(
-        JSON.stringify({ content: [{ type: 'text', text: 'no tools' }], stop_reason: 'end_turn' }),
-        { status: 200 },
-      )
-    })
-    // Call 2: Phase 2 — capture body, write SynthesisArtifact
-    fetchSpy.mockImplementationOnce(async (_url: string, opts: RequestInit) => {
-      phase2Body = opts.body as string
-      return new Response(
-        JSON.stringify({
-          content: [{ type: 'tool_use', id: 'tu_g', name: 'write_synthesis_artifact', input: VALID_ARTIFACT }],
-          stop_reason: 'tool_use',
-        }),
-        { status: 200 },
-      )
-    })
+		// Call 1: Phase 1 — capture body, end turn with no tools
+		fetchSpy.mockImplementationOnce(async (_url: string, opts: RequestInit) => {
+			phase1Body = opts.body as string;
+			return new Response(
+				JSON.stringify({
+					content: [{ type: "text", text: "no tools" }],
+					stop_reason: "end_turn",
+				}),
+				{ status: 200 },
+			);
+		});
+		// Call 2: Phase 2 — capture body, write SynthesisArtifact
+		fetchSpy.mockImplementationOnce(async (_url: string, opts: RequestInit) => {
+			phase2Body = opts.body as string;
+			return new Response(
+				JSON.stringify({
+					content: [
+						{
+							type: "tool_use",
+							id: "tu_g",
+							name: "write_synthesis_artifact",
+							input: VALID_ARTIFACT,
+						},
+					],
+					stop_reason: "tool_use",
+				}),
+				{ status: 200 },
+			);
+		});
 
-    const ctx: ServiceContext = { db: { select: () => ({ from: () => ({ where: () => ({ groupBy: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }) }) }) }) }) } as never, env: MOCK_BINDINGS }
-    for await (const _ of synthesizeV6(ctx, {
-      studentId: 'stu-1', conversationId: null, sessionDurationMs: 60000, practicePattern: '{}',
-      topMoments: [], drillingRecords: [], pieceMetadata: null,
-      enrichedChunks: [], baselines: referenceMode === null ? { dynamics: 0.5, timing: 0.48, pedaling: 0.46, articulation: 0.54, phrasing: 0.52, interpretation: 0.51 } : null,
-      sessionHistory: [], pastDiagnoses: [],
-      referenceMode,
-    }, 'sess-1')) { /* drain */ }
+		const ctx: ServiceContext = {
+			db: {
+				select: () => ({
+					from: () => ({
+						where: () => ({
+							groupBy: () => ({
+								orderBy: () => ({ limit: () => Promise.resolve([]) }),
+							}),
+						}),
+					}),
+				}),
+			} as never,
+			env: MOCK_BINDINGS,
+		};
+		for await (const _ of synthesizeV6(
+			ctx,
+			{
+				studentId: "stu-1",
+				conversationId: null,
+				sessionDurationMs: 60000,
+				practicePattern: "{}",
+				topMoments: [],
+				drillingRecords: [],
+				pieceMetadata: null,
+				enrichedChunks: [],
+				baselines:
+					referenceMode === null
+						? {
+								dynamics: 0.5,
+								timing: 0.48,
+								pedaling: 0.46,
+								articulation: 0.54,
+								phrasing: 0.52,
+								interpretation: 0.51,
+							}
+						: null,
+				sessionHistory: [],
+				pastDiagnoses: [],
+				referenceMode,
+			},
+			"sess-1",
+		)) {
+			/* drain */
+		}
 
-    return { phase1Body, phase2Body }
-  }
+		return { phase1Body, phase2Body };
+	}
 
-  // Extracts the user-message content string from a captured request body.
-  function userContentOf(body: string): string {
-    const parsed = JSON.parse(body)
-    return parsed.messages?.find((m: { role: string }) => m.role === 'user')?.content as string
-  }
+	// Extracts the user-message content string from a captured request body.
+	function userContentOf(body: string): string {
+		const parsed = JSON.parse(body);
+		return parsed.messages?.find((m: { role: string }) => m.role === "user")
+			?.content as string;
+	}
 
-  it('emits the first-session guardrail into the phase2 prose prompt when referenceMode=within_session', async () => {
-    const { phase1Body, phase2Body } = await runWith('within_session')
+	it("emits the first-session guardrail into the phase2 prose prompt when referenceMode=within_session", async () => {
+		const { phase1Body, phase2Body } = await runWith("within_session");
 
-    expect(phase1Body).not.toBeNull()
-    expect(phase2Body).not.toBeNull()
-    const phase2User = userContentOf(phase2Body!)
-    // reference_mode reaches phase2 via ctx.digest (GroundedDigest.reference_mode),
-    // gating the first-session guardrail in the prose-writing (phase2) prompt.
-    expect(phase2User).toContain(GUARDRAIL)
-  })
+		expect(phase1Body).not.toBeNull();
+		expect(phase2Body).not.toBeNull();
+		const phase2User = userContentOf(phase2Body!);
+		// reference_mode reaches phase2 via ctx.digest (GroundedDigest.reference_mode),
+		// gating the first-session guardrail in the prose-writing (phase2) prompt.
+		expect(phase2User).toContain(GUARDRAIL);
+	});
 
-  it('omits the guardrail when referenceMode is null (returning student)', async () => {
-    const { phase2Body } = await runWith(null)
+	it("omits the guardrail when referenceMode is null (returning student)", async () => {
+		const { phase2Body } = await runWith(null);
 
-    expect(phase2Body).not.toBeNull()
-    expect(userContentOf(phase2Body!)).not.toContain(GUARDRAIL)
-  })
-})
+		expect(phase2Body).not.toBeNull();
+		expect(userContentOf(phase2Body!)).not.toContain(GUARDRAIL);
+	});
+});

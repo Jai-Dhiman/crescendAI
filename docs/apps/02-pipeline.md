@@ -4,7 +4,7 @@ The complete path from microphone to teaching observation. This is the technical
 
 > **Status (2026-06-04):**
 > - IMPLEMENTED: Two-stage LLM pipeline (subagent + teacher), HF inference endpoint (A1-Max 4-fold ensemble; AMT + pedal CC64 wired **LOCAL ONLY** -- prod `AMT_ENDPOINT` unset, prod sessions degrade to Tier 3, see #9), teaching moment selection (deviation-magnitude gate + blind-spot detection + positive-moment fallback), score following (chroma-DTW), bar-aligned analysis, synthesized facts, exercise endpoints (25 curated), session brain state machine (DO practice mode detection + state persistence), observation pacing (mode-aware), zero-config piece ID (N-gram + rerank + DTW, merged, pending AMT container deploy), artifact declaration via Anthropic tool_use (tool_choice: auto), session synthesis (alarm-triggered, all exit paths, deferred recovery; cold-start within-session synthesis for first-session/no-baseline students, #24), AI Gateway (Anthropic + Workers AI)
-> - SHIPPED (flag-gated): V6 harness loop — hook-driven two-phase compound execution loop that replaces the linear Stage 4a/4b path on `OnSessionEnd`. Phase 1 dispatches skill-catalog atoms as Anthropic tools; Phase 2 forced-writes a Zod-validated `SynthesisArtifact`. `HARNESS_V6_ENABLED=true` in prod (Plan 4 integration complete; V8a `assign_segment_loop` action atom also shipped).
+> - SHIPPED (flag-gated): V6 harness loop — hook-driven two-phase compound execution loop that replaces the linear Stage 4a/4b path on `OnSessionEnd`. Phase 1 dispatches skill-catalog atoms as Anthropic tools; Phase 2 forced-writes a Zod-validated `SynthesisArtifact`. V6 is the only synthesis path, flag deleted in #28 (Plan 4 integration complete; V8a `assign_segment_loop` action atom also shipped).
 > - NOT STARTED: Passage repetition detection
 > - **Code:** `apps/api/src/services/teacher.ts` (pipeline), `apps/api/src/services/prompts.ts` (teacher persona), `apps/api/src/do/session-brain.ts` (DO session)
 > - **Model details:** `model/03-encoders.md`
@@ -111,7 +111,7 @@ ENTRY CONDITION (hook)
 
 - Stages 1-3 (audio capture, cloud inference, teaching moment selection) are unchanged. The agent loop consumes the same signals.
 - The DO-held session accumulator is unchanged (V3 adds sawtooth compaction later).
-- The AI Gateway routing and provider mix (Workers AI subagent + Sonnet teacher) is unchanged; the loop is provider-agnostic, so swapping Sonnet -> Qwen finetune is a runtime decision.
+- The loop remains provider-agnostic. The former Qwen fine-tune was closed; provider changes now require their own capability and evaluation gate.
 
 ### Writes Stay Single-Threaded
 
@@ -133,7 +133,7 @@ The production review agent is a specific `after_model` middleware: given only t
 
 ### Capability-Router Across Providers
 
-From *Multi-Agents: What's Actually Working*: the Workers AI + Sonnet (+ eventually Qwen) mix is a capability router, not a difficulty escalator. Each model handles the sub-task it is best at. This frames the future Sonnet -> Qwen swap: Qwen handles teacher-voice molecules where the finetune pays off; Sonnet or Workers AI handle analytical atoms where Qwen underperforms. The article also acknowledges that a meaningfully weaker primary calling out to a stronger model remains an open training problem; relevant to the Qwen 27B gating criteria in `docs/plans/` (strong model for core reasoning; router for sub-tasks).
+From *Multi-Agents: What's Actually Working*: the provider mix is a capability router, not a difficulty escalator. Each model should handle only sub-tasks where it passes the relevant evaluation. The former Qwen fine-tuning program is closed; any replacement teacher model now requires a capability gate under #139 rather than a planned provider swap.
 
 ### Sequencing
 
@@ -220,9 +220,8 @@ Each 15-second audio chunk is forwarded by the API worker to the HuggingFace inf
 Input:  15s audio (Opus/WebM or PCM) at 24kHz mono
           |
           v
-MuQ backbone (frozen, pretrained on 160K hours)
-  + LoRA rank-32 adapters (layers 7-12, <1% of params)
-  + Attention pooling -> Shared encoder -> Per-dim ranking heads
+Stock OpenMuQ/MuQ-large-msd-iter backbone (frozen)
+  + Attention pooling -> Shared encoder -> Per-dim prediction heads
           |
           v
 Output: 6 dimension scores (Float, 0.0-1.0)
@@ -235,8 +234,8 @@ The deployed model averages predictions across all 4 fold models (piece-stratifi
 
 | Metric | Value |
 |--------|-------|
-| Pairwise accuracy | 80.8% (4-fold ensemble) |
-| R2 | 0.50 |
+| Pairwise accuracy | 79.85% (4-fold mean, clean piece-stratified folds) |
+| R2 | 0.336 (4-fold mean, clean piece-stratified folds) |
 | Robustness (score drop) | 0.08% |
 | Latency | ~1-2s (inference + network round-trip) |
 

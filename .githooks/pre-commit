@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Fast mechanical layer (target: a few seconds). Scoped to the LINES this commit
+# changed, so pre-existing lint debt stays visible without blocking unrelated
+# commits. Scoping to staged *files* was not enough: with lint-api red across
+# 161 files (#142), nearly every commit to a busy file was blocked by findings
+# it did not introduce, and --no-verify became the default (#147).
+# Break glass: git commit --no-verify
+set -uo pipefail
+
+ROOT=$(git rev-parse --show-toplevel)
+cd "$ROOT"
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
+
+fail=0
+
+python3 scripts/standards_check.py --staged || fail=1
+
+# biome + ruff, filtered to the lines this commit changed.
+python3 scripts/lint_changed.py || fail=1
+
+if [ "$fail" -ne 0 ]; then
+    echo ""
+    echo "pre-commit: blocked. Fix the findings above, or run 'git commit --no-verify'"
+    echo "to break glass (and say so in the commit message)."
+    exit 1
+fi

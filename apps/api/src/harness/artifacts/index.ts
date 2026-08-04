@@ -1,12 +1,19 @@
 import type { ZodTypeAny } from "zod";
-import { DiagnosisArtifactSchema, type DiagnosisArtifact } from "./diagnosis";
-import { SynthesisArtifactSchema, type SynthesisArtifact } from "./synthesis";
-import { SegmentLoopArtifactSchema, type SegmentLoopArtifact } from "./segment-loop";
+import { DiagnosisArtifactSchema } from "./diagnosis";
+import { SegmentLoopArtifactSchema } from "./segment-loop";
+import { SynthesisArtifactSchema } from "./synthesis";
 
-export { DiagnosisArtifactSchema, type DiagnosisArtifact } from "./diagnosis";
-export { SynthesisArtifactSchema, type SynthesisArtifact } from "./synthesis";
-export { SegmentLoopArtifactSchema, type SegmentLoopArtifact, type SegmentLoopRef } from "./segment-loop";
-export { ExerciseRoutingDecisionSchema, type ExerciseRoutingDecision } from "./exercise-routing";
+export { type DiagnosisArtifact, DiagnosisArtifactSchema } from "./diagnosis";
+export {
+	type ExerciseRoutingDecision,
+	ExerciseRoutingDecisionSchema,
+} from "./exercise-routing";
+export {
+	type SegmentLoopArtifact,
+	SegmentLoopArtifactSchema,
+	type SegmentLoopRef,
+} from "./segment-loop";
+export { type SynthesisArtifact, SynthesisArtifactSchema } from "./synthesis";
 
 export const ARTIFACT_NAMES = [
 	"DiagnosisArtifact",

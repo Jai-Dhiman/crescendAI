@@ -1,14 +1,14 @@
 # CrescendAI Research & Product Timeline
 
-> **Year-scale plan:** see
-> [`docs/plans/2026-04-20-model-year-roadmap.md`](../plans/2026-04-20-model-year-roadmap.md)
-> for the Q2–Q4 2026 + year-2-candidates roadmap. This timeline remains the
-> canonical record of completed work and current state; the roadmap doc is
-> the forward-looking companion.
+> **Current program:** issue #139 owns the capability-gated Paper #1 benchmark
+> and verifier roadmap. This document preserves the chronology and negative
+> results; issue state, not old calendar plans, owns active work.
 
-> **AUDIO-NATIVE TEACHER PIVOT (#127, 2026-07-25):** The teacher-model program pivoted from the two obsolete tracks — the Qwen 5-stage teacher finetune (`epic:teacher-finetune` #16/#55) and the MuQ/Aria encoder-v2 training epic (`epic:model-v2` #71/#79-#84), both assuming a text-only teacher fed by separately-graded encoder streams — to a single **gated audio-native program**: one LoRA-tuned open multimodal model (Inkling-on-Tinker class) collapses ear+teacher. The harness verifier stays external and gates every claim; MuQ retires as a graded stream but survives as frozen instrumentation; the transcription stream (Transkun, #125) is untouched. The durable roadmap (4 data layers, gate ladder with ex-ante kill criteria, wave-2 issue drafts) lives in **epic #129**; **Gate 0 = #130** (funded Inkling piano-perception probe, $50 hard cap, kill criteria fixed before any run: per-axis accuracy >= 0.70 on REAL contrast pairs only, >= 20 real pairs/axis, unparseable rate <= 0.10, uncertain defaults to FAIL); the DIY fallback is parked in **#131** and activates only on a failed gate. The nine dead issues were closed "not planned" with successor links; #32/#33/#40 were relabeled to `epic:audio-teacher`. Shipped code: `model/src/audio_teacher/` — the offline-testable Gate 0 probe harness (manifest -> forced A/B elicitation -> population-partitioned scoring; real and synthetic cells are never pooled, the #21 scar; budget guard raises BEFORE the overshooting call and carries spend forward across resumed runs), 37 offline tests, no test calls Tinker. Model-v2 encoder-training plans below (Phase 0+3, Week 1-6 timeline) are historical record, not the live plan. Next: the user runs the funded Gate 0 probe per #130.
+> **AUDIO-NATIVE TEACHER GATE OUTCOME (#127/#129/#130, 2026-07-25–27):** The Qwen and MuQ/Aria training epics closed in favor of an audio-native probe. Gate 0 then **FAILED its original all-axis rule**: dynamics showed strong signal, pedaling was weak and inconsistent, and phrasing remained untested. The result demonstrates axis-dependent capability, neither a pass nor flat inability. #131 closed without activating a separate DIY-model loop, and #129 closed as superseded. The surviving `model/src/audio_teacher/` code is a 37-test probe harness, not a checkpoint, training loop, serving path, or app integration. Successor #139 starts with a modular real-audio benchmark and independent verifier; any native audio-language model remains gated on that ruler.
 >
-> **Status (2026-04-21):** Clean-fold baseline established and optimized. **A1-Max optimized: 79.85% pairwise, R2=0.336** (4-fold mean, clean folds). **Aria Phase C — T1 baseline TRAINED (2026-06-26, #78 / epic #71):** `AriaLoRAModel` (LoRA rank-32 on layers 8-15 of 16, PEFT) fine-tuned on T1 PercePiano locally on Apple-Silicon MPS via `model/scripts/train_aria_phase_c.py` — 4 clean piece-stratified folds, mean pairwise **0.6988** (std 0.023, all folds beat baseline), R2_mean 0.194 (dynamics/interpretation +0.32, timing +0.25 strongest). **Beats the 59.6% frozen-probe baseline by +10.3pts**, confirming LoRA adaptation extracts real ranking signal (assumption D1). LOWER BOUND: T1 AMT MIDI is a fluidsynth timbre proxy (original Pianoteq audio gone). Full multi-tier convergence (T1+T2+T3+T5) still blocked on T5 labeling (#33); G2 post-fine-tune decorrelation verdict is separate (#80/#92). Smoke test: `model/scripts/smoke_test_aria.py`.
+> **Historical encoder result:** A1-Max reached **79.85% pairwise, R2=0.336** on clean folds. Aria Phase C reached 0.6988 pairwise on a T1 fluidsynth/AMT proxy. Its training script and broader multi-tier program were later retired; these numbers do not describe the serving architecture or establish real-practice validity.
+>
+> **TRANSKUN MIGRATION (#128, 2026-07-23):** The frozen `/transcribe` contract moved from Aria-AMT to Transkun. The warm path loads once and preserves Transkun's own preprocessing; the isolated CLI remains the explicit fallback. Smoke, measurer, and onset/duration gates passed. Chroma pseudo-truth recall improved 40% -> 45%, while its cost-vs-error guard regressed 0.667 -> 0.586, so the baseline was not silently ratcheted. Piece-ID stability could not be measured because the real cache still used the former substrate; the gap was reported rather than filled with synthetic evidence.
 >
 > **Research path 1 (verifiable feedback) — deterministic claim verifier SHIPPED (#65, 2026-06-19):** `claim_taxonomy.json` bumped to v0.1 (dynamics dimension activated). `DynamicsMeasurer`, `TimingMeasurer`, `PedalingMeasurer`, `LocationResolver`, `verify()` orchestrator, and CLI shipped in `apps/evals/claim_taxonomy/verifier/`. Signed-d convention + error-bar table documented in `docs/model/claim-verifier-signed-d-conventions.md`. `BundleExtractor` skeleton present; real-claim faithfulness rate (#67) and proxy-to-perception gate (#66) are next.
 >
@@ -287,7 +287,7 @@ See "Model v2 Plan" section above for full details.
 
 **1b. AMT service -- LOCAL ONLY (prod deploy tracked in #9)**
 
-- Aria-AMT (Whisper-class, ~49M, MAESTRO F1 0.86) alongside MuQ; replaces ByteDance (historically validated: 0% pairwise drop MAESTRO, 79.9% agreement YouTube)
+- Transkun (MIT, ISMIR 2024) behind the frozen `/transcribe` contract; #128 replaced the former Aria-AMT substrate after the migration gates passed
 - Single upload, two outputs (scores + MIDI + pedal CC64 events)
 - Prod `AMT_ENDPOINT` unset -> prod sessions degrade to Tier 3; runs locally via `localhost:8001`
 

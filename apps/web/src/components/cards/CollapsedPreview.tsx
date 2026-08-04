@@ -16,6 +16,7 @@ export function CollapsedPreview({
 	onExpand,
 }: CollapsedPreviewProps) {
 	return (
+		// biome-ignore lint/a11y/useSemanticElements: the preview contains its own dismiss <button>; a <button> wrapper would nest interactive controls.
 		<div
 			role="button"
 			tabIndex={0}

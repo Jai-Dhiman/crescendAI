@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { computeOnsetDrift } from "./compute-onset-drift";
 
 test("computeOnsetDrift: concrete example from spec produces correct per-note drift", async () => {

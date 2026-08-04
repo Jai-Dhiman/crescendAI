@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { computePedalOverlapRatio } from "./compute-pedal-overlap-ratio";
 
 test("computePedalOverlapRatio: two notes, pedal [200,800]ms → ratio 0.6", async () => {

@@ -1,10 +1,10 @@
 import { ArrowsOut } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
-import { ClipSvg } from "../ClipSvg";
 import { DIMENSION_COLORS } from "../../lib/mock-session";
 import { scoreRenderer } from "../../lib/score-renderer";
 import type { ScoreHighlightConfig } from "../../lib/types";
 import { useScorePanelStore } from "../../stores/score-panel";
+import { ClipSvg } from "../ClipSvg";
 
 interface ScoreHighlightCardProps {
 	config: ScoreHighlightConfig;

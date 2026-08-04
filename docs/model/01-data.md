@@ -2,7 +2,7 @@
 
 Dataset inventory for piano performance evaluation training. Heavy data processing (embedding extraction, full training runs) runs on HF Jobs (L4 $0.80/hr default, A100 $2.50/hr for Aria). Training data stored on HF Bucket.
 
-> **Status (2026-03-18):** T1 COMPLETE, T2 COMPLETE (Chopin 2021, expansion planned), T3 COMPLETE, T5 IN PROGRESS (YouTube Skill Corpus -- 2 of 16 pieces curated: Fur Elise 28 recordings, Nocturne Op.9/2 27 recordings, 3 wrong entries removed). Graph pretraining corpus LEGACY (24,220 graphs -- replaced by Aria). Composite labels COMPLETE. T4 REPLACED by T5. **Aria-MIDI (820K piano MIDIs) available for continued pretraining.** Disk: 12 GB cleaned, 68 GB available.
+> **Status (2026-08-02):** T1–T5 below document the retired model-v2 data program. The active teacher roadmap is #139: real phone/room practice episodes, verified score identity, localized expert observations, interventions, retries, outcomes, and explicit abstentions. Existing competition, MAESTRO, and YouTube corpora remain research inputs, not substitutes for that ecological dataset.
 
 ## Directory Structure
 
@@ -33,7 +33,7 @@ The training code (`src/model_improvement/data.py`) loads only embeddings and me
 - Tier-specific signals: labels, placements, contrastive mappings, augmented pairs
 
 For Aria (symbolic path), training also loads:
-- AMT MIDI: performance MIDI transcribed from audio (via Transkun (MIT, ISMIR 2024), #128; local `localhost:8001`, prod unset -> Tier 3, #9). Per-segment training MIDI is produced offline by the AMT extraction pipeline (`just amt-run-all`, issue #72): `prepare_amt_audio.py` stages WAVs per tier and `apps/inference/extract_amt_midi.py` writes `data/midi/amt/{t1,cliburn,chopin}/{seg_id}.mid` consumed by `AriaMidiPairDataset`. Caveat: T1 (PercePiano) WAVs are fluidsynth-rendered from ground-truth MIDI because the original Pianoteq audio is gone, so T1 AMT MIDI is a timbre proxy (treat #77 D4 numbers as a lower bound). Run COMPLETE: 10,261 MIDIs produced (T1 1,202 + Cliburn 6,766 + Chopin 2,293), 0 transcription failures. ~2.5% of T2 segments (213) transcribe to zero notes -- these are genuine silence/applause/pause slices scattered across recital recordings, not errors; downstream training should filter `note_count > 0`.
+- AMT MIDI: performance MIDI transcribed from audio (via Transkun (MIT, ISMIR 2024), #128; local `localhost:8001`, prod unset -> Tier 3, #9). Per-segment training MIDI was produced offline by the AMT extraction pipeline (`just amt-run-all`, issue #72), which staged WAVs per tier and wrote `data/midi/amt/{t1,cliburn,chopin}/{seg_id}.mid` consumed by `AriaMidiPairDataset`. That pipeline (`prepare_amt_audio.py`, `apps/inference/extract_amt_midi.py`, and the `amt-*` recipes) was removed on 2026-07-27 with the Aria symbolic path (#127); the MIDI it produced remains. Re-transcription now goes through `model/src/claim_measurement/transcription_bench/`. Caveat: T1 (PercePiano) WAVs are fluidsynth-rendered from ground-truth MIDI because the original Pianoteq audio is gone, so T1 AMT MIDI is a timbre proxy (treat #77 D4 numbers as a lower bound). Run COMPLETE: 10,261 MIDIs produced (T1 1,202 + Cliburn 6,766 + Chopin 2,293), 0 transcription failures. ~2.5% of T2 segments (213) transcribe to zero notes -- these are genuine silence/applause/pause slices scattered across recital recordings, not errors; downstream training should filter `note_count > 0`.
 - Score MIDI: from score library (242 ASAP pieces deployed to D1 + R2)
 
 ## Datasets
@@ -152,12 +152,12 @@ Consolidated view of the named piano datasets in the field, mapped to CrescendAI
 
 | Dataset | Size / shape | License | CrescendAI status | Use case |
 |---|---|---|---|---|
-| **MAESTRO** (v3.0.0) | 1,276 recordings, ~300 pieces, 200h audio+MIDI | CC BY-NC-SA 4.0 | **Active** | T3 contrastive tier (same-piece/diff-performer pairs, 24,321 segments); also Aria-AMT's training corpus; practice-augmentation source. |
+| **MAESTRO** (v3.0.0) | 1,276 recordings, ~300 pieces, 200h audio+MIDI | CC BY-NC-SA 4.0 | **Active** | T3 contrastive tier (same-piece/diff-performer pairs, 24,321 segments); historical Aria-AMT training and practice-augmentation source. |
 | **ASAP** | 1,067 performances of 236 scores, audio + score MIDI + perf MIDI | MIT | **Active** | Score library V1 (242 pieces deployed to D1 + R2) for piece ID and score-conditioning `delta = z_perf - z_score`. Also 1,066 graphs in legacy corpus. |
-| **(n)ASAP** | Note-aligned variant of ASAP via parangonar | MIT | **Proposed** | Note-level alignment upgrade. Referenced in `docs/specs/2026-05-28-continuity-aware-chroma-follower-design.md` as the millisecond eval harness for the continuity-aware chroma follower; not yet wired into loaders. Drop-in alignment upgrade for the existing 242-piece library. |
-| **ATEPP** | ~11,700 transcribed expressive performances | Research-only | **Legacy** | MIDI loader exists (`datasets.py::load_atepp_midi_files`) and feeds the 24,220-graph S2 GNN pretraining corpus. Consumer (S2) was removed when Aria absorbed the symbolic-FM role (2026-03-18 decision). Re-use path is Aria CPT, not graph rebuild. |
+| **(n)ASAP** | Note-aligned variant of ASAP via parangonar | MIT | **Proposed** | Note-level alignment upgrade that could provide millisecond truth for a future follower benchmark; not yet wired into loaders. Drop-in alignment upgrade for the existing 242-piece library. |
+| **ATEPP** | ~11,700 transcribed expressive performances | Research-only | **Legacy** | MIDI loader exists (`datasets.py::load_atepp_midi_files`) and feeds the 24,220-graph S2 GNN pretraining corpus. Its consumer was removed when the former model-v2 program adopted Aria; any reuse now needs a new capability gate. |
 | **GiantMIDI-Piano** | ~10,800 piano MIDIs transcribed from YouTube | CC BY 4.0 | **Legacy** | 8,278 graphs in the legacy pretraining corpus + `archive/scripts/process_giantmidi_graphs.py`. Same story as ATEPP — feeds an archived pipeline. |
-| **Aria-MIDI** | 820K piano MIDI performances (~60K hours) | Apache 2.0 | **Standby** | Pretraining corpus for the Aria encoder we use. Encoder is active; the dataset is on standby for piano-specific continued-pretraining only if fine-tune signal proves insufficient. |
+| **Aria-MIDI** | 820K piano MIDI performances (~60K hours) | Apache 2.0 | **Standby** | Pretraining corpus for the historical Aria experiments. Aria is not the serving encoder; reuse requires a new capability gate. |
 | **Vienna 4x22** | 22 pianists × 4 pieces (Chopin/Mozart/Schubert), Bösendorfer SE measurements | Research-only | **Proposed** | Small, controlled T3 contrastive donor: dense same-piece/different-performer pairs with precise mechanical measurements. Best fit as a held-out validation set first (sanity-check that contrastive embeddings actually separate performers under controlled conditions), promote into training only if held-out behavior is clean. |
 | **Batik-plays-Mozart** | 12 Mozart sonatas, one performer (Roland Batik), score-aligned | Research-only | **Cited-only** (appears in `apps/evals/teacher_model/data/corpus/pdf_b222f630bf54.txt`) | Classical-era score-conditioning anchor (links performance and score). Single-performer = zero ordinal/contrastive value. Defer unless Classical-era coverage becomes a measured weakness (current eval shows Impressionist weakest, not Classical). |
 | **CrestMusePEDB** | ~400 performances with score-deviation annotations | Research-only (check commercial terms) | **Cited-only** (appears in `apps/evals/teacher_model/data/corpus/pdf_4ae30699778f.txt`) | Highest-value candidate for the ASCF weak dimension: per-bar expressive-deviation annotations map onto the MPM-bucket-enrichment hypothesis (`project_mpm_bucket_enrichment.md`) as a second auxiliary supervision source. **Gate on:** (1) commercial-use license review, (2) MPM-enrichment gates 1–2 passing on T5 first. |
@@ -265,7 +265,7 @@ model/data/                     Size
 [x] LEGACY: Symbolic pretraining corpus (24,220 graphs -- replaced by Aria)
 ```
 
-### Phase 0+3: Model v2 (Aria + Multi-Tier Training)
+### HISTORICAL: Phase 0+3 Model v2 (closed)
 
 ```
 [x] T5 YouTube Skill manifests: Fur Elise (28 recordings, curated)
@@ -297,7 +297,7 @@ See `04-north-star.md` for full pipeline vision and phase details.
 
 Sources: ASAP score MIDIs (242 pieces, V1). MAESTRO score MIDIs require external sourcing (performances exist, scores don't). IMSLP/MuseScore for expansion. MusicXML import for dynamics text, articulation marks, section labels (future enrichment).
 
-Design spec: `docs/superpowers/specs/2026-03-14-score-midi-library-design.md`
+Operational score-library guidance lives in `docs/model/10-score-library-catalog.md`.
 
 **Phase 4: Real Audio + Expert Labels**
 

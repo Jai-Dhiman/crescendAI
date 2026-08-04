@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { computeKeyOverlapRatio } from "./compute-key-overlap-ratio";
 
 test("computeKeyOverlapRatio: three notes with 50ms overlap each gives ratio 0.10", async () => {

@@ -33,7 +33,7 @@ whatever generated it.
 
 ## Adding a score to the catalog
 
-Append one entry to `manual_scores.json`, then run `just catalog-add` (parse-manual
+Append one entry to `manual_scores.json`, then run `just corpus::catalog-add` (parse-manual
 -> fingerprint -> reports catalog size). The validation gate inside `parse-manual`
 HALTS loudly if any source is bad or off-grid — it never writes a partial catalog.
 
@@ -156,7 +156,7 @@ is the input for a deferred cleanliness pass. Full history in memory
 > fingerprints whole-piece chroma recall collapses (opening 80%→44%), so **real
 > shipped recall is ~44–62%, not 94%** (production queries the live ~1,200-note
 > buffer ≈ mid-piece → ~50–60% honest expectation). Fix SHIPPED to branch
-> `issue-96-autoresearch` (UNMERGED, deploy-gated): an **additive hybrid shortlist**
+> `issue-96-autoresearch` (merged as `d26a80ab`, deploy-gated): an **additive hybrid shortlist**
 > (whole-piece top-20 ∪ windowed top-K, 400-note windows) — recall-only, the
 > certified gate + golden parity fixture untouched (`cargo test` 28/0). Recovers
 > full-piece opening to ~57–62% but **ceilings ~62%** (12-dim-chroma limit; breaking
@@ -169,7 +169,7 @@ is the input for a deferred cleanliness pass. Full history in memory
 
 Do not conflate them:
 
-- **The general catalog** grows freely via the manifest + `just catalog-add`. Add
+- **The general catalog** grows freely via the manifest + `just corpus::catalog-add`. Add
   as many pieces as you like; no code change.
 - **The fixed 16-piece eval set** is `CANONICAL_MAP` in
   `model/src/score_library/catalog_coverage.py` plus `eval_piece_map.json`. It is

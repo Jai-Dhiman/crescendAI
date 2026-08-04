@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).parents[2]))
 
 from paths import MODEL_DATA
 from shared.judge import judge_synthesis, judge_teaching_moment, judge_differentiation
-from shared.pipeline_client import run_recording, SessionResult
+from shared.pipeline_client import run_recording, render_artifact_text, SessionResult
 from shared.reporting import EvalReport, MetricResult
 
 SCENARIOS_DIR = Path(__file__).parent / "scenarios"
@@ -340,11 +340,12 @@ def main():
                         "piece": piece_id,
                         "skill_level": skill_level,
                         "text": result_a.synthesis.text,
-                        "is_fallback": result_a.synthesis.is_fallback,
                     })
 
-                    # LLM judge (only if capability selected)
-                    if "synthesis" in judge_capabilities and not result_a.synthesis.is_fallback:
+                    # LLM judge (only if capability selected). Reaching here already
+                    # proves V6 produced an artifact -- a failed synthesis lands in
+                    # the `result_a.errors` branch above (#28).
+                    if "synthesis" in judge_capabilities:
                         drilling_records = ec.get("drilling_records", [])
                         judge_ctx = {
                             "piece_name": ec.get("piece_context", {}).get("title", piece_id)
@@ -355,7 +356,7 @@ def main():
                             "drilling_detected": str(len(drilling_records) > 0).lower(),
                             "drilling_passage": json.dumps(drilling_records[0]) if drilling_records else "none",
                         }
-                        jr = judge_synthesis(result_a.synthesis.text, judge_ctx)
+                        jr = judge_synthesis(render_artifact_text(result_a.synthesis), judge_ctx)
                         total_judge_calls += 1
                         synthesis_judge_results.append({
                             "video_id": video_id,
@@ -430,8 +431,9 @@ def main():
                         "synthesis_latency_ms": result_b.synthesis_latency_ms,
                     })
 
-                    # Synthesis judge for Pass B (to compute delta)
-                    if "synthesis" in judge_capabilities and not result_b.synthesis.is_fallback:
+                    # Synthesis judge for Pass B (to compute delta). See the Pass A
+                    # note: synthesis presence is already proven by the elif above.
+                    if "synthesis" in judge_capabilities:
                         ec_b = result_b.synthesis.eval_context
                         drilling_b = ec_b.get("drilling_records", [])
                         judge_ctx_b = {
@@ -443,7 +445,7 @@ def main():
                             "drilling_detected": str(len(drilling_b) > 0).lower(),
                             "drilling_passage": json.dumps(drilling_b[0]) if drilling_b else "none",
                         }
-                        jr_b = judge_synthesis(result_b.synthesis.text, judge_ctx_b)
+                        jr_b = judge_synthesis(render_artifact_text(result_b.synthesis), judge_ctx_b)
                         total_judge_calls += 1
                         synthesis_judge_results.append({
                             "video_id": video_id,
@@ -487,8 +489,7 @@ def main():
         # Group syntheses by piece, find triplets at skill levels 1, 3, 5
         by_piece: dict[str, dict[int, list[dict]]] = defaultdict(lambda: defaultdict(list))
         for s in pass_a_syntheses:
-            if not s.get("is_fallback"):
-                by_piece[s["piece"]][s["skill_level"]].append(s)
+            by_piece[s["piece"]][s["skill_level"]].append(s)
 
         for piece_name, by_level in by_piece.items():
             if 1 in by_level and 3 in by_level and 5 in by_level:

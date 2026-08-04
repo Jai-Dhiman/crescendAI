@@ -4,7 +4,7 @@
 	"scripts": {
 		"dev": "wrangler dev",
 		"test": "vitest",
-		"typecheck": "tsc --noEmit",
+		"typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
 		"lint": "biome check src/",
 		"lint:fix": "biome check --write src/",
 		"generate": "drizzle-kit generate",
@@ -29,11 +29,12 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.6",
-		"wrangler": "^4",
 		"@cloudflare/vitest-pool-workers": "^0.8",
 		"@cloudflare/workers-types": "^4",
-		"vitest": "^3",
+		"@types/node": "^26.1.2",
 		"drizzle-kit": "^0.30",
-		"typescript": "^5"
+		"typescript": "^5",
+		"vitest": "^3",
+		"wrangler": "^4"
 	}
 }

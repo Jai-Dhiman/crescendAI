@@ -350,10 +350,19 @@ describe("toOpenAIChatRequest — system block translation", () => {
 			model: "@cf/zai-org/glm-4.7-flash",
 			max_tokens: 2048,
 			system: [
-				{ type: "text" as const, text: "You are a helpful teacher.", cache_control: { type: "ephemeral" as const } },
-				{ type: "text" as const, text: "<student_memory>some facts</student_memory>" },
+				{
+					type: "text" as const,
+					text: "You are a helpful teacher.",
+					cache_control: { type: "ephemeral" as const },
+				},
+				{
+					type: "text" as const,
+					text: "<student_memory>some facts</student_memory>",
+				},
 			],
-			messages: [{ role: "user" as const, content: "How do I improve my dynamics?" }],
+			messages: [
+				{ role: "user" as const, content: "How do I improve my dynamics?" },
+			],
 			tools: [],
 			tool_choice: { type: "auto" } as const,
 		};
@@ -362,9 +371,13 @@ describe("toOpenAIChatRequest — system block translation", () => {
 
 		expect(out.messages[0]).toEqual({
 			role: "system",
-			content: "You are a helpful teacher.\n\n<student_memory>some facts</student_memory>",
+			content:
+				"You are a helpful teacher.\n\n<student_memory>some facts</student_memory>",
 		});
-		expect(out.messages[1]).toEqual({ role: "user", content: "How do I improve my dynamics?" });
+		expect(out.messages[1]).toEqual({
+			role: "user",
+			content: "How do I improve my dynamics?",
+		});
 		expect(out.messages).toHaveLength(2);
 	});
 
@@ -380,7 +393,10 @@ describe("toOpenAIChatRequest — system block translation", () => {
 
 		const out = toOpenAIChatRequest(req);
 
-		expect(out.messages[0]).toEqual({ role: "system", content: "You are a piano teacher." });
+		expect(out.messages[0]).toEqual({
+			role: "system",
+			content: "You are a piano teacher.",
+		});
 		expect(out.messages[1]).toEqual({ role: "user", content: "Hello" });
 	});
 

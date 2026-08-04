@@ -16,11 +16,7 @@ describe("GET /health", () => {
 		expect(res.status).toBe(200);
 
 		const body = await res.json();
-		expect(body).toEqual({
-			status: "ok",
-			version: "2.0.0",
-			stack: "hono",
-		});
+		expect(body).toEqual({ status: "ok" });
 	});
 
 	it("returns 404 for unknown routes", async () => {

@@ -55,7 +55,6 @@ export const sessionStateSchema = z.object({
 		.nullable()
 		.default(null),
 	isEvalSession: z.boolean().default(false),
-	receivedRealInferenceChunk: z.boolean().default(false),
 });
 
 export type SessionState = z.infer<typeof sessionStateSchema>;
@@ -163,6 +162,5 @@ export function createInitialState(
 		identificationNoteBuffer: [],
 		activeAssignment: null,
 		isEvalSession: false,
-		receivedRealInferenceChunk: false,
 	};
 }

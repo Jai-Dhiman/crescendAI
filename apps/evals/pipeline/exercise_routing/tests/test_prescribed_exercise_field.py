@@ -13,7 +13,6 @@ def test_synthesis_result_has_prescribed_exercise_field():
     """SynthesisResult carries prescribed_exercise from explicit construction."""
     result = SynthesisResult(
         text="some synthesis",
-        is_fallback=False,
         eval_context={
             "prescribed_exercise": {
                 "kind": "own_passage_loop",
@@ -38,7 +37,6 @@ def test_synthesis_result_prescribed_exercise_none_when_null():
     """prescribed_exercise is None when explicitly passed as None."""
     result = SynthesisResult(
         text="some synthesis",
-        is_fallback=False,
         eval_context={"prescribed_exercise": None},
         prescribed_exercise=None,
     )
@@ -49,7 +47,6 @@ def test_synthesis_result_prescribed_exercise_none_when_absent():
     """prescribed_exercise is None when eval_context has no key (legacy sessions)."""
     result = SynthesisResult(
         text="some synthesis",
-        is_fallback=False,
         eval_context={},
         prescribed_exercise=None,
     )

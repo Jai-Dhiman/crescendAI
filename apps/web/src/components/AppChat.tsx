@@ -212,12 +212,18 @@ export default function AppChat() {
 		useConversation(activeConversationId);
 	const deleteConversation = useDeleteConversation();
 
-	function invalidateConversation(conversationId: string) {
-		queryClient.invalidateQueries({
-			queryKey: ["conversation", conversationId],
-		});
-		queryClient.invalidateQueries({ queryKey: ["conversations"] });
-	}
+	// queryClient is stable for the life of the provider, so this callback is too.
+	// That is what lets the deferred-synthesis effect below depend on it without
+	// re-running on every render.
+	const invalidateConversation = useCallback(
+		(conversationId: string) => {
+			queryClient.invalidateQueries({
+				queryKey: ["conversation", conversationId],
+			});
+			queryClient.invalidateQueries({ queryKey: ["conversations"] });
+		},
+		[queryClient],
+	);
 
 	// Clear override once URL catches up (navigate completed)
 	if (conversationOverride && conversationOverride === conversationIdFromUrl) {
@@ -243,7 +249,7 @@ export default function AppChat() {
 				}
 			}
 		});
-	}, [activeConversationId]);
+	}, [activeConversationId, invalidateConversation]);
 
 	// Derive messages: persisted (from query) + transient (streaming/placeholders)
 	const persistedMessages: RichMessage[] = conversationData?.messages ?? [];
@@ -483,7 +489,7 @@ export default function AppChat() {
 							);
 							const renderableComponents = components.filter(
 								(c) => c.type !== "search_catalog_result",
-							) as import("../lib/types").InlineComponent[];
+							) as unknown as import("../lib/types").InlineComponent[];
 
 							setTransientMessages((prev) => {
 								const updated = [...prev];
@@ -848,6 +854,7 @@ export default function AppChat() {
 							<>
 								{(filteredConversations ?? conversations.slice(0, 8)).map(
 									(conv) => (
+										// biome-ignore lint/a11y/useSemanticElements: the row contains its own delete <button>; a <button> wrapper would nest interactive controls.
 										<div
 											role="button"
 											tabIndex={0}

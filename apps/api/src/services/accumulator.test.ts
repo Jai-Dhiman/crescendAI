@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SessionAccumulator, type AccumulatedMoment } from "./accumulator";
+import { type AccumulatedMoment, SessionAccumulator } from "./accumulator";
 import type { BarAnalysisFacts } from "./bar-analysis-facts";
 
 describe("AccumulatedMoment.llmAnalysis", () => {
@@ -25,7 +25,9 @@ describe("AccumulatedMoment.llmAnalysis", () => {
 		};
 		const acc = new SessionAccumulator();
 		acc.accumulateMoment(moment);
-		const restored = SessionAccumulator.fromJSON(JSON.parse(JSON.stringify(acc.toJSON())));
+		const restored = SessionAccumulator.fromJSON(
+			JSON.parse(JSON.stringify(acc.toJSON())),
+		);
 		expect(restored.teachingMoments[0]?.llmAnalysis).toEqual(facts);
 	});
 });

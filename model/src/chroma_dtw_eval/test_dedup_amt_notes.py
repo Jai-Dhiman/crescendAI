@@ -1,4 +1,4 @@
-"""Run: cd model && uv run --with numpy --with pytest pytest \
+"""Run: cd model && uv run --no-project --with numpy --with pytest pytest \
         src/chroma_dtw_eval/test_dedup_amt_notes.py"""
 from __future__ import annotations
 
