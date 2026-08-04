@@ -1,15 +1,14 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getCompoundBinding } from "../harness/loop/compound-registry";
 import type { Bindings } from "../lib/types";
 import type { TeacherEvent } from "./teacher";
 import { runPhase1Streaming } from "./teacher";
-import { getCompoundBinding } from "../harness/loop/compound-registry";
 
 const MOCK_ENV = {
 	AI_GATEWAY_ENDPOINT: "https://gw.example",
 	AI_GATEWAY_TOKEN: "test-gw-token",
 	TEACHER_PROVIDER: "anthropic",
 } as unknown as Bindings;
-
 
 function makeSseResponse(sseText: string): Response {
 	return new Response(new TextEncoder().encode(sseText), { status: 200 });
@@ -41,7 +40,6 @@ const PHASE_CTX = {
 	waitUntil: (_p: Promise<unknown>) => {},
 	turnCap: 5,
 };
-
 
 describe("runPhase1Streaming — text-only turn", () => {
 	const fetchSpy = vi.fn();
@@ -200,27 +198,39 @@ describe("runPhase1Streaming — assign_segment_loop intercept", () => {
 	it("tool_result event carries segment_loop component when processToolFn intercepts assign_segment_loop", async () => {
 		// Two fetch calls: tool_use turn + forced text continuation
 		fetchSpy
-			.mockImplementationOnce(() => Promise.resolve(makeSseResponse(ASSIGN_LOOP_SSE)))
-			.mockImplementationOnce(() => Promise.resolve(makeSseResponse(TEXT_ONLY_SSE)));
+			.mockImplementationOnce(() =>
+				Promise.resolve(makeSseResponse(ASSIGN_LOOP_SSE)),
+			)
+			.mockImplementationOnce(() =>
+				Promise.resolve(makeSseResponse(TEXT_ONLY_SSE)),
+			);
 
 		const mockComponent = {
 			type: "segment_loop",
-			config: { id: "loop-test-1", pieceId: "chopin.ballades.1", status: "pending" },
+			config: {
+				id: "loop-test-1",
+				pieceId: "chopin.ballades.1",
+				status: "pending",
+			},
 		};
 
 		// processToolFn mirrors the intercept logic chatV6 installs
-		const processToolFn = vi.fn().mockImplementation(
-			async (name: string, _input: unknown) => {
+		const processToolFn = vi
+			.fn()
+			.mockImplementation(async (name: string, _input: unknown) => {
 				if (name === "assign_segment_loop") {
 					return { name, componentsJson: [mockComponent], isError: false };
 				}
 				return { name, componentsJson: [], isError: false };
-			},
-		);
+			});
 
 		const binding = getCompoundBinding("OnChatMessage")!;
-		const systemBlocks = [{ type: "text" as const, text: "You are a teacher." }];
-		const messages = [{ role: "user" as const, content: "Practice bars 12-16." }];
+		const systemBlocks = [
+			{ type: "text" as const, text: "You are a teacher." },
+		];
+		const messages = [
+			{ role: "user" as const, content: "Practice bars 12-16." },
+		];
 
 		const events: TeacherEvent[] = [];
 		for await (const ev of runPhase1Streaming(
@@ -244,7 +254,9 @@ describe("runPhase1Streaming — assign_segment_loop intercept", () => {
 		// tool_result event is emitted with the segment_loop component
 		const toolResult = events.find(
 			(e): e is Extract<TeacherEvent, { type: "tool_result" }> =>
-				e.type === "tool_result" && (e as Extract<TeacherEvent, { type: "tool_result" }>).name === "assign_segment_loop",
+				e.type === "tool_result" &&
+				(e as Extract<TeacherEvent, { type: "tool_result" }>).name ===
+					"assign_segment_loop",
 		);
 		expect(toolResult).toBeDefined();
 		expect(toolResult?.componentsJson).toHaveLength(1);
@@ -328,4 +340,3 @@ describe("runPhase1Streaming — turn cap exhaustion", () => {
 		}
 	});
 });
-

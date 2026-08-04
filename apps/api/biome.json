@@ -6,7 +6,16 @@
 		"useIgnoreFile": true
 	},
 	"files": {
-		"includes": ["**", "!!**/dist", "!!**/node_modules"]
+		"includes": [
+			"**",
+			"!!**/dist",
+			"!!**/node_modules",
+			"!src/db/migrations/**",
+			"!src/wasm/**/tests/fixtures/**",
+			"!src/services/exercise_embeddings.json",
+			"!src/services/exercise_primitives_manifest.json",
+			"!src/services/keys-parity-fixture.json"
+		]
 	},
 	"formatter": {
 		"enabled": true,

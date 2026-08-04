@@ -1,7 +1,7 @@
 import { describe, expect, it, test, vi } from "vitest";
+import { ExerciseRoutingDecisionSchema } from "../harness/artifacts/exercise-routing";
 import { NotFoundError } from "../lib/errors";
 import type { Bindings, Db } from "../lib/types";
-import { ExerciseRoutingDecisionSchema } from "../harness/artifacts/exercise-routing";
 import { assignPendingExercise } from "./exercises";
 
 const STUDENT_ID = "student-abc";

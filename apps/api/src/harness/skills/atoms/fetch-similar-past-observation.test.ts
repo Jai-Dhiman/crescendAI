@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { fetchSimilarPastObservation } from "./fetch-similar-past-observation";
 
 test("fetchSimilarPastObservation: matching piece_id and same bar_range returns similarity 1.0", async () => {

@@ -74,7 +74,16 @@ describe("alignChunkNotes", () => {
 		const audioBytes = new Uint8Array(12 * 4);
 		const perfNotes: never[] = [];
 		const bars: never[] = [];
-		const result = alignChunkNotes(audioBytes, 1, perfNotes, bars, 50.0, 5.0, 2, 0.1);
+		const result = alignChunkNotes(
+			audioBytes,
+			1,
+			perfNotes,
+			bars,
+			50.0,
+			5.0,
+			2,
+			0.1,
+		);
 
 		expect(mockAlignChunkNotes).toHaveBeenCalledWith(
 			audioBytes,
@@ -94,9 +103,7 @@ describe("selectTeachingMoment", () => {
 	it("forwards chunks, baselines, and recent observations", async () => {
 		const { selectTeachingMoment } = await import("./wasm-bridge");
 		mockSelectTeachingMoment.mockReturnValue(null);
-		const chunks = [
-			{ chunk_index: 0, scores: [1, 2, 3, 4, 5, 6] as const },
-		];
+		const chunks = [{ chunk_index: 0, scores: [1, 2, 3, 4, 5, 6] as const }];
 		const baselines = {
 			dynamics: 1,
 			timing: 1,
@@ -121,10 +128,24 @@ describe("identifyPiece", () => {
 	it("forwards notes, artifact JSON, and threshold to identify_piece", async () => {
 		const { identifyPiece } = await import("./wasm-bridge");
 		mockIdentifyPiece.mockReturnValue(
-			JSON.stringify({ piece_id: "p", composer: "c", title: "t", margin: 0.2, locked: true }),
+			JSON.stringify({
+				piece_id: "p",
+				composer: "c",
+				title: "t",
+				margin: 0.2,
+				locked: true,
+			}),
 		);
 		const notes = [{ pitch: 60, onset: 0, offset: 0.5, velocity: 80 }];
-		identifyPiece(notes, '{"version":"v2","onset_tol_ms":50,"pieces":[]}', 0.0935);
-		expect(mockIdentifyPiece).toHaveBeenCalledWith(notes, '{"version":"v2","onset_tol_ms":50,"pieces":[]}', 0.0935);
+		identifyPiece(
+			notes,
+			'{"version":"v2","onset_tol_ms":50,"pieces":[]}',
+			0.0935,
+		);
+		expect(mockIdentifyPiece).toHaveBeenCalledWith(
+			notes,
+			'{"version":"v2","onset_tol_ms":50,"pieces":[]}',
+			0.0935,
+		);
 	});
 });

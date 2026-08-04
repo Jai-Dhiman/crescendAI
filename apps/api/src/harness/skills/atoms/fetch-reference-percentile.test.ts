@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { fetchReferencePercentile } from "./fetch-reference-percentile";
 
 test("fetchReferencePercentile: score 0.72 between p60=0.70 and p70=0.75 returns ~64", async () => {

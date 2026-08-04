@@ -156,6 +156,10 @@ describe("POST /api/chat", () => {
 
 	it("SSE error event includes type field when teacher service throws", async () => {
 		const teacherService = await import("../services/teacher");
+		// chat.ts consumes chatV6 with `for await`, so the mock must be an async
+		// generator that rejects on the first next(). A plain async function would
+		// fail with "not async iterable" and never reach the SSE error path.
+		// biome-ignore lint/correctness/useYield: throws before it can yield, by design.
 		(teacherService.chatV6 as Mock).mockImplementationOnce(async function* () {
 			throw new Error("LLM unavailable");
 		});

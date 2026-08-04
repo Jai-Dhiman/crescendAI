@@ -1,14 +1,14 @@
 /// <reference types="@cloudflare/vitest-pool-workers" />
-import { describe, expect, it, vi } from "vitest";
+
 import { env, runInDurableObject } from "cloudflare:test";
+import { describe, expect, it, vi } from "vitest";
 
 // Mock the HF inference endpoints so handleChunkReady runs without real network.
 // Each call holds the chunk "in flight" for a tick so that N concurrently-dispatched
 // chunk_ready messages overlap inside the inference await — exactly the window where the
 // DO input gate is open (fetch() is non-storage I/O) and the read-modify-write race fires.
 vi.mock("../services/inference", async (importOriginal) => {
-	const actual =
-		await importOriginal<typeof import("../services/inference")>();
+	const actual = await importOriginal<typeof import("../services/inference")>();
 	return {
 		...actual,
 		callMuqEndpoint: vi.fn(async () => {
@@ -35,7 +35,7 @@ vi.mock("../services/inference", async (importOriginal) => {
 	};
 });
 
-import { SessionBrain } from "./session-brain";
+import type { SessionBrain } from "./session-brain";
 import { createInitialState } from "./session-brain.schema";
 
 declare module "cloudflare:test" {

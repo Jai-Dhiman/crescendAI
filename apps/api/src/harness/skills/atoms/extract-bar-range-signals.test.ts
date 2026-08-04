@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { extractBarRangeSignals } from "./extract-bar-range-signals";
 
 test("extractBarRangeSignals: only chunks overlapping [12,16] contribute; out-of-range chunk excluded", async () => {

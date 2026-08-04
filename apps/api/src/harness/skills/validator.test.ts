@@ -1,5 +1,5 @@
-import { describe, test, expect } from "vitest";
-import { validateSkill, validateCatalog } from "./validator";
+import { describe, expect, test } from "vitest";
+import { validateCatalog, validateSkill } from "./validator";
 
 const F = "apps/api/src/harness/skills/__fixtures__";
 

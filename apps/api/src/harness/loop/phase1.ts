@@ -1,4 +1,5 @@
 import { callModel } from "./gateway-client";
+import type { GroundedDigest } from "./grounded-digest";
 import { withRetries, wrapToolCall } from "./middleware";
 import { routeModel } from "./route-model";
 import type {
@@ -7,10 +8,12 @@ import type {
 	PhaseContext,
 	ToolDefinition,
 } from "./types";
-import type { GroundedDigest } from "./grounded-digest";
 
-export function buildPhase1UserMessage(digest: GroundedDigest, procedurePrompt: string): string {
-	return `Session summary:\n${digest.compact_signal_summary}\n\n${procedurePrompt}`
+export function buildPhase1UserMessage(
+	digest: GroundedDigest,
+	procedurePrompt: string,
+): string {
+	return `Session summary:\n${digest.compact_signal_summary}\n\n${procedurePrompt}`;
 }
 
 function buildPhase1Tools(tools: ToolDefinition[]): unknown[] {
@@ -42,7 +45,10 @@ export async function* runPhase1(
 	}> = [
 		{
 			role: "user",
-			content: buildPhase1UserMessage(ctx.digest as unknown as GroundedDigest, binding.procedurePrompt),
+			content: buildPhase1UserMessage(
+				ctx.digest as unknown as GroundedDigest,
+				binding.procedurePrompt,
+			),
 		},
 	];
 	const toolMap = new Map(binding.tools.map((t) => [t.name, t]));

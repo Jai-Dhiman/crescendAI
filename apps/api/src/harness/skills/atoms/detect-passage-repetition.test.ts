@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { detectPassageRepetition } from "./detect-passage-repetition";
 
 test("detectPassageRepetition: three plays of bars 12-16 are detected, one-off bars 20-24 are not", async () => {

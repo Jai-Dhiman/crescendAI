@@ -40,14 +40,14 @@ import type {
 } from "../services/teacher";
 
 export function toPastDiagnosisRecord(row: {
-	id: string
-	sessionId: string
-	primaryDimension: string
-	barRangeStart: number | null
-	barRangeEnd: number | null
-	artifactJson: unknown
-	createdAt: Date
-	pieceId: string | null | undefined
+	id: string;
+	sessionId: string;
+	primaryDimension: string;
+	barRangeStart: number | null;
+	barRangeEnd: number | null;
+	artifactJson: unknown;
+	createdAt: Date;
+	pieceId: string | null | undefined;
 }): PastDiagnosisRecord {
 	return {
 		id: row.id,
@@ -58,8 +58,9 @@ export function toPastDiagnosisRecord(row: {
 		artifactJson: row.artifactJson as Record<string, unknown>,
 		createdAt: row.createdAt.toISOString(),
 		pieceId: row.pieceId ?? null,
-	}
+	};
 }
+
 import { type SynthesisInput, synthesizeV6 } from "../services/teacher";
 import type { InlineComponent } from "../services/tool-processor";
 import type {
@@ -831,10 +832,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 								})()
 							: null;
 
-					if (
-						noteResult !== null &&
-						noteResult.bar_map.alignments.length > 0
-					) {
+					if (noteResult !== null && noteResult.bar_map.alignments.length > 0) {
 						// Tier 1: score+reference deviations reach the teacher.
 						const { bar_map } = noteResult;
 						chunkBarRange = [bar_map.bar_start, bar_map.bar_end];
@@ -1888,7 +1886,10 @@ export class SessionBrain extends DurableObject<Bindings> {
 			);
 			const wsPayloadWithEval =
 				evalContext !== null
-					? { ...wsPayload, eval_context: buildEvalContext(evalContext, artifact) }
+					? {
+							...wsPayload,
+							eval_context: buildEvalContext(evalContext, artifact),
+						}
 					: wsPayload;
 			const sockets = this.ctx.getWebSockets();
 			for (const sock of sockets) {
@@ -1902,9 +1903,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 						state.conversationId,
 						wsPayload.text,
 						state.sessionId,
-						wsPayload.components.length > 0
-							? wsPayload.components
-							: undefined,
+						wsPayload.components.length > 0 ? wsPayload.components : undefined,
 					);
 					await persistAccumulatedMoments(
 						db,
@@ -2165,9 +2164,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 	} | null> {
 		let artifactJson: string;
 		try {
-			const obj = await this.env.SCORES.get(
-				"fingerprint/v2/piece_index.json",
-			);
+			const obj = await this.env.SCORES.get("fingerprint/v2/piece_index.json");
 			if (!obj) {
 				console.log(
 					JSON.stringify({

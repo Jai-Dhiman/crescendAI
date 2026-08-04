@@ -1,8 +1,8 @@
 import { describe, expect, it, test } from "vitest";
-import { getCompoundBinding } from "./compound-registry";
+import { TOOL_REGISTRY } from "../../services/tool-processor";
 import { SynthesisArtifactSchema } from "../artifacts/synthesis";
 import { ALL_MOLECULES } from "../skills/molecules";
-import { TOOL_REGISTRY } from "../../services/tool-processor";
+import { getCompoundBinding } from "./compound-registry";
 
 describe("compound-registry", () => {
 	it("returns a binding for OnSessionEnd pointing at session-synthesis", () => {
@@ -23,7 +23,9 @@ describe("compound-registry", () => {
 		expect(binding?.compoundName).toBe("chat-response");
 		expect(binding?.mode).toBe("streaming");
 		expect(binding?.phases).toBe(1);
-		expect(binding!.tools.length).toBeGreaterThanOrEqual(Object.values(TOOL_REGISTRY).length + 1);
+		expect(binding!.tools.length).toBeGreaterThanOrEqual(
+			Object.values(TOOL_REGISTRY).length + 1,
+		);
 		const names = binding!.tools.map((t) => t.name);
 		expect(new Set(names).size).toBe(names.length);
 		expect(names).toContain("prescribe_exercise");
@@ -41,21 +43,27 @@ describe("compound-registry", () => {
 });
 
 test('SESSION_SYNTHESIS_PROCEDURE contains "bar_range, scope, and evidence_refs" instruction', () => {
-	const binding = getCompoundBinding('OnSessionEnd')!
-	expect(binding.procedurePrompt).toContain('bar_range, scope, and evidence_refs')
-})
+	const binding = getCompoundBinding("OnSessionEnd")!;
+	expect(binding.procedurePrompt).toContain(
+		"bar_range, scope, and evidence_refs",
+	);
+});
 
 test('OnSessionEnd procedurePrompt does not contain old "signal data from the digest" instruction', () => {
-	const binding = getCompoundBinding('OnSessionEnd')!
-	expect(binding.procedurePrompt).not.toContain('signal data from the digest')
-})
+	const binding = getCompoundBinding("OnSessionEnd")!;
+	expect(binding.procedurePrompt).not.toContain("signal data from the digest");
+});
 
-test('OnSessionEnd tool list includes extract-bar-range-signals', () => {
-	const binding = getCompoundBinding('OnSessionEnd')!
-	expect(binding.tools.some(t => t.name === 'extract-bar-range-signals')).toBe(true)
-})
+test("OnSessionEnd tool list includes extract-bar-range-signals", () => {
+	const binding = getCompoundBinding("OnSessionEnd")!;
+	expect(
+		binding.tools.some((t) => t.name === "extract-bar-range-signals"),
+	).toBe(true);
+});
 
-test('OnSessionEnd tool list does NOT include articulation-clarity-check', () => {
-	const binding = getCompoundBinding('OnSessionEnd')!
-	expect(binding.tools.some(t => t.name === 'articulation-clarity-check')).toBe(false)
-})
+test("OnSessionEnd tool list does NOT include articulation-clarity-check", () => {
+	const binding = getCompoundBinding("OnSessionEnd")!;
+	expect(
+		binding.tools.some((t) => t.name === "articulation-clarity-check"),
+	).toBe(false);
+});

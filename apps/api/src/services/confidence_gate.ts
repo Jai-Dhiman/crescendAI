@@ -1,5 +1,5 @@
-import { DIMS_6 } from "../lib/dims";
 import type { Dimension } from "../lib/dims";
+import { DIMS_6 } from "../lib/dims";
 import type { MuqConfidences, MuqScores } from "./inference";
 
 const DEFAULT_SIGMA_THRESHOLD = 0.15;

@@ -14,17 +14,16 @@ import { fetchSimilarPastObservation } from "./fetch-similar-past-observation";
 import { fetchStudentBaseline } from "./fetch-student-baseline";
 import { prioritizeDiagnoses } from "./prioritize-diagnoses";
 
+export { ASSIGN_SEGMENT_LOOP_TOOL } from "../../atoms/assign-segment-loop";
 export type { Alignment } from "./align-performance-to-score";
 export type { OnsetDrift } from "./compute-onset-drift";
 export type { CcEvent } from "./compute-pedal-overlap-ratio";
 export type { VelocityCurve } from "./compute-velocity-curve";
-export type { MidiNote, SignalBundle } from "./extract-bar-range-signals";
 export type { RepetitionEntry } from "./detect-passage-repetition";
-export type { Baseline } from "./fetch-student-baseline";
+export type { MidiNote, SignalBundle } from "./extract-bar-range-signals";
 export type { SessionHistory } from "./fetch-session-history";
 export type { PastObservation } from "./fetch-similar-past-observation";
-
-export { ASSIGN_SEGMENT_LOOP_TOOL } from "../../atoms/assign-segment-loop";
+export type { Baseline } from "./fetch-student-baseline";
 
 export const ALL_ATOMS: ToolDefinition[] = [
 	alignPerformanceToScore,

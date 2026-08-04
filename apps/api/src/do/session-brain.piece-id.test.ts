@@ -1,7 +1,8 @@
 /// <reference types="@cloudflare/vitest-pool-workers" />
-import { describe, expect, it } from "vitest";
+
 import { env, runInDurableObject } from "cloudflare:test";
-import { SessionBrain } from "./session-brain";
+import { describe, expect, it } from "vitest";
+import type { SessionBrain } from "./session-brain";
 import { createInitialState, type SessionState } from "./session-brain.schema";
 
 declare module "cloudflare:test" {
@@ -235,9 +236,8 @@ describe("SessionBrain piece-ID v2 gate (eval_chunk path)", () => {
 			// retained must be index 100 (onset 1.0) after dropping the first 100.
 			expect(st.identificationNoteBuffer[0]?.onset).toBeCloseTo(1.0, 5);
 			expect(
-				st.identificationNoteBuffer[
-					st.identificationNoteBuffer.length - 1
-				]?.onset,
+				st.identificationNoteBuffer[st.identificationNoteBuffer.length - 1]
+					?.onset,
 			).toBeCloseTo(12.99, 5);
 		});
 	});

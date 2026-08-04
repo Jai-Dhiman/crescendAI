@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { computeVelocityCurve } from "./compute-velocity-curve";
 
 test("computeVelocityCurve: bars 12-14 with spec example velocities produce correct curve", async () => {
