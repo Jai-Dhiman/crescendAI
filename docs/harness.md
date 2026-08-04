@@ -69,7 +69,7 @@ Three-tier skill catalog. 14 atoms, 7 registered molecules, 4 compounds. Each ha
 
 ### V6 -- Agent Loop & Orchestration
 Teacher loop with deferred tool loading, NLAH contracts, event hooks + middleware hooks. Writes stay single-threaded: skills contribute intelligence, one teacher path writes. Providers remain replaceable behind capability and evaluation gates. Doc home: `docs/apps/02-pipeline.md` (Target section).
-**Tier:** Core loop SHIPPED (2026-04-29) -- two-phase compound loop, `compound-registry` with `OnSessionEnd` + `OnChatMessage` bindings, `HARNESS_V6_ENABLED=true` in prod. NEXT: capability-router across providers, deferred tool loading, remaining hooks (`OnWeeklyReview`, `OnPieceDetected`).
+**Tier:** Core loop SHIPPED (2026-04-29) -- two-phase compound loop, `compound-registry` with `OnSessionEnd` + `OnChatMessage` bindings, V6 is the only synthesis path (flag deleted in #28). NEXT: capability-router across providers, deferred tool loading, remaining hooks (`OnWeeklyReview`, `OnPieceDetected`).
 
 ### V7 -- Student Memory / Personalization
 Typed per-student memory (baseline, recurring_issue, preference, repertoire, goal, breakthrough) with MIA-style multidim retrieval. `STUDENT.md` index per student. Doc home: `docs/apps/03-memory-system.md`.
