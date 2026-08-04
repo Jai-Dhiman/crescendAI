@@ -91,7 +91,6 @@ See [docs/architecture.md](docs/architecture.md) for the full system diagram and
 | Area | Entry Point | Contents |
 |------|-------------|----------|
 | Architecture | [docs/architecture.md](docs/architecture.md) | System diagram, cross-cutting concerns (auth, sync, observability) |
-| Apps status | [docs/apps/00-status.md](docs/apps/00-status.md) | Implementation dashboard for iOS, web, API, inference |
 | Product vision | [docs/apps/01-product-vision.md](docs/apps/01-product-vision.md) | Target user, interaction model, UX principles |
 | Pipeline | [docs/apps/02-pipeline.md](docs/apps/02-pipeline.md) | Full audio-to-observation pipeline (STOP, subagent, teacher, score following) |
 | Student memory | [docs/apps/03-memory-system.md](docs/apps/03-memory-system.md) | Two-clock model, observations, synthesized facts |

@@ -146,7 +146,6 @@ Drawn from external sources (Mahler wiki: Agent Harnesses, Natural Language Harn
 
 - `docs/architecture.md` -- system view (model + harness + runtime + client)
 - `docs/model/00-research-timeline.md` -- model system entry point
-- `docs/apps/00-status.md` -- implementation dashboard
 - `docs/apps/02-pipeline.md` -- current pipeline + Target: Agent Loop
 - `docs/apps/03-memory-system.md` -- two clocks + three layers + enrichment cache
 - `docs/apps/07-evaluation.md` -- eval harness including signal ablation and per-tier reliability

@@ -34,7 +34,6 @@ class PipelineObservation:
     score: float
     baseline: float
     reasoning_trace: str
-    is_fallback: bool = False
     raw_message: dict = field(default_factory=dict)
 
 
@@ -339,16 +338,32 @@ def render_artifact_text(synthesis: SynthesisResult) -> str:
 
 
 def _parse_observation(response: dict) -> PipelineObservation:
-    """Parse a WebSocket observation message into a PipelineObservation."""
+    """Parse a WebSocket observation message into a PipelineObservation.
+
+    The student-facing payload carries only text/dimension/framing. Everything
+    numeric lives under `eval_context`, which the DO attaches for eval sessions
+    only (session-brain.ts buildObservationPayload). These fields were
+    previously read from the top level, where they have never existed -- so
+    every observation silently reported chunk 0 and zeroed scores (#143).
+
+    A missing `eval_context` means this was not an eval session; raise rather
+    than hand the caller zeros that look like real measurements.
+    """
+    if "eval_context" not in response:
+        raise KeyError(
+            "observation message has no eval_context -- the session was not "
+            "started as an eval session, or the DO is not attaching it "
+            f"(keys present: {sorted(response)})"
+        )
+    ctx = response["eval_context"]
     return PipelineObservation(
         text=response.get("text", ""),
         dimension=response.get("dimension", ""),
         framing=response.get("framing", ""),
-        chunk_index=response.get("chunk_index", 0),
-        score=response.get("score", 0.0),
-        baseline=response.get("baseline", 0.0),
-        reasoning_trace=response.get("reasoning_trace", ""),
-        is_fallback=response.get("is_fallback", False),
+        chunk_index=ctx["chunk_index"],
+        score=ctx["score"],
+        baseline=ctx["baseline"],
+        reasoning_trace=ctx["reasoning_trace"],
         raw_message=response,
     )
 
