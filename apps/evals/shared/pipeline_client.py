@@ -49,9 +49,16 @@ class PieceIdentification:
 
 @dataclass
 class SynthesisResult:
-    """Session synthesis output from the teacher LLM."""
+    """Session synthesis output from the teacher LLM.
+
+    There is deliberately no `is_fallback` field. The DO emits a `synthesis`
+    message only when V6 produced a valid artifact -- `buildV6WsPayload`
+    hardcodes `isFallback: false` and is the sole emitter. A V6 failure
+    (validation error or null artifact) makes the DO return without sending
+    anything, so the failure signal is `SessionResult.synthesis is None`
+    plus the "No synthesis received" entry in `SessionResult.errors` (#28).
+    """
     text: str
-    is_fallback: bool
     eval_context: dict = field(default_factory=dict)
     prescribed_exercise: dict | None = None
     # Full SynthesisArtifact. `text` is only artifact.headline (what the student
@@ -255,10 +262,6 @@ async def run_recording(
                         eval_context = response.get("eval_context", {})
                         synthesis_result = SynthesisResult(
                             text=response.get("text", ""),
-                            # The DO emits camelCase `isFallback` (session-brain.ts
-                            # buildV6WsPayload). Reading `is_fallback` silently
-                            # returned False for every session (#28).
-                            is_fallback=response["isFallback"],
                             eval_context=eval_context,
                             prescribed_exercise=eval_context.get("prescribed_exercise"),
                             artifact=eval_context.get("artifact"),

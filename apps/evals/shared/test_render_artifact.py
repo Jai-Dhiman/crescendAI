@@ -1,6 +1,11 @@
 """Tests for render_artifact_text (#28: the judge grades the artifact, not the headline)."""
 
-from pipeline_client import SynthesisResult, render_artifact_text
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parents[1]))
+
+from shared.pipeline_client import SynthesisResult, render_artifact_text
 
 
 def _artifact(**overrides) -> dict:
@@ -25,7 +30,7 @@ def _artifact(**overrides) -> dict:
 
 def test_includes_fields_the_headline_omits():
     out = render_artifact_text(
-        SynthesisResult(text="You held the phrase shape well today.", is_fallback=False, artifact=_artifact())
+        SynthesisResult(text="You held the phrase shape well today.", artifact=_artifact())
     )
 
     assert "You held the phrase shape well today." in out
@@ -36,7 +41,7 @@ def test_includes_fields_the_headline_omits():
 
 
 def test_falls_back_to_headline_when_no_artifact():
-    out = render_artifact_text(SynthesisResult(text="just the headline", is_fallback=False, artifact=None))
+    out = render_artifact_text(SynthesisResult(text="just the headline", artifact=None))
 
     assert out == "just the headline"
 
@@ -45,7 +50,6 @@ def test_omits_null_optional_sections():
     out = render_artifact_text(
         SynthesisResult(
             text="h",
-            is_fallback=False,
             artifact=_artifact(recurring_pattern=None, next_session_focus=None),
         )
     )
@@ -56,7 +60,7 @@ def test_omits_null_optional_sections():
 
 def test_renders_recurring_pattern_when_present():
     out = render_artifact_text(
-        SynthesisResult(text="h", is_fallback=False, artifact=_artifact(recurring_pattern="rushes under pressure"))
+        SynthesisResult(text="h", artifact=_artifact(recurring_pattern="rushes under pressure"))
     )
 
     assert "rushes under pressure" in out
