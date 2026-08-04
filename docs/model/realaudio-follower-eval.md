@@ -80,15 +80,15 @@ All 32 subset clips are labeled. Outcomes stratified by resolved-score confidenc
 |---|---|---|---|---|
 | high confidence (≥0.5) | 21 | 1 | **0** | **0** |
 | low confidence | 1 | 0 | 2 | 7 |
-| score **verified** by piece-ID | 20 | 1 | **0** | **0** |
-| score **unverified** (piece-ID abstained) | 2 | 0 | 2 | 7 |
+| score **verified** by piece-ID | 21 | 1 | **0** | **0** |
+| score **unverified** (piece-ID abstained) | 1 | 0 | 2 | 7 |
 
 Median fraction of playback flagged wrong: 0.0 (p90 0.0).
 
 **Two findings, both stated at the strength the sample supports.**
 
 1. **No high-confidence failure was observed.** Every `wrong` and `junk` clip sits in the low-confidence stratum; no clip was confidently mistracked. This is the human-adjudicated form of the "knows when it's lost" property the proxy track could only suggest. It is an observation of zero failures in 22 high-confidence clips, not a measured failure *rate* — the upper bound is loose at this n.
-2. **Where the piece is verified, the follower tracked it — 21 of 21** (20 `tracked`, 1 `recovered`). The 11 unverified-label rows cannot support a verified accuracy claim in either direction: 7 were judged `junk`, which is consistent with the follower correctly declining an unusable or unidentifiable clip, and the 2 `wrong` rows are ambiguous between follower failure and a wrong score on screen.
+2. **Where the piece is verified, the follower tracked it — 22 of 22** (21 `tracked`, 1 `recovered`). The 10 unverified-label rows cannot support a verified accuracy claim in either direction: 7 were judged `junk`, which is consistent with the follower correctly declining an unusable or unidentifiable clip, and the 2 `wrong` rows are ambiguous between follower failure and a wrong score on screen.
 
 ### Abstain-resolution retry (2026-08-03) — mostly a negative result
 
@@ -109,7 +109,7 @@ The 11 abstained clips were re-run at a 4× verify window (`--window-sec 120 --k
 
 **This does NOT satisfy #108's resume trigger.** That trigger requires *trusted* evidence of a measured follower failure; the liszt clip is at confidence 0.24 against a 0.50 accept floor. Treating "label ranked first, below the floor" as verification would convert a null result into a pass. It is one strong candidate failure, and one failure removed from the pool — not a confirmation.
 
-**Pending decision:** `chopin_waltz_csm/cAo5RtmpFVU` resolved to `chopin.waltzes.64-2` (0.46 → 0.88), which is the same score it was already validated against — only its verification status changed. Merging it into `_piece_id.json` moves it from the unverified to the verified stratum (verified successes 21 → 22). Not merged yet, because it changes a reported number.
+**Merged (owner-approved):** `chopin_waltz_csm/cAo5RtmpFVU` resolved to `chopin.waltzes.64-2` (0.46 → 0.88) — the same score it was already validated against, so only its verification status changed. It is merged into `_piece_id.json`, moving it from the unverified to the verified stratum (verified successes 21 → 22); its validation record carries `score_source_note` recording that it was verified on the second, wider-window pass.
 
 **The subset is extreme-sampled, not representative.** `gold_subset.json` takes the lowest- and highest-confidence clip per piece by design, so these counts are not corpus rates and must not be reported as such. A representative rate needs a random-sample pass over the 279-clip corpus.
 
