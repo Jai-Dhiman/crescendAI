@@ -51,7 +51,7 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
 						const svgText = await svgRes.text();
 						if (!cancelled && scoreContainerRef.current) {
 							scoreContainerRef.current.textContent = "";
-							// biome-ignore lint/security/noDomManipulation: static SVG from prebaked landing asset on same origin, not user input
+							// Static SVG from a prebaked landing asset on the same origin, not user input.
 							scoreContainerRef.current.insertAdjacentHTML(
 								"beforeend",
 								svgText,
@@ -281,8 +281,10 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
             the simplification is acceptable: a tap anywhere near bar N will
             activate bar N's chip, and the focus-bar highlight covers the correct
             rough region. */}
+				{/* biome-ignore lint/a11y/useSemanticElements: <fieldset> brings form semantics and default styling this absolutely-positioned overlay cannot use. */}
 				<div
 					className="absolute inset-0"
+					role="group"
 					aria-label="Bar score inspection overlay"
 				>
 					{barNumbers.map((barNumber, idx) => (
@@ -356,6 +358,7 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
 						className="flex-1 h-1 accent-accent"
 						aria-label="Playback position"
 					/>
+					{/* biome-ignore lint/a11y/useMediaCaption: solo piano performance audio, no speech to caption. */}
 					<audio
 						ref={audioRef}
 						src={manifest.audioUrl}

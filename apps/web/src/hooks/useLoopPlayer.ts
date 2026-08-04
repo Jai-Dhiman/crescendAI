@@ -59,6 +59,7 @@ export function useLoopPlayer(
 	// or when the stable numeric config changes.
 	// clipNotes intentionally excluded — read via clipNotesRef.
 	// tempoFactor intentionally excluded — live changes go through setTempoFactor().
+	// biome-ignore lint/correctness/useExhaustiveDependencies: adding config.tempoFactor would destroy and rebuild the LoopPlayer on every tempo change.
 	useEffect(() => {
 		if (!config.clipIR) return;
 		if (countInWatcherRef.current !== null) {

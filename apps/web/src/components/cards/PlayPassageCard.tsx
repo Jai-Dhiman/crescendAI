@@ -103,9 +103,21 @@ export function PlayPassageCard({
 		"#7a9a82";
 
 	return (
+		// The explicit aria-label matters: without it the row's accessible name is
+		// the concatenated text of its children, including the nested play button.
+		// biome-ignore lint/a11y/useSemanticElements: the card contains its own play <button>; a <button> wrapper would nest interactive controls.
 		<div
+			role="button"
+			tabIndex={0}
+			aria-label={`Expand passage, bars ${config.bars[0]}-${config.bars[1]}`}
 			className="bg-surface-card border border-border rounded-xl overflow-hidden mt-3"
 			onClick={onExpand}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" || e.key === " ") {
+					e.preventDefault();
+					onExpand?.();
+				}
+			}}
 		>
 			{loadState === "loading" && (
 				<div className="h-10 flex items-center justify-center">

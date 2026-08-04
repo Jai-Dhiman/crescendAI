@@ -139,6 +139,12 @@ const scoreHighlightLate: ScoreHighlightConfig = {
 	],
 };
 
+// Bounds of the preview-panel splitters, shared by the drag clamp and the
+// separator's reported range.
+const SANDBOX_MIN_WIDTH = 200;
+const SANDBOX_MAX_WIDTH = 700;
+const SANDBOX_RESIZE_STEP = 24;
+
 const keyboardGuide: KeyboardGuideConfig = {
 	title: "C major scale, two octaves",
 	description: "Quarter = 72. Keep the thumb tuck even in both directions.",
@@ -649,6 +655,17 @@ function ScoreResizePanel({ pieceId }: { pieceId: string }) {
 		};
 	}, [pieceId]);
 
+	// Keyboard equivalent of the drag on the preview splitter.
+	function handleResizeKey(e: React.KeyboardEvent) {
+		if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+		e.preventDefault();
+		const delta =
+			e.key === "ArrowRight" ? SANDBOX_RESIZE_STEP : -SANDBOX_RESIZE_STEP;
+		setWidth(
+			Math.max(SANDBOX_MIN_WIDTH, Math.min(SANDBOX_MAX_WIDTH, width + delta)),
+		);
+	}
+
 	function handleDragStart(e: React.MouseEvent) {
 		e.preventDefault();
 		const startX = e.clientX;
@@ -656,8 +673,8 @@ function ScoreResizePanel({ pieceId }: { pieceId: string }) {
 
 		function onMove(ev: MouseEvent) {
 			const w = Math.max(
-				200,
-				Math.min(700, startWidth + (ev.clientX - startX)),
+				SANDBOX_MIN_WIDTH,
+				Math.min(SANDBOX_MAX_WIDTH, startWidth + (ev.clientX - startX)),
 			);
 			if (panelRef.current) panelRef.current.style.width = `${w}px`;
 		}
@@ -671,8 +688,8 @@ function ScoreResizePanel({ pieceId }: { pieceId: string }) {
 
 		function onUp(ev: MouseEvent) {
 			const w = Math.max(
-				200,
-				Math.min(700, startWidth + (ev.clientX - startX)),
+				SANDBOX_MIN_WIDTH,
+				Math.min(SANDBOX_MAX_WIDTH, startWidth + (ev.clientX - startX)),
 			);
 			setWidth(w);
 			// load() is already guaranteed by the mount effect; getPage() is safe here.
@@ -701,8 +718,17 @@ function ScoreResizePanel({ pieceId }: { pieceId: string }) {
 					<p className="text-body-xs text-text-tertiary p-2">Loading…</p>
 				)}
 				{svg && <SvgPanel svgMarkup={svg} />}
+				{/* biome-ignore lint/a11y/useSemanticElements: a focusable window splitter cannot be an <hr>; it needs drag and key handlers. */}
 				<div
 					onMouseDown={handleDragStart}
+					onKeyDown={handleResizeKey}
+					tabIndex={0}
+					role="separator"
+					aria-orientation="vertical"
+					aria-label="Resize preview panel"
+					aria-valuenow={width}
+					aria-valuemin={SANDBOX_MIN_WIDTH}
+					aria-valuemax={SANDBOX_MAX_WIDTH}
 					className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize bg-border hover:bg-accent transition-colors"
 				/>
 			</div>
@@ -1009,8 +1035,11 @@ function makeWavBlobUrl(durationSec: number, freqs: number[]): string {
 	const n = Math.floor(sr * durationSec);
 	const buf = new ArrayBuffer(44 + n * 2);
 	const view = new DataView(buf);
-	const write4 = (pos: number, val: string) =>
-		[...val].forEach((c, i) => view.setUint8(pos + i, c.charCodeAt(0)));
+	const write4 = (pos: number, val: string) => {
+		[...val].forEach((c, i) => {
+			view.setUint8(pos + i, c.charCodeAt(0));
+		});
+	};
 	write4(0, "RIFF");
 	view.setUint32(4, 36 + n * 2, true);
 	write4(8, "WAVE");

@@ -14,7 +14,9 @@ export function ExerciseProofBlock({ manifests }: ExerciseProofBlockProps) {
 				<p className="text-body-md text-text-secondary text-center mb-12">
 					Music AI that listens for expression, not just notes &mdash; trained
 					on competitive performance data from international competitions.
-					<sup aria-label="See footnote 1">1</sup>
+					<sup>
+						1<span className="sr-only"> (see footnote 1)</span>
+					</sup>
 				</p>
 
 				{/* Three stacked ProofCards */}

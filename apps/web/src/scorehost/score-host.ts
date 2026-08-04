@@ -181,8 +181,23 @@ async function ensureLoaded(pieceId: string): Promise<void> {
 	}
 }
 
+// apps/api processPlayPassage emits sessionId, bars, dimension and annotation,
+// and never a pieceId. The scorehost has no way to turn a session into a piece
+// yet -- the web PlayPassageCard does it by fetching a passage manifest, which
+// this bridge does not do. Fail loudly here rather than calling
+// fetchScoreBytes(undefined) and reporting a confusing downstream error.
+// Implementing this function is the whole of the fix.
+function resolvePieceId(config: PlayPassageConfig): string {
+	throw new Error(
+		`renderPlayPassage: play_passage carries no pieceId (session ${config.sessionId}, ` +
+			"bars " +
+			`${config.bars[0]}-${config.bars[1]}); the scorehost cannot yet resolve a piece ` +
+			"from a session.",
+	);
+}
+
 async function renderPlayPassage(config: PlayPassageConfig): Promise<void> {
-	const pieceId = config.pieceId;
+	const pieceId = resolvePieceId(config);
 	await ensureLoaded(pieceId);
 
 	const [startBar, endBar] = config.bars;

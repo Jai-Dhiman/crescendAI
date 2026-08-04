@@ -81,11 +81,7 @@ export function BarScoreChip({
 			</div>
 			<div className="flex justify-between mt-1.5">
 				{DIMENSIONS.map((dim) => (
-					<span
-						key={dim}
-						className="text-[9px] text-text-tertiary capitalize"
-						aria-label={dim}
-					>
+					<span key={dim} className="text-[9px] text-text-tertiary capitalize">
 						<span aria-hidden="true">{dim.slice(0, 3)}</span>
 						<span className="sr-only">{dim}</span>
 					</span>
