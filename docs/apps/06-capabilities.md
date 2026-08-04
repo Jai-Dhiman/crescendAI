@@ -1,6 +1,6 @@
 # Capabilities
 
-> Status: 2026-03-26 -- Seven core capabilities defined. Quality targets set for beta and north star. All implemented, none fully validated.
+> Status: 2026-08-04 -- Seven core capabilities defined. Quality targets set for beta and north star. This doc owns targets; for current measured state see `docs/apps/07-evaluation.md`.
 
 CrescendAI's teaching pipeline is built from seven capabilities. Each converts raw audio into progressively richer understanding of what the student played and what they should work on. They compose into a single user-facing experience: the student plays, the system listens, and at session end the teacher gives one cohesive, specific, actionable response.
 
@@ -40,7 +40,7 @@ Notes accumulate across chunks. Identification can trigger as early as chunk 2 (
 
 ### Current State
 
-Code complete and merged to main (2026-03-22). N-gram index + rerank features committed to `model/data/fingerprints/`. Pending AMT container deployment to Cloudflare (AMT_SERVICE binding temporarily disabled in wrangler.toml). Never evaluated at scale against real student recordings. The 242-piece library covers ASAP dataset; coverage of common student repertoire (Fur Elise, Clair de Lune, Bach Inventions) is good, but long-tail pieces will miss.
+Code complete and merged to main (2026-03-22). N-gram index + rerank features committed to `model/data/fingerprints/`. Pending AMT container deployment to Cloudflare (AMT_SERVICE binding temporarily disabled in wrangler.toml). Current measured state: see docs/apps/07-evaluation.md (this doc owns targets, 07 owns results). The 242-piece library covers ASAP dataset; coverage of common student repertoire (Fur Elise, Clair de Lune, Bach Inventions) is good, but long-tail pieces will miss.
 
 ### Key Files
 
@@ -160,7 +160,7 @@ Everything upstream exists to make this paragraph specific, accurate, and useful
 ### How It Works
 
 1. `build_synthesis_prompt()` constructs structured JSON from the accumulator: session duration, practice pattern (modes/transitions), top teaching moments (up to 8, selected by `top_moments()`), drilling progress, baselines, piece context
-2. Single Anthropic Sonnet 4.6 call with `SESSION_SYNTHESIS_SYSTEM` prompt. No subagent stage -- the structured accumulator IS the analysis.
+2. Single teacher LLM call (model ID in wrangler.toml) with `SESSION_SYNTHESIS_SYSTEM` prompt. No subagent stage -- the structured accumulator IS the analysis.
 3. Teacher LLM narrates the data in warm, specific, actionable language. Optionally invokes `create_exercise` tool.
 4. Synthesis persisted to D1 messages table. Accumulated moments persisted to observations table.
 5. Delivered via WebSocket as `{ type: "synthesis" }` event.
@@ -181,7 +181,7 @@ Everything upstream exists to make this paragraph specific, accurate, and useful
 
 ### Current State
 
-Fully implemented: accumulator, synthesis prompt, LLM call, persistence, WebSocket delivery, deferred recovery. Never evaluated. The system prompt includes calibration guidance (R2~0.5, deviation 0.1 is noise, 0.2+ is meaningful) but we don't know if the teacher follows it.
+Fully implemented: accumulator, synthesis prompt, LLM call, persistence, WebSocket delivery, deferred recovery. Current measured state: see docs/apps/07-evaluation.md (this doc owns targets, 07 owns results). The system prompt includes calibration guidance (R2~0.5, deviation 0.1 is noise, 0.2+ is meaningful) but we don't know if the teacher follows it.
 
 ### Key Files
 
@@ -210,7 +210,7 @@ Exercises are grounded in the student's actual piece and passage, target the ide
 
 ### How It Works
 
-The teacher LLM has access to the `create_exercise` tool via Anthropic native tool_use (`tool_choice: "auto"`). The teacher decides autonomously whether an exercise would help more than verbal guidance.
+The teacher LLM has access to the `create_exercise` tool via provider tool_use (`tool_choice: "auto"`). The teacher decides autonomously whether an exercise would help more than verbal guidance.
 
 When invoked:
 1. Teacher specifies `source_passage`, `target_skill`, and 1-3 exercise steps

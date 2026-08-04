@@ -2,7 +2,7 @@
 
 Anchor doc for CrescendAI's middle system -- everything between the model outputs and the student's screen. Parallel to `docs/architecture.md` (system-level view) and `docs/model/00-research-timeline.md` (model-level view).
 
-> **Status (2026-08-02):** The runtime-consumed catalog contains 14 atoms, 7 registered molecules, and 4 compounds. Typed Zod artifact contracts and the catalog validator live in `apps/api/src/harness/`. The former Qwen training program is historical; the catalog now serves the provider-agnostic V6 harness and its evaluations.
+> **Status (2026-08-04):** The runtime-consumed catalog contains 14 atoms, 7 registered molecules, and 4 compounds. Typed Zod artifact contracts and the catalog validator live in `apps/api/src/harness/`. The former Qwen training program is historical; the catalog now serves the provider-agnostic V6 harness and its evaluations.
 
 ---
 
@@ -12,14 +12,7 @@ CrescendAI's competitive advantage is not which audio model it calls. The advant
 
 ### Four Systems (Model / Harness / Runtime / Client)
 
-The architecture has four systems, not two. A recent distinction from the deep-agents-runtime literature: **harness shapes model behavior; runtime handles machinery.** Conflating the two produces doc drift.
-
-- **Model system** (`docs/model/`) -- frozen MuQ instrumentation, Transkun AMT, score alignment, research encoders, training data, and measurement discipline. Outputs signals.
-- **Harness system** (this doc) -- context graph, skills, agent loop, student memory, contracts, artifacts. Markdown-first. Turns signals into teaching.
-- **Runtime system** -- Cloudflare Workers + Durable Objects + D1 + R2 + AI Gateway + Sentry. Handles durable execution, checkpointing, multi-tenancy, observability, sandbox. Invisible to skill authors.
-- **Client system** (`apps/ios/`, `apps/web/`) -- capture, playback, UI, local-first sync. Surfaces teaching.
-
-Naming these separately matters because without the split, harness work gets scattered into `apps/` and runtime concerns leak into skills. They do not belong together.
+The canonical breakdown of the four systems (Model / Harness / Runtime / Client) lives in `docs/architecture.md`. This doc is the anchor for the Harness system specifically; see architecture.md for how it relates to Model, Runtime, and Client.
 
 ---
 
@@ -48,7 +41,7 @@ Durable primitives the harness is built from. Each has a precise definition; imp
 Bottom-up, model to user. Each vertical has a doc home and a tier.
 
 ### V1 -- Model & Signals
-MuQ (audio encoder), Aria (symbolic encoder), AMT (transcription), score follower, piece ID. Populates the enrichment cache with prompt-aware keys. Doc home: `docs/model/`.
+MuQ (audio encoder), MoonBeam-839M (symbolic encoder; #138, 2026-08-03; see docs/mirex/track-a-difficulty-prediction.md), AMT (transcription), score follower, piece ID. Populates the enrichment cache with prompt-aware keys. Doc home: `docs/model/`.
 **Tier:** NEXT (Phase B/C in flight).
 
 ### V2 -- Context Graph (Content / Entity / Fact)
@@ -81,14 +74,9 @@ Artifacts as NLAH durable outputs. Direct-action tools that interrupt playthroug
 
 ---
 
-## The Two Clocks (recap)
+## The Two Clocks
 
-From `docs/apps/03-memory-system.md`, retained here because it is foundational vocabulary:
-
-- **State clock** -- what is true right now (baselines per dimension, current level, goals).
-- **Event clock** -- what happened, in what order, with what reasoning (observation history, reasoning traces, synthesized facts).
-
-Most systems build only the state clock. Piano teaching requires both: a teacher who has worked with a student for months knows patterns, not just current skill levels. The context graph in V2 is the event clock made addressable.
+Canonical definition lives in `docs/apps/03-memory-system.md` (state clock vs event clock).
 
 ---
 

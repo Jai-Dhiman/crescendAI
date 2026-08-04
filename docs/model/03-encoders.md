@@ -2,7 +2,7 @@
 
 Historical encoder results and the current inference-loading contract.
 
-> **Status (2026-08-02):** The serving loader uses the frozen stock `OpenMuQ/MuQ-large-msd-iter` checkpoint plus separately trained attention, encoder, and regression/Gaussian heads. It does not load MuQ LoRA adapters; the pretrained-MuQ training path raises `NotImplementedError`. The clean-fold A1-Max result (**79.85% pairwise, R2=0.336**) and Aria experiments below remain historical evidence. The MuQ/Aria parallel-stream training program is closed; #139 owns the benchmark-first successor.
+> **Status (2026-08-04):** The serving loader uses the frozen stock `OpenMuQ/MuQ-large-msd-iter` checkpoint plus separately trained attention, encoder, and regression/Gaussian heads. It does not load MuQ LoRA adapters; the pretrained-MuQ training path raises `NotImplementedError`. The clean-fold A1-Max result (**79.85% pairwise, R2=0.336**) and Aria experiments below remain historical evidence. The MuQ/Aria parallel-stream training program is closed; #139 owns the benchmark-first successor.
 
 **Notebooks:** `model/notebooks/model_improvement/01_audio_training.ipynb`, `02_symbolic_training.ipynb`
 **Code:** `model/src/model_improvement/`
@@ -243,201 +243,61 @@ Harness: `model/src/claim_measurement/difficulty/{run_bakeoff,extract,
 moonbeam_extract_script,aria_pooling_backbone}.py`. Weights and the fork pinned
 at commit `4e2c015` live in `model/data/weights/moonbeam/` (gitignored).
 
+**Same-folds gate (#149 Phase 1, 2026-08-03):** on these same bake-off folds, the
+37 hand-engineered difficulty features alone score **0.8048** tau-c -- so
+MoonBeam's real lead over the reference feature set is **+0.024**, not the
+headline +0.047 vs Aria. 0.8048 is the #149 Phase 1 gate a fine-tuned encoder
+must clear. Canonical source: `docs/mirex/track-a-difficulty-prediction.md`.
+
 ---
 
 ## Historical symbolic encoder: Aria (superseded 2026-08-03)
 
 Retained as the #138 bake-off reference arm and as a paper artifact -- the
 `model/src/model_improvement/aria_*.py` modules are released by the arXiv paper
-and implement the reference arm above, so they are not dead code.
+and implement the reference arm above, so they are **not dead code**.
 
-### Why Aria
+Aria (EleutherAI, 2025, 650M-param LLaMA-architecture, 820K piano MIDI
+pretraining, Apache 2.0) was adopted 2026-03-18 to replace all custom symbolic
+encoders (S1/S2/S2H/S3), eliminating the need for a from-scratch symbolic
+foundation model. It reached SOTA on 6 MIR benchmarks (genre, form, composer,
+performer, period, emotion) and, via `delta = z_perf - z_score` over dual
+performance/score MIDI input, gave immediate score conditioning. Frozen linear
+probe (2026-03-19): 59.6% pairwise, error correlation phi=0.043 vs MuQ
+(near-zero, validating dual-encoder use). Independent LoRA fine-tune
+(2026-06-26, T1-only, fluidsynth-proxy audio): mean pairwise 0.6988, R2=0.194;
+the full multi-tier run never happened before the program closed.
 
-Aria (EleutherAI, 2025) is a 650M-parameter LLaMA-architecture model pretrained on 820K piano MIDI performances (~60K hours). It achieves SOTA on 6 MIR benchmarks. Apache 2.0 license. This replaces ALL custom symbolic encoders (S2 GNN, S2H, S3, S1) and eliminates the need to build a custom symbolic foundation model (previously Phase 3, 6-12 month research effort with HIGH risk).
+Superseded 2026-08-03 by MoonBeam-839M (#138 Phase 0) on Transkun-domain
+tau-c. See the MoonBeam section above for the current encoder and
+`docs/model/04-north-star.md` for where symbolic scoring sits in the pipeline.
 
-Aria IS the symbolic foundation model. The pretraining asymmetry that caused the original fusion failure (MuQ pretrained on 160K hours vs S2 trained from scratch on 24K graphs) no longer exists -- Aria's 820K MIDI pretraining matches MuQ's representation scale. This unlocks the dual-encoder strategy whether you combine via learned gates or via parallel streams; we chose parallel streams (2026-05-27).
-
-**Weights:**
-- Base (autoregressive): `loubb/aria-medium-base` on HuggingFace
-- Embedding (contrastive): `loubb/aria-medium-embedding` on HuggingFace
-
-### Architecture
-
-- **Base architecture:** LLaMA 3.2
-- **Parameters:** 650M
-- **Layers:** 16
-- **Hidden dimension:** 1536
-- **Attention heads:** 24
-- **Max sequence length:** 8192 tokens (base model), 2048 tokens (embedding model, ~680 notes)
-- **Embedding output:** 512-dim from EOS token position
-
-### Tokenization: AbsTokenizer
-
-Aria uses AbsTokenizer, encoding MIDI into 3 tokens per note:
-
-1. **instrument + pitch + velocity** (combined token)
-2. **onset_ms** (absolute onset time in milliseconds)
-3. **duration_ms** (note duration in milliseconds)
-
-Temporal structure: 5000ms segments marked by `<T>` tokens. 10ms temporal resolution. This absolute tokenization preserves fine-grained timing information that relative tokenizations (like REMI) lose.
-
-### Pretraining
-
-- **Data:** 820K piano MIDI performances (~60K hours)
-- **Objective:** Autoregressive next-token prediction
-- **Training:** 75 epochs, 9 days on 8xH100
-- **Contrastive stage:** SimCSE with NT-Xent loss, tau=0.1, 25 epochs on top of base model
-
-### Benchmark Results (all SOTA)
-
-| Benchmark | Task | Accuracy |
-|-----------|------|----------|
-| Genre classification | Genre | 92.4% |
-| Form analysis | Form | 82.5% |
-| Composer identification | Composer | 90.5% |
-| Pianist8 | Performer ID | 91.6% |
-| Period classification | Period | 84.7% |
-| VG-MIDI | Emotion | 63.6% |
-
-These benchmarks demonstrate that Aria has learned rich representations of musical style, structure, and expression -- exactly the capabilities needed for quality assessment.
-
-### Historical fine-tuning strategy
-
-**Direct fine-tuning on PercePiano:**
-- Learning rate: 1e-5
-- Dropout: linearly increasing 0.0 to 0.2 across layers (layer 0 = no dropout, layer 15 = 0.2)
-- Training: 10 epochs
-- Loss: same ranking-dominant loss as A1-Max (ListMLE + contrastive + CCC)
-
-**LoRA option:** Standard LLaMA architecture means full HuggingFace PEFT compatibility. LoRA fine-tuning is viable if full fine-tuning overfits on PercePiano's limited data (~1,202 segments). Start with LoRA rank-32 as baseline, compare with full fine-tuning.
-
-### Score Conditioning (from Day One)
-
-Aria encodes BOTH performance MIDI and score MIDI using the same model:
-
-```
-Performance MIDI -> [Aria] -> z_perf [512]
-Score MIDI      -> [Aria] -> z_score [512]
-
-delta = z_perf - z_score   (what's different between played and written)
-```
-
-The delta vector directly encodes performance deviations from the score. The quality head learns which deltas are good (rubato, dynamic shading) and which are bad (missed dynamics, wrong notes).
-
-This is immediate -- not deferred to a future phase. Aria's architecture naturally handles both score and performance MIDI. No special architecture changes needed.
-
-### AMT Validation (prior results, methodology still valid)
-
-The symbolic encoder requires MIDI input, which in production comes from automatic music transcription (AMT) of audio.
-
-**MAESTRO AMT test (studio audio):** ByteDance piano transcription vs ground-truth MIDI on 50 recordings, 107 pairs. **0% pairwise accuracy drop.** Per-dimension drops all < 4%.
-
-**YouTube AMT test (mediocre audio):** 50 recordings from phone/home setups, 1,225 pairs. **79.9% A1-vs-S2 agreement** (gate: >60%).
-
-| Dimension | Agreement |
-|-----------|-----------|
-| interpretation | 84.7% |
-| dynamics | 82.9% |
-| phrasing | 82.2% |
-| pedaling | 78.5% |
-| timing | 76.7% |
-| articulation | 72.4% |
-
-Articulation weakest (AMT velocity estimation noisiest). Interpretation/dynamics strongest (depend on overall structure, not note-level precision).
-
-**Conclusion:** AMT is production-viable. Symbolic path survives real-world audio conditions across all dimensions. These results apply to any symbolic encoder including Aria -- the AMT quality bottleneck is upstream of the encoder choice.
+AMT-survival validation (methodology, not the encoder choice, is what's load
+bearing): ByteDance AMT vs ground-truth MIDI on studio audio showed 0% pairwise
+drop; on YouTube mediocre audio, 79.9% A1-vs-S2 cross-encoder agreement (all
+dimensions > 72%). This generalizes to any symbolic encoder, including Aria --
+the AMT bottleneck sits upstream of encoder choice.
 
 ---
 
-## Historical parallel-stream architecture
+## Historical parallel-stream architecture (superseded 2026-08-03)
 
-> Replaces the prior gated-fusion design. See [[project_parallel_streams_decision]] for full rationale and the historical fusion section preserved below.
+Parallel streams (MuQ audio stream + Aria symbolic stream + deterministic
+MPM-style extraction, all three feeding the teacher LLM as independent
+signals, no learned fusion gates) replaced gated fusion on 2026-05-27. Gated
+fusion was retired because the ISMIR paper's fused score underperformed
+audio-only (R2 0.524 vs 0.537, error correlation r=0.738 -- both streams
+failed on the same samples); Aria's pretraining scale closed that asymmetry
+and dropped error correlation to phi=0.043, which justified exposing
+disagreement to the teacher LLM directly rather than routing it through
+learned gates.
 
-### Why Parallel Streams Over Gated Fusion
-
-The ISMIR paper tested audio-symbolic fusion and found it *underperformed* audio-only (R2 0.524 vs 0.537). Error correlation between modalities was r=0.738 -- both failed on the same samples. Root cause: pretraining scale asymmetry (MuQ 160K hours vs S2 from scratch on ~24K graphs). Aria (650M params, 820K MIDI pretraining) closes that pretraining gap and produces phi=0.043 error correlation — a 18x reduction. This validates *combining* MuQ + Aria. What it does **not** validate is the specific *mechanism* of combination.
-
-We pivoted from gated fusion to parallel streams (2026-05-27) for five reasons:
-
-1. **Data scale.** Robust per-dimension fusion gates need substantial labeled data to converge. PercePiano + T2 + T5 (in progress) supports training small per-dim heads but not learned cross-modal routing across 6 dimensions × variable bar positions.
-2. **Disagreement is a feature, not a bug.** Fusion collapses two views into one optimal score, destroying the disagreement signal. Parallel streams expose it, and the teacher LLM can communicate uncertainty in natural language ("perceptually solid but technically imprecise").
-3. **Failure isolation.** Late ensembling isolates encoder failures. An Aria bug doesn't corrupt audio judgments. Gates couple them.
-4. **Interpretability.** Per-stream scores are inspectable. Gate weights are not.
-5. **Product alignment.** ASCF (Audible-Specific Corrective Feedback, 1.387/3.0 baseline) is bottlenecked on what the teacher can ground in bar-specific facts, not on per-dim score precision. Teacher benefits from more raw material.
-
-### Architecture: Parallel Streams
-
-```
-AUDIO -> [MuQ (frozen) + LoRA] -> z_audio [512] -> per-dim head -> audio_scores[6]
-
-PERF MIDI  -> [Aria (frozen) + LoRA] -> z_perf  [512]
-SCORE MIDI -> [Aria (frozen)]        -> z_score [512]
-                                        delta = z_perf - z_score
-                                                  |
-                                                  V
-                                  per-dim head -> symbolic_scores[6]
-
-AMT output + score alignment (DTW) -> MPM-style extraction
-                                       (deterministic, no training)
-                                       -> structured_features
-                                          {
-                                            tempo_curve, rubato_intensity,
-                                            dynamics_segments (with curvature),
-                                            articulation_ratios,
-                                            ...per bar
-                                          }
-
-                              ALL THREE STREAMS -> teacher LLM briefing
-                                                 (cross-modal reasoner in
-                                                  natural language)
-```
-
-No learned fusion gates. The teacher LLM is the cross-modal reasoner. Stream disagreement is exposed via a simple disagreement statistic per dimension and surfaced to the teacher as diagnostic context.
-
-### Per-Dimension Expected Stream Behavior
-
-Based on MuQ probing R2 and prior cross-modality analysis, we expect different dimensions to be served better by different streams. The teacher LLM weights them dynamically per recording.
-
-| Dimension | Audio stream signal | Symbolic stream signal | MPM extraction signal |
-|-----------|---------------------|------------------------|------------------------|
-| timing | Strong (MuQ captures micro-timing from waveform) | Moderate (Aria sees onset deviations via score delta) | Strong (split tempo + rubato curves) |
-| dynamics | Moderate (loudness conflated with recording level) | Strong (score-delta resolves dynamics inversion) | Strong (audio-loudness curve + transition fitting) |
-| pedaling | Strong (resonance, blur, sympathetic vibration) | Weak (AMT pedal estimation noisy) | Audio-only (parallel pedal extraction, not via AMT) |
-| articulation | Moderate (attack quality) | Strong (note duration ratios from MIDI) | Strong (relativeDuration per note) |
-| phrasing | Moderate (breath, shaping) | Strong (long-range structure via transformer context) | Weak (hard to hand-engineer phrase arcs) |
-| interpretation | Holistic (audio feel) | Holistic (symbolic structure + score intent) | Weak (no obvious feature mapping) |
-
-These are hypotheses to be validated empirically by per-dimension stream-disagreement statistics (see `08-uncertainty-and-diagnostics.md`).
-
-### Historical training protocol
-
-1. **Phase A -- Frozen linear probe (COMPLETE 2026-03-19):** Validated Aria captures quality signal (59.6% pairwise from frozen embeddings). Error correlation phi=0.043 (near-zero) confirms dual-encoder viability. See "Aria vs MuQ: Frozen Linear Probe Comparison" above.
-2. **Phase B -- Contrastive pretraining:** Quality-aware contrastive training for both MuQ and Aria on T2 competition + T5 YouTube Skill data. Teaches quality ordering before fine-tuning; improves the reliability of each stream's per-dim scores.
-3. **Phase C -- Historical independent fine-tuning result (2026-06-26):** `AriaLoRAModel` in `model/src/model_improvement/aria_encoder.py` used LoRA rank-32 on layers 8-15. The T1-only run produced mean pairwise 0.6988 and R2=0.194 on four clean piece-stratified folds. Its audio was a fluidsynth proxy, and the full multi-tier run never happened before the program closed; the removed one-off training and smoke scripts are not current entry points.
-4. **Phase D -- Per-stream heads + MPM extraction (replaces "gated fusion training"):** Freeze both encoders. Train small per-dimension heads on each stream's frozen embeddings. PercePiano as anchor (20% of training), ordinal competition data (80%). In parallel: build deterministic MPM-style feature extraction on AMT + score alignment output (split tempo/rubato, fit dynamics transition curves, structured serialization). Validate by re-running ASCF eval with the enriched teacher briefing.
-5. **Phase E (optional):** End-to-end fine-tuning of top layers per stream, with very low LR (1e-6). Each stream tunes independently; no cross-modal joint training.
-
-### Legacy: Gated Fusion (superseded 2026-05-27)
-
-The prior plan trained per-dimension learned gates over `[z_audio; z_perf; delta]` to produce a single fused score per dimension. The gate output (sigmoid in [0,1]) routed between audio and symbolic embeddings before a per-dim MLP. Diagram:
-
-```
-                    GATED FUSION (per-dimension) — SUPERSEDED
-  For each dimension d:
-    gate_d = sigmoid(W_d * [z_audio; z_perf; delta])
-    fused_d = gate_d * z_audio + (1 - gate_d) * z_perf
-    quality_d = MLP_d(fused_d, delta)
-  Output: 6 scores (0-1) relative to score
-```
-
-Retained here for institutional memory and in case the parallel-stream architecture proves insufficient and a future revisit becomes warranted. The empirical validation (phi=0.043) remains valid for either approach.
-
-### Training Data Mix
-
-- **PercePiano (20%):** Anchor dataset with expert annotations. 6-dimensional continuous labels.
-- **Ordinal competition data (80%):** Competition placements provide ranking signal across pieces and performers. Much larger scale. ListMLE ranking loss.
-
-This 20/80 split ensures the model learns robust ranking from abundant ordinal data while anchoring to expert-grounded dimensions from PercePiano.
+This architecture, its diagrams, and its training protocol are superseded
+along with Aria (see above) -- MoonBeam-839M is scoped to MIREX Track A
+difficulty only (#138) and does not reopen the parallel-stream program.
+Current pipeline framing lives in `docs/model/04-north-star.md`; the
+retirement decision trail is #127 (audio-teacher pivot) and #139 (successor
+architecture).
 
 ---
 

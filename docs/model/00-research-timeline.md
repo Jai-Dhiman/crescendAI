@@ -1,441 +1,144 @@
 # CrescendAI Research & Product Timeline
 
+> Lean chronology; verdicts only. Detail lives in the linked issues and the
+> canonical docs (01-data, 03-encoders, docs/mirex/).
+
 > **Current program:** issue #139 owns the capability-gated Paper #1 benchmark
 > and verifier roadmap. This document preserves the chronology and negative
 > results; issue state, not old calendar plans, owns active work.
 
-> **AUDIO-NATIVE TEACHER GATE OUTCOME (#127/#129/#130, 2026-07-25–27):** The Qwen and MuQ/Aria training epics closed in favor of an audio-native probe. Gate 0 then **FAILED its original all-axis rule**: dynamics showed strong signal, pedaling was weak and inconsistent, and phrasing remained untested. The result demonstrates axis-dependent capability, neither a pass nor flat inability. #131 closed without activating a separate DIY-model loop, and #129 closed as superseded. The surviving `model/src/audio_teacher/` code is a 37-test probe harness, not a checkpoint, training loop, serving path, or app integration. Successor #139 starts with a modular real-audio benchmark and independent verifier; any native audio-language model remains gated on that ruler.
->
-> **Historical encoder result:** A1-Max reached **79.85% pairwise, R2=0.336** on clean folds. Aria Phase C reached 0.6988 pairwise on a T1 fluidsynth/AMT proxy. Its training script and broader multi-tier program were later retired; these numbers do not describe the serving architecture or establish real-practice validity.
->
-> **TRANSKUN MIGRATION (#128, 2026-07-23):** The frozen `/transcribe` contract moved from Aria-AMT to Transkun. The warm path loads once and preserves Transkun's own preprocessing; the isolated CLI remains the explicit fallback. Smoke, measurer, and onset/duration gates passed. Chroma pseudo-truth recall improved 40% -> 45%, while its cost-vs-error guard regressed 0.667 -> 0.586, so the baseline was not silently ratcheted. Piece-ID stability could not be measured because the real cache still used the former substrate; the gap was reported rather than filled with synthetic evidence.
->
-> **Research path 1 (verifiable feedback) — deterministic claim verifier SHIPPED (#65, 2026-06-19):** `claim_taxonomy.json` bumped to v0.1 (dynamics dimension activated). `DynamicsMeasurer`, `TimingMeasurer`, `PedalingMeasurer`, `LocationResolver`, `verify()` orchestrator, and CLI shipped in `apps/evals/claim_taxonomy/verifier/`. Signed-d convention + error-bar table documented in `docs/model/claim-verifier-signed-d-conventions.md`. `BundleExtractor` skeleton present; real-claim faithfulness rate (#67) and proxy-to-perception gate (#66) are next.
->
-> **HMM follower (mechanism) SHIPPED (#119, 2026-07-20):** `model/src/follower_bench/hmm.py` — an **opt-in Viterbi-HMM decoder** (`follow_hmm`, `HmmParams`) sitting **beside the untouched #118 additive DP** (default `gap_report` path is bit-exact unchanged → #117 reproduces, 61 prior tests green). The HMM carries ~7 log-prob params (`p_match`, `p_confuse`, `p_ins`, `p_del`, `p_adv`, `p_jump_back`, `p_jump_fwd`) vs #118's 3. **LOAD-BEARING fix: `p_ins < 1` puts a real cost on inserting/skipping a performance note, removing #118's FREE `skip_perf` transition — that free skip is exactly what let the additive DP walk off a repeat, so pricing it is what defeats the repeat-cliff.** A log-sum-exp forward-backward (`column_posteriors`, `alignment_logprob`) yields a calibrated per-note confidence — the posterior mass on the chosen column, gamma_i(j*) — now attached to each `MatchedNote` (`MatchedNote.confidence: float|None = None`). New `model/src/follower_bench/calibration.py` measures Spearman rho(confidence, -|error|) + risk-coverage (`calibration_stats`); `gap_report --hmm` is the routing seam that surfaces the calibration line. **74 tests green.** The A8 cliff-crossing capstone test proves the HMM relocks BOTH a backward repeat AND a forward skip in a single clip where **no single additive (jump_back, jump_fwd) pair can** (the #118 repeat-cliff negative result). **AUTORESEARCH-TUNED (#119 follow-up, 2026-07-22, `TUNED_HMM_PARAMS`):** lowering `p_jump_back` 0.02→0.002 cut clean `false_jumps` **62→9** while KEEPING the recovery win over #118 — **jump `relock_success` 0.222→1.0, jump lock 0.563→0.945, repeat/restart median relock 5.74s→0.24s** (capped subset, seeds-3). **KEY NEGATIVE RESULT (a measured pitch-only ceiling):** the last 9 clean false-jumps are UNREACHABLE by any flat OR distance-scaled jump penalty. Diagnosis: they come from 1–2 repetitive clips (e.g. Shilyaev03) where a late-performance passage coincidentally matches early score; the bad backward jump is the **identical 1215-note jump** to that clip's *legitimate* repeat/restart jump, so no penalty (constant or distance-scaled) can separate them (`p_jump_back` 0.02→0.0002 and `p_jump_fwd` 0.01→0.001 both left clean false_jmp unchanged at 9). Same root causes a calibration dip (median spearman_rho 0.311→0.276, below the 0.30 target): suppressing jumps makes the model commit confidently on exactly those ambiguous regions. **Both trace to one thing — pitch alone cannot tell replay from coincidence — resolvable only by a timing/IOI signal (the deferred fork #1).** Follow-up: **follower P3 (timing-aware HMM)** is the path to clean_fj=0 + calibration recovery. After that: swap the HMM matcher into `model/src/claim_measurement/score_align/` (#101/#108 resume).
->
-> **Jump-aware follower DP SHIPPED (#118, 2026-07-19):** `model/src/follower_bench/follower.py` — bar-boundary backward/forward jump transitions added to the monotonic DP (`_relax_row_jumps`, asymmetric `ContinuityPrior.jump_back_penalty`/`jump_fwd_penalty` both default `math.inf` = monotonic baseline; `bar_boundary_columns` maps ASAP `midi_score_downbeats` to DP columns; one jump per row keeps traceback acyclic; `gap_report --jump-back-penalty/--jump-fwd-penalty`). 61 tests green. **Result (gap_report capped subset vs #117 monotonic baseline): repeat/restart median relock 50.6s→5.74s (<8s bar), jump relock_success 0.11→0.22, clean/tempo/wrong_note/hesitation false_jumps stay 0.** Autoresearch penalty frontier (14 experiments): (1) clean-gate floor jump_back≥4; (2) repeat-cliff jump_fwd≥jump_back — the instant forward<backward, jump relock leaps to 0.83 but repeat blows up to 16.35s; (3) gated interior is flat. **KEY NEGATIVE RESULT: the jump pathology cannot be fixed by any single global penalty pair (its gain lives on the wrong side of the repeat-cliff) — the measured motivation for #119 (HMM / state-dependent jump costs).** Recommended default jump_back=5.0/jump_fwd=8.0 (not yet a code default; production follower adopts when it turns jumps on). Next: #119 HMM, and swap this matcher into `model/src/claim_measurement/score_align/` (#101/#108 resume).
->
-> **Baseline MONOTONIC follower SHIPPED (#115, 2026-07-13):** `model/src/follower_bench/{follower,score_notes}.py` — `follow(amt_notes, score, prior) -> trajectory` reproduces the day-0 spike exactly on `bach_inv1_chunk0` (62/82 matches, 0 teleports, auto-detected transpose -1). NO_PRIOR ablation (65 matches / 5 teleports) proves the continuity prior is load-bearing, not decorative. Three characterization tests confirm the monotonic follower FAILS to re-lock after a jump, repeat, or restart — that gap is what #118 (jump-aware DP) closes next. Gotcha: ASAP score positions are score-MIDI *seconds*, not partitura beats. Next: swap this matcher into `model/src/claim_measurement/score_align/` and re-measure the 10-bundle residual floor (#101 resume trigger).
->
-> **Follower trajectory metric SHIPPED (#113, 2026-07-13):** `model/src/follower_bench/metric.py` — deep, follower-agnostic scorer (`score_clip` / `aggregate_by_pathology` / `trajectory_from_matches`) producing `TrajectoryScore{median/max_abs_error, lock_rate, relock_latencies_s, false_jump_count}` + `AggregateScore` per pathology (56 tests green). **Corrects #115's assumption:** the monotonic follower actually RECOVERS ~5-7s after a backward repeat/restart (repeat seed=13 lock_rate 0.647, relock 5.47s finite; restart seed=1 relock 6.49s finite; error decays monotonically, stays locked ~75-78% of the post-event region). Only a FORWARD JUMP yields infinite relock latency (truth leaps ahead, monotonic follower never revisits `from_score_position`) — that is the true never-recovers pathology; #115's characterization test only probed a transient +3s window. Next: #118 jump-aware DP uses this metric as its scorer — jump relock latency (currently inf) is the number #118 must drive finite.
-
-> **FOLD LEAK WARNING:** All pairwise accuracy numbers in the Legacy Results section below were computed with leaked folds (segments from the same piece appearing in both train and val splits). These numbers are INVALID for model comparison. Clean piece-stratified folds are now in place. All future results use piece-stratified CV only.
-
 *Core question: "How well is the student playing what the score asks for?"*
-
-Target user: Sarah -- 3 years playing, no teacher, records on her phone, wants direction on what to work on next.
-
-North star: Give Sarah one piece of useful feedback on one passage she's working on. Not perfect. Not comprehensive. One thing a teacher would actually say after hearing her play.
-
----
-
-## Aria Discovery (2026-03-18)
-
-See `docs/model/03-encoders.md` for Aria rationale and benchmarks.
-
-**Decision:** Replace ALL custom symbolic encoders (S2 GNN, S2H, S3, S1) with Aria. Eliminate Phase 3 entirely. Integrate Aria into model v2 from day one.
+Target user: Sarah -- 3 years playing, no teacher, records on her phone, wants
+direction on what to work on next. North star: one useful piece of feedback on
+one passage she's working on, not a comprehensive review. See
+`04-north-star.md` for the full pipeline vision.
 
 ---
 
-## Key Decisions
+## Chronology
 
-### Inference: Cloud-Only (decided 2026-03-14)
+**2026-03-11 -- Layer 1 Validation (4 experiments).** Competition correlation
+PASS (rho=+0.704, mean aggregation; per-dimension dynamics INVERTED at
+rho=-0.917 -- model captures "amount" not "appropriateness"). AMT degradation
+PASS (0% pairwise drop on studio audio). Dynamic range: diagnostic only
+(Cohen's d=0.47), usable for within-student tracking, not absolute
+classification. MIDI-as-context: SKIP for raw stats (LLM judge called them
+"false precision," 45% B-wins vs 65% gate), but bar-aligned passage-specific
+context flagged as the right direction -- became Phase 1 of `04-north-star.md`.
 
-All MuQ inference runs on the HuggingFace inference endpoint. No on-device ML / Core ML conversion planned. This simplifies the iOS architecture -- the app captures audio and sends chunks to the API worker, which forwards to HF for scoring server-side.
+**2026-03-13 -- YouTube AMT validation.** 50 mediocre-quality recordings,
+1,225 pairs, 79.9% A1-vs-S2 cross-encoder agreement (all dims > 72%). Doubled
+as phone-audio proxy validation.
 
-### Encoder-Combination Strategy: Parallel Streams (decided 2026-05-27, supersedes Separate-Then-Fuse)
+**2026-03-14 -- Inference cloud-only; phone audio pseudo-validated.** No
+on-device ML planned. The 2026-03-13 YouTube AMT validation stood in for
+formal phone-audio testing; no longer treated as an existential risk.
 
-See `docs/model/03-encoders.md` for parallel-stream architecture and training protocol.
+**2026-03-18 -- Aria adopted, fold leak fixed, skill-level eval FAILED.**
+Decision: replace all custom symbolic encoders (S1/S2/S2H/S3 GNNs) with Aria,
+eliminating Phase 3 symbolic-FM research entirely. Same day: piece-stratified
+CV folds replaced leaked segment-level folds -- all prior pairwise/R2 numbers
+invalidated. Same day, **negative result:** A1-Max showed zero skill-level
+discrimination across 5 human-labeled skill buckets (range 0.008 across
+beginner-to-professional) -- PercePiano's 100%-advanced-level training data
+left the model unable to tell a beginner from Lang Lang. Motivated the (later
+abandoned) T5 YouTube Skill Corpus.
 
-Train MuQ (audio) and Aria (symbolic) independently. Each emits its own 6-dim quality scores via a small per-dimension head on its frozen backbone. **No learned fusion gates.** Both stream outputs — plus deterministic MPM-style features extracted from AMT + score alignment — go to the teacher LLM, which acts as the cross-modal reasoner in natural language. Disagreement between streams is a feature for the teacher to communicate ("perceptually solid but technically loose"), not a signal to be collapsed away.
+**2026-03-19 -- Aria Phase A + clean-fold baseline.** Frozen linear probe:
+Aria 59.6% pairwise (marginal but above chance), MuQ 62.2%, error correlation
+phi=0.043 (near-zero, down from S2's r=0.738) -- validated dual-encoder
+viability. Same day, clean piece-stratified A1-Max baseline: 77.5% pairwise ->
+79.85% after loss-weight autoresearch (R2 0.119 -> 0.336). Confirmed the fold
+leak had inflated results by only ~1pp, not the feared ~3pp.
 
-**Why this pivot (2026-05-27):** The empirical case for *combining* MuQ + Aria still holds — phi=0.043 error correlation means the two encoders make independent mistakes, so each contributes genuinely independent information. What changed is *how* we combine: (1) labeled data scale doesn't justify training robust per-dim fusion gates; (2) disagreement is more useful to the teacher LLM than a single fused score; (3) failure isolation — an Aria bug can't corrupt audio judgments; (4) interpretability — the teacher cites stream outputs, not gate weights; (5) the product metric (ASCF, 1.387/3.0) is bottlenecked on teacher signal richness, not per-dim score precision. Historical: ISMIR paper fusion R2=0.524 < audio-only R2=0.537 on leaked folds (r=0.738 error correlation). Aria broke that correlation but we no longer need to fuse to exploit it. See [[project_parallel_streams_decision]] in memory.
+**2026-05-27 -- Parallel streams replace gated fusion.** MuQ and Aria each
+emit independent 6-dim scores straight to the teacher LLM instead of being
+combined via learned gates; stream disagreement becomes teacher-visible signal
+instead of being collapsed away. Same decorrelation gate (r < 0.5) as the
+retired fusion plan.
 
-### Aria Validation Complete -- Phase A (2026-03-19)
+**2026-06-19 -- Deterministic claim verifier shipped (#65).**
+`claim_taxonomy.json` bumped to v0.1 (dynamics dimension activated).
+Measurers, `LocationResolver`, `verify()` orchestrator, and CLI shipped in
+`apps/evals/claim_taxonomy/verifier/`. Conventions documented in
+`docs/model/claim-verifier-signed-d-conventions.md`.
 
-Linear probe on frozen embeddings, 4-fold piece-stratified CV on PercePiano (clean folds). No fine-tuning, no LoRA -- pure representation quality test.
+**2026-06-26 -- Aria Phase C fine-tune (historical, now the #138 bake-off
+reference arm).** LoRA rank-32 fine-tune, T1-only, fluidsynth-proxy audio:
+mean pairwise 0.6988, R2=0.194 on 4 clean piece-stratified folds. The full
+multi-tier run never happened before the program closed (#127).
 
-| Model | Pairwise | R2 | dynamics | timing | pedaling | artic. | phrasing | interp. |
-|-------|----------|------|----------|--------|----------|--------|----------|---------|
-| Aria-Embedding (512d) | 59.6% | -4.28 | 65.8% | 55.8% | 58.6% | 54.2% | 57.9% | 61.2% |
-| Aria-Base (1536d) | 59.6% | -4.78 | 62.5% | 58.0% | 60.7% | 54.3% | 54.8% | 62.3% |
-| MuQ (1024d, mean-pooled) | 62.2% | -1.90 | 72.4% | 67.5% | 66.6% | 54.7% | 60.9% | 63.9% |
+**2026-07-13 -- Follower baseline + metric shipped (#115, #113).** Monotonic
+follower (`follow()`) reproduced the day-0 spike exactly (62/82 matches, 0
+teleports). Follower-agnostic scorer (`metric.py`) then **corrected #115's own
+characterization**: the monotonic follower actually recovers ~5-7s after a
+backward repeat/restart; only a forward jump yields infinite relock latency --
+that is the true never-recovers pathology.
 
-**Error correlation phi = 0.043** (near-zero). This dramatically validates the dual-encoder strategy: S2's correlation was r=0.738 (redundant), Aria's is 0.043 (independent). The 18x reduction in error correlation means MuQ and Aria genuinely see different things — which justifies parallel streams (post-2026-05-27 decision) just as well as it would have justified fusion. Independent errors = independent information, whether you fuse with gates or expose both to the teacher LLM.
+**2026-07-19 -- Jump-aware DP shipped (#118).** Bar-boundary jump transitions
+cut repeat/restart median relock 50.6s -> 5.74s. **Negative result:** no
+single global jump-penalty pair can fix jump relock without also breaking the
+repeat-cliff case -- the two failure modes sit on opposite sides of one
+penalty knob. Motivated #119 (HMM / state-dependent costs).
 
-**Interpretation:**
-- Both Aria variants perform identically (59.6%). Contrastive fine-tuning for the embedding variant neither helped nor hurt quality sensitivity.
-- Aria is marginal frozen (55-60% band) but significantly above chance (50%). Quality signal exists; fine-tuning should unlock it.
-- MuQ dominates on dynamics and timing. Aria's advantage should emerge after quality-aware training.
-- Negative R2 values indicate frozen embeddings predict poorly in absolute terms (expected for a linear probe on representations not trained for this task).
+**2026-07-20 -- HMM follower shipped (#119).** Opt-in Viterbi-HMM decoder
+beside the untouched additive DP, plus calibrated per-note confidence via
+forward-backward posteriors. The A8 capstone test proves the HMM relocks both
+a backward repeat and a forward skip in one clip where no single additive
+penalty pair can (the #118 repeat-cliff negative result).
 
-**Decision:** Proceed to Phase B (contrastive pretraining) and Phase C (LoRA fine-tuning). The marginal frozen performance combined with near-zero error correlation confirms Aria is worth investing in as a parallel stream alongside MuQ.
+**2026-07-22 -- HMM autoresearch tuning.** Lowering `p_jump_back` cut clean
+false-jumps 62 -> 9 while improving jump relock 0.222 -> 1.0. **Negative
+result (a measured pitch-only ceiling):** the remaining 9 false-jumps are
+unreachable by any flat or distance-scaled jump penalty -- they trace to clips
+where a late passage coincidentally matches an early one, and pitch alone
+cannot distinguish replay from coincidence. Resolvable only by a timing/IOI
+signal (deferred; follower P3).
 
-Scripts: `model/src/model_improvement/aria_embeddings.py`, `aria_linear_probe.py`. Results: `model/data/results/aria_validation.json`.
+**2026-07-23 -- Transkun migration (#128).** `/transcribe` moved from
+Aria-AMT to Transkun (MIT, ISMIR 2024). Chroma pseudo-truth recall improved
+40% -> 45%; **negative result:** the cost-vs-error guard regressed 0.667 ->
+0.586 (reported, not silently ratcheted). Piece-ID stability under the new
+substrate could not yet be measured.
 
-### Fold Leak Fix (decided 2026-03-18)
-
-All previous CV used segment-level splits that allowed segments from the same piece into both train and val. New piece-stratified folds ensure no piece appears in both splits. All legacy numbers are preserved for reference but marked INVALID.
-
-### Phone Audio: Pseudo-Validated (decided 2026-03-14)
-
-The YouTube AMT validation (79.9% agreement on 50 mediocre recordings) serves as proxy phone audio validation. These recordings include phone-quality audio, home pianos, digital keyboards, and varying room acoustics -- representative of real user conditions. No longer treated as an "existential risk." Formal paired recordings (studio + iPhone) remain a Wave 2 nice-to-have for quantifying the exact gap.
-
----
-
-## Model v2 Plan (5-6 weeks)
-
-### Training Strategy
-
-**Symmetric contrastive pretraining:** Both MuQ and Aria get quality-aware contrastive training on T2 competition + T5 YouTube Skill data before fine-tuning. This teaches both encoders a shared quality-ordering space.
-
-**Score conditioning from day one:** Aria encodes both performance MIDI (z_perf) and score MIDI (z_score). delta = z_perf - z_score captures expressive deviation. No separate "score conditioning phase" -- it is baked into the architecture.
-
-**Multi-tier training mix:** PercePiano as anchor (20%), ordinal-dominated training (80%).
-
-| Tier | Segments | Signal | Loss | Mix Weight |
-|------|----------|--------|------|------------|
-| T1: PercePiano | 1,202 | 6-dim regression + ranking | BCE + ListMLE + CCC | 20% (anchor) |
-| T2: Competition (expanded) | ~11,000 | Ordinal placement ranking | ListMLE | 40% |
-| T5: YouTube Skill | ~3,100 | Ordinal skill-level ranking (5 buckets) | ListMLE | 30% |
-| T3: MAESTRO | 24,321 | Contrastive pairs (same piece, diff performer) | InfoNCE | 10% |
-
-### Architecture
-
-**Audio path (MuQ):** Same MuQ + LoRA backbone, attention pooling, per-dimension heads. Contrastive pretrain on T2+T5, then fine-tune on all tiers.
-
-**Symbolic path (Aria):** Aria 650M frozen or LoRA-adapted. Takes performance MIDI + score MIDI as dual input. Outputs z_perf, z_score, and delta = z_perf - z_score. Contrastive pretrain on T2+T5 (using AMT MIDI), then fine-tune.
-
-**Stream combination:** See `docs/model/03-encoders.md` for parallel-stream architecture and training protocol (replaced gated fusion 2026-05-27).
-
-### Evaluation Framework
-
-1. **Skill discrimination (primary):** Spearman rho between skill bucket and predicted score on held-out T5 recordings. Must be monotonically increasing from Bucket 1 to 5.
-2. **Within-level pairwise (secondary):** Pairwise accuracy on PercePiano (piece-stratified folds) and within-bucket YouTube pairs.
-3. **Per-dimension skill sensitivity:** Which dims show strongest skill-level signal?
-4. **Cross-piece generalization:** Hold out entire pieces from training -- does skill discrimination transfer?
-5. **Error decorrelation (dual-encoder viability):** Measure error correlation between MuQ and Aria paths. Combining encoders is only worth pursuing if correlation drops below ~0.5 (was 0.738 with S2). **Phase A result: phi=0.043 — gate passed decisively.** Note (2026-05-27): this validation now justifies parallel streams rather than gated fusion, but the underlying error-decorrelation test is unchanged.
-
-### Timeline (5-6 weeks)
-
-**Week 1-2: Data preparation + contrastive pretraining**
-
-- T5 YouTube Skill Corpus: collect + curate remaining 14 pieces
-- T2 expansion: Chopin 2015, Cliburn 2022/Amateur, Queen Elisabeth 2024
-- Contrastive pretraining of MuQ and Aria on T2+T5
-
-**Week 3-4: Independent encoder training**
-
-- MuQ fine-tune on all tiers (piece-stratified CV)
-- Aria fine-tune on all tiers (performance MIDI + score MIDI input)
-- Skill discrimination checkpoint after each
-
-**Week 5: Parallel-stream heads + MPM extraction + evaluation** [updated 2026-05-27]
-
-- Train small per-dimension heads on top of frozen MuQ and Aria backbones (no learned gates)
-- Build MPM-style extraction on AMT output (split tempo/rubato, fit dynamics transition curves, structured serialization)
-- Full evaluation: skill discrimination, pairwise, cross-piece generalization, **per-dimension stream-disagreement statistics**
-
-**Week 6: Deploy + iterate**
-
-- Deploy MuQ + Aria parallel-stream endpoints + extraction module
-- Run pipeline evals with new model; re-run ASCF eval with enriched teacher briefing
-- ISMIR paper update with clean-fold results
+**2026-07-25 to 07-27 -- Audio-native teacher pivot; MuQ/Aria program closed
+(#127/#129/#130).** Qwen and MuQ/Aria training epics closed in favor of an
+audio-native probe. **Negative result:** Gate 0 failed its original all-axis
+rule -- dynamics showed strong signal, pedaling was weak and inconsistent,
+phrasing remained untested (axis-dependent capability, neither a clean pass
+nor flat inability). Successor #139 starts with a modular real-audio
+benchmark and independent verifier.
 
 ---
 
-## Skill-Level Evaluation (2026-03-18) -- FAIL
+## Other negative results worth keeping
 
-Evaluated A1-Max on 26 YouTube Fur Elise recordings across 5 human-labeled skill buckets (beginner through professional). **The model shows zero skill-level discrimination:**
-
-```
-Overall mean by bucket:
-  Bucket 1 (beginner):      0.558 (n=4)
-  Bucket 2 (early intermed): 0.566 (n=6)
-  Bucket 3 (intermediate):   0.560 (n=5)
-  Bucket 4 (advanced):       0.561 (n=5)
-  Bucket 5 (professional):   0.565 (n=6)
-```
-
-Total range: 0.008. No dimension shows monotonic skill-level trend. The model cannot distinguish a 1-year beginner from Lang Lang.
-
-**Root cause:** Training data (PercePiano) is 100% advanced-level performers. The regression head is calibrated to a narrow quality band (~0.4-0.7). Beginner audio features are out-of-distribution, so the head defaults to the mean.
-
-**Fix:** Multi-tier training with YouTube Skill Corpus (T5) + Aria symbolic path that spans the full quality spectrum.
+- **Score alignment via MuQ embeddings failed** (pre-2026-03): standard DTW on
+  MuQ embeddings gave ~18s onset error (MuQ encodes semantic content, not
+  temporal features); a learned MLP projection collapsed to a degenerate
+  representation. Conclusion: use the right representation per sub-problem --
+  MuQ for quality, spectral/symbolic features for alignment.
+- **Gated audio-symbolic fusion did not help** with S2 (ISMIR paper: fusion
+  R2 0.524 < audio-only 0.537, error correlation r=0.738 -- both streams
+  failed on the same samples). Aria's much lower error correlation
+  (phi=0.043) made the fusion-vs-no-fusion question moot by replacing fusion
+  with parallel streams (2026-05-27) rather than answering it head-on.
+- **A from-scratch symbolic foundation model was unnecessary.** Aria (SOTA on
+  6 MIR benchmarks, 820K MIDI pretraining) covered the need until superseded
+  by MoonBeam-839M (#138, 2026-08-03) -- see `03-encoders.md`.
 
 ---
 
-## Legacy Results (INVALID -- fold leak)
-
-> **WARNING:** All numbers in this section were computed with leaked folds. Segments from the same piece appeared in both train and val. These results are NOT valid for model comparison or publication. Kept for historical reference only.
-
-### LEGACY: Encoder Training Results
-
-For full encoder details, see `docs/model/03-encoders.md`.
-
-Trained on 1,202 PercePiano segments with 6 teacher-grounded composite dimensions (dynamics, timing, pedaling, articulation, phrasing, interpretation). PercePiano contains only 3 works and ~22 advanced-level performers -- no skill-level diversity.
-
-| Model | Modality | Strategy | Pairwise Acc (LEAKED) | R2 (LEAKED) |
-|-------|----------|----------|----------------------|-------------|
-| A1-Max (ensemble) | Audio | MuQ + LoRA rank-32, ListMLE, CCC | 80.8% | 0.50 |
-| A1 | Audio | MuQ + LoRA rank-16 | 73.9% | 0.40 |
-| A2 | Audio | MuQ staged adaptation | 71.4% | 0.42 |
-| A3 | Audio | MuQ full unfreeze | 69.9% | 0.28 |
-| S2 (LEGACY) | Symbolic | GNN on score graph | 71.3% | 0.32 |
-| S2H (LEGACY) | Symbolic | Heterogeneous GNN | 70.2% | 0.36 |
-| S3 (LEGACY) | Symbolic | CNN + Transformer | 70.0% | 0.37 |
-| S1 (LEGACY) | Symbolic | Transformer on REMI tokens | 68.4% | 0.33 |
-
-**Deployed at time of leak discovery:** A1-Max 4-fold ensemble on HF inference endpoint (cloud-only).
-
-**LEGACY symbolic encoders (S1, S2, S2H, S3) are fully replaced by Aria.** No further development on custom symbolic encoders.
-
-### LEGACY: Per-Dimension Complementarity
-
-| Dimension | A1 Audio (LEAKED) | S2 GNN (LEAKED) | Winner |
-|-----------|-------------------|-----------------|--------|
-| dynamics | ~0.70 | ~0.77 | S2 |
-| timing | ~0.77 | ~0.65 | A1 |
-| pedaling | ~0.72 | ~0.72 | Tie |
-| articulation | ~0.66 | ~0.70 | S2 |
-| phrasing | ~0.63 | ~0.63 | Tie |
-| interpretation | ~0.74 | ~0.77 | S2 |
-
-Audio wins timing decisively. Symbolic wins dynamics, articulation, and interpretation. These patterns may hold with clean folds but exact numbers are invalid.
-
-### Layer 1 Validation (complete, pre-leak-discovery)
-
-Four experiments validating assumptions. For detailed results, see `03-encoders.md` Layer 1 section.
-
-| Experiment | Gate | Result | Decision |
-|-----------|------|--------|----------|
-| Competition correlation (Chopin 2021, n=11) | rho > 0.3 | rho=+0.704 | **PASS** -- model quality signal is real |
-| AMT degradation (ByteDance vs GT MIDI) | drop < 10% | 0.0% drop | **PASS** -- symbolic path viable through AMT |
-| Dynamic range (intermediate vs professional) | diagnostic | Cohen's d=0.47 | Usable for within-student tracking |
-| MIDI-as-context feedback (LLM judge) | B wins > 65% | B wins 45% | **SKIP** -- raw MIDI stats don't help LLM |
-
-**YouTube AMT validation (2026-03-13):** 50 mediocre-quality recordings, 1,225 pairs, 79.9% A1-vs-S2 agreement. All 6 dimensions above 72%. This also serves as proxy phone audio validation -- these recordings span phone audio, home pianos, digital keyboards, and varying room acoustics.
-
-**Key insights from Layer 1:**
-
-- Pedaling (rho=0.887) and phrasing (rho=0.803) are strongest predictors of competition placement
-- Dynamics has *negative* correlation with placement -- model captures "amount" not "appropriateness." Score conditioning (now via Aria delta) fixes this at the model level. Phase 1's bar-aligned analysis partially addresses via LLM reasoning ("score says pp")
-- Raw MIDI statistics hurt the LLM (judge called them "false precision"), but bar-aligned passage-specific context is untested and remains the right goal
-
-### Prior Results (historical context)
-
-**Early baselines (Jan 2025, 19 dimensions):**
-
-- MuQ regression: R2=0.537 on 19 redundant PercePiano dimensions (PCA showed only 4 significant factors)
-- Contrastive ranking (E2a): 84% pairwise on 19 dims -- inflated by redundancy and "quality halo" (PC1 = 47% variance)
-- Current 6-dim results (73.9% pairwise) are on independent, teacher-grounded dimensions -- lower numbers, higher signal
-
-**Score alignment experiments (failed):**
-
-- Standard DTW on MuQ embeddings: ~18s onset error (MuQ encodes semantic content, not temporal features)
-- Learned MLP projection: representation collapse
-- **Conclusion:** Use the right representation for each sub-problem. MuQ for quality assessment. Spectral/symbolic features for alignment. Combine at the feedback layer.
-
----
-
-## Training Roadmap
-
-### Phase 0+3 (merged): Model v2 with Aria (5-6 weeks)
-
-Phase 0 (multi-tier training) and Phase 3 (symbolic FM) have been merged. Aria eliminates the need for custom symbolic FM pretraining. Score conditioning is immediate via Aria's dual-input architecture.
-
-See "Model v2 Plan" section above for full details.
-
-**0a. YouTube Skill Corpus collection**
-
-- Collect ~775 recordings across 16 pieces, 5 skill buckets
-- Human curation pass (~6.5 hours): 5-bucket classification per recording
-- Download audio, extract MuQ embeddings + AMT MIDI for Aria
-
-**0b. Competition expansion**
-
-- Add Chopin 2015, Cliburn 2022, Cliburn Amateur, Queen Elisabeth 2024 to T2 pipeline
-- Target ~11,000 competition segments
-
-**0c. Symmetric contrastive pretraining**
-
-- Contrastive pretrain both MuQ and Aria on T2+T5
-- Quality-aware ordering: higher-placed performers as positives
-
-**0d. Independent encoder fine-tuning**
-
-- MuQ: LoRA fine-tune on T1+T2+T3+T5 (piece-stratified CV)
-- Aria: LoRA fine-tune on T1+T2+T3+T5 (performance MIDI + score MIDI)
-
-**0e. Dual-stream evaluation** [updated 2026-05-27]
-
-- Measure error correlation between MuQ and Aria streams (validates that both contribute independent information)
-- If decorrelated: ship parallel streams; both feed teacher LLM
-- If still correlated: ship best single encoder, revisit dual-stream value
-- Note: original plan was "fusion gates if decorrelated." Replaced with parallel streams 2026-05-27; the decorrelation gate itself is unchanged.
-
-### Phase 1: Score Infrastructure (COMPLETE)
-
-**Goal:** Transform LLM input quality. Same A1-Max model, dramatically better feedback. This delivers 80% of the user-facing improvement.
-
-**1a. Score MIDI library -- COMPLETE**
-
-- V1: 242 ASAP score MIDIs deployed to D1 + R2, bar-centric JSON with notes/pedal/time sigs
-- V2: Expand to MAESTRO (external score sourcing), IMSLP/MuseScore, MusicXML for richer annotations (future)
-- Graceful degradation to absolute scoring (Tier 2) for unknown pieces
-
-**1b. AMT service -- LOCAL ONLY (prod deploy tracked in #9)**
-
-- Transkun (MIT, ISMIR 2024) behind the frozen `/transcribe` contract; #128 replaced the former Aria-AMT substrate after the migration gates passed
-- Single upload, two outputs (scores + MIDI + pedal CC64 events)
-- Prod `AMT_ENDPOINT` unset -> prod sessions degrade to Tier 3; runs locally via `localhost:8001`
-
-**1c. Score following -- COMPLETE**
-
-- Onset+pitch subsequence DTW between AMT output and score MIDI (`apps/api/src/wasm/score-analysis/src/chroma_dtw.rs`)
-- Cross-chunk continuity via FollowerState (last_known_bar)
-- Re-anchoring when cost > threshold (student skips ahead or restarts)
-- Median onset offset correction isolates true timing deviations from alignment artifacts
-- Fuzzy piece matching against catalog (bigram Dice coefficient) with demand tracking for unmatched pieces
-
-**1d. Bar-aligned musical analysis engine -- COMPLETE**
-
-- All 6 dimensions analyzed per chunk (`apps/api/src/wasm/score-analysis/src/bar_analysis.rs`)
-- Tier 1 (score context): bar-aligned facts with score + reference comparison
-- Tier 2 (no score): absolute MIDI statistics (velocity, IOI, pedal events, note duration)
-- Tier 3 (no AMT): scores only (current behavior, graceful degradation)
-- Enriched piece_context flows to subagent prompt with `<musical_analysis>` per-dimension facts
-
-**1e. Reference performance cache -- SCRIPT COMPLETE, DATA PENDING**
-
-- Generation script: `model/src/score_library/reference_cache.py` (full DTW alignment, per-bar stats)
-- Per-bar statistics: velocity, onset deviation, pedal duration, note duration ratio, performer count
-- Requires running on MAESTRO recordings and uploading profiles to R2 (offline job, not yet executed)
-
-### Phase 2: Temporal + Practice Intelligence (2-3 months, after model v2)
-
-**Goal:** System becomes a practice partner, not just a judge.
-
-**2a. Rubato detection**
-
-- Onset deviation analysis with compensatory return check
-- Confidence threshold: only flag timing when clearly NOT rubato (ratio > 0.7, deviation > 100ms, persists 2+ phrases)
-- Otherwise: silence on timing (trust preservation)
-
-**2b. Passage repetition tracking**
-
-- Detect overlapping bar ranges across chunks (>60% overlap = repetition)
-- Track per-attempt scores and improvement trajectory
-- "Your pedaling improved from 0.28 to 0.38 across 5 attempts"
-
-**2c. Practice mode auto-detection**
-
-- One-hand (>80% notes above/below C4), slow practice (<60% marked tempo), section drill (same bars 3x+)
-- Auto-detect with subtle UI confirmation badge
-
-**2d. Within-session trajectory**
-
-- Warm-up detection (first 3-5 min), fatigue detection (after ~40 min)
-- "Consider taking a break -- your articulation is getting less precise"
-
-**2e. Teaching moment upgrades**
-
-- Positive moment detection (breakthroughs, recoveries, passage mastery)
-- Novelty constraint (recency penalty per dimension)
-- Musical priority weighting (Chopin -> pedaling 2x, Bach -> articulation 2x)
-
-### Phase 4: Real Audio + Expert Labels (6+ months, after model v2)
-
-**Goal:** Model hears real pianos, not synthesized audio.
-
-**4a. Recording collection**
-
-- 2K-5K segments: university partnerships, user opt-in, YouTube, commissioned
-- 3+ skill levels, 5+ piano types, 5+ acoustic environments
-
-**4b. Expert annotation campaign**
-
-- 3-5 piano teachers, 6-dim rubric with score context
-- Active learning: prioritize uncertain segments
-- Cost: ~$50-100K
-
-**4c. Retrain with acoustic diversity**
-
-- Fixes Pianoteq domain gap, calibrates across skill levels
-- Unlocks pedal resonance, piano character, room acoustics
-
-### Legacy Waves (superseded by Phase roadmap)
-
-The original Wave 2 (new data + robustness) and Wave 3 (score-conditioned model) have been incorporated into the Phase roadmap above. Wave 2's data collection maps to Phase 4. Wave 3's score conditioning is now handled by Aria's dual-input architecture in Phase 0+3.
-
----
-
-## Open Research Questions
-
-### Answered
-
-- **Can one representation serve both alignment and quality?** No. MuQ encodes semantic content, not temporal features. Use MuQ for quality, spectral/symbolic for alignment.
-- **Can a fine-tuned audio model learn alignment without catastrophic forgetting?** No. A3 showed catastrophic forgetting (R2=0.059 on fold 0). LoRA (<1% params) is the right strategy.
-- **Can a MIDI encoder rival MuQ?** Nearly. S2 (71.3%) trails A1 (73.9%) by only 2.6pp (on leaked folds). Gap reflects pretraining scale, not modality choice. Aria (820K MIDI pretraining) should close this gap entirely.
-- **Does masterclass feedback transfer to intermediate students?** Partially yes. LLM generates good intermediate-level feedback from 6-dim scores without modification.
-- **Does symbolic signal survive AMT?** Yes. Studio: 0% drop. YouTube mediocre audio: 79.9% A1-vs-S2 agreement. AMT is production-viable.
-- **Does the model work on phone/mediocre audio?** Pseudo-validated. YouTube AMT test (50 recordings from phone/home setups) shows 79.9% cross-encoder agreement, all dimensions > 72%.
-- **Does audio-symbolic fusion help?** No, with S2. ISMIR paper: fusion R2=0.524 < audio-only 0.537. Error correlation r=0.738. With Aria, error correlation dropped to phi=0.043. *However* (2026-05-27): we replaced fusion entirely with parallel streams — disagreement between MuQ and Aria becomes a feature for the teacher LLM rather than something to collapse via gates. The "does fusion help" question is now moot; the relevant question is "does the teacher LLM produce better feedback when given both streams + MPM-style features rather than a single fused score." Tracked via ASCF eval (1.387/3.0 baseline).
-- **Do we need to build our own symbolic FM?** No. Aria (EleutherAI, 650M params, 820K MIDIs, Apache 2.0) is SOTA on 6 MIR benchmarks. Phase 3 eliminated.
-
-### Open
-
-- **Aria error decorrelation:** Does Aria's pretrained representation produce errors decorrelated from MuQ? If correlation stays >0.6, both fusion AND parallel-stream-disagreement-as-signal lose value. Critical experiment in Week 5 of model v2 plan. (Phase A frozen-probe result phi=0.043 is encouraging but needs to hold after LoRA fine-tuning.)
-- **MPM bucket enrichment (hypothesis, 2026-05-27):** Can per-bar MPM-style features extracted from T5 recordings act as auxiliary supervision to give the parallel-stream heads stronger per-bucket signals? Four-stage validation gates documented in [[project_mpm_bucket_enrichment]] (extraction stability → bucket-MPM correlation → discriminative power → aux-loss training benefit). Gated on completion of the MPM extraction enhancement work being designed in a separate brainstorm. Do not advance to aux-loss training until Gates 1-3 clear. Cargo-cult guardrail: MPM features are auxiliary supervision only, never primary inputs at inference.
-- ~~**Clean-fold baseline:**~~ **ANSWERED (2026-03-19).** A1-Max on clean piece-stratified folds: 77.5% pairwise with original weights, **79.85% with optimized weights** (4-fold mean). R2 improved from 0.119 to 0.336. Optimized: contrastive=0.6, regression=0.8. Best-checkpoint loading fix also contributed. Only ~1pp below leaked 80.8%, confirming leak inflation was modest (~1pp, not the feared ~3pp).
-- **Rubato detection algorithm:** Compensatory return analysis designed (see `04-north-star.md`). Decision: confidence threshold + silence (only flag timing when clearly NOT rubato). Needs validation on real student recordings. Phase 2.
-- **Dynamics "amount" vs "appropriateness":** Competition correlation is inverted (rho=-0.917). Aria's score conditioning (delta = z_perf - z_score) should fix this at the model level. Phase 1's bar-aligned analysis partially addresses via LLM reasoning ("score says pp").
-- **Annotation noise ceiling:** PercePiano uses crowdsourced IRT. Expert annotation (Phase 4) may reveal model is already near label quality ceiling.
-- **Fold variance:** A1 pairwise ranged 70.3-77.7% across leaked folds (~7pp spread). Expect different spread on clean piece-stratified folds. More labeled pieces should stabilize.
-- **Real-time AMT quality:** ByteDance AMT validated on pre-recorded audio. Streaming inference at phone-audio quality untested. Phase 1.
-- **Score following robustness:** How well does onset-based DTW handle section skips, restarts, and out-of-order practice? Phase 1.
-- **Practice mode detection accuracy:** Can AMT reliably distinguish one-hand practice, slow practice, and section drilling? Phase 2.
-- **Aria LoRA vs frozen:** How much adaptation does Aria need for quality prediction? Full LoRA fine-tune vs frozen backbone + projection head. Experiment in Week 3-4.
-
-### Product & UX (answered or addressed)
-
-- **What does Sarah want to hear?** Bar-aligned musical facts, not numbers. "The crescendo in bars 12-16 doesn't reach the forte Chopin marked" over "dynamics score 0.35." Phase 1.
-- **Curated piece library vs open-ended?** Start with curated (~500 pieces from MAESTRO + ASAP). Degrade gracefully to absolute scoring for unknown pieces. Score-conditioned model (Aria delta) enables fully open-ended.
-- **What's the right feedback cadence?** Novelty constraint prevents repeating the same dimension. Positive/corrective ratio target: 25-35% positive. Phase 2.
-
----
-
-## Data Inventory
-
-For detailed dataset specs, see `01-data.md`.
-
-### Have
-
-| Dataset | Segments | Signal | Status |
-|---------|----------|--------|--------|
-| PercePiano (T1) | 1,202 | 6-dim composite labels, within-piece ranking pairs | COMPLETE |
-| Chopin 2021 competition (T2) | 2,293 | Ordinal placement (11 performers, 3 rounds) | COMPLETE |
-| MAESTRO (T3) | 24,321 | Contrastive pairs (204 pieces) | COMPLETE |
-| LEGACY: Symbolic pretraining corpus | 24,220 graphs | Link prediction pretraining (replaced by Aria) | LEGACY |
-| Intermediate YouTube | 629 | Diagnostic + AMT validation | COMPLETE |
-| Masterclass moments | 2,136 | Taxonomy derivation, quote bank | COMPLETE |
-| Composite labels | 1,202 | 6 teacher-grounded dimensions | COMPLETE |
-
-### Need (ordered by phase)
-
-**Phase 0+3 (model v2):**
-
-1. T5 YouTube Skill Corpus: remaining 14 pieces (~720 recordings, 2 curated)
-2. T2 expansion: Chopin 2015, Cliburn 2022/Amateur, Queen Elisabeth 2024 (~8,700 segments)
-3. AMT MIDI extraction for all T2+T5 recordings (Aria input)
-
-**Phase 1 (score infrastructure):**
-
-1. Score MIDI library V2 (MAESTRO + ASAP = ~500 pieces, expand via IMSLP/MuseScore)
-2. Reference performance cache (per-bar statistics from MAESTRO professional recordings)
-
-**Phase 4 (real audio):**
-
-1. Diverse skill-level recordings (beginner through advanced, 5+ piano types, 5+ environments)
-2. Expert annotations (3-5 teachers, 2K-5K segments, 6-dim rubric with score context)
+## Superseded / relocated sections
+
+- **Data inventory:** canonical home is `01-data.md`.
+- **Encoder results** (A1-Max, Aria, legacy S1-S3 leaked-fold tables):
+  canonical home is `03-encoders.md`.
+- **Model v2 training plan and parallel-stream architecture:** canonical home
+  is `03-encoders.md` (encoder detail) and `04-north-star.md` (pipeline
+  framing).
+- **Forward-looking phase roadmap** (Phase 2 temporal reasoning, Phase 4 real
+  audio, T5 skill-corpus collection): superseded by GitHub issue tracking; see
+  `04-north-star.md` for the still-current pipeline vision and
+  `docs/mirex/track-a-difficulty-prediction.md` for the active MIREX Track A
+  program.

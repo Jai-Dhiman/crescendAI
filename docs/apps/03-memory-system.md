@@ -286,7 +286,7 @@ Ships with the `/api/ask` pipeline (see `02-pipeline.md`).
 
 ```
 [x] Memory context loaded in finalize_session for summary generation
-[x] LLM-generated session summary (Anthropic Sonnet, 2-4 sentences)
+[x] LLM-generated session summary (teacher LLM, model ID in wrangler.toml; 2-4 sentences)
 [x] Client-built fallback on LLM failure
 [x] Eval session bypass
 [x] CF Workers 30s subrequest limit as timeout backstop
@@ -331,7 +331,7 @@ Matching: regex (Pass 1) + sentence-transformer cosine similarity at threshold 0
 - **Retrieval** (deterministic): Does the system retrieve the right facts?
 - **Synthesis** (Workers AI): Does the LLM produce valid structured facts from observations?
 - **Temporal** (chronological replay): Does the system handle fact lifecycle (creation, invalidation, abstention)?
-- **Downstream** (A/B + Claude judge): Does memory improve feedback quality?
+- **Downstream** (A/B + Claude judge, candidate options; current prod judge/teacher family lives in wrangler.toml): Does memory improve feedback quality?
 - **Chat Extraction** (live API): Does the system extract personal facts from chat?
 - **LoCoMo** (ACL 2024 benchmark): External generalization test.
 
@@ -375,7 +375,7 @@ External benchmark: long-conversation memory via QA pairs. Tests whether the ext
 ### Remaining Gaps (target: F1 > 0.65)
 
 - **Multi-sample eval:** Run 3-5 samples to get stable numbers
-- **Stronger QA model:** Try Claude Haiku or GPT-4o-mini instead of Llama 70B — may reduce variance and improve synthesis
+- **Stronger QA model:** Try Claude Haiku or GPT-4o-mini (candidate options; current prod judge/teacher family lives in wrangler.toml) instead of Llama 70B — may reduce variance and improve synthesis
 - **Chain-of-thought QA:** Add explicit reasoning step before answering open-ended questions
 - **Extraction cap:** Raise from 5 to 8 per exchange to catch missed facts
 - **Semantic dedup threshold:** Current 0.90 is conservative; try 0.85

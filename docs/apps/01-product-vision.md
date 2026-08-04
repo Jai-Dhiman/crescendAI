@@ -135,7 +135,7 @@ Three stages, one principle: the system does significant work to produce minimal
 | Audio capture (web) | COMPLETE | MediaRecorder + WebSocket streaming |
 | Cloud inference (MuQ) | DEPLOYED | A1-Max 4-fold ensemble, HF endpoint |
 | Teaching moment selection | COMPLETE | Deviation-magnitude gate (worst dim below baseline) + blind-spot ranking + positive-moment fallback + dedup |
-| Two-stage subagent | COMPLETE | Workers AI analysis + Anthropic/Sonnet teacher, AI Gateway |
+| Two-stage subagent | COMPLETE | Workers AI analysis + teacher LLM (model ID lives in wrangler.toml), AI Gateway |
 | Session synthesis | COMPLETE | Alarm-triggered, all exit paths, deferred recovery |
 | Zero-config piece ID | COMPLETE | N-gram + rerank + DTW (pending AMT container deploy) |
 | Artifact system | COMPLETE | Unified container, Anthropic tool_use (exercise type) |
@@ -147,21 +147,7 @@ Three stages, one principle: the system does significant work to produce minimal
 
 ## Platform Strategy
 
-### Web: The Primary Practice Companion (Beta First)
-
-TanStack Start app at crescend.ai. Web ships first because it's ~90% complete, fastest to iterate (no App Store review), and shareable via URL (growth). Full practice companion: audio capture, real-time observations via WebSocket, chat with artifacts, session arc. Laptop on music stand or desk beside piano.
-
-### iOS: The Native Experience (Follows Web Beta)
-
-Native app (SwiftUI). Phone on the music stand. Audio capture and auth are complete; inference client needs cloud wiring. iOS ships after web beta validates the product. Better audio quality (AVAudioEngine vs MediaRecorder), App Store discovery, push notifications.
-
-### Cloud Inference for Both
-
-All MuQ inference runs on the HF endpoint (A1-Max 4-fold ensemble). No on-device ML. This is a deliberate choice: the model is too large for on-device, and cloud inference lets both platforms share identical scoring. The cost is latency and a network dependency; the benefit is consistency, simpler updates, and no Core ML conversion headaches.
-
-### Auth
-
-Sign in with Apple and Google Sign In across both platforms. Both auth flows are complete on the API. Web uses Apple JS SDK and Google Identity Services.
+Platform strategy: see docs/architecture.md (CEO review 2026-03-19).
 
 ---
 
@@ -209,7 +195,7 @@ The student model is what turns CrescendAI from a stateless evaluator into a pra
 | Item | Rationale |
 |------|-----------|
 | Note accuracy checking (MIDI-based) | Solved problem. Not our differentiator. |
-| Teacher voice fine-tuning | Out of scope. The harness (teaching moment selection, score alignment, student context) matters more than the voice. Claude with rich context is sufficient. |
+| Teacher voice fine-tuning | Out of scope. The harness (teaching moment selection, score alignment, student context) matters more than the voice. The teacher LLM with rich context is sufficient. |
 | On-device inference (Core ML) | Cloud-only is correct for foreseeable future. Model too large, and consistency across platforms matters more than offline support. |
 | Gamification / social features | Streaks, badges, leaderboards. Incompatible with the serious, adult design language. |
 | Multi-instrument support | Entire pipeline is piano-specific (MuQ, taxonomy, exercises). |

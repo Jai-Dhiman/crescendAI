@@ -174,18 +174,7 @@ Consolidated view of the named piano datasets in the field, mapped to CrescendAI
 
 ### LEGACY: Symbolic Pretraining Corpus (Replaced by Aria)
 
-> **LEGACY:** This graph pretraining corpus was built for CrescendAI's custom GNN symbolic encoders (S1, S2, S2H, S3). These encoders are replaced by Aria (650M params, pretrained on 820K MIDIs). The graph data is no longer needed for CrescendAI's own pretraining. Kept on disk for reference; training code archived under `model/archive/model_improvement/`.
-
-| Item | Path | Size |
-|---|---|---|
-| Tokenized MIDI | `pretraining/tokens/all_tokens.pt` | 55MB |
-| Score graphs | `pretraining/graphs/all_graphs.pt` + shards (0000-0263) | 29GB |
-| Hetero graphs | `pretraining/graphs/all_hetero_graphs.pt` + shards | (in 29GB) |
-| Continuous features | `pretraining/features/all_features.pt` | 8.3GB |
-
-- **Sources:** 24,220 graphs from ASAP (1,066) + ATEPP (11,697) + MAESTRO score (824) + MAESTRO recording (1,123) + PercePiano (1,202) + GIANTMIDI (8,278)
-- **Training classes (ARCHIVED 2026-04-21):** `ScoreGraphPretrainingDataset`, `ShardedScoreGraphPretrainDataset`, `HeteroPretrainDataset`, `ShardedHeteroPretrainDataset`, plus `graph_pretrain_collate_fn` / `graph_pair_collate_fn` / `hetero_graph_collate_fn` / `hetero_pretrain_collate_fn` — all removed from `data.py`. S1 (`MIDIPretrainingDataset` + `symbolic_collate_fn`) and S3 (`ContinuousPretrainDataset` + `continuous_collate_fn`) remain in `data.py` but are unused by the active pipeline. GNN encoders live in `model/archive/model_improvement/{graph.py,symbolic_encoders.py}`.
-- **Candidate for cleanup:** 38 GB of disk. Can be deleted once Aria integration is validated.
+**Retired program.** This ~38GB graph pretraining corpus (`pretraining/{tokens,graphs,features}/`, 24,220 graphs from ASAP+ATEPP+MAESTRO+PercePiano+GiantMIDI) fed CrescendAI's custom GNN symbolic encoders (S1, S2, S2H, S3), superseded by Aria on 2026-03-18 and archived 2026-04-21 (training classes removed from `data.py`; encoders live in `model/archive/model_improvement/{graph.py,symbolic_encoders.py}`). Aria itself was later superseded by MoonBeam-839M for MIREX Track A (#138, 2026-08-03) -- see `docs/model/03-encoders.md`. Data kept on disk for reference; a cleanup candidate once no future reuse is planned.
 
 ### Composite Labels
 

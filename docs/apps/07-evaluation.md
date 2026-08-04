@@ -594,7 +594,7 @@ before promotion.
 
 | Component | Per recording | 361 recordings | 722 recordings (both passes) |
 |-----------|-------------|-----------------|------------------------------|
-| Synthesis LLM (Anthropic Sonnet) | ~$0.03 | ~$11 | ~$22 |
+| Synthesis LLM (teacher family, model ID in wrangler.toml) | ~$0.03 | ~$11 | ~$22 |
 | Judge LLM (5 criteria x $0.01) | ~$0.05 | ~$18 | ~$36 |
 | Piece ID (no LLM, computed) | $0 | $0 | $0 |
 | Mode detection (no LLM, computed) | $0 | $0 | $0 |
