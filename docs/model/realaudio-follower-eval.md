@@ -1,6 +1,6 @@
 # Real-Audio Score-Follower Eval — Provisional
 
-**Status:** Track A is complete on 55 competition-grade recordings. Track B's human labeling pass is **complete on the 32-clip subset** (2026-08-03) — no high-confidence failure observed, 22/22 tracked or recovered where the piece is verified — but that subset is extreme-sampled by construction, and PASS bars are still unset. This eval is therefore **not yet the score-follower source of truth**: it needs a representative-sample pass and agreed bars. The bar-tap approach is superseded: labeling by ear requires bar numbers against scores the labeler does not have. Track A uses ASAP's alignment, and Track B asks the listener only to watch and flag disagreements.
+**Status:** Track A is complete on 55 competition-grade recordings. Track B's human labeling pass is **complete on the 32-clip subset** (2026-08-03) — no high-confidence failure observed, 22/22 tracked or recovered where the piece is verified — but that subset is extreme-sampled by construction, and PASS bars are still unset. A representative 40-clip random sample is drawn and piece-ID'd (corpus mislabel rate **2.5%**, not the subset's 16%); its human follower-accuracy pass is the outstanding step. This eval is therefore **not yet the score-follower source of truth**: it needs that pass and agreed bars. The bar-tap approach is superseded: labeling by ear requires bar numbers against scores the labeler does not have. Track A uses ASAP's alignment, and Track B asks the listener only to watch and flag disagreements.
 
 ## Why this exists
 
@@ -47,7 +47,7 @@ Reading: going through the real transcriber costs **0.005 beats of median locali
 
 **Track B — light-touch human validation of the amateur clips (`validate_tool.py`).** The amateur clips have no independent position truth, and ASAP has neither phone audio nor amateur restarts. The tool draws two note strips on one score-time axis: played notes at the follower's inferred positions over the score reference. The human holds SPACE over wrong spans and chooses `tracked`, `recovered`, `wrong`, or `junk`. `validate_report.py` keeps those outcomes separate and crosses them with confidence computed against the resolved score; it does not collapse `junk`, `recovered`, and `tracked` into one success number. Follower views are cached because `follow_hmm` is O(performance notes × score notes).
 
-**Piece-ID over the 32-clip subset (2026-07-27): 16 label-confirmed, 5 RE-LABELED, 11 abstain.** 16% of the subset had been validated against the wrong score:
+**Piece-ID over the 32-clip subset (2026-07-27): 16 label-confirmed, 5 RE-LABELED, 11 abstain** (`_piece_id.json` now reads 17/5/10 after the waltz clip was merged from the wider-window retry). 16% of *this subset* had been validated against the wrong score — **that 16% is a subset rate, not a corpus rate**; the corpus figure is 2.5%, see [Piece-ID contamination is a subset artifact](#piece-id-contamination-is-a-subset-artifact-random-sample-2026-08-04):
 
 | filed as | actually playing | conf |
 |---|---|---|
@@ -111,7 +111,23 @@ The 11 abstained clips were re-run at a 4× verify window (`--window-sec 120 --k
 
 **Merged (owner-approved):** `chopin_waltz_csm/cAo5RtmpFVU` resolved to `chopin.waltzes.64-2` (0.46 → 0.88) — the same score it was already validated against, so only its verification status changed. It is merged into `_piece_id.json`, moving it from the unverified to the verified stratum (verified successes 21 → 22); its validation record carries `score_source_note` recording that it was verified on the second, wider-window pass.
 
-**The subset is extreme-sampled, not representative.** `gold_subset.json` takes the lowest- and highest-confidence clip per piece by design, so these counts are not corpus rates and must not be reported as such. A representative rate needs a random-sample pass over the 279-clip corpus.
+**The subset is extreme-sampled, not representative.** `gold_subset.json` takes the lowest- and highest-confidence clip per piece by design, so these counts are not corpus rates and must not be reported as such. A representative rate needs a random-sample pass over the 279-clip corpus — the piece-ID half of that pass is now done (next section); the human follower-accuracy half is not.
+
+### Piece-ID contamination is a subset artifact (random sample, 2026-08-04)
+
+`_random_sample.json` draws **40 clips uniformly at random** (`random.Random(133).sample`) from the 247 clips of the 279-clip corpus that `gold_subset.json` had not already taken. It touches all 16 pieces and is *not* selected on confidence, so its rates are corpus rates. Piece-ID was run over all 40 (`_piece_id_sample40.json`):
+
+| piece-ID outcome | random sample (n=40) | 95% Wilson | `gold_subset` (n=32) |
+|---|---|---|---|
+| label confirmed | 30 — **75.0%** | 59.8–85.8% | 17 — 53.1% |
+| **RE-LABELED** (validated against the wrong score) | 1 — **2.5%** | 0.4–12.9% | 5 — 15.6% |
+| abstain | 9 — **22.5%** | 12.3–37.5% | 10 — 31.2% |
+
+**Use 2.5%, not 16%, as the corpus mislabel rate.** The two are not in conflict: `gold_subset` selects the lowest-confidence clip per piece by construction, and low confidence is exactly the signal that detects a wrong score, so the subset is enriched for mislabeling *by design*. Its 16% was never a corpus estimate and must not be quoted as one.
+
+Stated at the strength the data supports: the design argument is what settles this, not the test. Fisher's exact on the re-label counts is **p = 0.082** and on abstain **p = 0.43** — at these n the observed gap is only marginally distinguishable from sampling noise, so the honest claim is "the corpus rate is 2.5% [0.4%, 12.9%] and the subset rate cannot stand in for it", not "the subset is proven inflated".
+
+The single corpus re-label is `rachmaninoff_prelude_csm/t0i7L6kE5k4` → `rachmaninoff.preludes_op_23.4` (conf 0.95) — the **same folder and same wrong target** as the subset's `v80RecqrtJ8`. That folder holds four sampled clips: two genuine Op. 3/2, one Op. 23/4, one abstain. Contamination clusters by folder rather than spreading uniformly, so a corpus-wide rate averages over folders that are clean and folders that are partly mis-filed; treat per-folder purity, not the global rate, as the thing to check before trusting any single piece's clips.
 
 **PASS bars remain unset — deliberately, and this is a human-lit call.** The distribution needed to set them now exists (above, plus Track A's per-beat errors), but choosing thresholds is research-gate interpretation, not a derivation. Candidate shape, for a decision rather than as a decision: gate on *no high-confidence failures* plus a floor on verified-score success, and keep `recovered` separate from `tracked` since relocking is partial evidence. Do not gate on the pooled 32-clip success fraction — it mixes strata that mean different things.
 
@@ -149,9 +165,11 @@ Track B outputs `data/evals/realaudio_bundles/<piece>/<vid>.validate.json` with 
 
 **Superseded:** `tap_tool.py` and `gold_report.py`. `accuracy.py` remains because Track A and Track B reuse its decoding and error core. `gold_subset.json` remains the committed clip selection. Delete the superseded tools only in the separately approved cleanup batch.
 
-## Piece-ID — the corpus is mislabeled (`piece_id.py`)
+## Piece-ID — folder labels need verifying (`piece_id.py`)
 
-**Finding (2026-07-27):** corpus folder labels are unreliable. The 32-clip pass confirmed 16 labels, relabeled five clips, and abstained on 11. Correcting the five scores raised their confidence from 0.03–0.07 to 0.67–0.88. The 11 abstentions remained at 0.11–0.39 on their likely labels. Mislabeling explains the five relabeled clips; it does not explain the residual low-confidence group.
+**Finding (2026-07-27, subset):** the 32-clip pass confirmed 16 labels, relabeled five clips, and abstained on 11. Correcting the five scores raised their confidence from 0.03–0.07 to 0.67–0.88. The 11 abstentions remained at 0.11–0.39 on their likely labels. Mislabeling explains the five relabeled clips; it does not explain the residual low-confidence group.
+
+**Corrected at corpus scale (2026-08-04):** the random 40-clip sample re-labels **1 in 40 (2.5%)**, not 1 in 6. "The corpus is mislabeled" was an artifact of reading an extreme-sampled subset as a corpus; the accurate statement is that folder labels are *unverified* and contamination clusters in a few folders. Piece-ID is still mandatory before any clip is used as evidence — a 2.5% base rate is fatal at n=1, which is exactly how these clips get consumed. Details and CIs in [Piece-ID contamination is a subset artifact](#piece-id-contamination-is-a-subset-artifact-random-sample-2026-08-04).
 
 **Stage:** per clip, identify the score actually played against the 10,494-score catalog — ngram trigram shortlist (`data/fingerprints/ngram_index.json`) UNION the folder label translated via `SCORE_FILENAME_BY_PIECE`, then follower-verify each candidate on a 60 s window, decide by **coverage × confidence** with an abstain floor (confidence is the arbiter; a wrong score can cover a tonal window but never earns high posterior). Catalog scores are all `load_score`-compatible, so any candidate is followable. VERIFIED: fantaisie → RE-LABELED `chopin.etudes_op_25.5` (cov 0.62/conf 0.84 vs 0.51/0.06); bach_prelude → CONFIRMED `bach.prelude.bwv_846` (cov 0.99/conf 0.97 via the label channel, since ngram is blind to its arpeggios).
 
@@ -160,7 +178,7 @@ PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.piece_id \
   --clips fantaisie_impromptu/JbYGHXsQiqk bach_prelude_c_wtc1/w03EKJjOTJE --k 6 --window-sec 30
 ```
 
-Limits: verification is a transpose search across K candidates and costs about 30–60 seconds per clip. The n-gram-plus-label shortlist can miss clips that are both mislabeled and arpeggiated. The validator wiring is complete; a corpus-wide relabel pass is not.
+Limits: verification is a transpose search across K candidates and costs about 30–60 seconds per clip. The n-gram-plus-label shortlist can miss clips that are both mislabeled and arpeggiated. The validator wiring is complete. Piece-ID now covers 72 of 279 clips (32 subset + 40 random sample); a full corpus-wide relabel pass is not done.
 
 ## Rebuild
 
