@@ -17,9 +17,10 @@
 #   just lint-web    PASSES (was 120 biome errors)
 #
 # Still opt-in, with the reason each is not blocking yet:
-#   just test-api    FAILS on main -- 3 node failures (2 catalog-codegen, 1
-#                    synthesizeV6) and the workerd suite aborts with
-#                    ECONNREFUSED. Not caused by #142; needs its own issue.
+#   just test-api    FAILS on main -- 7 failures out of 604 (5 catalog-codegen,
+#                    1 synthesizeV6, 1 GET /health). #144 fixed the workerd
+#                    ECONNREFUSED abort, so the suite now runs to completion;
+#                    these 7 are real and predate #142. Promote once green.
 #   just test-model  ~10 minutes (865 tests). Too slow to block a push.
 #
 # PREREQUISITE for check-api: apps/api/src/wasm/*/pkg/ is gitignored wasm-pack

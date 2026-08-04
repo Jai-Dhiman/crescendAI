@@ -96,9 +96,13 @@ describe("ExerciseRoutingDecisionSchema — corpus_drill", () => {
 			drillWithoutPrimitiveId,
 		);
 		expect(result.success).toBe(true);
-		if (result.success && result.data.kind === "corpus_drill") {
-			expect(result.data.primitive_id).toBeNull();
+		// Throw rather than branch: an `if` here would let the test pass
+		// vacuously if the parse stopped yielding a corpus_drill.
+		if (!result.success) throw new Error("expected the drill to parse");
+		if (result.data.kind !== "corpus_drill") {
+			throw new Error(`expected corpus_drill, got ${result.data.kind}`);
 		}
+		expect(result.data.primitive_id).toBeNull();
 	});
 
 	test("rejects corpus_drill with bar_range start > end", () => {
