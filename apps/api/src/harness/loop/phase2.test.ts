@@ -6,7 +6,7 @@ import {
 } from "../artifacts/synthesis";
 import { buildCompact10ChunkDigest } from "./__test-fixtures__/grounded-digest-fixtures";
 import { buildPhase2Prompt, runPhase2 } from "./phase2";
-import type { CompoundBinding, HookEvent, PhaseContext } from "./types";
+import type { HookEvent, Phase2Binding, PhaseContext } from "./types";
 
 const MOCK_BINDINGS = {
 	AI_GATEWAY_ENDPOINT: "https://gw.example",
@@ -14,7 +14,7 @@ const MOCK_BINDINGS = {
 	TEACHER_PROVIDER: "anthropic",
 } as unknown as Bindings;
 
-const BINDING: CompoundBinding = {
+const BINDING: Phase2Binding = {
 	compoundName: "session-synthesis",
 	procedurePrompt: "test",
 	tools: [],

@@ -52,11 +52,10 @@ const THEME_FLASH_SCRIPT = `(function(){var path=location.pathname;if(path==="/"
 function RootDocument() {
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const isAppShell = pathname === "/signin" || pathname.startsWith("/app");
-	const theme = useThemeStore((s) => s.theme);
 
 	const pathnameRef = useSyncRef(pathname);
-	const themeRef = useSyncRef(theme);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: pathnameRef is a useSyncRef; depending on .current would re-subscribe on every navigation, which is what the ref exists to avoid.
 	useEffect(() => {
 		function applyTheme() {
 			const p = pathnameRef.current;
@@ -87,7 +86,9 @@ function RootDocument() {
 	return (
 		<html lang="en">
 			<head>
-				{/* Static script to prevent theme flash - content is hardcoded, not user input */}
+				{/* Blocking inline script is the standard no-theme-flash pattern; it must
+				    run before first paint, so it cannot be an external src. */}
+				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: THEME_FLASH_SCRIPT is a module-level constant, never user input. */}
 				<script dangerouslySetInnerHTML={{ __html: THEME_FLASH_SCRIPT }} />
 				<HeadContent />
 				<script

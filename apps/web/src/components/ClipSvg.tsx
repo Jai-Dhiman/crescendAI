@@ -5,7 +5,7 @@ export function ClipSvg({ svg }: { svg: string }) {
 	useLayoutEffect(() => {
 		if (!ref.current) return;
 		ref.current.textContent = "";
-		// biome-ignore lint/security/noDomManipulation: controlled SVG from Verovio WASM, not user input
+		// Controlled SVG from Verovio WASM, not user input.
 		ref.current.insertAdjacentHTML("afterbegin", svg);
 		const svgEl = ref.current.querySelector("svg");
 		if (svgEl) {

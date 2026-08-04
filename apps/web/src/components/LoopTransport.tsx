@@ -31,12 +31,24 @@ export function LoopTransport({
 				aria-label={isPlaying || isCounting ? "Pause" : "Play"}
 			>
 				{isPlaying || isCounting ? (
-					<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+					<svg
+						width="12"
+						height="12"
+						viewBox="0 0 12 12"
+						fill="currentColor"
+						aria-hidden="true"
+					>
 						<rect x="1" y="1" width="4" height="10" rx="1" />
 						<rect x="7" y="1" width="4" height="10" rx="1" />
 					</svg>
 				) : (
-					<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+					<svg
+						width="12"
+						height="12"
+						viewBox="0 0 12 12"
+						fill="currentColor"
+						aria-hidden="true"
+					>
 						<polygon points="2,1 11,6 2,11" />
 					</svg>
 				)}
@@ -49,7 +61,13 @@ export function LoopTransport({
 				className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full border border-border hover:border-accent text-text-secondary hover:text-cream transition-colors disabled:opacity-40"
 				aria-label="Stop"
 			>
-				<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+				<svg
+					width="10"
+					height="10"
+					viewBox="0 0 10 10"
+					fill="currentColor"
+					aria-hidden="true"
+				>
 					<rect x="0" y="0" width="10" height="10" rx="1" />
 				</svg>
 			</button>
@@ -72,11 +90,15 @@ export function LoopTransport({
 			</div>
 
 			{audioUnavailable && (
-				<span className="text-label-xs text-amber-400 shrink-0">Audio unavailable</span>
+				<span className="text-label-xs text-amber-400 shrink-0">
+					Audio unavailable
+				</span>
 			)}
 
 			{isCounting && (
-				<span className="text-label-xs text-text-tertiary shrink-0 animate-pulse">Count in...</span>
+				<span className="text-label-xs text-text-tertiary shrink-0 animate-pulse">
+					Count in...
+				</span>
 			)}
 		</div>
 	);

@@ -1,16 +1,16 @@
-import { describe, expect, it, test, vi, beforeEach, afterEach } from "vitest";
-import { SynthesisArtifactSchema } from "../artifacts/synthesis";
-import type { CompoundBinding, PhaseContext, Phase1Event } from "./types";
+import { afterEach, beforeEach, describe, expect, it, test, vi } from "vitest";
 import type { Bindings } from "../../lib/types";
-import { runPhase1, buildPhase1UserMessage } from "./phase1";
+import { SynthesisArtifactSchema } from "../artifacts/synthesis";
 import { buildCompact10ChunkDigest } from "./__test-fixtures__/grounded-digest-fixtures";
+import { buildPhase1UserMessage, runPhase1 } from "./phase1";
+import type { CompoundBinding, Phase1Event, PhaseContext } from "./types";
 
-test('phase1 overflow regression: buildPhase1UserMessage with 10-chunk digest produces < 10000 chars', () => {
-  const digest = buildCompact10ChunkDigest()
-  const result = buildPhase1UserMessage(digest, 'procedure prompt here')
-  expect(result.length).toBeLessThan(10000)
-  expect(result).not.toContain('"midi_notes"')
-})
+test("phase1 overflow regression: buildPhase1UserMessage with 10-chunk digest produces < 10000 chars", () => {
+	const digest = buildCompact10ChunkDigest();
+	const result = buildPhase1UserMessage(digest, "procedure prompt here");
+	expect(result.length).toBeLessThan(10000);
+	expect(result).not.toContain('"midi_notes"');
+});
 
 const MOCK_BINDINGS = {
 	AI_GATEWAY_ENDPOINT: "https://gw.example",

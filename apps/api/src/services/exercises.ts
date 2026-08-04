@@ -13,7 +13,12 @@ import { buildCorpusDrillClip } from "./corpus-drill";
 export type ExerciseSetPayload = {
 	sourcePassage: string;
 	targetSkill: string;
-	scoreClip?: { pieceId: string; bars: [number, number]; tempoFactor?: number; transpose?: number };
+	scoreClip?: {
+		pieceId: string;
+		bars: [number, number];
+		tempoFactor?: number;
+		transpose?: number;
+	};
 	exercises: Array<{
 		title: string;
 		instruction: string;
@@ -223,7 +228,11 @@ export async function assignPendingExercise(
 		const pieceId = pendingRow.pieceId ?? null;
 		const scoreClip =
 			pieceId !== null
-				? { pieceId, bars: routing.bar_range as [number, number], tempoFactor: routing.tempo_factor }
+				? {
+						pieceId,
+						bars: routing.bar_range as [number, number],
+						tempoFactor: routing.tempo_factor,
+					}
 				: undefined;
 
 		if (!scoreClip) {

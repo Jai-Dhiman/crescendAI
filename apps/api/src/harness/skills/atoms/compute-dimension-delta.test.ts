@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { computeDimensionDelta } from "./compute-dimension-delta";
 
 test("computeDimensionDelta: concrete example from spec returns z-score -2.3", async () => {

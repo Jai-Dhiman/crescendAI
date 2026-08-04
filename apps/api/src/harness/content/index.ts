@@ -3,9 +3,9 @@ import { ArtifactRowSchema } from "./artifact";
 import { ObservationSchema } from "./observation";
 import { SignalSchemaName, signalSchemas } from "./signal";
 
-export * from "./signal";
-export * from "./observation";
 export * from "./artifact";
+export * from "./observation";
+export * from "./signal";
 
 const signalRef = z.object({
 	kind: z.literal("signal"),

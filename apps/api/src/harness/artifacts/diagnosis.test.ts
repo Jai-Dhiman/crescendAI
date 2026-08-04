@@ -1,5 +1,5 @@
-import { describe, test, expect } from "vitest";
-import { DiagnosisArtifactSchema, type DiagnosisArtifact } from "./diagnosis";
+import { describe, expect, test } from "vitest";
+import { type DiagnosisArtifact, DiagnosisArtifactSchema } from "./diagnosis";
 
 const baseValid: DiagnosisArtifact = {
 	primary_dimension: "pedaling",

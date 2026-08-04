@@ -220,6 +220,7 @@ export function AudioWaveformRing({
 	}, [analyserNode, active]);
 
 	return (
+		// biome-ignore lint/a11y/noAriaHiddenOnFocusable: decorative visualiser with no tabindex and no accessible content; hiding it is correct.
 		<canvas ref={canvasRef} className="w-full h-full" aria-hidden="true" />
 	);
 }

@@ -1,5 +1,5 @@
-import { test, expect } from "vitest";
 import { readFile } from "node:fs/promises";
+import { expect, test } from "vitest";
 
 const FINAL_MOLECULES = [
 	"voicing-diagnosis",

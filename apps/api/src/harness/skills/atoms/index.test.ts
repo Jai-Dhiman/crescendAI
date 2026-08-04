@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { ALL_ATOMS } from "./index";
 
 test("ALL_ATOMS contains 14 ToolDefinition objects with unique names", () => {

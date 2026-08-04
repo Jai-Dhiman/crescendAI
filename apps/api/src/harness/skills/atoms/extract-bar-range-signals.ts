@@ -1,6 +1,6 @@
 import type { ToolDefinition } from "../../loop/types";
-import type { CcEvent } from "./compute-pedal-overlap-ratio";
 import type { Alignment } from "./align-performance-to-score";
+import type { CcEvent } from "./compute-pedal-overlap-ratio";
 
 export type MidiNote = {
 	pitch: number;

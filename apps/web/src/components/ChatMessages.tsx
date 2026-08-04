@@ -211,7 +211,10 @@ const MessageBubble = memo(function MessageBubble({
 		message.sessionId
 	) {
 		return (
-			<div className="flex justify-start animate-fade-in" data-testid="synthesis-message">
+			<div
+				className="flex justify-start animate-fade-in"
+				data-testid="synthesis-message"
+			>
 				<div className="max-w-[80%]">
 					<ReflectionMessage
 						sessionId={message.sessionId}
@@ -249,7 +252,13 @@ const MessageBubble = memo(function MessageBubble({
 						))}
 					</div>
 				)}
-				<span data-testid={message.messageType === "synthesis" ? "synthesis-headline" : undefined}>
+				<span
+					data-testid={
+						message.messageType === "synthesis"
+							? "synthesis-headline"
+							: undefined
+					}
+				>
 					<MessageContent content={message.content} />
 				</span>
 				{!message.streaming &&

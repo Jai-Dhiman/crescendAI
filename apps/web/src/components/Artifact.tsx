@@ -155,7 +155,13 @@ export function Artifact({ artifactId, component }: ArtifactProps) {
 
 	// inline (default)
 	return (
-		<div ref={elementRef} className="animate-fade-in" data-testid={component.type === "exercise_set" ? "exercise-set-card" : undefined}>
+		<div
+			ref={elementRef}
+			className="animate-fade-in"
+			data-testid={
+				component.type === "exercise_set" ? "exercise-set-card" : undefined
+			}
+		>
 			<InlineCard
 				component={component}
 				onExpand={() => expand(artifactId)}

@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { validateSkill } from "../validator";
 
 test("atom: fetch-student-baseline conforms to spec", async () => {

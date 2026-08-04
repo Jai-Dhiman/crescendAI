@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { fetchSessionHistory } from "./fetch-session-history";
 
 test("fetchSessionHistory: filters by window_days and orders most-recent-first", async () => {

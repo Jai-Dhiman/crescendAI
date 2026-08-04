@@ -1,16 +1,16 @@
 import { ArrowsOut, CaretDown } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
-import { ClipSvg } from "../ClipSvg";
-import { LoopTransport } from "../LoopTransport";
-import { scoreRenderer } from "../../lib/score-renderer";
-import { ScoreCursor } from "../../lib/score-cursor";
+import { useLoopPlayer } from "../../hooks/useLoopPlayer";
 import { api } from "../../lib/api";
 import { handsLabel } from "../../lib/exercise-utils";
-import { useLoopPlayer } from "../../hooks/useLoopPlayer";
-import type { ExerciseSetConfig } from "../../lib/types";
+import { ScoreCursor } from "../../lib/score-cursor";
 import type { ScoreIR } from "../../lib/score-ir";
+import { scoreRenderer } from "../../lib/score-renderer";
 import type { ClipNote } from "../../lib/score-worker";
+import type { ExerciseSetConfig } from "../../lib/types";
 import { useArtifactStore } from "../../stores/artifact";
+import { ClipSvg } from "../ClipSvg";
+import { LoopTransport } from "../LoopTransport";
 
 interface ExerciseSetCardProps {
 	config: ExerciseSetConfig;
@@ -176,7 +176,10 @@ export function ExerciseSetCard({
 			const loaded = await scoreRenderer.load(pieceId, transposeSemitones);
 			if (cancelled) return;
 			if (loaded === "failed") {
-				console.error("ExerciseSetCard: failed to load score for clip", pieceId);
+				console.error(
+					"ExerciseSetCard: failed to load score for clip",
+					pieceId,
+				);
 				setClipLoadError(true);
 				return;
 			}
@@ -207,7 +210,9 @@ export function ExerciseSetCard({
 				if (!cancelled) setClipLoadError(true);
 			}
 		})();
-		return () => { cancelled = true; };
+		return () => {
+			cancelled = true;
+		};
 	}, [config.scoreClip, hasTempoFactor]);
 
 	const loopPlayer = useLoopPlayer({
@@ -219,7 +224,12 @@ export function ExerciseSetCard({
 	});
 
 	useEffect(() => {
-		if (!hasTempoFactor || clipIR === null || scoreContainerRef.current === null) return;
+		if (
+			!hasTempoFactor ||
+			clipIR === null ||
+			scoreContainerRef.current === null
+		)
+			return;
 		const cursor = new ScoreCursor({
 			pieceId: config.scoreClip!.pieceId,
 			container: scoreContainerRef.current,
@@ -228,7 +238,12 @@ export function ExerciseSetCard({
 		});
 		cursor.start();
 		return () => cursor.stop();
-	}, [clipIR, hasTempoFactor, config.scoreClip?.pieceId, loopPlayer.qstampSource]);
+	}, [
+		clipIR,
+		hasTempoFactor,
+		config.scoreClip?.pieceId,
+		loopPlayer.qstampSource,
+	]);
 
 	return (
 		<div className="bg-surface-card border border-border rounded-xl overflow-hidden mt-3">

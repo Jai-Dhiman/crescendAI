@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { computeIoiCorrelation } from "./compute-ioi-correlation";
 
 test("computeIoiCorrelation: rubato performance against rigid score returns r near 0", async () => {

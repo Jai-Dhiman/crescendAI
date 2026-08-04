@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { fetchStudentBaseline } from "./fetch-student-baseline";
 
 test("fetchStudentBaseline: eight sessions with mean 0.65 and stddev 0.10 match spec example", async () => {

@@ -1,7 +1,8 @@
 /// <reference types="@cloudflare/vitest-pool-workers" />
-import { describe, expect, it } from "vitest";
+
 import { env, runInDurableObject } from "cloudflare:test";
-import { SessionBrain, nextSynthesisAlarmDelayMs } from "./session-brain";
+import { describe, expect, it } from "vitest";
+import { nextSynthesisAlarmDelayMs, type SessionBrain } from "./session-brain";
 import { createInitialState } from "./session-brain.schema";
 
 // Make the SESSION_BRAIN binding visible to TypeScript for this test.
@@ -108,7 +109,10 @@ describe("webSocketClose alarm guard (Fix B / Finding 3, DO-level)", () => {
 
 			await instance.webSocketClose(fakeWs, 1000, "client gone");
 
-			const after = (await state.storage.get("state")) as { version: number; sessionEnding: boolean };
+			const after = (await state.storage.get("state")) as {
+				version: number;
+				sessionEnding: boolean;
+			};
 			expect(after.version).toBe(7); // unchanged: in-flight chunk merges its output on completion
 			expect(after.sessionEnding).toBe(true);
 			await state.storage.deleteAlarm();

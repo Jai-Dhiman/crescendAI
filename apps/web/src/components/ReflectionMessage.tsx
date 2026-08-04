@@ -44,7 +44,10 @@ export function ReflectionMessage({
 
 	return (
 		<div className="flex flex-col gap-3 mt-1">
-			<p className="text-body-sm text-text-primary leading-relaxed" data-testid="synthesis-headline">
+			<p
+				className="text-body-sm text-text-primary leading-relaxed"
+				data-testid="synthesis-headline"
+			>
 				{reflectionText}
 			</p>
 

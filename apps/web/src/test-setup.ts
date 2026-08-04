@@ -1,8 +1,10 @@
-import * as matchers from "@testing-library/jest-dom/matchers";
+// The /vitest entrypoint registers the matchers AND augments vitest's Assertion
+// interface. Importing /matchers and calling expect.extend by hand registers them
+// at runtime only, so every toBeInTheDocument() was a type error.
+import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { afterEach, expect, vi } from "vitest";
+import { afterEach, vi } from "vitest";
 
-expect.extend(matchers);
 afterEach(() => {
 	cleanup();
 });
@@ -29,8 +31,10 @@ class MockIntersectionObserver {
 	unobserve = vi.fn();
 	constructor(_cb: IntersectionObserverCallback) {}
 }
-globalThis.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver;
+globalThis.IntersectionObserver =
+	MockIntersectionObserver as unknown as typeof IntersectionObserver;
 
 // jsdom does not implement Element.scrollTo — stub it so scroll-aware components
 // (e.g. ChatMessages) don't throw during render in tests.
-Element.prototype.scrollTo = vi.fn() as unknown as typeof Element.prototype.scrollTo;
+Element.prototype.scrollTo =
+	vi.fn() as unknown as typeof Element.prototype.scrollTo;

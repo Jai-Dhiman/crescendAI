@@ -21,12 +21,7 @@ describe("buildBarAnalysisFacts", () => {
 		const scores: [number, number, number, number, number, number] = [
 			0.5, 0.5, 0.5, 0.5, 0.5, 0.5,
 		];
-		const result = buildBarAnalysisFacts(
-			analysis,
-			scores,
-			baselines,
-			"timing",
-		);
+		const result = buildBarAnalysisFacts(analysis, scores, baselines, "timing");
 		expect(result).toBeNull();
 	});
 
@@ -73,7 +68,7 @@ describe("buildBarAnalysisFacts", () => {
 		// deviations from baseline 0.5: dyn=+0.30, tim=selected, ped=-0.20, art=+0.40, phr=+0.05, int=-0.25
 		// Non-selected ≥0.15: dyn(0.30), ped(0.20), art(0.40), int(0.25). Top 2: art(0.40), dyn(0.30).
 		const scores: [number, number, number, number, number, number] = [
-			0.80, 0.50, 0.30, 0.90, 0.55, 0.25,
+			0.8, 0.5, 0.3, 0.9, 0.55, 0.25,
 		];
 		const result = buildBarAnalysisFacts(analysis, scores, baselines, "timing");
 		expect(result?.correlated.map((d) => d.dimension)).toEqual([
@@ -93,7 +88,7 @@ describe("buildBarAnalysisFacts", () => {
 		};
 		// dyn deviation 0.14 < 0.15 → excluded.
 		const scores: [number, number, number, number, number, number] = [
-			0.64, 0.50, 0.50, 0.50, 0.50, 0.50,
+			0.64, 0.5, 0.5, 0.5, 0.5, 0.5,
 		];
 		const result = buildBarAnalysisFacts(analysis, scores, baselines, "timing");
 		expect(result?.correlated).toHaveLength(0);

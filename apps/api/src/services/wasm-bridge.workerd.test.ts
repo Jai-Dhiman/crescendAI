@@ -13,10 +13,10 @@
 
 import { describe, expect, it } from "vitest";
 import {
-	type PerfNote,
-	type ScoreBar,
 	alignChunkChroma,
 	analyzeTier2,
+	type PerfNote,
+	type ScoreBar,
 	selectTeachingMoment,
 } from "./wasm-bridge";
 
@@ -32,8 +32,28 @@ describe("wasm-bridge workerd (real WASM)", () => {
 
 	it("selectTeachingMoment executes and returns a TeachingMoment", () => {
 		const chunks = [
-			{ chunk_index: 0, scores: [0.3, 0.7, 0.6, 0.6, 0.6, 0.6] as [number, number, number, number, number, number] },
-			{ chunk_index: 1, scores: [0.8, 0.7, 0.6, 0.6, 0.6, 0.6] as [number, number, number, number, number, number] },
+			{
+				chunk_index: 0,
+				scores: [0.3, 0.7, 0.6, 0.6, 0.6, 0.6] as [
+					number,
+					number,
+					number,
+					number,
+					number,
+					number,
+				],
+			},
+			{
+				chunk_index: 1,
+				scores: [0.8, 0.7, 0.6, 0.6, 0.6, 0.6] as [
+					number,
+					number,
+					number,
+					number,
+					number,
+					number,
+				],
+			},
 		];
 		const baselines = {
 			dynamics: 0.7,
@@ -99,7 +119,13 @@ describe("wasm-bridge workerd (real WASM)", () => {
 		};
 
 		// frame_rate=10 Hz, decim=10 Hz (1:1 so bar_per_frame has 2 entries).
-		const result = alignChunkChroma(audioChromaBytes, nFrames, [bar], 10.0, 10.0);
+		const result = alignChunkChroma(
+			audioChromaBytes,
+			nFrames,
+			[bar],
+			10.0,
+			10.0,
+		);
 
 		expect(Array.isArray(result.bar_per_frame)).toBe(true);
 		expect(result.bar_per_frame.length).toBeGreaterThan(0);
@@ -135,9 +161,39 @@ describe("selectSessionMoments (real WASM)", () => {
 	it("returns real within-session moments for a multi-chunk session", async () => {
 		const { selectSessionMoments } = await import("./wasm-bridge");
 		const chunks = [
-			{ chunk_index: 0, scores: [0.55, 0.5, 0.5, 0.54, 0.52, 0.5] as [number, number, number, number, number, number] },
-			{ chunk_index: 1, scores: [0.55, 0.5, 0.1, 0.54, 0.52, 0.5] as [number, number, number, number, number, number] },
-			{ chunk_index: 2, scores: [0.55, 0.5, 0.48, 0.54, 0.52, 0.5] as [number, number, number, number, number, number] },
+			{
+				chunk_index: 0,
+				scores: [0.55, 0.5, 0.5, 0.54, 0.52, 0.5] as [
+					number,
+					number,
+					number,
+					number,
+					number,
+					number,
+				],
+			},
+			{
+				chunk_index: 1,
+				scores: [0.55, 0.5, 0.1, 0.54, 0.52, 0.5] as [
+					number,
+					number,
+					number,
+					number,
+					number,
+					number,
+				],
+			},
+			{
+				chunk_index: 2,
+				scores: [0.55, 0.5, 0.48, 0.54, 0.52, 0.5] as [
+					number,
+					number,
+					number,
+					number,
+					number,
+					number,
+				],
+			},
 		];
 		const reference = {
 			dynamics: 0.55,
@@ -157,7 +213,17 @@ describe("selectSessionMoments (real WASM)", () => {
 	it("returns an empty array when fewer than 2 chunks", async () => {
 		const { selectSessionMoments } = await import("./wasm-bridge");
 		const chunks = [
-			{ chunk_index: 0, scores: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3] as [number, number, number, number, number, number] },
+			{
+				chunk_index: 0,
+				scores: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3] as [
+					number,
+					number,
+					number,
+					number,
+					number,
+					number,
+				],
+			},
 		];
 		const reference = {
 			dynamics: 0.3,
@@ -179,7 +245,13 @@ describe("identifyPiece (real WASM)", () => {
 		version: "v2",
 		onset_tol_ms: 50,
 		pieces: [
-			{ piece_id: "decoy", composer: "X", title: "Decoy", chroma: new Array(12).fill(0), events: [16, 32, 64, 128] },
+			{
+				piece_id: "decoy",
+				composer: "X",
+				title: "Decoy",
+				chroma: new Array(12).fill(0),
+				events: [16, 32, 64, 128],
+			},
 			{
 				piece_id: "exact",
 				composer: "Y",
@@ -213,7 +285,15 @@ describe("identifyPiece (real WASM)", () => {
 		const tiny = JSON.stringify({
 			version: "v2",
 			onset_tol_ms: 50,
-			pieces: [{ piece_id: "only", composer: "X", title: "Only", chroma: new Array(12).fill(0), events: [1, 2] }],
+			pieces: [
+				{
+					piece_id: "only",
+					composer: "X",
+					title: "Only",
+					chroma: new Array(12).fill(0),
+					events: [1, 2],
+				},
+			],
 		});
 		expect(identifyPiece(notes, tiny, 0.0935)).toBeNull();
 	});

@@ -1,5 +1,5 @@
-import { describe, test, expect } from "vitest";
-import { SynthesisArtifactSchema, type SynthesisArtifact } from "./synthesis";
+import { describe, expect, test } from "vitest";
+import { type SynthesisArtifact, SynthesisArtifactSchema } from "./synthesis";
 
 const baseValid: SynthesisArtifact = {
 	session_id: "sess:abc123",
@@ -181,7 +181,14 @@ test("SynthesisArtifact with empty assigned_loops passes", () => {
 test("SynthesisArtifact with assigned_loops entry passes", () => {
 	const r = SynthesisArtifactSchema.safeParse({
 		...BASE_VALID,
-		assigned_loops: [{ id: "loop-1", pieceId: "chopin.ballades.1", barsStart: 12, barsEnd: 16 }],
+		assigned_loops: [
+			{
+				id: "loop-1",
+				pieceId: "chopin.ballades.1",
+				barsStart: 12,
+				barsEnd: 16,
+			},
+		],
 	});
 	expect(r.success).toBe(true);
 });

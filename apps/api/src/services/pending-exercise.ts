@@ -1,7 +1,7 @@
 import { pendingExercises } from "../db/schema/exercises";
+import type { ExerciseRoutingDecision } from "../harness/artifacts/exercise-routing";
 import { InferenceError } from "../lib/errors";
 import type { Db } from "../lib/types";
-import type { ExerciseRoutingDecision } from "../harness/artifacts/exercise-routing";
 import type { InlineComponent } from "./tool-processor";
 
 export type PendingExercise = {

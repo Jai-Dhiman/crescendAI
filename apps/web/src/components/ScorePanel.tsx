@@ -2,6 +2,7 @@ import { ArrowLeft, MusicNote, X } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useIsMobile } from "../hooks/useDom";
 import { useMountEffect } from "../hooks/useFoundation";
+import type { MockSessionData } from "../lib/mock-session";
 import { DIMENSION_COLORS } from "../lib/mock-session";
 import { scoreRenderer } from "../lib/score-renderer";
 import { useScorePanelStore } from "../stores/score-panel";
@@ -9,6 +10,8 @@ import { ScoreAnnotation } from "./ScoreAnnotation";
 
 const MIN_PANEL_WIDTH = 320;
 const MAX_PANEL_WIDTH_RATIO = 0.6;
+// Pixels moved per arrow-key press on the resize separator.
+const RESIZE_STEP = 24;
 
 interface AnnotationPosition {
 	top: number;
@@ -30,9 +33,37 @@ export function ScorePanel() {
 	const isDraggingRef = useRef(false);
 	const dragWidthRef = useRef(panelWidth);
 	const [scoreRenderKey, setScoreRenderKey] = useState(0);
+	// Mirrors the drag clamp so the separator can report its range. Seeded on
+	// mount rather than during render, which also runs on the server.
+	const [maxPanelWidth, setMaxPanelWidth] = useState(MIN_PANEL_WIDTH);
 
 	// Drag handle for resizing
 	const asideRef = useRef<HTMLDivElement>(null);
+
+	// Keyboard equivalent of the drag: ArrowLeft widens, ArrowRight narrows,
+	// matching the drag direction (dragging left makes the panel wider).
+	useEffect(() => {
+		function syncMax() {
+			setMaxPanelWidth(window.innerWidth * MAX_PANEL_WIDTH_RATIO);
+		}
+		syncMax();
+		window.addEventListener("resize", syncMax);
+		return () => window.removeEventListener("resize", syncMax);
+	}, []);
+
+	const handleResizeKey = useCallback(
+		(e: React.KeyboardEvent) => {
+			if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+			e.preventDefault();
+			const maxWidth = window.innerWidth * MAX_PANEL_WIDTH_RATIO;
+			const delta = e.key === "ArrowLeft" ? RESIZE_STEP : -RESIZE_STEP;
+			setPanelWidth(
+				Math.min(maxWidth, Math.max(MIN_PANEL_WIDTH, panelWidth + delta)),
+			);
+			setScoreRenderKey((k) => k + 1);
+		},
+		[panelWidth, setPanelWidth],
+	);
 
 	const handleDragStart = useCallback(
 		(e: React.MouseEvent) => {
@@ -211,12 +242,18 @@ export function ScorePanel() {
 			{isOpen && (
 				<>
 					{/* Drag handle */}
+					{/* biome-ignore lint/a11y/useSemanticElements: a focusable window splitter cannot be an <hr>; it needs drag and key handlers. */}
 					<div
 						onMouseDown={handleDragStart}
+						onKeyDown={handleResizeKey}
+						tabIndex={0}
 						className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10 bg-border hover:bg-accent transition-colors"
 						role="separator"
 						aria-orientation="vertical"
 						aria-label="Resize score panel"
+						aria-valuenow={panelWidth}
+						aria-valuemin={MIN_PANEL_WIDTH}
+						aria-valuemax={maxPanelWidth}
 					/>
 					{panelContent}
 				</>
@@ -232,9 +269,7 @@ export function ScorePanel() {
  */
 interface ScorePanelScoreProps {
 	pieceId: string;
-	sessionData: NonNullable<
-		ReturnType<typeof useScorePanelStore>["sessionData"]
-	> | null;
+	sessionData: MockSessionData | null;
 	observations: Array<{
 		dimension: string;
 		barRange?: [number, number];
@@ -247,7 +282,6 @@ interface ScorePanelScoreProps {
 
 function ScorePanelScore({
 	pieceId,
-	sessionData,
 	observations,
 	activeAnnotationIndex,
 	onAnnotationClick,
@@ -293,7 +327,7 @@ function ScorePanelScore({
 				const svg = await scoreRenderer.getPage(pieceId, 1);
 				if (cancelled) return;
 				container.textContent = "";
-				// biome-ignore lint/security/noDomManipulation: controlled SVG from Verovio WASM, not user input
+				// Controlled SVG from Verovio WASM, not user input.
 				container.insertAdjacentHTML("beforeend", svg);
 				setIsRendered(true);
 			} catch (err) {

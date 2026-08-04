@@ -50,9 +50,21 @@ describe("ScoreHighlightCard", () => {
 		const config: ScoreHighlightConfig = {
 			pieceId: "chopin.ballades.1",
 			highlights: [
-				{ bars: [1, 4] as [number, number], dimension: "dynamics", annotation: "a" },
-				{ bars: [5, 8] as [number, number], dimension: "timing", annotation: "b" },
-				{ bars: [9, 12] as [number, number], dimension: "pedaling", annotation: "c" },
+				{
+					bars: [1, 4] as [number, number],
+					dimension: "dynamics",
+					annotation: "a",
+				},
+				{
+					bars: [5, 8] as [number, number],
+					dimension: "timing",
+					annotation: "b",
+				},
+				{
+					bars: [9, 12] as [number, number],
+					dimension: "pedaling",
+					annotation: "c",
+				},
 			],
 		};
 		const { ScoreHighlightCard } = await import("./ScoreHighlightCard");
