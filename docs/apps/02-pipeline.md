@@ -2,9 +2,9 @@
 
 The complete path from microphone to teaching observation. This is the technical heart of the system -- how audio becomes actionable feedback.
 
-> **Status (2026-06-04):**
-> - IMPLEMENTED: Two-stage LLM pipeline (subagent + teacher), HF inference endpoint (A1-Max 4-fold ensemble; AMT + pedal CC64 wired **LOCAL ONLY** -- prod `AMT_ENDPOINT` unset, prod sessions degrade to Tier 3, see #9), teaching moment selection (deviation-magnitude gate + blind-spot detection + positive-moment fallback), score following (chroma-DTW), bar-aligned analysis, synthesized facts, exercise endpoints (25 curated), session brain state machine (DO practice mode detection + state persistence), observation pacing (mode-aware), zero-config piece ID (N-gram + rerank + DTW, merged, pending AMT container deploy), artifact declaration via Anthropic tool_use (tool_choice: auto), session synthesis (alarm-triggered, all exit paths, deferred recovery; cold-start within-session synthesis for first-session/no-baseline students, #24), AI Gateway (Anthropic + Workers AI)
-> - SHIPPED (flag-gated): V6 harness loop — hook-driven two-phase compound execution loop that replaces the linear Stage 4a/4b path on `OnSessionEnd`. Phase 1 dispatches skill-catalog atoms as Anthropic tools; Phase 2 forced-writes a Zod-validated `SynthesisArtifact`. V6 is the only synthesis path, flag deleted in #28 (Plan 4 integration complete; V8a `assign_segment_loop` action atom also shipped).
+> **Status (2026-08-04):** V6 molecule synthesis is the only production synthesis path (flag deleted in #28); the linear Stage 4a/4b description below is retained as signal-layer reference only -- see the SUPERSEDED banner ahead of Stage 4.
+> - IMPLEMENTED: Two-stage LLM pipeline (subagent + teacher), HF inference endpoint (A1-Max 4-fold ensemble; AMT + pedal CC64 wired **LOCAL ONLY** -- prod `AMT_ENDPOINT` unset, prod sessions degrade to Tier 3, see #9), teaching moment selection (deviation-magnitude gate + blind-spot detection + positive-moment fallback), score following (chroma-DTW), bar-aligned analysis, synthesized facts, exercise endpoints (25 curated), session brain state machine (DO practice mode detection + state persistence), observation pacing (mode-aware), zero-config piece ID (N-gram + rerank + DTW, merged, pending AMT container deploy), artifact declaration via provider tool_use (tool_choice: auto), session synthesis (alarm-triggered, all exit paths, deferred recovery; cold-start within-session synthesis for first-session/no-baseline students, #24), AI Gateway (multi-provider)
+> - SHIPPED: V6 harness loop — hook-driven two-phase compound execution loop that replaces the linear Stage 4a/4b path on `OnSessionEnd`. Phase 1 dispatches skill-catalog atoms as tool calls; Phase 2 forced-writes a Zod-validated `SynthesisArtifact`. V6 is the only synthesis path, flag deleted in #28 (Plan 4 integration complete; V8a `assign_segment_loop` action atom also shipped). Canonical agent-loop doc: `docs/harness.md`.
 > - NOT STARTED: Passage repetition detection
 > - **Code:** `apps/api/src/services/teacher.ts` (pipeline), `apps/api/src/services/prompts.ts` (teacher persona), `apps/api/src/do/session-brain.ts` (DO session)
 > - **Model details:** `model/03-encoders.md`
@@ -47,14 +47,16 @@ The complete path from microphone to teaching observation. This is the technical
                                    v
                    +--------------------------------+
                    |  Stage 4a: Subagent            |
-                   |  Workers AI / Gemma 4 26B       |
+                   |  Workers AI (model ID in       |
+                   |  wrangler.toml)                |
                    |  5-step reasoning -> JSON      |
                    +---------------+----------------+
                                    |
                                    v
                    +--------------------------------+
                    |  Stage 4b: Teacher LLM         |
-                   |  Anthropic / Sonnet 4.6 (~1.5s)|
+                   |  (model ID in wrangler.toml,   |
+                   |  ~1.5s)                        |
                    |  Warm, natural 1-3 sentences   |
                    +---------------+----------------+
                                    |
@@ -68,76 +70,13 @@ The complete path from microphone to teaching observation. This is the technical
 
 **Interaction models differ by platform.** On iOS, the student plays and then taps "How was that?" to request an observation on-demand. On web, the pipeline runs continuously during recording: each chunk is scored as it arrives, and observations are pushed back via WebSocket as real-time toasts in the chat interface. Both paths share the same backend stages.
 
-The stages below describe the **current implementation**. The target end-state is an agent loop rather than a linear pipeline -- see "Target: Agent Loop" below.
+The stages below describe the **signal layer** (Stages 1-3, unchanged) plus the retired linear Stage 4a/4b delivery path, now superseded by the V6 agent loop -- see `docs/harness.md`.
 
 ---
 
-## Target: Agent Loop
+## Agent Loop
 
-The linear pipeline above accurately describes what is shipping. The harness target -- see `docs/harness.md` -- is an agent loop that reuses the same signal layer (Stages 1-3) but replaces Stages 4a/4b with a loop that loads skills on demand, calls tools, and produces artifacts.
-
-### Shape
-
-```
-ENTRY CONDITION (hook)
-  OnStop | OnPieceDetected | OnBarRegression | OnSessionEnd | OnWeeklyReview
-        |
-        v
-  LOAD RELEVANT SKILLS (deferred, signal-triggered)
-  Only skills whose YAML triggers match current signals enter context.
-  Reference: wiki "Agent Harnesses" -- thin harness + ToolSearch primitive.
-        |
-        v
-  AGENT LOOP
-  |- read tools: get_bar_analysis, fetch_similar_past_issue, ...
-  |- action tools: assign_segment_loop, render_annotation, schedule_followup_interrupt, ...
-  |- produce artifacts (NLAH durable outputs, addressable by later skills)
-  |- loop terminates when post-conditions on the triggering hook are met
-        |
-        v
-  ARTIFACTS PERSISTED
-  Exercises, annotations, observations, synthesized facts -- all carry
-  evidence chains back to Signals (see docs/apps/03-memory-system.md Layer 3).
-```
-
-### How This Differs From the Current Pipeline
-
-- **Skills replace the monolithic teacher prompt.** 8-12 markdown files in `docs/harness/skills/` each represent one atomic pedagogical move (voicing diagnosis, pedal triage, etc.). See `docs/harness/skills/README.md`. Wiki reference: *Skill Design* (atomic RL + concrete testable steps).
-- **Chat and session-exit use the same loop.** The current chat path has no tool_use; the observation path has tool_use for exercises only. In the target, both enter the same loop with different hook conditions.
-- **Action tools are first-class.** The loop can call `assign_segment_loop(bars=12-16, required_correct=3)` to restructure the student's next practice block, not just describe what they did. This is the answer to the Score Following wiki's empirical finding that 90% of home practice is start-to-finish playthrough -- a passive report is insufficient.
-- **Contracts are inspectable.** Each skill declares pre/post-conditions in its markdown. The harness detects silent degradation when a post-condition fails, rather than shipping unnoticed bad output.
-
-### What This Does Not Change
-
-- Stages 1-3 (audio capture, cloud inference, teaching moment selection) are unchanged. The agent loop consumes the same signals.
-- The DO-held session accumulator is unchanged (V3 adds sawtooth compaction later).
-- The loop remains provider-agnostic. The former Qwen fine-tune was closed; provider changes now require their own capability and evaluation gate.
-
-### Writes Stay Single-Threaded
-
-From the Mahler wiki's *Multi-Agents: What's Actually Working*: multi-agent systems work when additional agents contribute intelligence, not actions. The current Workers AI (analysis) + Sonnet (delivery) split already respects this: Workers AI does reasoning, Sonnet writes. As V5 skills come online, the constraint tightens: a compound may dispatch many molecules for analysis in parallel, but the compound writes **one** teacher-facing artifact. Skills do not parallel-speak to the student.
-
-### Event Hooks vs Middleware Hooks
-
-Hooks split into two kinds, a distinction from *The runtime behind production deep agents*:
-
-- **Event hooks** fire on external practice signals (`OnStop`, `OnPieceDetected`, `OnBarRegression`, `OnSessionEnd`, `OnWeeklyReview`). Each event hook maps to one compound in `docs/harness/skills/compounds/`.
-- **Middleware hooks** wrap every model invocation: `before_model`, `wrap_model_call`, `wrap_tool_call`, `after_model`. These are runtime primitives, not skill logic. They handle:
-  - PII redaction (`before_model`)
-  - Tool-call limits and permission gating for action tools (`wrap_tool_call`)
-  - Model retries (`wrap_model_call`)
-  - Human-in-the-loop gates (`wrap_tool_call`)
-  - Online eval / review-agent scoring (`after_model`) -- see V4 production review agent
-
-The production review agent is a specific `after_model` middleware: given only the synthesis output + student baselines + rubric (no raw signals, no session accumulator), it rates coherence and flags drift. From *Multi-Agents: What's Actually Working*: the review agent performs better **without** shared context -- forced to reason from the implementation backward, shorter context yields higher attention quality (Context Rot).
-
-### Capability-Router Across Providers
-
-From *Multi-Agents: What's Actually Working*: the provider mix is a capability router, not a difficulty escalator. Each model should handle only sub-tasks where it passes the relevant evaluation. The former Qwen fine-tuning program is closed; any replacement teacher model now requires a capability gate under #139 rather than a planned provider swap.
-
-### Sequencing
-
-See `docs/harness.md` priority stack. Skills decomposition (V5) lands before the loop architecture (V6), because the loop's deferred-loading primitive has nothing to load without skill files. The three-tier skill structure (atoms / molecules / compounds) also defines what event hooks dispatch to: one compound per event hook.
+The agent loop that replaced the linear Stage 4a/4b path is documented canonically in `docs/harness.md` (see V6 -- Agent Loop & Orchestration).
 
 ---
 
@@ -355,6 +294,8 @@ The `section_label`, `bar_range`, and `is_positive` fields are optional -- popul
 
 ## Stage 4: Two-Stage Analysis Pipeline
 
+> **SUPERSEDED:** V6 molecule synthesis is the only production path (see `docs/project-stage.md` and `docs/harness.md`); Stages 4a/4b below are retained as signal-layer reference only.
+
 ### Why Two Stages
 
 The original design sent structured data directly to one LLM, which had to simultaneously *analyze what matters* AND *generate a natural observation*. These are distinct tasks that benefit from different models and prompting strategies.
@@ -363,12 +304,12 @@ The two-stage design separates analysis from delivery:
 
 | Stage | Role | Model | Latency | Cost |
 |-------|------|-------|---------|------|
-| 4a: Subagent | Structured reasoning about what to say | Workers AI / Gemma 4 26B | | |
-| 4b: Teacher | Natural, warm delivery of the observation | Anthropic / Sonnet 4.6 | ~1.5s | $3.00 input / $15.00 output per M tokens |
+| 4a: Subagent | Structured reasoning about what to say | Workers AI (model ID in wrangler.toml) | | |
+| 4b: Teacher | Natural, warm delivery of the observation | Teacher LLM (model ID in wrangler.toml) | ~1.5s | pricing tracks the configured model; do not hardcode here |
 
 This mirrors how Claude Code handles complex tasks: the main agent delegates analysis to Explore agents via prepared handoff messages, then uses the results. The subagent does the legwork; the teacher provides the voice.
 
-### Stage 4a: Subagent (Workers AI / Gemma 4 26B)
+### Stage 4a: Subagent (Workers AI; model ID in wrangler.toml)
 
 The subagent receives cloud-filtered moments (top 3-5 below-baseline chunks, largest deviations first) plus the student's context map (baselines, synthesized facts, learning arc, goals). It reasons through five steps.
 
@@ -501,7 +442,7 @@ These traces are the raw material from which synthesized facts are periodically 
 
 **What NOT to persist:** The full subagent narrative, raw chunk data, the teacher LLM's output (already stored as the observation text).
 
-### Stage 4b: Teacher LLM (Anthropic / Sonnet 4.6)
+### Stage 4b: Teacher LLM (model ID in wrangler.toml)
 
 The teacher receives the subagent's handoff (structured JSON + narrative reasoning) and generates the observation the student actually sees.
 
@@ -668,18 +609,20 @@ The pipeline uses direct provider APIs optimized per stage rather than routing e
 ```
                     +----------------+
                     |  Workers AI    |  Stage 4a: Subagent
-                    |  Gemma 4 26B   |  (UI subagent removed; teacher uses tool_use)
+                    |  (model ID in  |  (UI subagent removed; teacher uses tool_use)
+                    |  wrangler.toml)|
                     +----------------+
 
                     +----------------+
-                    |  Anthropic API |  Stage 4b: Teacher
-                    |  Sonnet 4.6    |  Prompt caching (persona prefix)
-                    |  ~1.5s         |
+                    |  Teacher LLM   |  Stage 4b: Teacher
+                    |  API (model ID |  Prompt caching (persona prefix)
+                    |  in wrangler.  |  ~1.5s
+                    |  toml)         |
                     +----------------+
 ```
 
 **Why multi-provider:**
-- Native prompt caching with Anthropic API
+- Native prompt caching with the teacher LLM provider's API
 - Workers AI is co-located with the CF Worker (no extra routing hop)
 - Workers AI subagent is included in CF Workers compute costs
 
@@ -690,7 +633,7 @@ The pipeline uses direct provider APIs optimized per stage rather than routing e
 | Audio upload + inference | ~1-2s | HF endpoint round-trip |
 | Teaching moment selection | <1ms | deviation-magnitude gate (in-worker WASM) |
 | Subagent (Workers AI) | | |
-| Teacher (Anthropic) | ~1.5s | Prompt caching reduces input cost |
+| Teacher (provider in wrangler.toml) | ~1.5s | Prompt caching reduces input cost |
 | **Total (Stages 4a+4b)** | **<2s** | Within <3s user-facing target |
 
 ### Prompt Caching Strategy
@@ -724,13 +667,13 @@ Client                           Worker (/api/ask)                   LLM Provide
  |                                    |  2. Build subagent prompt          |
  |                                    |     (system: analyst persona)      |
  |                                    |     (user: moments + context map)  |
- |                                    |  --- Workers AI (Gemma 4 26B) --> |
+ |                                    |  --- Workers AI (wrangler.toml) --> |
  |                                    |  <-- analysis (JSON + narrative) - |
  |                                    |                                   |
  |                                    |  3. Build teacher prompt           |
  |                                    |     (system: teacher persona)      |
  |                                    |     (user: subagent handoff)       |
- |                                    |  --- Anthropic (Sonnet 4.6) ----> |
+ |                                    |  --- Teacher LLM (wrangler.toml) --> |
  |                                    |  <-- observation (1-3 sentences) - |
  |                                    |                                   |
  |                                    |  4. Store condensed trace in D1    |
@@ -742,7 +685,7 @@ Client                           Worker (/api/ask)                   LLM Provide
  |                                    |  Skip subagent. Send original     |
  |                                    |  handoff + observation to teacher  |
  |                                    |  with elaboration instruction.     |
- |                                    |  --- Anthropic (Sonnet 4.6) ----> |
+ |                                    |  --- Teacher LLM (wrangler.toml) --> |
  |                                    |  <-- elaboration (2-4 sentences) - |
  |  <-------------------------------- |                                   |
 ```
@@ -858,7 +801,7 @@ The backend is a single Cloudflare Workers application (TypeScript/Hono, with Ru
 
 7. **Subagent prompt iteration.** The five-step reasoning framework needs testing with synthetic teaching moment data.
 
-8. **A/B testing within model tiers.** Workers AI for subagent and Anthropic/Sonnet for teacher are decided, but A/B testing across alternative models within each tier remains open.
+8. **A/B testing within model tiers.** Workers AI for subagent and the teacher LLM (model IDs in wrangler.toml) for teacher are decided, but A/B testing across alternative models within each tier remains open.
 
 ---
 
@@ -887,7 +830,7 @@ The pipeline layer (teaching moment selection, subagent reasoning, teacher outpu
 **Approach:**
 - 15-20 scenario-based test cases covering the 5-step reasoning framework
 - Test each step independently: learning arc classification, delta detection, musical context weighting, moment selection, framing decision
-- Use an LLM judge (Claude) to evaluate subagent output against expected reasoning
+- Use an LLM judge (model ID in wrangler.toml) to evaluate subagent output against expected reasoning
 
 **Key scenarios:**
 - Cold start (no history) vs warm (10+ sessions)
@@ -911,7 +854,7 @@ The pipeline layer (teaching moment selection, subagent reasoning, teacher outpu
 **Goal:** Verify that provider failover produces acceptable output.
 
 **Approach:**
-- Mock primary provider failure (Workers AI timeout, Anthropic 429)
+- Mock primary provider failure (Workers AI timeout, teacher LLM provider 429)
 - Verify fallback activates within 2s
 - Verify fallback output passes the same post-processing rules
 - Measure quality degradation: LLM judge comparison of primary vs fallback output on 10 scenarios
@@ -927,7 +870,7 @@ Per-session cost estimates for a 30-minute practice session (120 chunks at 15s i
 | HF inference (A1-Max endpoint) | ~$0.003-0.005/call | 96 chunks | $0.29-0.48 |
 | Teaching moment selection | $0 (in-worker computation) | 96 chunks | $0 |
 | Workers AI subagent | | 3-5 observations | |
-| Anthropic teacher (Sonnet 4.6) | ~$0.004/call (~700 input + 100 output tokens) | 3-5 observations | $0.01-0.02 |
+| Teacher LLM (model ID in wrangler.toml) | ~$0.004/call (~700 input + 100 output tokens) | 3-5 observations | $0.01-0.02 |
 | Durable Object (web path) | ~$0.001-0.005/session | 1 | $0.001-0.005 |
 | D1 reads/writes | ~$0.001/session | ~10 queries | $0.001 |
 | **Total per session** | | | **$0.30-0.51** |
@@ -950,14 +893,14 @@ These estimates are rough and depend on HF endpoint instance type (GPU-hours pri
 | Decision | Chosen | Rationale |
 |----------|--------|-----------|
 | Two-stage pipeline | Subagent + Teacher | Separates analysis (fast/cheap) from delivery (quality voice). Different tasks need different models and prompts. |
-| Subagent provider | Workers AI (Gemma 4 26B) | Co-located with CF Workers; no extra routing hop. |
-| Teacher provider | Anthropic (Sonnet 4.6) | Best at following nuanced persona instructions. Native prompt caching for system prompt. |
+| Subagent provider | Workers AI (model ID in wrangler.toml) | Co-located with CF Workers; no extra routing hop. |
+| Teacher provider | Teacher LLM (model ID in wrangler.toml) | Best at following nuanced persona instructions. Native prompt caching for system prompt. |
 | Score alignment | AMT fingerprint + chroma-DTW (automated) | Replaces student-reported. AMT transcribes, fingerprint matches, MuQ extracts chroma, chroma-DTW aligns to score bars. No student input required. Graceful degradation for unknown pieces. |
 | Framing as subagent output | Explicit framing decision in JSON | Prevents teacher LLM from defaulting to critique mode when only given problems. |
 | Scores as reasoning inputs | Not a report card | Model is ~80% pairwise accurate. Value is in analysis + delivery, not raw scores. |
 | Blind-spot prior | voicing > pedaling > phrasing > timing > dynamics > articulation | Dimensions harder to self-diagnose from the bench get priority in tie-breaking. |
 | Positive teaching moments | Subagent decides framing | Pipeline flags both improvements and problems. Positive observations are real teaching. |
 | Session brain | DO as session intelligence host | Practice mode state machine (warming/drilling/running/winding). Observation pacing adapts to mode. Single-threaded DO is ideal for temporal session state. |
-| Artifact declaration | Teacher LLM tool use (replacing UI subagent) | Eliminates the third LLM stage. Teacher decides when artifacts are warranted and calls tools to generate configs. Pattern (Anthropic tool_use vs MCP) TBD. |
+| Artifact declaration | Teacher LLM tool use (replacing UI subagent) | Eliminates the third LLM stage. Teacher decides when artifacts are warranted and calls tools to generate configs. Pattern (provider tool_use vs MCP) TBD. |
 | Piece identification | AMT fingerprint (replacing student-reported) | Zero-config first session. Auto-detect via MIDI fingerprint against 242-piece library. Graceful degradation for unknown pieces. |
 | Platform priority | Web-first | Web beta ships first (~4 weeks). iOS follows after validation. |

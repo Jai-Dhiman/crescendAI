@@ -37,7 +37,7 @@ The CEO review (2026-03-19) replaced the three-stage UI subagent pipeline with a
 
 ### How It Works
 
-1. The teacher LLM (Anthropic / Sonnet 4.6) generates the observation text
+1. The teacher LLM (model ID in wrangler.toml) generates the observation text
 2. When a rich component is warranted, the teacher calls a tool (e.g., `generate_exercise`, `highlight_score`) that produces a structured artifact config
 3. The API returns both the text and the artifact config to the client
 4. The client renders the artifact via the unified `<Artifact>` container component
@@ -91,6 +91,8 @@ When no artifact is warranted:
 | `segment_loop` | SHIPPED | Teacher assigns a bar-bounded loop to drill (V8a) | None |
 | `session_review` | Phase 3 | Session ends, synthesis ready | Session brain data |
 
+Web scorehost path shipped and verified; the iOS bridge cannot yet reach/authenticate the passage manifest — open bug #152.
+
 ### Latency Budget (Revised)
 
 | Path | Latency |
@@ -102,7 +104,7 @@ The UI subagent stage (previously ~0.3-0.5s) is eliminated. Tool use adds ~0.2-0
 
 ### Artifact Declaration Pattern (DECIDED)
 
-**Decision:** Anthropic native tool_use with `tool_choice: "auto"`.
+**Decision:** provider tool_use with `tool_choice: "auto"` (mechanism retained across teacher providers).
 
 - Teacher LLM decides autonomously when to create artifacts (no subagent signaling)
 - Tool definition: `create_exercise` with schema-enforced config (source_passage, target_skill, exercises[1-3])
@@ -232,6 +234,8 @@ Takes the specific passage and skill the teacher identified, generates 2-3 targe
 **Graceful degradation:** Exercise sets are text-based and do not require score data. Always available. If score rendering is unavailable, exercises still render with title and instruction text.
 
 ### 4. Play Passage (`play_passage`) (SHIPPED)
+
+Web scorehost path shipped and verified; the iOS bridge cannot yet reach/authenticate the passage manifest — open bug #152.
 
 Plays a bar-bounded slice of the student's own recording with the score visible and a tinted focus sub-range. The teacher says "listen here" and the student hears exactly what the teacher heard, cursor tracking across the notation in real time.
 

@@ -30,12 +30,13 @@
          +--+------+------+------+----+
             |      |      |      |
             v      v      v      v
-      +-------+ +-----+ +------+ +--------+
-      | HF    | | WkAI| | Anth-| |Postgres|
-      | Endpt | | API | | ropic| | (Hyper-|
-      | (MuQ  | | sub-| | teach| |  drive)|
-      | A1-Max)| | agent| | er  | | R2, DO |
-      +-------+ +-----+ +------+ +--------+
+      +-------+ +-----+ +--------+ +--------+
+      | HF    | | WkAI| | Teacher| |Postgres|
+      | Endpt | | API | | LLM    | | (Hyper-|
+      | (MuQ  | | sub-| | (wrang-| |  drive)|
+      | A1-Max)| | agent| | ler.   | | R2, DO |
+      |       | |     | | toml)  | |        |
+      +-------+ +-----+ +--------+ +--------+
 ```
 
 Both platforms upload 15-second audio chunks to the shared API worker. The worker orchestrates cloud inference (HF endpoint), teaching moment selection (deviation-magnitude gate), and a two-stage LLM pipeline (a Workers AI subagent for analysis, then the teacher model for delivery). Model IDs live in `apps/api/wrangler.toml` (`TEACHER_MODEL`, overridable per-provider) and drift -- do not hardcode them here. iOS receives observations on-demand ("How was that?"); web pushes them in real time via WebSocket.

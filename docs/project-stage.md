@@ -1,6 +1,6 @@
 # Project Stage — Pre-Beta, Local-First
 
-**Status (2026-06-05): PRE-BETA. Zero real users.** Nothing here is serving customers yet. Read this before reasoning about "production", deploys, or databases.
+**Status (2026-08-04): PRE-BETA. Zero real users.** Nothing here is serving customers yet. Read this before reasoning about "production", deploys, or databases.
 
 ## What "production" and "shipped" mean right now
 
