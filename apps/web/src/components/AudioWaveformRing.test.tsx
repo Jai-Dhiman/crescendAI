@@ -98,4 +98,30 @@ describe("AudioWaveformRing", () => {
 		expect(lastStroke).toMatch(/^rgba\(18, 52, 86, [\d.]+\)$/);
 		expect(lastStroke).not.toMatch(/^rgba\(122, 154, 130,/);
 	});
+
+	it("picks up a new accent color after a theme change, not just at mount", async () => {
+		document.documentElement.style.setProperty("--color-accent", "#123456");
+
+		render(
+			<AudioWaveformRing analyserNode={null} isPlaying={false} active={true} />,
+		);
+
+		expect(rafCallback).not.toBeNull();
+		act(() => {
+			rafCallback?.(1000);
+		});
+		expect(strokeStyleHistory.at(-1)).toMatch(/^rgba\(18, 52, 86, [\d.]+\)$/);
+
+		// Simulate a theme change flipping the accent custom property, then let
+		// the MutationObserver's microtask fire before the next draw.
+		document.documentElement.style.setProperty("--color-accent", "#abcdef");
+		await Promise.resolve();
+
+		act(() => {
+			rafCallback?.(1010);
+		});
+		expect(strokeStyleHistory.at(-1)).toMatch(
+			/^rgba\(171, 205, 239, [\d.]+\)$/,
+		);
+	});
 });

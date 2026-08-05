@@ -65,6 +65,10 @@ export function AudioWaveformRing({
 	const crossfadeRef = useRef(0); // 0 = full breathing, 1 = full frequency
 	const isPlayingRef = useSyncRef(isPlaying);
 	const sizeRef = useRef({ w: 0, h: 0 });
+	// Cached accent RGB, re-parsed only when the theme changes (see MutationObserver
+	// below) instead of every animation frame -- getComputedStyle forces a style
+	// recalc, which is expensive at 60fps.
+	const accentRgbRef = useRef<[number, number, number] | null>(null);
 
 	// Persistent RAF animation loop -- re-initializes when analyserNode or active changes.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: only re-run when analyserNode/active change
@@ -97,6 +101,16 @@ export function AudioWaveformRing({
 			}
 		});
 		observer.observe(canvas);
+
+		// Invalidate the cached accent color only when the theme actually changes,
+		// rather than re-reading it (and forcing a style recalc) every frame.
+		const accentObserver = new MutationObserver(() => {
+			accentRgbRef.current = null;
+		});
+		accentObserver.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ["data-theme", "style"],
+		});
 
 		const ctx = canvas.getContext("2d")!;
 		if (!ctx) return;
@@ -176,7 +190,10 @@ export function AudioWaveformRing({
 				displacements[i] += (target - displacements[i]) * lerpAlpha;
 			}
 
-			const [accentR, accentG, accentB] = readAccentRgb();
+			if (!accentRgbRef.current) {
+				accentRgbRef.current = readAccentRgb();
+			}
+			const [accentR, accentG, accentB] = accentRgbRef.current;
 
 			// Compute opacity from energy (0.6 to 1.0)
 			const avgEnergy = analyserNode ? totalEnergy / NUM_POINTS : 0;
@@ -224,6 +241,7 @@ export function AudioWaveformRing({
 		return () => {
 			cancelAnimationFrame(rafRef.current);
 			observer.disconnect();
+			accentObserver.disconnect();
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [analyserNode, active]);
