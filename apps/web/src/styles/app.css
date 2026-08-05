@@ -12,7 +12,7 @@
 	--color-accent: #4a6650;
 	--color-on-accent: #fdfaf4;
 	--color-border-subtle: #e6dcc9;
-	--color-border-strong: #cdbfa6;
+	--color-border-strong: #7d6e52;
 	--color-score-canvas: #fdfaf4;
 	--color-danger: #a33a32;
 	--color-warn: #8a5a1f;
@@ -127,7 +127,7 @@ html[data-theme="dark"] {
 	--color-accent: #7a9a82;
 	--color-on-accent: #1b1917;
 	--color-border-subtle: #3a3633;
-	--color-border-strong: #504b48;
+	--color-border-strong: #8d867f;
 	--color-score-canvas: #f2ece1;
 	--color-danger: #f0938c;
 	--color-warn: #e8b563;
