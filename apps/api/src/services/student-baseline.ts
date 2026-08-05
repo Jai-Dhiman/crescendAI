@@ -165,11 +165,29 @@ function ewma(
 	return prev + alpha * (value - prev);
 }
 
+/**
+ * Bias-corrects a fresh EWMA (same trick as Adam's moment estimates): with few
+ * updates the raw EWMA is dominated by its own bootstrap value, so dividing by
+ * the accumulated weight inflates it. That inflation is what makes the band
+ * wide on session 1 and narrow smoothly as `updateCount` grows -- a formula
+ * applied uniformly every session, not a branch on how many sessions exist.
+ */
+function biasCorrected(
+	rawEwma: number,
+	alpha: number,
+	updateCount: number,
+): number {
+	if (updateCount <= 0) return rawEwma;
+	const weight = 1 - (1 - alpha) ** updateCount;
+	return rawEwma / weight;
+}
+
 function foldDimension(
 	prior: DimensionBaselineState,
 	samples: readonly number[],
 	config: BaselineConfig,
 ): DimensionBaselineState {
+	const alphaShort = alphaFromHalfLife(config.shortHalfLifeSessions);
 	const alphaLong = alphaFromHalfLife(config.longHalfLifeSessions);
 	const sessionCentre = median(samples);
 
@@ -188,17 +206,46 @@ function foldDimension(
 		);
 	}
 
+	const noiseFloorSample =
+		samples.length >= config.minSamplesForSpread
+			? medianAbsoluteDeviation(samples, sessionCentre)
+			: prior.noiseFloor;
+	const noiseFloor = ewma(
+		prior.noiseFloor,
+		noiseFloorSample,
+		alphaShort,
+		prior.initialized,
+	);
+
+	const deviation = prior.initialized ? sessionCentre - prior.longMean : 0;
+	const longSd = ewma(
+		prior.longSd,
+		Math.abs(deviation),
+		alphaLong,
+		prior.initialized,
+	);
+
 	const longMean = ewma(
 		prior.longMean,
 		sessionCentre,
 		alphaLong,
 		prior.initialized,
 	);
-	// NOTE: deliberately crude for this task -- ANY nonzero gap between this
-	// session's own centre and the pre-update long-run mean counts as
-	// out-of-band, with no band width yet. Task 9 introduces the real band
-	// (noiseFloor/longSd); Task 10 replaces this raw-centre comparison with
-	// the smoothed short EWMA the spec calls for.
+	const updateCount = prior.updateCount + 1;
+
+	// The real band half-width, computed and carried on state (proving it
+	// narrows) but not yet consulted by the out-of-band decision below, which
+	// is still Task 8's crude raw-centre comparison.
+	const effectiveNoiseFloor = biasCorrected(
+		noiseFloor,
+		alphaShort,
+		updateCount,
+	);
+	const effectiveLongSd = biasCorrected(longSd, alphaLong, updateCount);
+	const halfWidth = Math.max(
+		effectiveNoiseFloor,
+		config.minBandSdFraction * effectiveLongSd,
+	);
 	const acrossSessionOutOfBand =
 		prior.initialized && sessionCentre !== prior.longMean;
 
@@ -225,9 +272,13 @@ function foldDimension(
 		...prior,
 		lifecycle,
 		longMean,
+		longSd,
+		noiseFloor,
+		halfWidth,
 		consecutiveOutOfBand,
 		consecutiveInBand,
 		initialized: true,
+		updateCount,
 	};
 }
 

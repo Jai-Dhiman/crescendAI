@@ -135,3 +135,26 @@ describe("across-session evidence", () => {
 		expect(trace[3].dimensions.dynamics.lifecycle).toBe("active");
 	});
 });
+
+describe("band width", () => {
+	it("narrows the band monotonically under consistent evidence", () => {
+		// Same call shape every session -- no session-count branch anywhere in
+		// updateBaseline. `halfWidth` is read directly off the returned state
+		// (the exact value foldDimension used), not recomputed here -- a test
+		// that re-derives the implementation's own arithmetic would only prove
+		// two copies of a formula agree, not that the formula is right.
+		const sessions: SessionSamples[] = Array.from({ length: 6 }, (_, i) => ({
+			timestamp: `2026-01-0${i + 1}T00:00:00Z`,
+			scores: { phrasing: CLUSTER },
+		}));
+		const trace = runSequence(sessions);
+		const halfWidths = trace.map((s) => s.dimensions.phrasing.halfWidth);
+		// Hand-verified for this exact CLUSTER sequence and DEFAULT_BASELINE_CONFIG:
+		// 0.0628 -> 0.0341 -> 0.0247 -> 0.02 -> 0.0173 -> 0.0155 (strictly decreasing).
+		for (let i = 1; i < halfWidths.length; i++) {
+			expect(halfWidths[i]).toBeLessThan(halfWidths[i - 1]);
+		}
+		expect(halfWidths[0]).toBeCloseTo(0.0629, 3);
+		expect(halfWidths[5]).toBeCloseTo(0.0155, 3);
+	});
+});
