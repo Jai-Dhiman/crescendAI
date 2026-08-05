@@ -196,6 +196,45 @@ conversation.
   token set (`apps/ios/.../DesignSystem/Tokens/`) mirrors it by hand — drift
   risk noted in #156.
 
+**Shipped in #156 (2026-08-05).** Durable decisions, recorded here because the
+design spec was deleted at merge:
+
+- **Light is the base column, dark is the override.** Inverting the previous
+  arrangement is a correctness property, not a preference: a surface that
+  forgets a dark value now degrades to a visibly wrong light value instead of
+  silently inheriting a plausible-looking dark one.
+- Token names describe **role**, not pigment (`surface-page/raised/sunken`,
+  `ink-primary/secondary/tertiary`, `border-subtle/strong`, `on-accent`,
+  `score-canvas`, `danger`, `warn`). The old names had become lies — light
+  mode redefined `--color-espresso` to `#ffffff`.
+- **`--color-score-canvas` carries the one light/dark asymmetry as a value,
+  not a rule.** `.score-container` has a single unconditional
+  `background: var(--color-score-canvas)`. On light it equals `surface-page`
+  so the engraving sits on the page with no card; on dark it resolves to a
+  warm off-white because Verovio emits black notation. Encoding the exception
+  as a token keeps the rule count at one and keeps it visible in the table.
+- **`danger`/`warn` are tokens because the raw Tailwind reds failed AA on
+  paper** (`red-400` 2.66:1, `amber-400` 1.60:1 on ivory). They passed before
+  only because every background was dark.
+- **Dimension colours have one source**: `apps/web/src/lib/dimension-colors.ts`
+  maps each key to a `var(--dim-*)` reference consumed by inline styles, which
+  resolve through the cascade and follow the theme. Two divergent JS colour
+  maps were deleted. Two of the six needed a light-column variant; the other
+  four are shared.
+- **`border-subtle` is exempt from the 3:1 gate.** WCAG 1.4.11 scopes 3:1 to
+  boundaries needed to *identify* a component or its state; card edges and
+  dividers are decorative. A divider cannot be both subtle and 3:1.
+- **Theme precedence** lives in `apps/web/src/lib/theme-resolve.ts`: manual
+  override, then device-local time of day (dark 19:00-06:59), then light.
+  `prefers-color-scheme` was dropped as an input so two signals cannot
+  disagree. The pre-hydration flash script interpolates the same exported
+  `DUSK_HOUR`/`DAWN_HOUR` constants, so the two paths cannot drift.
+- **Contrast is verified two ways**, because axe's `color-contrast` rule
+  cannot run in jsdom — it needs real layout and silently skips rather than
+  failing. `src/styles/tokens.contrast.test.ts` computes every token pair in
+  both columns; `bun run test:a11y` runs axe in a real browser against a
+  preview build.
+
 ---
 
 ## Open Questions
