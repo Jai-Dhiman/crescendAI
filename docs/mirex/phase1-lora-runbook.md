@@ -55,11 +55,17 @@ cd model/src/claim_measurement/difficulty && uv run python -m \
 0.12) all have defaults matching the design — pass them explicitly only if
 deviating.
 
-Read the printed `staged N MIDIs, 5 fold plans, ...` report before it uploads.
-Abort criterion: if `n_midis` is far from the expected ~4000-4300 per fold
-(sum across all 5 folds' train+val, deduplicated union will be close to the
-full 5798-piece pool minus per-fold exclusions), STOP and re-check the sample
-manifest and labels join.
+Read the printed `staged N MIDIs, 5 fold plans, ..., 2 code files, ...`
+report before it uploads. Abort criterion: if `n_midis` is far from the
+expected ~4000-4300 per fold (sum across all 5 folds' train+val, deduplicated
+union will be close to the full 5798-piece pool minus per-fold exclusions),
+STOP and re-check the sample manifest and labels join.
+
+The uploaded bundle's `code/` subdir carries `ranking_loss.py` and
+`bakeoff_cv.py` verbatim -- `train_fold.py` (Stage 2/3) downloads this SAME
+bundle repo at startup and imports `combined_loss`/`tau_c` from `code/`,
+because `hf jobs uv run <file>` uploads only the one file named on the
+command line, never the rest of this package.
 
 ## Stage 2 — the pilot fold
 
@@ -75,8 +81,19 @@ hf jobs uv run --flavor a100-large --timeout 3h \
     --eval-manifest /path/to/eval_manifest.json \
     --midi-dir /path/to/staging/phase1-lora-bundle/midi \
     --out-dir /path/to/fold_embeddings/fold0 \
+    --bundle-repo <your-hf-username>/phase1-lora-bundle \
+    --output-repo <your-hf-username>/phase1-lora-fold0 \
     --micro-batch 8
 ```
+
+`--bundle-repo` is the SAME `--repo-id` Stage 1 uploaded to; `train_fold.py`
+`snapshot_download`s it at startup (no separate download step needed).
+`--output-repo` uploads `adapter/` and `emb_fold0.npz` to a Hub model repo
+once training finishes -- **do not omit it for a real job run**: the job
+container's local disk (`--out-dir`), and the GPU time that filled it, is
+discarded when the container exits. (`--bundle-dir` is also accepted in
+place of `--bundle-repo`, for a local/offline run against an
+already-downloaded bundle; it is not useful inside a fresh job container.)
 
 Monitor with `hf jobs ps`, `hf jobs logs <job-id>`, `hf jobs inspect <job-id>`.
 Abort criteria (design spec's Open Questions):
@@ -95,8 +112,24 @@ If the pilot's `emb_fold0.npz` looks reasonable (900 rows, finite values), proce
 ## Stage 3 — folds 1-4 (same seed, ~$13 total for all 5)
 
 Repeat Stage 2 with `--fold 1`, `--fold 2`, `--fold 3`, `--fold 4`, same
-`--fold-plan`/`--pool-grades`/`--eval-manifest`, different `--out-dir` per fold
-(e.g. `fold_embeddings/fold{N}`).
+`--fold-plan`/`--pool-grades`/`--eval-manifest`/`--bundle-repo`, different
+`--out-dir` and `--output-repo` per fold (e.g. `fold_embeddings/fold{N}` and
+`<your-hf-username>/phase1-lora-fold{N}`).
+
+## Stage 3.5 — bring the fold embeddings back to local disk
+
+Each fold's `train_fold.py` run uploaded its artifacts to its own
+`--output-repo` and left nothing useful on the job container's disk once it
+exits. Download `emb_fold{F}.npz` for all 5 folds into the SAME
+`fold_embeddings/` layout Stage 4 expects, before running it. Stage 5 also
+needs each fold's `adapter/` directory, so pull that down too:
+
+```bash
+for f in 0 1 2 3 4; do
+    hf download <your-hf-username>/phase1-lora-fold$f \
+        --local-dir /path/to/fold_embeddings/fold$f
+done
+```
 
 ## Stage 4 — gate (i): encoder-as-feature-extractor (local, CPU, free)
 
