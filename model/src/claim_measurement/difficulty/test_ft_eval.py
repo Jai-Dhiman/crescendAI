@@ -1,0 +1,133 @@
+"""Tests for ft_eval (#149 / #138 Phase 1) -- the gate: OOF where X differs
+per fold, plus the CLI wiring against features37 + emb_fold{F}.npz files.
+
+Run: cd model && uv run python -m pytest src/claim_measurement/difficulty/ -q --no-cov
+"""
+import numpy as np
+import pytest
+
+from claim_measurement.difficulty.bakeoff_cv import tau_c
+from claim_measurement.difficulty.ft_eval import oof_tau_per_fold
+
+
+def test_oof_tau_per_fold_recovers_a_strong_per_fold_linear_signal():
+    rng = np.random.default_rng(2026)
+    n = 200
+    n_folds = 5
+    # all distinct -> vacuous disjointness
+    composers = np.array([f"composer_{i}" for i in range(n)])
+    y = rng.integers(0, 11, size=n).astype(float)
+
+    # Fold f's signal lives ONLY in column f; every other column is pure
+    # noise. This is only visible when each fold uses ITS OWN embedding
+    # matrix: a ridge head trained on fold f's matrix but evaluated against a
+    # different fold's matrix (or vice versa -- the shape of a bug in
+    # ft_eval.main's per-fold npz load loop that pairs a train/test split
+    # with the wrong adapter's embeddings) reads a pure-noise column there
+    # and tau-c collapses. A fold-invariant *scale* signal (y * (f + 1)) does
+    # not have this property: any single fold's matrix is, on its own, a
+    # valid predictor of the whole y vector, so reusing it throughout is
+    # statistically indistinguishable from correct per-fold usage.
+    emb_by_fold = {}
+    for f in range(n_folds):
+        rng_f = np.random.default_rng(1000 + f)
+        noise = rng_f.normal(size=(n, n_folds)) * 0.01
+        noise[:, f] = y
+        emb_by_fold[f] = noise
+
+    oof = oof_tau_per_fold(emb_by_fold, y, composers, n_folds=n_folds, seed=2026)
+
+    assert not np.isnan(oof).any()
+    assert tau_c(oof, y) > 0.9
+
+
+def test_oof_tau_per_fold_raises_on_missing_fold_embeddings():
+    composers = np.array([f"composer_{i}" for i in range(50)])
+    y = np.arange(50, dtype=float) % 11
+    emb_by_fold = {0: np.random.default_rng(0).normal(size=(50, 2))}  # folds 1-4 gone
+
+    with pytest.raises(KeyError):
+        oof_tau_per_fold(emb_by_fold, y, composers, n_folds=5, seed=2026)
+
+
+from claim_measurement.difficulty.bakeoff_npz import write_embedding_npz
+from claim_measurement.difficulty.ft_eval import main
+from claim_measurement.difficulty.train_fold import write_fold_embeddings
+
+
+def test_main_prints_the_gate_comparison_against_features37(tmp_path, capsys):
+    data_root = tmp_path / "data"
+    emb_dir = data_root / "results" / "bakeoff" / "emb" / "features37"
+    rng = np.random.default_rng(0)
+    n = 60
+    seg_ids = [f"p{i:03d}" for i in range(n)]  # zero-padded -> lexical == list order
+    grades = rng.integers(0, 11, size=n)
+    composers = np.arange(n)  # all distinct -> vacuous disjointness, like the real 900
+
+    for i, seg_id in enumerate(seg_ids):
+        write_embedding_npz(emb_dir / f"{seg_id}.npz",
+                             {"raw37": rng.normal(size=5).astype(np.float32)},
+                             grade=int(grades[i]), composer_id=int(composers[i]))
+
+    fold_emb_dir = tmp_path / "fold_embeddings"
+    for f in range(5):
+        # feature 0 is a strong linear signal so the gate reports SIG, not noise
+        embeddings = np.column_stack([grades.astype(np.float32) * (f + 1),
+                                       rng.normal(size=(n, 2)).astype(np.float32)])
+        write_fold_embeddings(fold_emb_dir / f"emb_fold{f}.npz", seg_ids=seg_ids,
+                               embeddings=embeddings, grades=grades,
+                               composer_ids=composers)
+
+    exit_code = main(
+        ["--data-root", str(data_root), "--fold-emb-dir", str(fold_emb_dir)])
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "moonbeam_ft_mean|ridge - features37|ridge:" in out
+
+
+def test_main_reads_each_fold_from_its_own_emb_fold_npz(tmp_path, capsys):
+    """Structural guard on the pairing invariant: fold f's ridge rows must come
+    from emb_fold{f}.npz, not from one adapter's file reused for every fold.
+
+    A statistical fixture cannot catch that bug. One matrix used CONSISTENTLY
+    for a fold's train and test rows is a legitimate CV of a different
+    experiment, so it scores just as well as correct routing (measured: 0.9986
+    either way). This fixture breaks the symmetry instead -- only fold 0's file
+    carries signal, the rest are noise -- so correct per-fold routing yields a
+    LOW tau-c while reusing fold 0 everywhere yields a high one.
+    """
+    data_root = tmp_path / "data"
+    emb_dir = data_root / "results" / "bakeoff" / "emb" / "features37"
+    rng = np.random.default_rng(7)
+    n = 60
+    seg_ids = [f"p{i:03d}" for i in range(n)]
+    grades = rng.integers(0, 11, size=n)
+    composers = np.arange(n)
+
+    for i, seg_id in enumerate(seg_ids):
+        write_embedding_npz(emb_dir / f"{seg_id}.npz",
+                             {"raw37": rng.normal(size=5).astype(np.float32)},
+                             grade=int(grades[i]), composer_id=int(composers[i]))
+
+    fold_emb_dir = tmp_path / "fold_embeddings"
+    for f in range(5):
+        signal = (grades.astype(np.float32) if f == 0
+                  else rng.normal(size=n).astype(np.float32))
+        noise = rng.normal(size=(n, 2)).astype(np.float32)
+        embeddings = np.column_stack([signal, noise])
+        write_fold_embeddings(fold_emb_dir / f"emb_fold{f}.npz", seg_ids=seg_ids,
+                               embeddings=embeddings, grades=grades,
+                               composer_ids=composers)
+
+    assert main(["--data-root", str(data_root),
+                 "--fold-emb-dir", str(fold_emb_dir)]) == 0
+
+    line = next(ln for ln in capsys.readouterr().out.splitlines()
+                if ln.startswith("moonbeam_ft_mean|ridge tau-c"))
+    measured = float(line.split()[-1])
+    # Only 1 of 5 folds can be predicted, so correct routing lands near 0.2 of a
+    # full-signal run. Reusing fold 0's matrix for every fold scores >0.9 here.
+    assert measured < 0.5, (
+        f"tau-c {measured} is too high for a fixture where only fold 0 carries "
+        f"signal -- main is not reading each fold from its own emb_fold{{f}}.npz")
