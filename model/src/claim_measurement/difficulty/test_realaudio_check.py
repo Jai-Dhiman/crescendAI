@@ -60,6 +60,41 @@ def test_transcribe_stage_skips_pieces_whose_cache_file_already_exists(tmp_path)
 
 
 from claim_measurement.difficulty.realaudio_check import score_audio_subset
+from claim_measurement.difficulty.bakeoff_cv import composer_disjoint_folds
+
+
+def _fold_signal_embeddings(y, composers, seg_ids, audio_subset_ids, n_folds,
+                             seed, rng):
+    """Build a per-fold embedding fixture where fold f's matrix carries the
+    y signal ONLY in column f (every other column is pure noise). This is
+    deliberately NON-identical across folds: a ridge model fit on the WRONG
+    fold's matrix cannot recover y through it, because that fold's
+    informative column is elsewhere. audio_embeddings mirrors this -- each
+    subset piece's vector carries its signal in ITS OWN true-fold column
+    (looked up via the same composer_disjoint_folds used inside
+    score_audio_subset) and zeros elsewhere, matching emb_by_fold's shape.
+    A bug that scores every piece through one fixed fold's model then reads
+    a pure-noise column and the correlation collapses."""
+    test_folds = composer_disjoint_folds(composers, n_folds, seed)
+    fold_of_idx = {i: f for f, idx in enumerate(test_folds) for i in idx}
+
+    emb_by_fold = {
+        f: np.column_stack([
+            (y + rng.normal(scale=0.01, size=len(y))) if c == f
+            else rng.normal(size=len(y))
+            for c in range(n_folds)
+        ]).astype(np.float32)
+        for f in range(n_folds)
+    }
+
+    audio_embeddings = {}
+    for i, seg_id in enumerate(seg_ids):
+        if seg_id in audio_subset_ids:
+            vec = np.zeros(n_folds, dtype=np.float32)
+            vec[fold_of_idx[i]] = y[i] + 0.05
+            audio_embeddings[seg_id] = vec
+
+    return emb_by_fold, audio_embeddings
 
 
 def test_score_audio_subset_reports_matched_symbolic_and_audio_tau_c():
@@ -70,18 +105,9 @@ def test_score_audio_subset_reports_matched_symbolic_and_audio_tau_c():
     y = rng.integers(0, 11, size=n).astype(float)
     seg_ids = [f"p{i:03d}" for i in range(n)]
 
-    emb_by_fold = {
-        f: np.column_stack([y, rng.normal(size=(n, 2)) * 0.01]).astype(np.float32)
-        for f in range(5)
-    }
     audio_subset = set(seg_ids[:20])
-    audio_embeddings = {
-        # 3 columns to match emb_by_fold's 3-column shape (y + 2 noise cols) --
-        # score_audio_subset scores this row through the SAME ridge model fit
-        # on emb_by_fold[fold], so the feature count must match exactly.
-        seg_id: np.array([y[i] + 0.05, 0.0, 0.0], dtype=np.float32)
-        for i, seg_id in enumerate(seg_ids) if seg_id in audio_subset
-    }
+    emb_by_fold, audio_embeddings = _fold_signal_embeddings(
+        y, composers, seg_ids, audio_subset, n_folds=5, seed=2026, rng=rng)
 
     # unused by this test's assertions
     features37_x = rng.normal(size=(n, 5)).astype(np.float32)
@@ -102,20 +128,15 @@ def test_score_audio_subset_reports_features37_gate_paired_against_audio():
     y = rng.integers(0, 11, size=n).astype(float)
     seg_ids = [f"p{i:03d}" for i in range(n)]
 
-    emb_by_fold = {
-        f: np.column_stack([y, rng.normal(size=(n, 2)) * 0.01]).astype(np.float32)
-        for f in range(5)
-    }
+    audio_subset = set(seg_ids[:20])
+    emb_by_fold, audio_embeddings = _fold_signal_embeddings(
+        y, composers, seg_ids, audio_subset, n_folds=5, seed=2026, rng=rng)
+
     # A deliberately weak features37 stand-in (heavy noise on top of y) so the
     # near-perfect audio arm clearly beats it -- this fixture only needs to
     # prove the gate computes and pairs correctly, not that any real numbers hold.
     features37_x = np.column_stack([y + rng.normal(scale=4.0, size=n),
                                      rng.normal(size=(n, 4))]).astype(np.float32)
-    audio_subset = set(seg_ids[:20])
-    audio_embeddings = {
-        seg_id: np.array([y[i] + 0.05, 0.0, 0.0], dtype=np.float32)
-        for i, seg_id in enumerate(seg_ids) if seg_id in audio_subset
-    }
 
     result = score_audio_subset(emb_by_fold, audio_embeddings, features37_x, y,
                                  composers, seg_ids, n_folds=5, seed=2026)
