@@ -3,11 +3,15 @@ auxiliary loss, real torch on CPU, no mocks.
 
 Run: cd model && uv run python -m pytest src/claim_measurement/difficulty/ -q --no-cov
 """
+import pytest
 import torch
 
-from claim_measurement.difficulty.ranking_loss import ordered_pairs
-from claim_measurement.difficulty.ranking_loss import ordinal_loss
-from claim_measurement.difficulty.ranking_loss import pairwise_ranking_loss
+from claim_measurement.difficulty.ranking_loss import (
+    combined_loss,
+    ordered_pairs,
+    ordinal_loss,
+    pairwise_ranking_loss,
+)
 
 
 def test_ordered_pairs_finds_all_strictly_grade_ordered_index_pairs():
@@ -54,3 +58,19 @@ def test_ordinal_loss_penalizes_wrong_threshold_predictions():
     wrong_loss = ordinal_loss(wrong_logits, grades, n_levels)
 
     assert correct_loss.item() < wrong_loss.item()
+
+
+def test_combined_loss_equals_pairwise_plus_weighted_ordinal():
+    grades = torch.tensor([1, 3])
+    scores = torch.tensor([0.2, 0.8])
+    n_levels = 11
+    ordinal_logits = torch.zeros((2, n_levels - 1))
+    weight = 0.1
+
+    combined = combined_loss(
+        scores, ordinal_logits, grades, n_levels, ordinal_weight=weight
+    )
+    expected = (pairwise_ranking_loss(scores, grades)
+                + weight * ordinal_loss(ordinal_logits, grades, n_levels))
+
+    assert combined.item() == pytest.approx(expected.item())

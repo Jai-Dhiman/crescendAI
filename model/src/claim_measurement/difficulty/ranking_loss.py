@@ -43,3 +43,17 @@ def ordinal_loss(
     thresholds = torch.arange(n_levels - 1, device=grades.device)
     targets = (grades.unsqueeze(1) > thresholds.unsqueeze(0)).float()
     return torch.nn.functional.binary_cross_entropy_with_logits(logits, targets)
+
+
+def combined_loss(
+    scores: torch.Tensor,
+    ordinal_logits: torch.Tensor,
+    grades: torch.Tensor,
+    n_levels: int,
+    ordinal_weight: float,
+) -> torch.Tensor:
+    """The training objective train_fold.py optimizes: pairwise ranking loss
+    (primary, matches the tau-c gate metric) plus a low-weight ordinal
+    auxiliary (keeps the score scale from drifting freely)."""
+    return (pairwise_ranking_loss(scores, grades)
+            + ordinal_weight * ordinal_loss(ordinal_logits, grades, n_levels))
