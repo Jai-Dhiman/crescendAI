@@ -4,7 +4,7 @@ import { readTokenTable } from "./read-tokens";
 describe("readTokenTable", () => {
 	it("reads the @theme base block as the light table", () => {
 		const light = readTokenTable("light");
-		expect(light["color-accent"]).toBe("#7a9a82");
+		expect(light["color-accent"]).toBe("#4a6650");
 	});
 
 	it('overlays html[data-theme="dark"] on the base for the dark table', () => {
