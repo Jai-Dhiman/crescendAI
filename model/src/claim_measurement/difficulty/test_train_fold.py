@@ -509,3 +509,49 @@ def test_main_does_not_download_a_checkpoint_that_was_passed_explicitly(tmp_path
 
     assert exit_code == 0
     assert not downloads
+
+
+def test_script_header_declares_every_dep_the_staged_bundle_code_imports():
+    """`hf jobs uv run` builds the container from train_fold.py's `# /// script`
+    header alone, but the code it imports at runtime comes from the BUNDLE's
+    code/ dir (push_train_dataset._CODE_FILES). A module-scope import in one of
+    those files that the header does not declare fails only inside a paid
+    container, ~1 minute in, after the 6260-file bundle download.
+
+    That is exactly how the first real pilot job died: bakeoff_cv.py does
+    `from scipy import stats`, and the header listed numpy but not scipy.
+    """
+    import ast
+    import re
+    import sys
+    from pathlib import Path
+
+    from claim_measurement.difficulty import train_fold as train_fold_module
+    from claim_measurement.difficulty.push_train_dataset import _CODE_FILES
+
+    train_fold_path = Path(train_fold_module.__file__).resolve()
+    module_dir = train_fold_path.parent
+    block = re.search(r"# /// script\n(.*?)# ///",
+                      train_fold_path.read_text(), re.DOTALL).group(1)
+    declared = {re.split(r"[<>=!\[]", d)[0].strip().lower().replace("-", "_")
+                for d in re.findall(r'"([^"]+)"', block)}
+    # distribution name -> importable top-level module, where they differ
+    declared |= {"sklearn" if d == "scikit_learn" else d for d in declared}
+
+    for filename in _CODE_FILES:
+        tree = ast.parse((module_dir / filename).read_text())
+        # module scope only -- lazy imports inside functions are not container-fatal
+        for node in tree.body:
+            if isinstance(node, ast.Import):
+                roots = [a.name.split(".")[0] for a in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                roots = [node.module.split(".")[0]]
+            else:
+                continue
+            for root in roots:
+                if root in ("__future__",) or root in sys.stdlib_module_names:
+                    continue
+                assert root in declared, (
+                    f"{filename} imports {root!r} at module scope, but train_fold.py's "
+                    f"`# /// script` header does not declare it. The HF Jobs container "
+                    f"would die on import. Declared: {sorted(declared)}")
