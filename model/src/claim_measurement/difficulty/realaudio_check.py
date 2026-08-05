@@ -53,5 +53,66 @@ def midi_drift(reference_notes: list, candidate_notes: list, onset_tolerance: fl
     return {"note_count_delta": len(candidate_notes) - len(reference_notes), "onset_f1": f1}
 
 
+def _import_transcribe_wav():
+    """Locate apps/inference/amt (import-safe transkun_cli) from CWD-up or
+    file-up and return its transcribe_wav. Mirrors follower_eval/build_corpus.py's
+    locate-and-import pattern -- kept lazy so tests that inject a fake
+    transcriber never need transkun_cli's own heavy deps on the import path."""
+    for base in (Path.cwd(), Path(__file__).resolve()):
+        for parent in [base, *base.parents]:
+            cand = parent / "apps" / "inference" / "amt"
+            if (cand / "transkun_cli.py").exists():
+                sys.path.insert(0, str(cand))
+                from transkun_cli import transcribe_wav  # type: ignore
+
+                return transcribe_wav
+    raise RuntimeError(
+        "could not locate apps/inference/amt/transkun_cli.py from CWD or module path"
+    )
+
+
+def _write_cache_atomic(path: Path, notes: list, pedals: list) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, suffix=".json.tmp")
+    try:
+        with os.fdopen(fd, "w") as fh:
+            json.dump({"notes": notes, "pedals": pedals}, fh)
+        os.replace(tmp_name, path)
+    except BaseException:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise
+
+
+def main(argv=None, transcriber=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--wav-manifest", type=Path, required=True,
+                    help="JSON list of {seg_id, wav_path}")
+    ap.add_argument("--out-dir", type=Path, required=True)
+    args = ap.parse_args(argv)
+
+    if transcriber is None:
+        transcriber = _import_transcribe_wav()
+
+    entries = json.loads(args.wav_manifest.read_text())
+    args.out_dir.mkdir(parents=True, exist_ok=True)
+    done, skipped, failed = 0, 0, []
+    for e in entries:
+        out_path = Path(args.out_dir) / f"{e['seg_id']}.json"
+        if out_path.exists():
+            skipped += 1
+            continue
+        try:
+            notes, pedals = transcriber(Path(e["wav_path"]))
+            _write_cache_atomic(out_path, notes, pedals)
+            done += 1
+        except Exception as exc:  # noqa: BLE001 -- record and continue; the report is the source of truth
+            failed.append(f"{e['seg_id']}: {exc!r}")
+    print(f"transcribed={done} skipped={skipped} failed={len(failed)}")
+    for f in failed[:10]:
+        print(f"  FAIL {f}")
+    return 0 if not failed else 1
+
+
 if __name__ == "__main__":
-    sys.exit(0)  # placeholder exit; main() is added in Task 17
+    sys.exit(main())
