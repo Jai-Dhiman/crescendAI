@@ -11,7 +11,7 @@ export function ExerciseProofBlock({ manifests }: ExerciseProofBlockProps) {
 		<section aria-label="Exercise proof block" className="py-24 lg:py-32">
 			<div className="max-w-5xl mx-auto px-6 lg:px-12">
 				{/* Research callout */}
-				<p className="text-body-md text-text-secondary text-center mb-12">
+				<p className="text-body-md text-ink-secondary text-center mb-12">
 					Music AI that listens for expression, not just notes &mdash; trained
 					on competitive performance data from international competitions.
 					<sup>

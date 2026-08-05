@@ -45,7 +45,7 @@ export function ReflectionMessage({
 	return (
 		<div className="flex flex-col gap-3 mt-1">
 			<p
-				className="text-body-sm text-text-primary leading-relaxed"
+				className="text-body-sm text-ink-primary leading-relaxed"
 				data-testid="synthesis-headline"
 			>
 				{reflectionText}
@@ -66,7 +66,7 @@ export function ReflectionMessage({
 						type="button"
 						onClick={handleDecline}
 						disabled={confirmState === "loading"}
-						className="text-body-xs px-3 py-1.5 rounded-lg border border-border text-text-tertiary hover:text-cream hover:border-accent transition disabled:opacity-50"
+						className="text-body-xs px-3 py-1.5 rounded-lg border border-border-subtle text-ink-tertiary hover:text-ink-primary hover:border-accent transition disabled:opacity-50"
 					>
 						Not now
 					</button>
@@ -74,7 +74,7 @@ export function ReflectionMessage({
 			)}
 
 			{confirmState === "error" && (
-				<p className="text-body-xs text-red-400">
+				<p className="text-body-xs text-danger">
 					Failed to load exercise. Try again.
 				</p>
 			)}
