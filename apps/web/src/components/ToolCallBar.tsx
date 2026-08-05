@@ -35,7 +35,7 @@ function getDisplayName(name: string): string {
 export function ToolCallBar({ toolCall }: { toolCall: ToolCallStatus }) {
 	if (toolCall.status === "pending") {
 		return (
-			<div className="flex items-center gap-2 text-body-xs text-text-tertiary">
+			<div className="flex items-center gap-2 text-body-xs text-ink-tertiary">
 				<CircleNotch size={12} className="animate-spin shrink-0" />
 				<span>{getLoadingLabel(toolCall.name)}</span>
 			</div>
@@ -44,7 +44,7 @@ export function ToolCallBar({ toolCall }: { toolCall: ToolCallStatus }) {
 
 	if (toolCall.status === "found") {
 		return (
-			<div className="flex items-center gap-2 text-body-xs text-text-secondary">
+			<div className="flex items-center gap-2 text-body-xs text-ink-secondary">
 				<Check size={12} className="shrink-0 text-accent" />
 				<span>{toolCall.label}</span>
 			</div>
@@ -53,7 +53,7 @@ export function ToolCallBar({ toolCall }: { toolCall: ToolCallStatus }) {
 
 	if (toolCall.status === "not_found") {
 		return (
-			<div className="flex items-center gap-2 text-body-xs text-text-tertiary">
+			<div className="flex items-center gap-2 text-body-xs text-ink-tertiary">
 				<Minus size={12} className="shrink-0" />
 				<span>Piece not found</span>
 			</div>
@@ -64,14 +64,14 @@ export function ToolCallBar({ toolCall }: { toolCall: ToolCallStatus }) {
 		return (
 			<div
 				role="alert"
-				className="flex items-start gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-body-xs text-red-300"
+				className="flex items-start gap-2 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-body-xs text-danger"
 			>
 				<WarningCircle size={14} className="mt-0.5 shrink-0" />
 				<div className="min-w-0">
 					<div className="font-medium">
 						{getDisplayName(toolCall.name)} failed
 					</div>
-					<div className="mt-0.5 text-red-200/80 break-words">
+					<div className="mt-0.5 text-danger/80 break-words">
 						{toolCall.message}
 					</div>
 				</div>
@@ -80,7 +80,7 @@ export function ToolCallBar({ toolCall }: { toolCall: ToolCallStatus }) {
 	}
 
 	return (
-		<div className="flex items-center gap-2 text-body-xs text-text-secondary">
+		<div className="flex items-center gap-2 text-body-xs text-ink-secondary">
 			<Check size={12} className="shrink-0 text-accent" />
 			<span>Done</span>
 		</div>

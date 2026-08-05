@@ -580,21 +580,23 @@ function SandboxSection({ title, artifactId, children }: SandboxSectionProps) {
 	}
 
 	return (
-		<section className="border border-border rounded-xl bg-surface-card p-5 flex flex-col gap-4">
+		<section className="border border-border-subtle rounded-xl bg-surface-raised p-5 flex flex-col gap-4">
 			<div className="flex items-center justify-between">
-				<h2 className="font-display text-display-xs text-cream">{title}</h2>
+				<h2 className="font-display text-display-xs text-ink-primary">
+					{title}
+				</h2>
 				<div className="flex items-center gap-2">
 					<button
 						type="button"
 						onClick={() => expand(artifactId)}
-						className="px-3 py-1.5 rounded-lg bg-surface border border-border text-body-sm text-text-secondary hover:text-cream hover:border-accent transition"
+						className="px-3 py-1.5 rounded-lg bg-surface-raised border border-border-subtle text-body-sm text-ink-secondary hover:text-ink-primary hover:border-accent transition"
 					>
 						Expand
 					</button>
 					<button
 						type="button"
 						onClick={handleReset}
-						className="px-3 py-1.5 rounded-lg bg-surface border border-border text-body-sm text-text-secondary hover:text-cream hover:border-accent transition"
+						className="px-3 py-1.5 rounded-lg bg-surface-raised border border-border-subtle text-body-sm text-ink-secondary hover:text-ink-primary hover:border-accent transition"
 					>
 						Reset
 					</button>
@@ -710,12 +712,12 @@ function ScoreResizePanel({ pieceId }: { pieceId: string }) {
 		<div className="flex flex-col gap-2">
 			<div
 				ref={panelRef}
-				className="relative border border-border rounded-lg overflow-hidden bg-white"
+				className="relative border border-border-subtle rounded-lg overflow-hidden bg-white"
 				style={{ width }}
 			>
-				{error && <p className="text-body-xs text-red-400 p-2">{error}</p>}
+				{error && <p className="text-body-xs text-danger p-2">{error}</p>}
 				{!svg && !error && (
-					<p className="text-body-xs text-text-tertiary p-2">Loading…</p>
+					<p className="text-body-xs text-ink-tertiary p-2">Loading…</p>
 				)}
 				{svg && <SvgPanel svgMarkup={svg} />}
 				{/* biome-ignore lint/a11y/useSemanticElements: a focusable window splitter cannot be an <hr>; it needs drag and key handlers. */}
@@ -729,10 +731,10 @@ function ScoreResizePanel({ pieceId }: { pieceId: string }) {
 					aria-valuenow={width}
 					aria-valuemin={SANDBOX_MIN_WIDTH}
 					aria-valuemax={SANDBOX_MAX_WIDTH}
-					className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize bg-border hover:bg-accent transition-colors"
+					className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize bg-border-subtle hover:bg-accent transition-colors"
 				/>
 			</div>
-			<span className="text-body-xs text-text-tertiary">
+			<span className="text-body-xs text-ink-tertiary">
 				Width: {width}px — drag right edge to reflow bars
 			</span>
 		</div>
@@ -784,10 +786,10 @@ function ScoreClipPanel({
 	return (
 		<div className="flex flex-col gap-1">
 			<span className="text-label-sm text-accent font-mono">{label}</span>
-			<div className="border border-border rounded-lg overflow-hidden bg-white">
-				{error && <p className="text-body-xs text-red-400 p-2">{error}</p>}
+			<div className="border border-border-subtle rounded-lg overflow-hidden bg-white">
+				{error && <p className="text-body-xs text-danger p-2">{error}</p>}
 				{!svg && !error && (
-					<p className="text-body-xs text-text-tertiary p-2">Loading…</p>
+					<p className="text-body-xs text-ink-tertiary p-2">Loading…</p>
 				)}
 				{svg && <ClipSvg svg={svg} />}
 			</div>
@@ -955,7 +957,7 @@ function ScoreCursorPanel({ pieceId }: { pieceId: string }) {
 					type="button"
 					onClick={handlePlayPause}
 					disabled={!ready}
-					className="px-3 py-1 bg-accent text-cream rounded text-body-sm disabled:opacity-50"
+					className="px-3 py-1 bg-accent text-ink-primary rounded text-body-sm disabled:opacity-50"
 				>
 					{isPlaying ? "Pause" : "Play"}
 				</button>
@@ -963,16 +965,16 @@ function ScoreCursorPanel({ pieceId }: { pieceId: string }) {
 					type="button"
 					onClick={handleReset}
 					disabled={!ready}
-					className="px-3 py-1 border border-border text-text-secondary rounded text-body-sm disabled:opacity-50"
+					className="px-3 py-1 border border-border-subtle text-ink-secondary rounded text-body-sm disabled:opacity-50"
 				>
 					Reset
 				</button>
-				<span className="text-body-xs text-text-tertiary">
+				<span className="text-body-xs text-ink-tertiary">
 					page-1 qstamp: 0 → {maxQstamp.toFixed(2)} (≈ {QSTAMP_PER_SEC}/sec,
 					loops)
 				</span>
 			</div>
-			<div className="font-mono text-body-xs text-text-tertiary whitespace-pre">
+			<div className="font-mono text-body-xs text-ink-tertiary whitespace-pre">
 				{`DEBUG: q=${Number.isNaN(debug.q) ? "null" : debug.q.toFixed(2)} bar=${debug.bar} lineX=${debug.lineX.toFixed(1)} vis=${debug.lineVis}\n  overlayVB="${debug.overlayVB}"\n  verovioVB="${debug.verovioVB}"`}
 			</div>
 			{/* Status sits OUTSIDE the cursor container: ScoreCursor owns its container's
@@ -980,13 +982,13 @@ function ScoreCursorPanel({ pieceId }: { pieceId: string }) {
 			    not also be managing children inside it — otherwise the reconciler crashes
 			    with "node to be removed is not a child of this node" when React tries to
 			    unmount a child we already wiped. */}
-			{error && <p className="text-body-xs text-red-400">{error}</p>}
+			{error && <p className="text-body-xs text-danger">{error}</p>}
 			{!ready && !error && (
-				<p className="text-body-xs text-text-tertiary">Loading…</p>
+				<p className="text-body-xs text-ink-tertiary">Loading…</p>
 			)}
 			<div
 				ref={containerRef}
-				className="relative border border-border rounded-lg overflow-hidden bg-white [&>svg]:w-full [&>svg]:block"
+				className="relative border border-border-subtle rounded-lg overflow-hidden bg-white [&>svg]:w-full [&>svg]:block"
 			/>
 		</div>
 	);
@@ -1114,7 +1116,7 @@ function PlayablePassageSection({
 				/>
 			) : (
 				<div className="h-10 flex items-center justify-center">
-					<div className="w-3.5 h-3.5 rounded-full border-2 border-text-tertiary/50 border-t-transparent animate-spin" />
+					<div className="w-3.5 h-3.5 rounded-full border-2 border-ink-tertiary/50 border-t-transparent animate-spin" />
 				</div>
 			)}
 		</SandboxSection>
@@ -1130,31 +1132,31 @@ function ArtifactSandbox() {
 		<ArtifactScrollContext.Provider value={scrollRef}>
 			<div
 				ref={scrollRef}
-				className="overflow-y-auto h-full bg-espresso text-cream"
+				className="overflow-y-auto h-full bg-surface-page text-ink-primary"
 			>
 				<div className="mx-auto max-w-2xl px-4 py-10 flex flex-col gap-8">
 					{/* Header */}
 					<div>
-						<h1 className="font-display text-display-md text-cream">
+						<h1 className="font-display text-display-md text-ink-primary">
 							Artifact Sandbox
 						</h1>
-						<p className="text-body-sm text-text-secondary mt-1">
+						<p className="text-body-sm text-ink-secondary mt-1">
 							Dev-only. Test each artifact type in isolation.
 						</p>
 					</div>
 
 					{/* ── SCORE ─────────────────────────────────────────────────── */}
-					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">
+					<h2 className="font-display text-display-sm text-ink-tertiary tracking-wide uppercase text-xs">
 						Score
 					</h2>
 
 					{/* Full score — resizable, bars reflow on drag-end */}
-					<section className="border border-border rounded-xl bg-surface-card p-5 flex flex-col gap-4">
+					<section className="border border-border-subtle rounded-xl bg-surface-raised p-5 flex flex-col gap-4">
 						<div>
-							<h2 className="font-display text-display-xs text-cream">
+							<h2 className="font-display text-display-xs text-ink-primary">
 								Full Score — Resizable
 							</h2>
-							<p className="text-body-sm text-text-secondary mt-1">
+							<p className="text-body-sm text-ink-secondary mt-1">
 								Page 1, Verovio re-renders on drag-end. Drag right edge wide and
 								narrow to see bar reflow.
 							</p>
@@ -1163,12 +1165,12 @@ function ArtifactSandbox() {
 					</section>
 
 					{/* Clip grid — static renders at various positions in the piece */}
-					<section className="border border-border rounded-xl bg-surface-card p-5 flex flex-col gap-4">
+					<section className="border border-border-subtle rounded-xl bg-surface-raised p-5 flex flex-col gap-4">
 						<div>
-							<h2 className="font-display text-display-xs text-cream">
+							<h2 className="font-display text-display-xs text-ink-primary">
 								Score Clips
 							</h2>
-							<p className="text-body-sm text-text-secondary mt-1">
+							<p className="text-body-sm text-ink-secondary mt-1">
 								Each clip renders the page containing startBar, then crops the
 								viewBox to show only the requested bar range. Tests measure
 								index accuracy, page boundaries, single-bar, and end-of-piece
@@ -1187,12 +1189,12 @@ function ArtifactSandbox() {
 					</section>
 
 					{/* Playback cursor — synthetic qstampSource sweep over page 1 */}
-					<section className="border border-border rounded-xl bg-surface-card p-5 flex flex-col gap-4">
+					<section className="border border-border-subtle rounded-xl bg-surface-raised p-5 flex flex-col gap-4">
 						<div>
-							<h2 className="font-display text-display-xs text-cream">
+							<h2 className="font-display text-display-xs text-ink-primary">
 								Playback Cursor
 							</h2>
-							<p className="text-body-sm text-text-secondary mt-1">
+							<p className="text-body-sm text-ink-secondary mt-1">
 								Loads the piece, calls scoreRenderer.getIR(), and instantiates a
 								ScoreCursor with a synthetic qstampSource that sweeps page-1
 								qstamps. Play/Pause toggles whether qstampSource returns a
@@ -1307,7 +1309,7 @@ function ArtifactSandbox() {
 					</SandboxSection>
 
 					{/* ── EXERCISES ─────────────────────────────────────────────── */}
-					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">
+					<h2 className="font-display text-display-sm text-ink-tertiary tracking-wide uppercase text-xs">
 						Exercises
 					</h2>
 
@@ -1399,7 +1401,7 @@ function ArtifactSandbox() {
 					</SandboxSection>
 
 					{/* ── PLAYBACK ──────────────────────────────────────────────── */}
-					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">
+					<h2 className="font-display text-display-sm text-ink-tertiary tracking-wide uppercase text-xs">
 						Playback
 					</h2>
 
@@ -1525,7 +1527,7 @@ function ArtifactSandbox() {
 					</SandboxSection>
 
 					{/* ── KEYBOARD ──────────────────────────────────────────────── */}
-					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">
+					<h2 className="font-display text-display-sm text-ink-tertiary tracking-wide uppercase text-xs">
 						Keyboard
 					</h2>
 

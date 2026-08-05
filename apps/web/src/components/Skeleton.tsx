@@ -5,7 +5,7 @@ interface SkeletonProps {
 export function Skeleton({ className = "" }: SkeletonProps) {
 	return (
 		<div
-			className={`bg-surface rounded animate-shimmer bg-[length:200%_100%] bg-gradient-to-r from-surface via-surface-2 to-surface ${className}`}
+			className={`bg-surface-raised rounded animate-shimmer bg-[length:200%_100%] bg-gradient-to-r from-surface-raised via-surface-sunken to-surface-raised ${className}`}
 		/>
 	);
 }
