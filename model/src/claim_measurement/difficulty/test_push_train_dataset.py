@@ -74,3 +74,19 @@ def test_stage_training_bundle_raises_when_a_referenced_piece_has_no_grade(tmp_p
 
     with pytest.raises(ValueError, match="no grade"):
         stage_training_bundle(paths, plans, tmp_path / "staging")
+
+
+def test_stage_training_bundle_raises_when_a_referenced_piece_has_no_midi_on_disk(
+    tmp_path,
+):
+    midi_dir = tmp_path / "transkun_mid"
+    midi_dir.mkdir()  # empty -- "a.mid" is never written
+    repo_snapshot_dir = tmp_path / "repo"
+    _write_fake_repo(repo_snapshot_dir)
+    plans = [FoldPlan(fold=0, test_seg_ids=("a",), train_seg_ids=(), val_seg_ids=())]
+    paths = BundleSources(
+        midi_dir=midi_dir, grades={"a": 3}, repo_snapshot_dir=repo_snapshot_dir
+    )
+
+    with pytest.raises(FileNotFoundError, match="a.mid"):
+        stage_training_bundle(paths, plans, tmp_path / "staging")
