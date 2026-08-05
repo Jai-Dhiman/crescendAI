@@ -7,10 +7,17 @@ interface AudioWaveformRingProps {
 	active: boolean;
 }
 
-// Sage green
-const SAGE_R = 122;
-const SAGE_G = 154;
-const SAGE_B = 130;
+function readAccentRgb(): [number, number, number] {
+	const hex = getComputedStyle(document.documentElement)
+		.getPropertyValue("--color-accent")
+		.trim();
+	const clean = hex.replace("#", "");
+	return [
+		Number.parseInt(clean.slice(0, 2), 16),
+		Number.parseInt(clean.slice(2, 4), 16),
+		Number.parseInt(clean.slice(4, 6), 16),
+	];
+}
 
 // Number of points around the circle
 const NUM_POINTS = 128;
@@ -169,6 +176,8 @@ export function AudioWaveformRing({
 				displacements[i] += (target - displacements[i]) * lerpAlpha;
 			}
 
+			const [accentR, accentG, accentB] = readAccentRgb();
+
 			// Compute opacity from energy (0.6 to 1.0)
 			const avgEnergy = analyserNode ? totalEnergy / NUM_POINTS : 0;
 			const opacity = 0.6 + avgEnergy * 0.4;
@@ -203,7 +212,7 @@ export function AudioWaveformRing({
 			}
 			ctx.closePath();
 
-			ctx.strokeStyle = `rgba(${SAGE_R}, ${SAGE_G}, ${SAGE_B}, ${opacity})`;
+			ctx.strokeStyle = `rgba(${accentR}, ${accentG}, ${accentB}, ${opacity})`;
 			ctx.lineWidth = STROKE_WIDTH;
 			ctx.stroke();
 
