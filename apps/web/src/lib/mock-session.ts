@@ -7,7 +7,7 @@ export interface MockSessionData {
 	observations: ObservationEvent[];
 }
 
-type Dimension =
+export type Dimension =
 	| "dynamics"
 	| "timing"
 	| "pedaling"
