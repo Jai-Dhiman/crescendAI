@@ -54,3 +54,25 @@ def test_val_carve_is_composer_disjoint_from_train_and_near_target_fraction():
         total = len(plan.train_seg_ids) + len(plan.val_seg_ids)
         frac = len(plan.val_seg_ids) / total
         assert 0.05 < frac < 0.20
+
+
+def test_check_fold_plans_flags_a_composer_that_straddles_test_and_train():
+    eval_entries = _entries(n_composers=5, pieces_per_composer=1, prefix="eval_")
+    pool_entries = eval_entries + _entries(
+        n_composers=5, pieces_per_composer=4, prefix="pool_")
+    plans = build_fold_plans(eval_entries, pool_entries, n_folds=5, seed=2026, val_frac=0.12)
+
+    fold0 = plans[0]
+    test_composer = next(e.composer for e in eval_entries if e.seg_id in fold0.test_seg_ids)
+    leaking_seg_id = next(e.seg_id for e in pool_entries if e.composer == test_composer)
+    tampered = FoldPlan(
+        fold=0, test_seg_ids=fold0.test_seg_ids,
+        train_seg_ids=fold0.train_seg_ids + (leaking_seg_id,),
+        val_seg_ids=fold0.val_seg_ids,
+    )
+    tampered_plans = [tampered if p.fold == 0 else p for p in plans]
+
+    violations = check_fold_plans(
+        tampered_plans, eval_entries, pool_entries, n_folds=5, seed=2026)
+
+    assert any("fold 0" in v for v in violations)

@@ -75,3 +75,47 @@ def _carve_val(train_pool, val_frac: float, seed: int):
     for e in train_pool:
         (val_seg_ids if e.composer in val_composers else train_seg_ids).append(e.seg_id)
     return tuple(train_seg_ids), tuple(val_seg_ids)
+
+
+def check_fold_plans(plans, eval_entries, pool_entries, n_folds: int, seed: int) -> list:
+    """Re-derive the expected test folds and return every leakage/consistency
+    violation found, as human-readable strings. Empty list == clean."""
+    violations: list = []
+    eval_composers = np.array([e.composer for e in eval_entries])
+    eval_seg_ids = [e.seg_id for e in eval_entries]
+    eval_seg_id_set = set(eval_seg_ids)
+    composer_of = {e.seg_id: e.composer for e in pool_entries}
+    composer_of.update({e.seg_id: e.composer for e in eval_entries})
+    expected_test_folds = composer_disjoint_folds(eval_composers, n_folds, seed)
+
+    if len(plans) != n_folds:
+        violations.append(f"expected {n_folds} plans, got {len(plans)}")
+
+    for plan in plans:
+        expected_test = {eval_seg_ids[i] for i in expected_test_folds[plan.fold]}
+        if set(plan.test_seg_ids) != expected_test:
+            violations.append(
+                f"fold {plan.fold}: test_seg_ids do not equal "
+                f"composer_disjoint_folds(eval composers, {n_folds}, {seed})[{plan.fold}]")
+
+        train_set = set(plan.train_seg_ids)
+        val_set = set(plan.val_seg_ids)
+        test_set = set(plan.test_seg_ids)
+        if train_set & test_set:
+            violations.append(f"fold {plan.fold}: train/test seg_id overlap")
+        if val_set & test_set:
+            violations.append(f"fold {plan.fold}: val/test seg_id overlap")
+        if train_set & val_set:
+            violations.append(f"fold {plan.fold}: train/val seg_id overlap")
+        if (train_set | val_set) & eval_seg_id_set:
+            violations.append(f"fold {plan.fold}: an eval piece leaked into train or val")
+
+        test_composers = {composer_of[s] for s in plan.test_seg_ids}
+        train_composers = {composer_of[s] for s in plan.train_seg_ids}
+        val_composers = {composer_of[s] for s in plan.val_seg_ids}
+        if test_composers & train_composers:
+            violations.append(f"fold {plan.fold}: a test composer appears in train")
+        if val_composers & train_composers:
+            violations.append(f"fold {plan.fold}: a val composer appears in train")
+
+    return violations
