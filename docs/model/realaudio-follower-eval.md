@@ -150,7 +150,18 @@ The 40 clips of `_random_sample.json` are all labeled. **These are corpus rates;
 
 **Confidence is conservative on the corpus, not merely calibrated — and the subset hid this.** In `gold_subset` the low-confidence stratum was 1 tracked against 9 wrong/junk; in the corpus sample it is **3 tracked against 4 junk**, with tracked clips going down to confidence **0.283** (`mozart_k545_mvt1/anaTIyEI9vI`, also `chopin_etude_op10no4/inatg1mSCqE` 0.317, `liszt_liebestraum_3/MnZRLzeplJg` 0.433). Selecting the lowest-confidence clip per piece selects the cases where low confidence was *right*; the corpus also contains hard playing the follower follows correctly anyway. Reading: a low-confidence corpus clip is roughly a coin flip between "unusable clip" and "tracked fine", so low confidence should suppress a claim, not be reported as a follower failure.
 
-**Caveat on `fraction_wrong`.** It is 0.000 on all 40 clips — no wrong span was ever flagged. The labeler's report was that brief confusions did occur but were not worth holding SPACE for. So the "median 0.0 of playback flagged wrong" figure reflects a labeling threshold as well as follower behavior, and must not be read as "provably zero mistracked time". The verdict field, not `fraction_wrong`, carries the evidence here.
+**`fraction_wrong` is UNUSABLE for this pass — the spans were lost, not absent.** It reads 0.000 on all 40 clips, but the labeler marked confusing passages with SPACE and saw the red spans render on the timeline; they did not reach disk. Do not interpret 0.000 as "no mistracked playback was observed": it is missing data. **The verdicts are unaffected** — they are a separate field, were entered and saved normally, and are what both PASS bars are computed from — so the bar results stand.
+
+Root cause is not fully established. The end-to-end path (real key hold → real verdict click → real Save) was driven under Playwright and writes spans correctly, including under the labeler's reported conditions (audio playing throughout, never pausing). Four defects were found and fixed; the leading candidate is the third, which silently overwrote saved spans with `[]` on any re-visit-and-re-save:
+
+| defect | fix |
+|---|---|
+| SPACE also toggled native play/pause when the `<audio>` element had focus, freezing `currentTime` under the hold | the player is blurred on focus, so SPACE only ever marks |
+| a hold shorter than 0.05 s was discarded with no feedback (which is what a paused hold produces) | the tool now says the mark was NOT recorded and why |
+| `selectClip` blanked marks and verdict, and re-selecting a saved clip restored nothing — so a second Save posted `[]` over real spans | saved spans and verdict are round-tripped from disk and restored on re-select; leaving with unsaved work prompts; reload prompts |
+| Save could post spans that disagreed with the red bar, and accepted `wrong`/`junk` with no marks silently | Save refuses on bar/payload divergence, confirms an unmarked `wrong`/`junk`, shows a live mark count, and reports the number saved |
+
+Regression tests cover the round-trip (`test_list_clips_carries_already_saved_spans_and_verdict`, `test_list_clips_unlabeled_clip_has_no_saved_state`).
 
 ## PASS bars (owner-set, 2026-08-05)
 
