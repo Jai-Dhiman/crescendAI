@@ -260,4 +260,10 @@ PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.realaudio \
 
 ## Relationship to synthetic `follower_bench` (superseded)
 
-`follower_bench/` supplied the matcher development history (#115 monotonic DP → #118 jump DP → #119 HMM) on synthetic clips. The matchers, metric core, and score-note loader remain. The synthetic clip/pathology machinery and `claim_measurement/gate1/` corruption layer remain until Track B is labeled, PASS bars are fixed, and #133 closes. Their later removal requires the approved destructive-cleanup batch.
+`follower_bench/` supplied the matcher development history (#115 monotonic DP → #118 jump DP → #119 HMM) on synthetic clips. **The synthetic machinery was pruned on 2026-08-05, owner-approved, once both PASS bars were met** (S5): `clip_generator.py`, `pathologies.py`, `gap_report.py`, `calibration.py`, `trajectory.py`, `metric.py` and their tests are deleted. Re-running the #115/#118/#119 synthetic comparisons now requires a git revert.
+
+**The package itself is load-bearing and must not be deleted.** `follower_eval` imports `hmm` (`follow_hmm`, `TUNED_HMM_PARAMS`), `follower` (`bar_boundary_columns`), `score_notes`, `segments`, and `asap_alignment` from it across `validate_tool`, `piece_id`, `realaudio`, `accuracy`, `asap_eval`, and `asap_audio`. Those five modules, `__init__.py`, and their tests stay.
+
+**`claim_measurement/gate1/` was NOT pruned.** Earlier revisions of this doc grouped it with the #133 cleanup; that was wrong. It is the live GATE 1 localization harness cited by `docs/model/claim-verifier-signed-d-conventions.md` and covered by two active test files.
+
+> Verifying the prune: run the suite from the PRIMARY checkout. `data/` is gitignored, so `__file__`-anchored ASAP paths resolve into a worktree that has no `data/raw/asap-dataset` and those tests fail environmentally. The prune took the worktree run from 33 failed / 113 passed to 5 failed / 98 passed — it removed pre-existing environmental failures and introduced none; the 5 survivors pass 7/7 when run where the data lives.
