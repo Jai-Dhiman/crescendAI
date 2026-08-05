@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	type BaselineState,
+	BaselineStateSchema,
 	type SessionSamples,
 	initialBaselineState,
 	updateBaseline,
@@ -28,5 +29,20 @@ describe("runSequence harness", () => {
 		]);
 		expect(trace).toHaveLength(1);
 		expect(trace[0].dimensions.pedaling.lifecycle).toBe("absent");
+	});
+});
+
+describe("cold start", () => {
+	it("uses the same call shape as any other session, and round-trips through JSON", () => {
+		const state = initialBaselineState();
+		const result = updateBaseline(state, {
+			timestamp: "2026-01-01T00:00:00Z",
+			scores: { phrasing: CLUSTER },
+		});
+		expect(result.dimensions.phrasing.lifecycle).toBe("absent");
+		expect(typeof result.dimensions.phrasing.noiseFloor).toBe("number");
+		const roundTripped = JSON.parse(JSON.stringify(result));
+		expect(() => BaselineStateSchema.parse(roundTripped)).not.toThrow();
+		expect(roundTripped).toEqual(result);
 	});
 });
