@@ -20,7 +20,14 @@ from pathlib import Path
 
 import numpy as np
 
-from claim_measurement.difficulty.bakeoff_cv import composer_disjoint_folds
+from claim_measurement.difficulty.bakeoff_cv import (
+    composer_disjoint_folds,
+    paired_boot,
+    tau_c,
+)
+from claim_measurement.difficulty.bakeoff_npz import read_embedding_npz
+from claim_measurement.difficulty.bakeoff_paths import resolve_paths
+from claim_measurement.difficulty.train_fold import read_fold_embeddings
 
 N_FOLDS, SEED = 5, 2026
 ALPHAS = np.logspace(-1, 5, 25)
@@ -51,13 +58,14 @@ def oof_tau_per_fold(emb_by_fold: dict, y: np.ndarray, composers: np.ndarray,
     return oof
 
 
-from claim_measurement.difficulty.bakeoff_cv import paired_boot, tau_c  # noqa: E402
-from claim_measurement.difficulty.bakeoff_npz import read_embedding_npz  # noqa: E402
-from claim_measurement.difficulty.bakeoff_paths import resolve_paths  # noqa: E402
-from claim_measurement.difficulty.train_fold import read_fold_embeddings  # noqa: E402
-
-
 def _ridge_oof(X, y, composers, n_folds, seed):
+    # Deliberately duplicates the inner loop of bakeoff_cv.oof_tau_ridge
+    # (same ALPHAS, same StandardScaler+RidgeCV, same nan_to_num):
+    # oof_tau_ridge returns a mean/std summary over seeds, not the
+    # single-seed OOF vector paired_boot needs here. bakeoff_cv.py is the
+    # reference implementation behind the 0.8048 gate and the frozen 0.8257
+    # number the whole phase is measured against, so it is left untouched
+    # rather than refactored to share this loop.
     from sklearn.linear_model import RidgeCV
     from sklearn.pipeline import make_pipeline
     from sklearn.preprocessing import StandardScaler
