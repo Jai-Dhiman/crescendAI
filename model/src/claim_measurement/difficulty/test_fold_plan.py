@@ -37,3 +37,20 @@ def test_build_fold_plans_excludes_eval_pieces_and_test_fold_composers_from_trai
         test_composers = {e.composer for e in eval_entries if e.seg_id in plan.test_seg_ids}
         train_composers = {pool_composer_of[s] for s in plan.train_seg_ids}
         assert not (test_composers & train_composers), "a test composer leaked into train"
+
+
+def test_val_carve_is_composer_disjoint_from_train_and_near_target_fraction():
+    eval_entries = _entries(n_composers=5, pieces_per_composer=1, prefix="eval_")
+    pool_entries = eval_entries + _entries(
+        n_composers=100, pieces_per_composer=4, prefix="pool_")
+
+    plans = build_fold_plans(eval_entries, pool_entries, n_folds=5, seed=2026, val_frac=0.12)
+
+    pool_composer_of = {e.seg_id: e.composer for e in pool_entries}
+    for plan in plans:
+        train_composers = {pool_composer_of[s] for s in plan.train_seg_ids}
+        val_composers = {pool_composer_of[s] for s in plan.val_seg_ids}
+        assert not (train_composers & val_composers)
+        total = len(plan.train_seg_ids) + len(plan.val_seg_ids)
+        frac = len(plan.val_seg_ids) / total
+        assert 0.05 < frac < 0.20
