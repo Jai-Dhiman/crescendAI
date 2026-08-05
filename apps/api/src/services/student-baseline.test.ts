@@ -77,4 +77,17 @@ describe("explicit failures", () => {
 			}),
 		).toThrow(/unparseable timestamp/);
 	});
+
+	it("throws on an out-of-order session timestamp", () => {
+		const state = updateBaseline(initialBaselineState(), {
+			timestamp: "2026-01-05T00:00:00Z",
+			scores: { pedaling: CLUSTER },
+		});
+		expect(() =>
+			updateBaseline(state, {
+				timestamp: "2026-01-01T00:00:00Z",
+				scores: { pedaling: CLUSTER },
+			}),
+		).toThrow(/precedes/);
+	});
 });

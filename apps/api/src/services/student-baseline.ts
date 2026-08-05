@@ -113,12 +113,20 @@ export function initialBaselineState(): BaselineState {
  * fold any evidence (Tasks 6+); every dimension simply passes through
  * unchanged.
  */
-function validateSession(_state: BaselineState, session: SessionSamples): void {
+function validateSession(state: BaselineState, session: SessionSamples): void {
 	const timestampMs = Date.parse(session.timestamp);
 	if (Number.isNaN(timestampMs)) {
 		throw new Error(
 			`updateBaseline: unparseable timestamp "${session.timestamp}"`,
 		);
+	}
+	if (state.lastSessionTimestamp !== null) {
+		const lastMs = Date.parse(state.lastSessionTimestamp);
+		if (timestampMs < lastMs) {
+			throw new Error(
+				`updateBaseline: session timestamp ${session.timestamp} precedes last folded session ${state.lastSessionTimestamp}`,
+			);
+		}
 	}
 	for (const [dimension, samples] of Object.entries(session.scores)) {
 		if (!(DIMS_6 as readonly string[]).includes(dimension)) {
