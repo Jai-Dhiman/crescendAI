@@ -22,6 +22,21 @@ def _write_fake_repo(repo_dir):
     (repo_dir / "README.md").write_text("moonbeam fork snapshot")
 
 
+def _write_fake_features37(features37_dir, seg_ids):
+    """The per-piece features37 .npz files ft_eval.py reads, and which the
+    staged eval_manifest.json must take its row order, grades and composer
+    ids from. Written out of order on purpose: the manifest's order comes
+    from the sorted filenames, not from insertion order."""
+    import numpy as np
+
+    from claim_measurement.difficulty.bakeoff_npz import write_embedding_npz
+
+    for i, seg_id in enumerate(reversed(list(seg_ids))):
+        write_embedding_npz(features37_dir / f"{seg_id}.npz",
+                            {"raw37": np.arange(37, dtype=np.float32) + i},
+                            grade=i % 11, composer_id=i)
+
+
 def test_stage_training_bundle_copies_every_referenced_piece_and_reports_counts(
     tmp_path,
 ):
@@ -45,6 +60,7 @@ def test_stage_training_bundle_copies_every_referenced_piece_and_reports_counts(
         midi_dir=midi_dir,
         grades={s: i for i, s in enumerate(seg_ids)},
         repo_snapshot_dir=repo_snapshot_dir,
+        eval_manifest=[{"seg_id": "a", "grade": 0, "composer_id": 0}],
     )
     staging_dir = tmp_path / "staging"
 
@@ -78,7 +94,8 @@ def test_stage_training_bundle_raises_when_a_referenced_piece_has_no_grade(tmp_p
     _write_fake_repo(repo_snapshot_dir)
     plans = [FoldPlan(fold=0, test_seg_ids=("a",), train_seg_ids=(), val_seg_ids=())]
     paths = BundleSources(
-        midi_dir=midi_dir, grades={}, repo_snapshot_dir=repo_snapshot_dir
+        midi_dir=midi_dir, grades={}, repo_snapshot_dir=repo_snapshot_dir,
+        eval_manifest=[]
     )
 
     with pytest.raises(ValueError, match="no grade"):
@@ -94,7 +111,8 @@ def test_stage_training_bundle_raises_when_a_referenced_piece_has_no_midi_on_dis
     _write_fake_repo(repo_snapshot_dir)
     plans = [FoldPlan(fold=0, test_seg_ids=("a",), train_seg_ids=(), val_seg_ids=())]
     paths = BundleSources(
-        midi_dir=midi_dir, grades={"a": 3}, repo_snapshot_dir=repo_snapshot_dir
+        midi_dir=midi_dir, grades={"a": 3}, repo_snapshot_dir=repo_snapshot_dir,
+        eval_manifest=[]
     )
 
     with pytest.raises(FileNotFoundError, match="fold plan references"):
@@ -130,6 +148,9 @@ def test_main_builds_fold_plans_stages_and_calls_the_injected_uploader(tmp_path)
     repo_snapshot_dir = tmp_path / "repo"
     _write_fake_repo(repo_snapshot_dir)
     staging_dir = tmp_path / "staging"
+    features37_dir = tmp_path / "features37"
+    features37_dir.mkdir()
+    _write_fake_features37(features37_dir, seg_ids[:6])
 
     calls = []
 
@@ -145,6 +166,7 @@ def test_main_builds_fold_plans_stages_and_calls_the_injected_uploader(tmp_path)
             "--repo-snapshot-dir", str(repo_snapshot_dir),
             "--staging-dir", str(staging_dir),
             "--repo-id", "jaidhiman/phase1-lora-bundle",
+            "--features37-dir", str(features37_dir),
             "--n-folds", "2",
         ],
         uploader=fake_uploader,
@@ -190,6 +212,9 @@ def test_main_refuses_to_stage_when_check_fold_plans_reports_a_violation(
     repo_snapshot_dir = tmp_path / "repo"
     _write_fake_repo(repo_snapshot_dir)
     staging_dir = tmp_path / "staging"
+    features37_dir = tmp_path / "features37"
+    features37_dir.mkdir()
+    _write_fake_features37(features37_dir, seg_ids[:6])
 
     def corrupt_build_fold_plans(eval_entries, pool_entries, n_folds, seed, val_frac):
         # A deliberately corrupted plan: fold 0's train set overlaps its own
@@ -220,6 +245,7 @@ def test_main_refuses_to_stage_when_check_fold_plans_reports_a_violation(
                 "--repo-snapshot-dir", str(repo_snapshot_dir),
                 "--staging-dir", str(staging_dir),
                 "--repo-id", "jaidhiman/phase1-lora-bundle",
+            "--features37-dir", str(features37_dir),
                 "--n-folds", "1",
             ],
             uploader=fake_uploader,
@@ -227,3 +253,86 @@ def test_main_refuses_to_stage_when_check_fold_plans_reports_a_violation(
 
     assert not calls
     assert not staging_dir.exists()
+
+
+def test_build_eval_manifest_row_order_matches_ft_evals_features37_seg_ids(tmp_path):
+    """ft_eval.py refuses any emb_fold{F}.npz whose seg_ids do not match
+    _load_features37's order, and train_fold.py emits its rows in the staged
+    eval_manifest's order -- so if these two orders can ever disagree, the
+    whole gate is unpaired. Proven against _load_features37 itself, not
+    against a second sorted() that happens to agree."""
+    from claim_measurement.difficulty.ft_eval import _load_features37
+    from claim_measurement.difficulty.push_train_dataset import build_eval_manifest
+
+    emb_root = tmp_path / "bakeoff"
+    features37_dir = emb_root / "emb" / "features37"
+    features37_dir.mkdir(parents=True)
+    seg_ids = ["p003", "p001", "p010", "p002"]
+    _write_fake_features37(features37_dir, seg_ids)
+
+    manifest = build_eval_manifest(features37_dir)
+    _, y, composers, loaded_seg_ids = _load_features37(emb_root)
+
+    assert [m["seg_id"] for m in manifest] == loaded_seg_ids
+    assert [m["grade"] for m in manifest] == list(y)
+    assert [m["composer_id"] for m in manifest] == list(composers)
+
+
+def test_stage_training_bundle_writes_the_eval_manifest_it_was_given(tmp_path):
+    midi_dir = tmp_path / "transkun_mid"
+    midi_dir.mkdir()
+    (midi_dir / "a.mid").write_bytes(b"x")
+    repo_snapshot_dir = tmp_path / "repo"
+    _write_fake_repo(repo_snapshot_dir)
+    eval_manifest = [{"seg_id": "e0", "grade": 4, "composer_id": 2},
+                     {"seg_id": "e1", "grade": 7, "composer_id": 3}]
+    paths = BundleSources(
+        midi_dir=midi_dir, grades={"a": 1}, repo_snapshot_dir=repo_snapshot_dir,
+        eval_manifest=eval_manifest)
+    staging_dir = tmp_path / "staging"
+
+    report = stage_training_bundle(
+        paths,
+        [FoldPlan(fold=0, test_seg_ids=("a",), train_seg_ids=(), val_seg_ids=())],
+        staging_dir)
+
+    assert report.n_eval_pieces == 2
+    assert json.loads(
+        (staging_dir / "eval_manifest.json").read_text()) == eval_manifest
+
+
+def test_stage_training_bundle_excludes_git_history_and_pycache_from_the_snapshot(
+    tmp_path,
+):
+    """The first real bundle was 119 MB, almost all of it the fork's .git
+    history, and it shipped 16 __pycache__ dirs of stale bytecode. Neither is
+    reachable from train_fold.py."""
+    midi_dir = tmp_path / "transkun_mid"
+    midi_dir.mkdir()
+    (midi_dir / "a.mid").write_bytes(b"x")
+    repo_snapshot_dir = tmp_path / "repo"
+    _write_fake_repo(repo_snapshot_dir)
+    (repo_snapshot_dir / ".git").mkdir()
+    (repo_snapshot_dir / ".git" / "objects").mkdir()
+    (repo_snapshot_dir / ".git" / "objects" / "pack").write_bytes(b"history")
+    (repo_snapshot_dir / "src" / "__pycache__").mkdir()
+    (repo_snapshot_dir / "src" / "__pycache__" / "m.cpython-312.pyc").write_bytes(b"x")
+    (repo_snapshot_dir / "src" / "loose.pyc").write_bytes(b"x")
+    paths = BundleSources(
+        midi_dir=midi_dir, grades={"a": 1}, repo_snapshot_dir=repo_snapshot_dir,
+        eval_manifest=[])
+    staging_dir = tmp_path / "staging"
+
+    report = stage_training_bundle(
+        paths,
+        [FoldPlan(fold=0, test_seg_ids=("a",), train_seg_ids=(), val_seg_ids=())],
+        staging_dir)
+
+    repo_out = staging_dir / "moonbeam_repo"
+    assert not (repo_out / ".git").exists()
+    assert not (repo_out / "src" / "__pycache__").exists()
+    assert not (repo_out / "src" / "loose.pyc").exists()
+    # only the two real files _write_fake_repo staged
+    assert report.repo_snapshot_files == 2
+    assert sorted(p.name for p in repo_out.rglob("*") if p.is_file()) == [
+        "README.md", "model_config.json"]

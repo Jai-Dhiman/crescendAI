@@ -25,6 +25,34 @@ class BundleSources:
     midi_dir: Path
     grades: dict
     repo_snapshot_dir: Path
+    eval_manifest: list
+
+
+# Junk the fork snapshot carries that must never reach the bundle: .git is the
+# fork's full history (the bulk of a 119 MB bundle), and __pycache__/*.pyc are
+# stale bytecode from local runs, which would shadow the .py files they were
+# compiled from if their timestamps happened to line up in the container.
+_REPO_SNAPSHOT_IGNORE = shutil.ignore_patterns(".git", "__pycache__", "*.pyc")
+
+
+def build_eval_manifest(features37_dir: Path) -> list[dict]:
+    """{seg_id, grade, composer_id} for every eval piece, in the SAME row
+    order ft_eval.py's _load_features37 reads -- both come from
+    bakeoff_paths.features37_seg_ids. grade/composer_id are read out of the
+    features37 .npz files themselves rather than re-joined from the label
+    JSON, so the manifest cannot disagree with the arm it is compared against.
+    ft_eval.py rejects any emb_fold{F}.npz whose seg_ids do not match this
+    order, and train_fold.py emits its rows in exactly this order."""
+    from claim_measurement.difficulty.bakeoff_npz import read_embedding_npz
+    from claim_measurement.difficulty.bakeoff_paths import features37_seg_ids
+
+    features37_dir = Path(features37_dir)
+    manifest = []
+    for seg_id in features37_seg_ids(features37_dir):
+        record = read_embedding_npz(features37_dir / f"{seg_id}.npz")
+        manifest.append({"seg_id": seg_id, "grade": record.grade,
+                          "composer_id": record.composer_id})
+    return manifest
 
 
 # Modules train_fold.py needs at train time but which `hf jobs uv run` never
@@ -39,6 +67,7 @@ _CODE_FILES = ("ranking_loss.py", "bakeoff_cv.py")
 class BundleReport:
     n_midis: int
     n_fold_plans: int
+    n_eval_pieces: int
     repo_snapshot_files: int
     code_files: int
     checksum: str
@@ -78,11 +107,14 @@ def stage_training_bundle(
         {seg_id: paths.grades[seg_id] for seg_id in seg_ids}))
     (staging_dir / "fold_plans.json").write_text(
         json.dumps([dataclasses.asdict(p) for p in plans]))
+    (staging_dir / "eval_manifest.json").write_text(
+        json.dumps(list(paths.eval_manifest)))
 
     repo_out = staging_dir / "moonbeam_repo"
     if repo_out.exists():
         shutil.rmtree(repo_out)
-    shutil.copytree(paths.repo_snapshot_dir, repo_out)
+    shutil.copytree(paths.repo_snapshot_dir, repo_out,
+                     ignore=_REPO_SNAPSHOT_IGNORE)
     repo_files = sum(1 for p in repo_out.rglob("*") if p.is_file())
 
     code_out = staging_dir / "code"
@@ -98,6 +130,7 @@ def stage_training_bundle(
             hasher.update(str(p.stat().st_size).encode())
 
     return BundleReport(n_midis=len(seg_ids), n_fold_plans=len(plans),
+                         n_eval_pieces=len(paths.eval_manifest),
                          repo_snapshot_files=repo_files, code_files=len(_CODE_FILES),
                          checksum=hasher.hexdigest())
 
@@ -118,6 +151,14 @@ def main(argv=None, uploader=None) -> int:
     ap.add_argument(
         "--repo-id", required=True,
         help="private HF dataset repo id, e.g. jaidhiman/phase1-lora-bundle")
+    ap.add_argument(
+        "--features37-dir", type=Path, default=None,
+        help="the per-piece features37 .npz dir the staged eval_manifest.json "
+             "takes its row order, grades and composer ids from; defaults to "
+             "<data-root>/results/bakeoff/emb/features37")
+    ap.add_argument(
+        "--data-root", type=Path, default=None,
+        help="only used to locate --features37-dir when that is not given")
     ap.add_argument("--n-folds", type=int, default=5)
     ap.add_argument("--seed", type=int, default=2026)
     ap.add_argument("--val-frac", type=float, default=0.12)
@@ -145,12 +186,22 @@ def main(argv=None, uploader=None) -> int:
             f"fold plan failed independent re-derivation, refusing to stage or "
             f"upload: {violations}")
 
+    from claim_measurement.difficulty.bakeoff_paths import (
+        features37_dir,
+        resolve_paths,
+    )
+
+    f37_dir = (args.features37_dir if args.features37_dir is not None
+               else features37_dir(resolve_paths(args.data_root).emb_root))
+    eval_manifest = build_eval_manifest(f37_dir)
+
     grades = {e.seg_id: e.grade for e in pool_entries}
     paths = BundleSources(
         midi_dir=args.midi_dir, grades=grades,
-        repo_snapshot_dir=args.repo_snapshot_dir)
+        repo_snapshot_dir=args.repo_snapshot_dir, eval_manifest=eval_manifest)
     report = stage_training_bundle(paths, plans, args.staging_dir)
     print(f"staged {report.n_midis} MIDIs, {report.n_fold_plans} fold plans, "
+          f"{report.n_eval_pieces} eval pieces, "
           f"{report.repo_snapshot_files} repo files, {report.code_files} code files, "
           f"checksum {report.checksum}")
 

@@ -16,24 +16,30 @@ FRESH environment from this header, never model/.venv) plus the same
 transformers_minimal-fork transitive deps moonbeam_extract_script.py needs,
 plus trackio for telemetry.
 
-    hf jobs uv run --flavor a100-large train_fold.py \\
-        --fold 0 --checkpoint .../moonbeam_839M.pt --repo-root .../repo \\
-        --model-config .../model_config.json \\
-        --fold-plan .../fold_plans.json --pool-grades .../grades.json \\
-        --eval-manifest .../eval_manifest.json \\
-        --midi-dir .../transkun_mid --out-dir .../fold0 \\
-        --bundle-repo <your-hf-username>/phase1-lora-bundle \\
-        --output-repo <your-hf-username>/phase1-lora-fold0
+    hf jobs uv run --flavor a100-large --timeout 3h --secrets HF_TOKEN \\
+        train_fold.py --fold 0 \\
+        --bundle-repo Jai-D/phase1-lora-bundle \\
+        --output-repo Jai-D/phase1-lora-fold0 --out-dir /data/fold0
 
 `hf jobs uv run` uploads ONLY this file -- not the rest of this package, so
 `--bundle-repo` (a `push_train_dataset.py`-staged HF dataset repo) is
 snapshot_download'd at startup and its `code/` subdir is where `combined_loss`
 and `tau_c` are imported from (never a second, vendored copy of either). Pass
 `--bundle-dir` instead of `--bundle-repo` for a local/offline run against an
-already-downloaded bundle. `--output-repo` uploads `adapter/` and
-`emb_fold{F}.npz` to a Hub model repo after training -- without it, a job
-container's local disk (and the $13 of GPU time that filled it) is discarded
-when the container exits.
+already-downloaded bundle.
+
+The bundle's download path inside a job container is snapshot_download's cache
+path, which cannot be known at submit time -- so `--fold-plan`,
+`--pool-grades`, `--eval-manifest`, `--midi-dir`, `--repo-root` and
+`--model-config` all DEFAULT to their location inside the downloaded bundle
+(see `_bundle_default`). An explicitly-passed path still wins, which is what a
+local run against loose files relies on. The 1.6 GB checkpoint is not in the
+bundle at all: with no `--checkpoint`, it is fetched from `--checkpoint-repo` /
+`--checkpoint-filename` on the Hub.
+
+`--output-repo` uploads `adapter/` and `emb_fold{F}.npz` to a Hub model repo
+after training -- without it, a job container's local disk (and the $13 of GPU
+time that filled it) is discarded when the container exits.
 
 Only the encoder weights are graded (design spec's gate (i)): the score head
 trained here is DISCARDED after training. `emb_fold{F}.npz` -- the only
@@ -54,6 +60,11 @@ from pathlib import Path
 
 import numpy as np
 import torch
+
+# Hub coordinates, not filesystem paths: the checkpoint is public and is
+# deliberately kept out of the training bundle (1.6 GB, bf16).
+CHECKPOINT_REPO = "guozixunnicolas/moonbeam-midi-foundation-model"
+CHECKPOINT_FILENAME = "moonbeam_839M.pt"
 
 PROJECTIONS = (
     "self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj", "self_attn.o_proj",
@@ -194,6 +205,35 @@ def read_fold_embeddings(path: Path) -> dict:
         }
 
 
+def _real_checkpoint_download(repo_id: str, filename: str) -> Path:
+    """Fetch the MoonBeam checkpoint from the Hub. The 1.6 GB moonbeam_839M.pt
+    is deliberately NOT staged into the training bundle (it is public, and
+    re-uploading it per bundle would triple the bundle's size); a fresh HF Jobs
+    container has no local copy of it either, so it is downloaded here."""
+    from huggingface_hub import hf_hub_download
+
+    return Path(hf_hub_download(repo_id=repo_id, filename=filename))
+
+
+def _bundle_default(explicit: Path | None, bundle_dir: Path, relative: str,
+                     flag: str) -> Path:
+    """The value of a path flag that defaults into the downloaded bundle. An
+    explicitly-passed path always wins (a local run against loose files needs
+    that); otherwise the bundle-relative location must actually exist -- a
+    missing default means the bundle was staged by an older
+    push_train_dataset.py, and dying here with the resolved path named beats
+    dying in an unrelated read_text() a hundred lines later."""
+    if explicit is not None:
+        return Path(explicit)
+    resolved = bundle_dir / relative
+    if not resolved.exists():
+        raise FileNotFoundError(
+            f"{flag} was not passed, so it defaults to {relative!r} inside the "
+            f"bundle, but {resolved} does not exist -- re-stage and re-upload "
+            f"the bundle with push_train_dataset.py, or pass {flag} explicitly")
+    return resolved
+
+
 def _real_uploader(out_dir: Path, repo_id: str) -> None:
     """Upload the trained adapter/ directory and emb_fold{F}.npz to a Hub
     model repo, so the artifacts survive the HF Jobs container's exit --
@@ -206,22 +246,37 @@ def _real_uploader(out_dir: Path, repo_id: str) -> None:
 
 
 def main(argv: list[str] | None = None, loader_factory=_real_loader,
-         uploader=_real_uploader) -> int:
+         uploader=_real_uploader,
+         checkpoint_downloader=_real_checkpoint_download) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--fold", type=int, required=True)
-    ap.add_argument("--checkpoint", type=Path, required=True)
-    ap.add_argument("--repo-root", type=Path, required=True)
-    ap.add_argument("--model-config", type=Path, required=True)
-    ap.add_argument("--fold-plan", type=Path, required=True)
     ap.add_argument(
-        "--pool-grades", type=Path, required=True,
-        help="JSON {seg_id: grade} covering every train/val seg_id in --fold-plan")
+        "--checkpoint", type=Path, default=None,
+        help="local moonbeam_839M.pt. Omit inside a job container (there is no "
+             "local copy there): it is then downloaded from --checkpoint-repo.")
+    ap.add_argument("--checkpoint-repo", default=CHECKPOINT_REPO)
+    ap.add_argument("--checkpoint-filename", default=CHECKPOINT_FILENAME)
+    ap.add_argument("--repo-root", type=Path, default=None,
+                    help="defaults to moonbeam_repo/ inside the bundle")
     ap.add_argument(
-        "--eval-manifest", type=Path, required=True,
+        "--model-config", type=Path, default=None,
+        help="defaults to the bundle's "
+             "moonbeam_repo/src/llama_recipes/configs/model_config.json "
+             "(the 839M config; model_config_small.json is the 309M model)")
+    ap.add_argument("--fold-plan", type=Path, default=None,
+                    help="defaults to fold_plans.json inside the bundle")
+    ap.add_argument(
+        "--pool-grades", type=Path, default=None,
+        help="JSON {seg_id: grade} covering every train/val seg_id in "
+             "--fold-plan; defaults to grades.json inside the bundle")
+    ap.add_argument(
+        "--eval-manifest", type=Path, default=None,
         help="JSON list of {seg_id, grade, composer_id} for all 900 eval pieces, "
-             "in the SAME seg_id-sorted order ft_eval.py reads from emb/features37/")
-    ap.add_argument("--midi-dir", type=Path, required=True)
+             "in the SAME seg_id-sorted order ft_eval.py reads from "
+             "emb/features37/; defaults to eval_manifest.json inside the bundle")
+    ap.add_argument("--midi-dir", type=Path, default=None,
+                    help="defaults to midi/ inside the bundle")
     ap.add_argument("--out-dir", type=Path, required=True)
     ap.add_argument(
         "--bundle-dir", type=Path, default=None,
@@ -265,19 +320,40 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader,
                           "combined_loss/tau_c can be imported from the bundle's "
                           "code/ subdir (train_fold.py is uploaded alone by "
                           "`hf jobs uv run`, without the rest of this package)")
+    fold_plan_path = _bundle_default(
+        args.fold_plan, bundle_dir, "fold_plans.json", "--fold-plan")
+    pool_grades_path = _bundle_default(
+        args.pool_grades, bundle_dir, "grades.json", "--pool-grades")
+    eval_manifest_path = _bundle_default(
+        args.eval_manifest, bundle_dir, "eval_manifest.json", "--eval-manifest")
+    midi_dir = _bundle_default(args.midi_dir, bundle_dir, "midi", "--midi-dir")
+    repo_root = _bundle_default(
+        args.repo_root, bundle_dir, "moonbeam_repo", "--repo-root")
+    model_config = _bundle_default(
+        args.model_config, bundle_dir,
+        "moonbeam_repo/src/llama_recipes/configs/model_config.json",
+        "--model-config")
+
     sys.path.insert(0, str(bundle_dir / "code"))
     import bakeoff_cv as _bakeoff_cv
     import ranking_loss as _ranking_loss
     tau_c = _bakeoff_cv.tau_c
     combined_loss = _ranking_loss.combined_loss
 
-    plans = json.loads(args.fold_plan.read_text())
+    plans = json.loads(fold_plan_path.read_text())
     plan = next(p for p in plans if p["fold"] == args.fold)
-    pool_grades = json.loads(args.pool_grades.read_text())
-    eval_pieces = json.loads(args.eval_manifest.read_text())
+    pool_grades = json.loads(pool_grades_path.read_text())
+    eval_pieces = json.loads(eval_manifest_path.read_text())
+
+    checkpoint = args.checkpoint
+    if checkpoint is None:
+        checkpoint = Path(checkpoint_downloader(
+            args.checkpoint_repo, args.checkpoint_filename))
+        print(f"downloaded checkpoint "
+              f"{args.checkpoint_repo}/{args.checkpoint_filename} -> {checkpoint}")
 
     base_model, tokenize, config_max_len = loader_factory(
-        args.checkpoint, repo_root=args.repo_root, model_config=args.model_config)
+        checkpoint, repo_root=repo_root, model_config=model_config)
     if config_max_len != args.max_len:
         raise ValueError(
             f"--max-len {args.max_len} does not match model_config.json's max_len "
@@ -308,7 +384,7 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader,
                 train_seg_ids[i] for i in order[start:start + args.micro_batch]]
             scores, ordinal_logits, grades = [], [], []
             for seg_id in batch_ids:
-                tokens = tokenize(Path(args.midi_dir) / f"{seg_id}.mid")
+                tokens = tokenize(midi_dir / f"{seg_id}.mid")
                 window = _random_window(tokens, args.max_len, rng)
                 pooled = _mean_pool_window(transformer, window)
                 head_out = score_head(pooled)
@@ -329,7 +405,7 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader,
         with torch.no_grad():
             val_scores = []
             for seg_id in val_seg_ids:
-                tokens = tokenize(Path(args.midi_dir) / f"{seg_id}.mid")
+                tokens = tokenize(midi_dir / f"{seg_id}.mid")
                 window = _random_window(tokens, args.max_len, rng)
                 pooled = _mean_pool_window(transformer, window)
                 val_scores.append(score_head(pooled)[0].item())
@@ -345,7 +421,7 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader,
     with torch.no_grad():
         embeddings = np.stack([
             _extract_full_piece(
-                transformer, tokenize(Path(args.midi_dir) / f"{p['seg_id']}.mid"),
+                transformer, tokenize(midi_dir / f"{p['seg_id']}.mid"),
                 args.max_len)
             for p in eval_pieces
         ])

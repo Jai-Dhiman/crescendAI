@@ -26,7 +26,11 @@ from claim_measurement.difficulty.bakeoff_cv import (
     tau_c,
 )
 from claim_measurement.difficulty.bakeoff_npz import read_embedding_npz
-from claim_measurement.difficulty.bakeoff_paths import resolve_paths
+from claim_measurement.difficulty.bakeoff_paths import (
+    features37_dir,
+    features37_seg_ids,
+    resolve_paths,
+)
 from claim_measurement.difficulty.train_fold import read_fold_embeddings
 
 N_FOLDS, SEED = 5, 2026
@@ -80,10 +84,13 @@ def _ridge_oof(X, y, composers, n_folds, seed):
 
 
 def _load_features37(emb_root: Path):
-    paths = sorted((emb_root / "emb" / "features37").glob("*.npz"))
-    if not paths:
-        raise SystemExit(
-            f"no features37 .npz files under {emb_root / 'emb' / 'features37'}")
+    # Row order comes from bakeoff_paths.features37_seg_ids, the single
+    # definition push_train_dataset.py's staged eval_manifest.json is also
+    # built from -- so "same order" is structural, not a coincidence that two
+    # sorted globs happen to agree.
+    f37_dir = features37_dir(emb_root)
+    seg_ids = features37_seg_ids(f37_dir)
+    paths = [f37_dir / f"{seg_id}.npz" for seg_id in seg_ids]
     X, y, composers = [], [], []
     for path in paths:
         record = read_embedding_npz(path)

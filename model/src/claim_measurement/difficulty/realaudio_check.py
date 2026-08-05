@@ -80,6 +80,17 @@ def _import_transcribe_wav():
     )
 
 
+def build_wav_manifest(seg_ids: list, wav_dir: Path) -> list[dict]:
+    """{seg_id, wav_path} for each eval piece that actually has a WAV on disk
+    (709 of the 900 at the time of writing). A piece without one is omitted
+    entirely -- never pointed at a missing file and never substituted with
+    synthetic audio -- so the real-audio gate's n is whatever real audio
+    exists, stated rather than assumed."""
+    wav_dir = Path(wav_dir)
+    return [{"seg_id": seg_id, "wav_path": str(wav_dir / f"{seg_id}.wav")}
+            for seg_id in seg_ids if (wav_dir / f"{seg_id}.wav").exists()]
+
+
 def _write_cache_atomic(path: Path, notes: list, pedals: list) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=path.parent, suffix=".json.tmp")
@@ -95,10 +106,44 @@ def _write_cache_atomic(path: Path, notes: list, pedals: list) -> None:
 def main(argv=None, transcriber=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--wav-manifest", type=Path, required=True,
+    ap.add_argument("--wav-manifest", type=Path, default=None,
                     help="JSON list of {seg_id, wav_path}")
-    ap.add_argument("--out-dir", type=Path, required=True)
+    ap.add_argument("--out-dir", type=Path, default=None)
+    ap.add_argument(
+        "--write-wav-manifest", type=Path, default=None,
+        help="generate the --wav-manifest JSON for the eval pieces that have a "
+             "WAV under --wav-dir, write it here, and exit without transcribing")
+    ap.add_argument("--wav-dir", type=Path, default=None,
+                    help="dir of <seg_id>.wav files, for --write-wav-manifest")
+    ap.add_argument(
+        "--features37-dir", type=Path, default=None,
+        help="per-piece features37 .npz dir the eval seg_ids come from; "
+             "defaults to <data-root>/results/bakeoff/emb/features37")
+    ap.add_argument("--data-root", type=Path, default=None,
+                    help="only used to locate --features37-dir")
     args = ap.parse_args(argv)
+
+    if args.write_wav_manifest is not None:
+        if args.wav_dir is None:
+            ap.error("--write-wav-manifest requires --wav-dir")
+        from claim_measurement.difficulty.bakeoff_paths import (
+            features37_dir,
+            features37_seg_ids,
+            resolve_paths,
+        )
+
+        f37_dir = (args.features37_dir if args.features37_dir is not None
+                   else features37_dir(resolve_paths(args.data_root).emb_root))
+        seg_ids = features37_seg_ids(f37_dir)
+        entries = build_wav_manifest(seg_ids, args.wav_dir)
+        args.write_wav_manifest.parent.mkdir(parents=True, exist_ok=True)
+        args.write_wav_manifest.write_text(json.dumps(entries))
+        print(f"wrote {len(entries)} of {len(seg_ids)} eval pieces with a WAV "
+              f"under {args.wav_dir} to {args.write_wav_manifest}")
+        return 0
+
+    if args.wav_manifest is None or args.out_dir is None:
+        ap.error("--wav-manifest and --out-dir are required for transcription")
 
     if transcriber is None:
         transcriber = _import_transcribe_wav()
