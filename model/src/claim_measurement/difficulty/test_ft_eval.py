@@ -13,17 +13,29 @@ from claim_measurement.difficulty.ft_eval import oof_tau_per_fold
 def test_oof_tau_per_fold_recovers_a_strong_per_fold_linear_signal():
     rng = np.random.default_rng(2026)
     n = 200
+    n_folds = 5
     # all distinct -> vacuous disjointness
     composers = np.array([f"composer_{i}" for i in range(n)])
     y = rng.integers(0, 11, size=n).astype(float)
 
+    # Fold f's signal lives ONLY in column f; every other column is pure
+    # noise. This is only visible when each fold uses ITS OWN embedding
+    # matrix: a ridge head trained on fold f's matrix but evaluated against a
+    # different fold's matrix (or vice versa -- the shape of a bug in
+    # ft_eval.main's per-fold npz load loop that pairs a train/test split
+    # with the wrong adapter's embeddings) reads a pure-noise column there
+    # and tau-c collapses. A fold-invariant *scale* signal (y * (f + 1)) does
+    # not have this property: any single fold's matrix is, on its own, a
+    # valid predictor of the whole y vector, so reusing it throughout is
+    # statistically indistinguishable from correct per-fold usage.
     emb_by_fold = {}
-    for f in range(5):
+    for f in range(n_folds):
         rng_f = np.random.default_rng(1000 + f)
-        noise = rng_f.normal(size=(n, 3)) * 0.01
-        emb_by_fold[f] = np.column_stack([y * (f + 1), noise])
+        noise = rng_f.normal(size=(n, n_folds)) * 0.01
+        noise[:, f] = y
+        emb_by_fold[f] = noise
 
-    oof = oof_tau_per_fold(emb_by_fold, y, composers, n_folds=5, seed=2026)
+    oof = oof_tau_per_fold(emb_by_fold, y, composers, n_folds=n_folds, seed=2026)
 
     assert not np.isnan(oof).any()
     assert tau_c(oof, y) > 0.9
