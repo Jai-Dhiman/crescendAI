@@ -10,6 +10,7 @@ import pytest
 from claim_measurement.difficulty.fold_plan import FoldPlan
 from claim_measurement.difficulty.push_train_dataset import (
     BundleSources,
+    main,
     stage_training_bundle,
 )
 
@@ -90,3 +91,58 @@ def test_stage_training_bundle_raises_when_a_referenced_piece_has_no_midi_on_dis
 
     with pytest.raises(FileNotFoundError, match="a.mid"):
         stage_training_bundle(paths, plans, tmp_path / "staging")
+
+
+def test_main_builds_fold_plans_stages_and_calls_the_injected_uploader(tmp_path):
+    manifest_path = tmp_path / "manifest.json"
+    labels_path = tmp_path / "labels.json"
+    midi_dir = tmp_path / "transkun_mid"
+    midi_dir.mkdir()
+
+    seg_ids = [f"p{i:02d}" for i in range(10)]
+    manifest = [
+        {
+            "seg_id": s,
+            "key": f"{s}.mid",
+            "grade": i % 11,
+            "video_id": "x",
+            "midi_name": f"mid/{s}.mid",
+        }
+        for i, s in enumerate(seg_ids)
+    ]
+    labels = {f"{s}.mid": {"composer": f"composer_{i}"} for i, s in enumerate(seg_ids)}
+    manifest_path.write_text(json.dumps(manifest))
+    labels_path.write_text(json.dumps(labels))
+    for s in seg_ids:
+        (midi_dir / f"{s}.mid").write_bytes(b"x")
+
+    sample_manifest_path = tmp_path / "sample_manifest.json"
+    sample_manifest_path.write_text(json.dumps([{"seg_id": s} for s in seg_ids[:6]]))
+
+    repo_snapshot_dir = tmp_path / "repo"
+    _write_fake_repo(repo_snapshot_dir)
+    staging_dir = tmp_path / "staging"
+
+    calls = []
+
+    def fake_uploader(staged_dir, repo_id):
+        calls.append((staged_dir, repo_id))
+
+    exit_code = main(
+        [
+            "--manifest", str(manifest_path),
+            "--labels", str(labels_path),
+            "--sample-manifest", str(sample_manifest_path),
+            "--midi-dir", str(midi_dir),
+            "--repo-snapshot-dir", str(repo_snapshot_dir),
+            "--staging-dir", str(staging_dir),
+            "--repo-id", "jaidhiman/phase1-lora-bundle",
+            "--n-folds", "2",
+        ],
+        uploader=fake_uploader,
+    )
+
+    assert exit_code == 0
+    assert calls == [(staging_dir, "jaidhiman/phase1-lora-bundle")]
+    staged_plans = json.loads((staging_dir / "fold_plans.json").read_text())
+    assert len(staged_plans) == 2

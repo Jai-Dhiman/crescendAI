@@ -86,5 +86,60 @@ def stage_training_bundle(
                          repo_snapshot_files=repo_files, checksum=hasher.hexdigest())
 
 
+def main(argv=None, uploader=None) -> int:
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument("--manifest", type=Path, required=True)
+    ap.add_argument("--labels", type=Path, required=True)
+    ap.add_argument(
+        "--sample-manifest", type=Path, required=True,
+        help="the 900-piece eval sample_manifest.json "
+             "(run_bakeoff.py --stage sample's output)")
+    ap.add_argument("--midi-dir", type=Path, required=True)
+    ap.add_argument("--repo-snapshot-dir", type=Path, required=True)
+    ap.add_argument("--staging-dir", type=Path, required=True)
+    ap.add_argument(
+        "--repo-id", required=True,
+        help="private HF dataset repo id, e.g. jaidhiman/phase1-lora-bundle")
+    ap.add_argument("--n-folds", type=int, default=5)
+    ap.add_argument("--seed", type=int, default=2026)
+    ap.add_argument("--val-frac", type=float, default=0.12)
+    args = ap.parse_args(argv)
+
+    from claim_measurement.difficulty.bakeoff_sampling import load_bakeoff_manifest
+    from claim_measurement.difficulty.fold_plan import build_fold_plans
+
+    pool_entries = load_bakeoff_manifest(args.manifest, args.labels, args.midi_dir)
+    sample_seg_ids = {e["seg_id"] for e in json.loads(args.sample_manifest.read_text())}
+    eval_entries = sorted(
+        (e for e in pool_entries if e.seg_id in sample_seg_ids),
+        key=lambda e: e.seg_id)
+
+    plans = build_fold_plans(
+        eval_entries, pool_entries, args.n_folds, args.seed, args.val_frac)
+
+    grades = {e.seg_id: e.grade for e in pool_entries}
+    paths = BundleSources(
+        midi_dir=args.midi_dir, grades=grades,
+        repo_snapshot_dir=args.repo_snapshot_dir)
+    report = stage_training_bundle(paths, plans, args.staging_dir)
+    print(f"staged {report.n_midis} MIDIs, {report.n_fold_plans} fold plans, "
+          f"{report.repo_snapshot_files} repo files, checksum {report.checksum}")
+
+    if uploader is None:
+        from huggingface_hub import HfApi
+
+        def uploader(staged_dir: Path, repo_id: str) -> None:
+            api = HfApi()
+            api.create_repo(repo_id, repo_type="dataset", private=True, exist_ok=True)
+            api.upload_folder(
+                folder_path=str(staged_dir), repo_id=repo_id, repo_type="dataset")
+
+    uploader(args.staging_dir, args.repo_id)
+    print(f"uploaded to {args.repo_id}")
+    return 0
+
+
 if __name__ == "__main__":
-    sys.exit(0)  # placeholder exit; main() is added in Task 23
+    sys.exit(main())
