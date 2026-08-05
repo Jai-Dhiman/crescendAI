@@ -35,3 +35,39 @@ def test_oof_tau_per_fold_raises_on_missing_fold_embeddings():
 
     with pytest.raises(KeyError):
         oof_tau_per_fold(emb_by_fold, y, composers, n_folds=5, seed=2026)
+
+
+from claim_measurement.difficulty.bakeoff_npz import write_embedding_npz
+from claim_measurement.difficulty.ft_eval import main
+from claim_measurement.difficulty.train_fold import write_fold_embeddings
+
+
+def test_main_prints_the_gate_comparison_against_features37(tmp_path, capsys):
+    data_root = tmp_path / "data"
+    emb_dir = data_root / "results" / "bakeoff" / "emb" / "features37"
+    rng = np.random.default_rng(0)
+    n = 60
+    seg_ids = [f"p{i:03d}" for i in range(n)]  # zero-padded -> lexical == list order
+    grades = rng.integers(0, 11, size=n)
+    composers = np.arange(n)  # all distinct -> vacuous disjointness, like the real 900
+
+    for i, seg_id in enumerate(seg_ids):
+        write_embedding_npz(emb_dir / f"{seg_id}.npz",
+                             {"raw37": rng.normal(size=5).astype(np.float32)},
+                             grade=int(grades[i]), composer_id=int(composers[i]))
+
+    fold_emb_dir = tmp_path / "fold_embeddings"
+    for f in range(5):
+        # feature 0 is a strong linear signal so the gate reports SIG, not noise
+        embeddings = np.column_stack([grades.astype(np.float32) * (f + 1),
+                                       rng.normal(size=(n, 2)).astype(np.float32)])
+        write_fold_embeddings(fold_emb_dir / f"emb_fold{f}.npz", seg_ids=seg_ids,
+                               embeddings=embeddings, grades=grades,
+                               composer_ids=composers)
+
+    exit_code = main(
+        ["--data-root", str(data_root), "--fold-emb-dir", str(fold_emb_dir)])
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "moonbeam_ft_mean|ridge - features37|ridge:" in out
