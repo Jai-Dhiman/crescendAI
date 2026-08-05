@@ -84,3 +84,50 @@ def test_main_prints_the_gate_comparison_against_features37(tmp_path, capsys):
     assert exit_code == 0
     out = capsys.readouterr().out
     assert "moonbeam_ft_mean|ridge - features37|ridge:" in out
+
+
+def test_main_reads_each_fold_from_its_own_emb_fold_npz(tmp_path, capsys):
+    """Structural guard on the pairing invariant: fold f's ridge rows must come
+    from emb_fold{f}.npz, not from one adapter's file reused for every fold.
+
+    A statistical fixture cannot catch that bug. One matrix used CONSISTENTLY
+    for a fold's train and test rows is a legitimate CV of a different
+    experiment, so it scores just as well as correct routing (measured: 0.9986
+    either way). This fixture breaks the symmetry instead -- only fold 0's file
+    carries signal, the rest are noise -- so correct per-fold routing yields a
+    LOW tau-c while reusing fold 0 everywhere yields a high one.
+    """
+    data_root = tmp_path / "data"
+    emb_dir = data_root / "results" / "bakeoff" / "emb" / "features37"
+    rng = np.random.default_rng(7)
+    n = 60
+    seg_ids = [f"p{i:03d}" for i in range(n)]
+    grades = rng.integers(0, 11, size=n)
+    composers = np.arange(n)
+
+    for i, seg_id in enumerate(seg_ids):
+        write_embedding_npz(emb_dir / f"{seg_id}.npz",
+                             {"raw37": rng.normal(size=5).astype(np.float32)},
+                             grade=int(grades[i]), composer_id=int(composers[i]))
+
+    fold_emb_dir = tmp_path / "fold_embeddings"
+    for f in range(5):
+        signal = (grades.astype(np.float32) if f == 0
+                  else rng.normal(size=n).astype(np.float32))
+        noise = rng.normal(size=(n, 2)).astype(np.float32)
+        embeddings = np.column_stack([signal, noise])
+        write_fold_embeddings(fold_emb_dir / f"emb_fold{f}.npz", seg_ids=seg_ids,
+                               embeddings=embeddings, grades=grades,
+                               composer_ids=composers)
+
+    assert main(["--data-root", str(data_root),
+                 "--fold-emb-dir", str(fold_emb_dir)]) == 0
+
+    line = next(ln for ln in capsys.readouterr().out.splitlines()
+                if ln.startswith("moonbeam_ft_mean|ridge tau-c"))
+    measured = float(line.split()[-1])
+    # Only 1 of 5 folds can be predicted, so correct routing lands near 0.2 of a
+    # full-signal run. Reusing fold 0's matrix for every fold scores >0.9 here.
+    assert measured < 0.5, (
+        f"tau-c {measured} is too high for a fixture where only fold 0 carries "
+        f"signal -- main is not reading each fold from its own emb_fold{{f}}.npz")
