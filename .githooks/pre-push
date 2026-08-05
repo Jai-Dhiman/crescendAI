@@ -1,42 +1,5 @@
 #!/usr/bin/env bash
-# Push-time mechanical layer.
 #
-# Blocking by default: only the checks that are fast AND currently green.
-# A gate that is red before you touch anything cannot tell your regression from
-# the pre-existing debt, and one that costs ten minutes gets bypassed until it
-# means nothing. Same promotion ramp as docs/standards/rules.json: run them
-# on demand, promote each to blocking once it is green.
-#
-# Measured 2026-08-04 on issue-142-green-the-gates, all four promoted here:
-#   just check-api   PASSES (was 20 tsc errors across 14 files)
-#   just lint-api    PASSES (was 224 biome errors across 161 files)
-#   just check-web   PASSES (was 88 tsc errors across 25 files; before #142 the
-#                            recipe did not even run -- apps/web had no
-#                            typecheck script, so it failed on "Script not
-#                            found" and was mistaken for clean)
-#   just lint-web    PASSES (was 120 biome errors)
-#
-# Measured 2026-08-04 on issue-151-test-api, promoted here:
-#   just test-api    PASSES in ~40s -- 599 workerd + 384 node = 983 tests.
-#                    Was 7 failures: 5 were scripts/catalog-codegen.test.ts,
-#                    a node-only suite (readdirSync, node:os) that the workerd
-#                    config also matched, so it passed under one runtime and
-#                    failed under the other; it is now excluded there. The
-#                    other 2 were stale expectations -- the catalog counts
-#                    (15/9 -> 14/7, two molecules and one atom retired in
-#                    32d0f73c and 221e697f) and GET /health's dropped
-#                    version/stack fields.
-#
-# Still opt-in, with the reason it is not blocking yet:
-#   just test-model  ~10 minutes (865 tests). Too slow to block a push.
-#
-# PREREQUISITE for check-api and test-api: apps/api/src/wasm/*/pkg/ is
-# gitignored wasm-pack output. A fresh clone has none, so tsc reports 2 extra
-# TS2307 and the workerd suite cannot load real WASM until you run
-# `cd apps/api && bun run build:wasm`.
-#
-# Full run:    CRESCENDAI_FULL_PREPUSH=1 git push
-# Break glass: git push --no-verify
 set -uo pipefail
 
 ROOT=$(git rev-parse --show-toplevel)
@@ -62,7 +25,6 @@ fail=0
 python3 scripts/standards_check.py --all || fail=1
 uv run --no-project --with pytest pytest scripts/test_standards_check.py -q || fail=1
 
-# Blocking, scoped to what the push actually touches.
 if touched '^apps/api/'; then
     just check-api || fail=1
     just lint-api || fail=1
@@ -73,7 +35,6 @@ if touched '^apps/web/'; then
     just lint-web || fail=1
 fi
 
-# Still opt-in -- see the header for why each is not blocking yet.
 if [ "${CRESCENDAI_FULL_PREPUSH:-0}" = "1" ]; then
     if touched '^(model|apps/inference)/'; then
         just test-model || fail=1
