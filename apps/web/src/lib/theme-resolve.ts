@@ -1,7 +1,7 @@
 export type Theme = "light" | "dark";
 
-const DUSK_HOUR = 19; // 19:00 device-local, dark begins
-const DAWN_HOUR = 7; // 07:00 device-local, light begins
+export const DUSK_HOUR = 19; // 19:00 device-local, dark begins
+export const DAWN_HOUR = 7; // 07:00 device-local, light begins
 
 function isValidTheme(value: string | null): value is Theme {
 	return value === "light" || value === "dark";

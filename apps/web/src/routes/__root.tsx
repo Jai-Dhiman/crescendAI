@@ -13,6 +13,7 @@ import { ToastContainer } from "../components/ToastContainer";
 import { useMountEffect, useSyncRef } from "../hooks/useFoundation";
 import { AuthProvider } from "../lib/auth";
 import { queryClient } from "../lib/query-client";
+import { DAWN_HOUR, DUSK_HOUR } from "../lib/theme-resolve";
 import { useThemeStore } from "../stores/theme";
 
 import appCss from "../styles/app.css?url";
@@ -47,7 +48,10 @@ export const Route = createRootRoute({
 	component: RootDocument,
 });
 
-const THEME_FLASH_SCRIPT = `(function(){var path=location.pathname;if(path==="/"||path==="/signin"){document.documentElement.dataset.theme="dark";return}var p=localStorage.getItem("crescend-theme");var t;if(p==="light"||p==="dark"){t=p}else{var h=new Date().getHours();t=(h>=19||h<7)?"dark":"light"}document.documentElement.dataset.theme=t})();`;
+// The hour literals below are interpolated from theme-resolve.ts's
+// DUSK_HOUR/DAWN_HOUR so this pre-hydration script cannot drift from the
+// hydrated resolveTheme() logic.
+export const THEME_FLASH_SCRIPT = `(function(){var path=location.pathname;if(path==="/"||path==="/signin"){document.documentElement.dataset.theme="dark";return}var p=localStorage.getItem("crescend-theme");var t;if(p==="light"||p==="dark"){t=p}else{var h=new Date().getHours();t=(h>=${DUSK_HOUR}||h<${DAWN_HOUR})?"dark":"light"}document.documentElement.dataset.theme=t})();`;
 
 export function resolveDocumentTheme(input: {
 	pathname: string;
