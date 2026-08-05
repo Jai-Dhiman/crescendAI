@@ -1,25 +1,21 @@
 import { create } from "zustand";
+import { resolveTheme } from "../lib/theme-resolve";
 
 interface ThemeState {
 	theme: "light" | "dark";
 	toggleTheme: () => void;
 }
 
-function getSystemTheme(): "light" | "dark" {
-	if (typeof window === "undefined") return "dark";
-	return window.matchMedia("(prefers-color-scheme: dark)").matches
-		? "dark"
-		: "light";
+function readStorage(): string | null {
+	if (typeof window === "undefined") return null;
+	return localStorage.getItem("crescend-theme");
 }
 
-function readStorage(): "light" | "dark" {
-	if (typeof window === "undefined") return "dark";
-	const stored = localStorage.getItem("crescend-theme");
-	if (stored === "light" || stored === "dark") return stored;
-	return getSystemTheme();
+function now(): Date | null {
+	return typeof window === "undefined" ? null : new Date();
 }
 
-const initial = readStorage();
+const initial = resolveTheme({ stored: readStorage(), now: now() });
 
 export const useThemeStore = create<ThemeState>((set) => ({
 	theme: initial,
