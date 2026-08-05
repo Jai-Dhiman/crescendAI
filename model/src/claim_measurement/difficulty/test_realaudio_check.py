@@ -53,3 +53,35 @@ def test_transcribe_stage_skips_pieces_whose_cache_file_already_exists(tmp_path)
     assert calls == [tmp_path / "b.wav"]
     cached = json.loads((out_dir / "new_piece.json").read_text())
     assert cached["notes"][0]["pitch"] == 60
+
+
+from claim_measurement.difficulty.realaudio_check import score_audio_subset
+
+
+def test_score_audio_subset_reports_matched_symbolic_and_audio_tau_c():
+    rng = np.random.default_rng(2026)
+    n = 60
+    # distinct -> vacuous disjointness
+    composers = np.array([f"composer_{i}" for i in range(n)])
+    y = rng.integers(0, 11, size=n).astype(float)
+    seg_ids = [f"p{i:03d}" for i in range(n)]
+
+    emb_by_fold = {
+        f: np.column_stack([y, rng.normal(size=(n, 2)) * 0.01]).astype(np.float32)
+        for f in range(5)
+    }
+    audio_subset = set(seg_ids[:20])
+    audio_embeddings = {
+        # 3 columns to match emb_by_fold's 3-column shape (y + 2 noise cols) --
+        # score_audio_subset scores this row through the SAME ridge model fit
+        # on emb_by_fold[fold], so the feature count must match exactly.
+        seg_id: np.array([y[i] + 0.05, 0.0, 0.0], dtype=np.float32)
+        for i, seg_id in enumerate(seg_ids) if seg_id in audio_subset
+    }
+
+    result = score_audio_subset(emb_by_fold, audio_embeddings, y, composers, seg_ids,
+                                 n_folds=5, seed=2026)
+
+    assert result["n"] == 20
+    assert result["audio_tau_c"] > 0.9
+    assert result["symbolic_tau_c"] > 0.9

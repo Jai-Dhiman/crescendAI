@@ -114,5 +114,49 @@ def main(argv=None, transcriber=None) -> int:
     return 0 if not failed else 1
 
 
+def score_audio_subset(emb_by_fold: dict, audio_embeddings: dict, y: np.ndarray,
+                        composers: np.ndarray, seg_ids: list, n_folds: int,
+                        seed: int) -> dict:
+    """For every seg_id in audio_embeddings (a subset of seg_ids), fit a ridge
+    model on that piece's OWN test fold's train rows of emb_by_fold[fold] and
+    score the piece's audio-derived embedding through it. Also scores the
+    SAME piece's original symbolic embedding through the SAME model, so any
+    audio-vs-symbolic gap is attributable to audio provenance, not to the
+    subset being easier or harder (design spec's real-audio second gate)."""
+    from sklearn.linear_model import RidgeCV
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+
+    idx_of = {s: i for i, s in enumerate(seg_ids)}
+    test_folds = composer_disjoint_folds(composers, n_folds, seed)
+    fold_of_idx = {i: f for f, idx in enumerate(test_folds) for i in idx}
+
+    audio_pred, symbolic_pred, subset_y = [], [], []
+    ridge_cache: dict = {}
+    for seg_id, audio_embedding in audio_embeddings.items():
+        i = idx_of[seg_id]
+        fold = fold_of_idx[i]
+        if fold not in ridge_cache:
+            train_idx = np.setdiff1d(np.arange(len(seg_ids)), test_folds[fold])
+            model = make_pipeline(StandardScaler(), RidgeCV(alphas=ALPHAS))
+            model.fit(emb_by_fold[fold][train_idx], y[train_idx])
+            ridge_cache[fold] = model
+        model = ridge_cache[fold]
+        audio_pred.append(model.predict(audio_embedding.reshape(1, -1))[0])
+        symbolic_pred.append(model.predict(emb_by_fold[fold][i].reshape(1, -1))[0])
+        subset_y.append(y[i])
+
+    subset_y = np.array(subset_y)
+    audio_pred, symbolic_pred = np.array(audio_pred), np.array(symbolic_pred)
+    d, lo, hi, p = paired_boot(symbolic_pred, audio_pred, subset_y, seed=seed)
+    return {
+        "n": len(subset_y),
+        "audio_tau_c": tau_c(audio_pred, subset_y),
+        "symbolic_tau_c": tau_c(symbolic_pred, subset_y),
+        "delta_vs_symbolic": d, "ci_lo_vs_symbolic": lo,
+        "ci_hi_vs_symbolic": hi, "p_le_0_vs_symbolic": p,
+    }
+
+
 if __name__ == "__main__":
     sys.exit(main())
