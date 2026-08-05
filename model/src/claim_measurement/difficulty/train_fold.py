@@ -1,7 +1,7 @@
 # /// script
 # requires-python = "==3.12.*"
 # dependencies = [
-#     "numpy>=1.24.0", "torch>=2.0.0", "peft>=0.11.0", "trackio",
+#     "numpy>=1.24.0", "scipy>=1.10.0", "torch>=2.0.0", "peft>=0.11.0", "trackio",
 #     "mido", "music21", "pandas", "tqdm", "regex", "requests",
 #     "filelock", "pyyaml", "safetensors", "tokenizers==0.19.1",
 #     "huggingface_hub",
