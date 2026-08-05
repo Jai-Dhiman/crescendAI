@@ -134,6 +134,21 @@ describe("across-session evidence", () => {
 		expect(trace[2].dimensions.dynamics.lifecycle).toBe("absent");
 		expect(trace[3].dimensions.dynamics.lifecycle).toBe("active");
 	});
+
+	it("stays quiet on a single off session amid consistent sessions", () => {
+		const mildlyOff = [0.59, 0.61, 0.59, 0.61, 0.59, 0.61];
+		const trace = runSequence([
+			{ timestamp: "2026-01-01T00:00:00Z", scores: { dynamics: CLUSTER } },
+			{ timestamp: "2026-01-02T00:00:00Z", scores: { dynamics: CLUSTER } },
+			{ timestamp: "2026-01-03T00:00:00Z", scores: { dynamics: mildlyOff } },
+			{ timestamp: "2026-01-04T00:00:00Z", scores: { dynamics: CLUSTER } },
+			{ timestamp: "2026-01-05T00:00:00Z", scores: { dynamics: CLUSTER } },
+			{ timestamp: "2026-01-06T00:00:00Z", scores: { dynamics: CLUSTER } },
+		]);
+		for (const s of trace) {
+			expect(s.dimensions.dynamics.lifecycle).toBe("absent");
+		}
+	});
 });
 
 describe("band width", () => {

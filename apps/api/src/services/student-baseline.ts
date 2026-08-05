@@ -225,17 +225,20 @@ function foldDimension(
 		prior.initialized,
 	);
 
+	const shortMean = ewma(
+		prior.shortMean,
+		sessionCentre,
+		alphaShort,
+		prior.initialized,
+	);
 	const longMean = ewma(
 		prior.longMean,
 		sessionCentre,
 		alphaLong,
 		prior.initialized,
 	);
-	const updateCount = prior.updateCount + 1;
 
-	// The real band half-width, computed and carried on state (proving it
-	// narrows) but not yet consulted by the out-of-band decision below, which
-	// is still Task 8's crude raw-centre comparison.
+	const updateCount = prior.updateCount + 1;
 	const effectiveNoiseFloor = biasCorrected(
 		noiseFloor,
 		alphaShort,
@@ -246,8 +249,7 @@ function foldDimension(
 		effectiveNoiseFloor,
 		config.minBandSdFraction * effectiveLongSd,
 	);
-	const acrossSessionOutOfBand =
-		prior.initialized && sessionCentre !== prior.longMean;
+	const acrossSessionOutOfBand = Math.abs(shortMean - longMean) > halfWidth;
 
 	const contribution = withinSessionDeviants + (acrossSessionOutOfBand ? 1 : 0);
 	let consecutiveOutOfBand = prior.consecutiveOutOfBand;
@@ -273,6 +275,7 @@ function foldDimension(
 		lifecycle,
 		longMean,
 		longSd,
+		shortMean,
 		noiseFloor,
 		halfWidth,
 		consecutiveOutOfBand,
