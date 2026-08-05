@@ -112,7 +112,7 @@ def test_main_trains_a_lora_adapter_and_writes_emb_fold_for_all_eval_pieces(tmp_
             n = _TOKEN_LENGTHS[midi_path.stem]
             return torch.arange(n) % 16
 
-        return outer, tokenize
+        return outer, tokenize, 4  # matches --max-len below
 
     exit_code = main(
         [

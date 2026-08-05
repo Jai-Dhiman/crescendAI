@@ -68,7 +68,10 @@ def _real_loader(checkpoint_path: Path, repo_root: Path, model_config: Path):
     setup exactly (see that file for the three undocumented fork facts), but
     returns the OUTER LlamaForCausalLM itself (gradients flow; never called
     under torch.no_grad) plus a `tokenize(midi_path) -> LongTensor` callable,
-    rather than a numpy-returning inference closure."""
+    rather than a numpy-returning inference closure. Also returns
+    config.max_len -- the SAME source moonbeam_extract_script.py reads its
+    max_len from -- so main() can catch a --max-len that has drifted out of
+    sync with the config instead of silently unpairing from frozen 0.8257."""
     import importlib.util
 
     repo_root = Path(repo_root)
@@ -111,7 +114,7 @@ def _real_loader(checkpoint_path: Path, repo_root: Path, model_config: Path):
         tokens = tokenizer.encode_series(compounds, if_add_sos=True, if_add_eos=True)
         return torch.tensor(tokens, dtype=torch.long)
 
-    return model, tokenize
+    return model, tokenize, int(config.max_len)
 
 
 def _score_head(hidden_size: int, n_levels: int) -> torch.nn.Module:
@@ -211,14 +214,20 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader) -> int:
     ap.add_argument("--micro-batch", type=int, default=8)
     ap.add_argument("--seed", type=int, default=2026)
     args = ap.parse_args(argv)
+    torch.manual_seed(args.seed)
 
     plans = json.loads(args.fold_plan.read_text())
     plan = next(p for p in plans if p["fold"] == args.fold)
     pool_grades = json.loads(args.pool_grades.read_text())
     eval_pieces = json.loads(args.eval_manifest.read_text())
 
-    base_model, tokenize = loader_factory(args.checkpoint, repo_root=args.repo_root,
-                                           model_config=args.model_config)
+    base_model, tokenize, config_max_len = loader_factory(
+        args.checkpoint, repo_root=args.repo_root, model_config=args.model_config)
+    if config_max_len != args.max_len:
+        raise ValueError(
+            f"--max-len {args.max_len} does not match model_config.json's max_len "
+            f"{config_max_len} -- this would silently unpair the fine-tuned arm's "
+            f"extraction from frozen 0.8257")
 
     from peft import LoraConfig, get_peft_model
     lora_config = LoraConfig(
