@@ -4,6 +4,8 @@ Anchor doc for CrescendAI's middle system -- everything between the model output
 
 > **Status (2026-08-04):** The runtime-consumed catalog contains 14 atoms, 7 registered molecules, and 4 compounds. Typed Zod artifact contracts and the catalog validator live in `apps/api/src/harness/`. The former Qwen training program is historical; the catalog now serves the provider-agnostic V6 harness and its evaluations.
 
+> **Redesign in flight (epic #154, #162 pipeline retarget, 2026-08-04):** The score-first redesign changes the V6 synthesis output contract from chat prose to one verdict sentence + consolidated marks + one carry-forward, all grounded in MPM evidence; chat survives only as passage-scoped ask threads attached to marks. The model stream is also retargeting: MuQ is being removed in favor of Transkun AMT -> alignment -> MPM-style per-bar features -> MoonBeam-839M scoring. This doc's durable primitives and V6 loop mechanics are largely unaffected; see `docs/apps/05-ui-system.md` and `docs/apps/02-pipeline.md` for the target delivery and pipeline shape.
+
 ---
 
 ## Why "Harness"
@@ -41,7 +43,7 @@ Durable primitives the harness is built from. Each has a precise definition; imp
 Bottom-up, model to user. Each vertical has a doc home and a tier.
 
 ### V1 -- Model & Signals
-MuQ (audio encoder), MoonBeam-839M (symbolic encoder; #138, 2026-08-03; see docs/mirex/track-a-difficulty-prediction.md), AMT (transcription), score follower, piece ID. Populates the enrichment cache with prompt-aware keys. Doc home: `docs/model/`.
+MoonBeam-839M (symbolic encoder; #138, 2026-08-03; see docs/mirex/track-a-difficulty-prediction.md), AMT (transcription), score follower, piece ID. Populates the enrichment cache with prompt-aware keys. Doc home: `docs/model/`. MuQ is being removed under the #162 pipeline retarget (epic #154); the Transkun AMT -> alignment -> MPM feature -> MoonBeam-839M path is the target, see `docs/apps/02-pipeline.md`.
 **Tier:** NEXT (Phase B/C in flight).
 
 ### V2 -- Context Graph (Content / Entity / Fact)

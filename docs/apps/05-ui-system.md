@@ -1,414 +1,212 @@
-# UI System: Chat-First Interface and On-Demand Components
+# UI System: Score-First Surfaces and the Mark System
 
-How observations are presented to the user. Covers the chat-first interface, on-demand rich components, and the three-stage pipeline extension that configures them.
+How feedback is presented to the user. Covers the four surfaces, the mark
+system that unifies them, the residual role of conversation, and the visual
+direction.
 
-> **Status (2026-05-26):** Unified artifact container system DESIGNED (CEO review 2026-03-19). Replaces the three-stage UI subagent pipeline with a single artifact system. Artifacts live inline in chat and expand to viewport on demand. Beta ships with exercise artifact type only. Web chat interface COMPLETE. Score panel COMPLETE — ScoreIR intermediate representation, ScoreCursor rAF playback cursor, and ScoreRenderer worker API (load/getIR/getPage/getClip) all shipped in Phase 2.
+> **Status (2026-08-04):** DESIGN APPROVED (epic #154, brainstorm 2026-08-04).
+> Supersedes the chat-first interface and the unified artifact container
+> system entirely. The chat shell (`AppChat`), conversation sidebar, and
+> artifact-in-chat choreography are scheduled for removal (#164). Build state
+> lives in #154's sub-issues, not here.
 
 ---
 
 ## Design Philosophy
 
-### Chat-First
+### Feedback attaches to the artifact, never narrates about it
 
-Text is the default medium. The student plays, asks "how was that?", and gets a 1-3 sentence observation in a chat thread. Rich UI components are optional enhancements -- they appear when the teacher decides a visual or interactive aid adds real pedagogical value, not as decoration.
+Feedback renders as **marks on the score** (or on the session timeline when no
+score is available) — the way a teacher pencils on your music. Prose exists at
+exactly three points: the session verdict, the carry-forward, and on-demand
+passage explanations. There is no message stream.
 
-A real teacher reaches for a pencil to mark up the score maybe 30% of the time. The rest is conversation. CrescendAI follows the same ratio.
+This is grounded in three independent research findings (session 2026-08-04,
+recorded in #154):
 
-### Progressive Disclosure
+- **Motor learning:** concurrent feedback during play degrades retention and
+  splits attention (guidance hypothesis; Sherwood-line bandwidth feedback is
+  the validated alternative). Expert teachers correct infrequently and
+  selectively.
+- **Interface research:** direct manipulation beats chat for iterate/compare
+  loops (DirectGPT, CHI 2024); conversation is the right modality only for
+  genuinely ambiguous questions.
+- **Landscape:** the strongest structural precedent for post-practice review
+  is chess.com's Game Review — summary-first, error taxonomy, coach
+  narrative — adapted to respect defensible interpretive range (music has no
+  engine evaluation).
 
-The observation text carries the full teaching insight. Components add depth on demand:
+### Silent while playing, present at boundaries
 
-1. **Observation first:** The student reads the text and understands the point.
-2. **Component inline:** If a component is attached, it appears below the text as an expandable card. The student can ignore it.
-3. **"Tell me more":** The student can ask follow-up questions, request exercises, or explore references -- all within the chat.
+The app says nothing while the student plays. Marks appear only during pauses
+(>= 20s of silence; tunable) and never demand a response. After 60s of
+silence the session ends softly (one-tap resume continues the same session).
 
-### Expected Distribution
+### The system may fall silent, never guess
 
-- ~70% of observations are text-only (general encouragement, simple corrections, awareness-building)
-- ~30% include a component (specific passages needing visual annotation, exercises, or reference recordings)
+A missing mark costs little; a wrong mark is a trust-killer. Every failure
+degrades toward saying less, and every degradation is disclosed in the review
+(no-comment zones, connection gaps, unanchored passages).
 
-Start conservative (~20%) and increase based on engagement data.
+### Serious, adult, restrained
 
----
-
-## Artifact System (Unified Container)
-
-The CEO review (2026-03-19) replaced the three-stage UI subagent pipeline with a unified artifact container system. Instead of a separate LLM stage to configure UI components, the teacher LLM declares artifacts directly via tool use or MCP (pattern TBD -- needs research).
-
-### How It Works
-
-1. The teacher LLM (model ID in wrangler.toml) generates the observation text
-2. When a rich component is warranted, the teacher calls a tool (e.g., `generate_exercise`, `highlight_score`) that produces a structured artifact config
-3. The API returns both the text and the artifact config to the client
-4. The client renders the artifact via the unified `<Artifact>` container component
-
-### Artifact States
-
-Every artifact has three visual states:
-
-```
-COLLAPSED (preview)  -->  INLINE (rich card in chat)  -->  EXPANDED (viewport takeover)
-```
-
-- **Collapsed:** Minimal preview in chat (title + one-line summary). Default for returned-to observations.
-- **Inline:** Rich card in the chat thread. Shows full content. Default for new observations with artifacts.
-- **Expanded:** Takes over the viewport. Chat slides away or becomes a sidebar. Triggered by tapping "Expand" or by starting to play an exercise.
-
-### Artifact Config Schema
-
-```json
-{
-  "text": "Your LH is burying the melody in bars 12-16...",
-  "artifact": {
-    "type": "exercise",
-    "config": {
-      "title": "Voice the melody",
-      "bars": [12, 16],
-      "target_dim": "dynamics",
-      "instruction": "Play bars 12-16. Top voice at mf, LH accompaniment at pp.",
-      "difficulty": "intermediate"
-    }
-  }
-}
-```
-
-When no artifact is warranted:
-
-```json
-{
-  "text": "Nice phrasing through that transition. The rubato felt natural.",
-  "artifact": null
-}
-```
-
-### Artifact Types
-
-| Type | Beta? | Triggers When | Prerequisites |
-|------|-------|---------------|---------------|
-| `exercise` | Yes | Corrective feedback where structured practice helps | None (text-based) |
-| `score_highlight` | Phase 3 | Observation references specific bars with score available | Score rendering lib, score data |
-| `play_passage` | SHIPPED | Teacher wants student to listen back to a specific passage they just played | Score alignment for session (piece identified + bars covered) |
-| `segment_loop` | SHIPPED | Teacher assigns a bar-bounded loop to drill (V8a) | None |
-| `session_review` | Phase 3 | Session ends, synthesis ready | Session brain data |
-
-Web scorehost path shipped and verified; the iOS bridge cannot yet reach/authenticate the passage manifest — open bug #152.
-
-### Latency Budget (Revised)
-
-| Path | Latency |
-|------|---------|
-| Text-only observation | ~1.8s (subagent 0.3s + teacher 1.5s) |
-| Observation with artifact | ~2.0-2.5s (subagent 0.3s + teacher with tool use 1.7-2.2s) |
-
-The UI subagent stage (previously ~0.3-0.5s) is eliminated. Tool use adds ~0.2-0.5s to the teacher call but removes an entire LLM round-trip.
-
-### Artifact Declaration Pattern (DECIDED)
-
-**Decision:** provider tool_use with `tool_choice: "auto"` (mechanism retained across teacher providers).
-
-- Teacher LLM decides autonomously when to create artifacts (no subagent signaling)
-- Tool definition: `create_exercise` with schema-enforced config (source_passage, target_skill, exercises[1-3])
-- Hybrid exercise sourcing: catalog lookup (20 curated exercises) + teacher-generated fallback
-- Generated exercises persisted to D1 with `source: "teacher_llm"`
-- Separate tools per artifact type: Phase 3 will add `create_score_highlight`, `create_keyboard_guide`, etc.
-- Latency: +0.2-0.5s over text-only (tool schema adds ~100 tokens, cached after first call)
-- Graceful degradation: if tool call fails, observation is text-only (artifact is optional)
+Unchanged from the original vision: no gamification, no streaks, no confetti.
+The interface is the student's music, marked up by someone who listened.
 
 ---
 
-## Component Library
+## The Mark
 
-Four pre-built components render from JSON artifact configs. The unified `<Artifact>` container accepts any type and delegates to the appropriate renderer. Beta ships with `exercise_set` only; other types ship in Phase 3.
-
-### 1. Score Highlight (`score_highlight`) (Phase 3)
-
-Scrolling sheet music with annotations. Shows the student *where* in the music the observation applies.
-
-**Triggers when:** The teacher observation references a specific passage, bar range, or musical moment. Most common for dynamics, phrasing, and articulation feedback.
-
-**Configuration schema:**
+The mark is the unit of feedback and the system's central contract. Model
+generations change behind it; the UI never knows which model produced a mark.
 
 ```json
 {
-    "type": "score_highlight",
-    "config": {
-        "piece": "Chopin Nocturne Op. 9 No. 2",
-        "bar_range": [20, 24],
-        "highlight_dimension": "dynamics",
-        "annotations": [
-            { "bar": 21, "beat": 1, "text": "crescendo starts here" },
-            { "bar": 23, "beat": 3, "text": "peak should land here" }
-        ],
-        "show_dynamics_curve": true,
-        "show_keyboard": false
-    }
+  "anchor": { "type": "bars", "bars": [5, 6] },
+  "taxonomy": "needs_work",
+  "dimension": "pedaling",
+  "evidence": "pedal held through the bass change at 5.3; RH-LH blur 3x your usual",
+  "lifecycle": "active"
 }
 ```
 
-**Prerequisites:**
+- **anchor:** `bars` when score alignment quality permits, else `timestamp`
+  (seconds into session). Wrong bar numbers are never shown — anchors degrade
+  to timestamps, which are always true.
+- **taxonomy:** `needs_work` (◉) | `missed_opportunity` (○) | `strong` (★).
+  The three-way split distinguishes doing something wrong from failing to
+  take an expressive opportunity from playing something well — and leaves
+  room for defensible interpretive choices to go unmarked.
+- **dimension:** internal routing signal (dynamics, timing, pedaling,
+  articulation, phrasing, interpretation). Never shown as a score or number.
+- **evidence:** MPM-grounded "why", available on tap — a drill-down
+  affordance, not the default state.
+- **lifecycle:** `active -> improving -> resolved`, driven by the student
+  baseline's symmetric persistence gate (see `03-memory-system.md`). Marks
+  fade on the piece page as passages improve.
 
-- Score alignment (chunk timestamps to bar numbers)
-- Score rendering engine (MusicXML/Lilypond to notation)
-- Score data for the student's piece (initially from a curated library, later user-uploaded)
+### Two canvases, one vocabulary
 
-**Graceful degradation:** If no score data is available for the piece, `score_highlight` is unavailable. The teacher falls back to `text_only`. The observation text still carries the full insight -- the student just does not see the annotated notation.
-
-### 2. Keyboard Guide (`keyboard_guide`) (Phase 3)
-
-Piano keyboard with lit keys, optionally synchronized to scrolling notation. For beginners learning to read music or for anyone learning a new passage.
-
-**Triggers when:** The student is in early learning arc with a piece, or the teacher identifies a fingering/note-reading issue. More common for beginners.
-
-**Configuration schema:**
-
-```json
-{
-    "type": "keyboard_guide",
-    "config": {
-        "piece": "Chopin Nocturne Op. 9 No. 2",
-        "bar_range": [20, 24],
-        "hand": "right",
-        "tempo_fraction": 0.5,
-        "show_notation": true,
-        "highlight_notes": [
-            { "bar": 20, "beat": 1, "keys": ["C4", "E4", "G4"], "duration": 0.5 },
-            { "bar": 20, "beat": 2, "keys": ["D4", "F4", "A4"], "duration": 0.5 }
-        ]
-    }
-}
-```
-
-**Prerequisites:**
-
-- Score alignment
-- MIDI data or note-level score data for the piece (MusicXML provides this)
-- Piano keyboard component (88-key scrollable, with highlight state per key)
-
-**Graceful degradation:** If score data is unavailable, `keyboard_guide` is unavailable. Falls back to `text_only` or `exercise_set` (text-based exercises do not need notation).
-
-### 3. Exercise Set (`exercise_set`) (Beta)
-
-Takes the specific passage and skill the teacher identified, generates 2-3 targeted practice variations as interactive cards with instructions. Cross-references `04-exercises.md` for the exercise database schema.
-
-**Triggers when:** The teacher observation includes a corrective framing and the student would benefit from structured practice, not just awareness.
-
-**Configuration schema:**
-
-```json
-{
-    "type": "exercise_set",
-    "config": {
-        "source_passage": "bars 20-24, Chopin Nocturne Op. 9 No. 2",
-        "target_skill": "dynamic control through crescendo",
-        "exercises": [
-            {
-                "title": "Three-level dynamics",
-                "instruction": "Play bars 20-24 at pp, then mf, then ff. Feel the difference in arm weight.",
-                "focus_dimension": "dynamics",
-                "hands": "both"
-            },
-            {
-                "title": "Crescendo isolation",
-                "instruction": "Play only the right hand, bars 21-23. Start at pp and arrive at ff by beat 3 of bar 23. No pedal.",
-                "focus_dimension": "dynamics",
-                "hands": "right"
-            },
-            {
-                "title": "Exaggerated dynamics",
-                "instruction": "Play the full passage but exaggerate the crescendo -- make it twice as dramatic as you think it should be. Then scale back.",
-                "focus_dimension": "dynamics",
-                "hands": "both"
-            }
-        ]
-    }
-}
-```
-
-**Connections to existing systems:**
-
-- Exercises can be saved to the exercise database (`04-exercises.md`) and tracked for completion
-- The condensed reasoning trace records that exercises were generated for this skill
-- Synthesized facts can note "student was given dynamics exercises for Nocturne bars 20-24"
-- Focus mode sessions can reference these exercises
-
-**Graceful degradation:** Exercise sets are text-based and do not require score data. Always available. If score rendering is unavailable, exercises still render with title and instruction text.
-
-### 4. Play Passage (`play_passage`) (SHIPPED)
-
-Web scorehost path shipped and verified; the iOS bridge cannot yet reach/authenticate the passage manifest — open bug #152.
-
-Plays a bar-bounded slice of the student's own recording with the score visible and a tinted focus sub-range. The teacher says "listen here" and the student hears exactly what the teacher heard, cursor tracking across the notation in real time.
-
-**Triggers when:** The teacher observation references a moment the student should *hear* in their own playing — rushed timing, blurred pedaling, dynamic collapse. Only emitted when the current session has a piece identified and score alignment covers the requested bars.
-
-**Configuration schema:**
-
-```json
-{
-    "type": "play_passage",
-    "config": {
-        "sessionId": "uuid-of-current-session",
-        "bars": [5, 8],
-        "focusBars": [6, 7],
-        "dimension": "timing",
-        "annotation": "You rushed through the triplets in bar 6 — try holding each beat a hair longer."
-    }
-}
-```
-
-**How it works:**
-
-1. `PlayPassageCard` fetches a `PassageManifest` from `GET /api/sessions/:id/passage?bars=N-M`
-2. The manifest contains per-chunk R2 URLs, `startOffsetSec`, `endOffsetSec`, and a `barTimeline` array
-3. `PassagePlayer` fetches and decodes chunks in parallel via Web Audio API, sequences `AudioBufferSourceNode` calls with correct trim offsets; a RAF cursor emits ticks for notation overlay
-4. `scoreRenderer.getClip()` renders the score SVG for `bars`; `focusBars` are tinted in the dimension color
-
-**Prerequisites:**
-
-- Score alignment: piece identified for the session AND `alignment[].bar` data in DO storage covering `[N, M]`
-- R2 chunks: session audio uploaded (always true during an active session)
-
-**Graceful degradation:** If the DO returns 409 (piece unknown or bars not covered), `play_passage` is not emitted — the teacher falls back to text. If a chunk fetch fails after manifest load, the card shows "couldn't load audio" while still rendering the score clip and annotation.
-
-**Key files:**
-- `apps/api/src/services/passage-manifest.ts` — `buildPassageManifest()` pure function
-- `apps/api/src/do/session-brain.ts` — `GET /passage` DO handler
-- `apps/api/src/routes/sessions.ts` — `GET /api/sessions/:id/passage` (auth + ownership gated)
-- `apps/api/src/routes/practice.ts` — `GET /api/practice/chunk` (auth + ownership gated R2 read)
-- `apps/web/src/lib/passage-player.ts` — `PassagePlayer` class (Web Audio scheduling, RAF ticks)
-- `apps/web/src/components/cards/PlayPassageCard.tsx` — card component
-- `apps/web/src/lib/score-worker.ts` — Verovio WASM worker: `loadPiece`, `processGetPageRequest`, `processRenderClipRequest`; builds eager ScoreIR on load
-- `apps/web/src/lib/score-renderer.ts` — `ScoreRenderer` proxy: `load()`, `getIR()`, `getPage()`, `getClip()`; singleton with lazy worker init, fetch dedup, SSR safety
-- `apps/web/src/lib/score-ir.ts` — `ScoreIR` intermediate representation; `parseScoreIR()` pure function; note→qstamp lookup with explicit NaN guard
-- `apps/web/src/lib/score-cursor.ts` — `ScoreCursor` class; rAF-based playback cursor; binary search on qstamp timeline; idempotent `start()` (React StrictMode safe)
-
----
-
-## Chat Interface
-
-### Web (TanStack Start + React)
-
-- Real-time observations via WebSocket during practice sessions
-- React components render inline cards within the chat scroll
-- MediaRecorder for audio capture, Web Audio API for processing
-- Chat history persists in session state
-
-### iOS (SwiftUI)
-
-- SwiftUI chat view with inline card rendering
-- AVAudioEngine for audio capture, chunk upload to API
-- SwiftData for local-first chat history persistence
-- Cards rendered as native SwiftUI views (not WebView where possible)
-
-### "Tell Me More" Interaction Pattern
-
-Every observation -- text-only or with component -- supports follow-up:
-
-- **"Tell me more"** triggers the existing elaboration flow in the chat
-- **"Try exercises for this"** generates an `exercise_set` component for the same passage
-- **"Listen back"** triggers a `play_passage` artifact for the referenced bars (when score alignment is available)
-
-These actions feed back into the conversation as student messages, and the teacher responds naturally. The chat scroll becomes a timeline of the practice session.
-
----
-
-## Component Rendering
-
-### How JSON Configs Become UI
-
-The API returns a component configuration (JSON) alongside the observation text. The client is responsible for rendering:
-
-- **Web:** React components keyed by `type` in `apps/web/src/components/cards/`. Implemented: `ScoreHighlightCard`, `ExerciseSetCard` (score-first layout with `LoopTransport` interactive playback for `own_passage_loop` prescriptions, shipped #45), `PlayPassageCard`, `SegmentLoopArtifact`. (`keyboard_guide` has a type but no card yet -- falls through to `PlaceholderCard`; `ReferenceBrowserCard` was never built -- `play_passage` replaced the reference-browser stub.)
-- **iOS:** SwiftUI views keyed by `type` planned (same component library, native rendering); not yet implemented.
-
-### Chat Layout
-
-Components appear as inline cards in the chat scroll, similar to iMessage rich content:
-
-```
-+------------------------------------------+
-| [Teacher avatar]                          |
-|                                           |
-| "The crescendo in the second phrase       |
-|  peaked too early -- the sforzando        |
-|  didn't land. Try holding back the        |
-|  build longer."                           |
-|                                           |
-| +--------------------------------------+ |
-| | [Score Highlight Card]                | |
-| |                                       | |
-| |  Bars 20-24, Chopin Nocturne Op. 9    | |
-| |  [Rendered notation with dynamics     | |
-| |   curve and annotations]              | |
-| |                                       | |
-| |  > "crescendo starts here"   (bar 21) | |
-| |  > "peak should land here"  (bar 23)  | |
-| +--------------------------------------+ |
-|                                           |
-| [Try exercises for this] [Tell me more]   |
-+------------------------------------------+
-```
-
-### Interaction Model
-
-- Cards are scrollable within the chat (the chat scroll is primary)
-- Cards can be expanded to full-screen for detail (tap to expand, swipe/click to dismiss)
-- When expanded, the artifact takes over the viewport. The chat thread remains accessible via a sidebar or back gesture. This is the "expandable artifact" pattern: the object lives in chat but can grow to fill the screen without leaving the conversation context.
-- Cards have action buttons that trigger follow-up conversation turns
-- Past cards remain in the chat history for reference
-
-### Graceful Degradation
-
-When a component cannot render (missing score data, network unavailable, unsupported platform capability):
-
-1. The teacher LLM's artifact tool call is skipped or returns `null` (the separate UI subagent stage was removed)
-2. The observation text is delivered without a component
-3. The text already contains the full teaching insight -- nothing is lost
-
-No component is ever required. The system always works as a text chat.
-
-### State Between Components
-
-Components in the chat history are snapshots -- they do not update retroactively. If the student improves on a passage, a new observation generates a new card. The chat scroll becomes a timeline of progress.
-
----
-
-## Platform Differences
-
-| Capability | Web | iOS |
+| Canvas | When | Anchor |
 |---|---|---|
-| Score rendering | Verovio WASM in a Web Worker (`score-worker.ts`) | Verovio WASM + smplr in WKWebView scorehost bundle (WKURLSchemeHandler scorehost://app/); `just build-scorehost` (#57) |
-| Keyboard guide | Canvas/SVG rendering | Native SwiftUI view (88-key scrollable) |
-| Exercise set | React card stack | SwiftUI card stack |
-| Reference browser (YouTube) | Embedded iframe player | WKWebView inline player |
-| Reference browser (Apple Music) | Link out | MusicKit integration / deep link to Music app |
-| Audio capture | MediaRecorder + Web Audio API | AVAudioEngine + ring buffer |
-| Chat persistence | Session state (server-backed) | SwiftData local-first |
-| Real-time observations | WebSocket | Chunk upload + response polling |
-| Offline components | Limited (no service worker yet) | Score highlight + exercise set (cached data) |
-| Artifact container | `<Artifact>` React component | `ArtifactView` SwiftUI view |
+| Score overlay (Verovio SVG annotation layer) | Piece known and score in library | bars |
+| Session timeline strip | Pieceless sessions, or shaky alignment | timestamp |
 
-### V1 vs V2 Component Complexity
+Every surface renders marks through the same components on either canvas.
 
-Start simple, iterate:
+---
 
-- **Score highlight V1:** Static image of the passage with text annotations overlaid. No interactive scrolling. Generated server-side or via a notation API.
-- **Score highlight V2:** Interactive scrolling notation with real-time annotation rendering.
-- **Keyboard guide V1:** Static keyboard diagram with highlighted keys. No animation.
-- **Keyboard guide V2:** Animated key lighting synchronized to playback.
+## The Four Surfaces
+
+### 1. Home — "Your music"
+
+Repertoire cards (piece, learning arc, open mark count), an add-piece flow
+(score library search), and a secondary "just play" record button. Tapping a
+piece opens practice mode with its score. No sidebar, no conversation list.
+
+### 2. Practice mode — the digital music stand
+
+The score fills the screen: static pages, manual turns, **no live
+following**. The follower is an offline orientation tool for the teacher
+(where to write feedback, where the review cursor goes) — never a live
+performer-facing cursor. In the margin: a recording indicator and metronome.
+
+Piece resolution ladder:
+
+1. **User picked the piece** — score on the stand, full anchoring.
+2. **No pick, confident piece_id** — score appears with a dismissible confirm
+   chip naming the guess.
+3. **No confident match — pieceless mode** (a permanent first-class state:
+   the score library is copyright-cleared only, so many sessions live here
+   forever): a calm near-empty screen — elapsed time, metronome, and a thin
+   session-timeline strip accruing pause-marks.
+
+During pauses (>= 20s), at most one new mark lands on the canvas. It never
+requires a response and recedes when playing resumes.
+
+### 3. Session review
+
+On stop, the practice canvas transitions in place to review state:
+
+1. **Verdict** — one teacher sentence. Qualitative, no numbers, no dimension
+   scores, ever. When history supports it, the verdict carries continuity
+   ("that bass-blur from Tuesday is gone").
+2. **Marks, consolidated** on the score or timeline canvas.
+3. **Per-mark expansion** — score clip + playback of the student's own audio
+   for those bars (cursor-tracked), the evidence in words, and a "work on
+   this" entry into a drill.
+4. **One carry-forward** — a single next-session focus. The review must feed
+   the next session, not just describe the last one.
+
+Trend statements ("pedaling: improving over three weeks") live one tap down,
+as directions, never as plotted model output.
+
+Failure states are loud: synthesis failure renders an explicit retry state
+(never blank, never fabricated); connection gaps are disclosed ("4 minutes
+didn't reach me"); low-confidence transcription spans are disclosed as
+no-comment zones.
+
+### 4. Piece page — the score across time
+
+The score with marks accumulated across sessions, faded by lifecycle state;
+session history for the piece; open drills. This is where "a teacher pencils
+on your score over the semester" lives.
+
+---
+
+## Drills — adaptive bar-shaping
+
+From any mark, "work on this" generates a bar-bounded drill of exactly the
+flagged passage (the segment-loop and exercise-generation machinery, promoted
+from chat cards to a first-class flow). Variant selection is habit-informed
+via the student model: prescriptions adapt to what the student actually does
+with them.
+
+---
+
+## What Remains of Conversation
+
+**Passage-scoped ask threads only.** Tapping "ask about this" on any mark
+opens a thread whose context is automatic: piece, bars, the student's audio,
+the mark's evidence, and the student model. Threads live and die with the
+passage. There is no global chat, no conversation list, no chat history
+surface.
+
+Rationale: conversation is reserved for genuine ambiguity ("why does this
+passage feel harder than it should?"), where back-and-forth reasoning earns
+its cost. Status delivery ("what happened in that take") is a render, not a
+conversation.
+
+---
+
+## Visual Direction
+
+**Paper-first light, derived warm dark, time-aware.**
+
+- The score is the protagonist of every surface, and notation is black ink on
+  paper. The interface is built around warm ivory paper surfaces so the score
+  sits natively — no white score card floating in a dark UI.
+- Warm near-black ink for text; **Lora** (display) + **Figtree** (body)
+  survive; **sage** accent survives; six muted dimension colors survive for
+  mark tinting. Espresso/cream is retired.
+- Warm dark is **derived from the same token table** (one table, two value
+  columns), auto-selected by time of day with manual override. It is not a
+  second bespoke design; it gets polish only after light is proven in use.
+- Token source of truth: `apps/web/src/styles/app.css` `@theme`. The iOS
+  token set (`apps/ios/.../DesignSystem/Tokens/`) mirrors it by hand — drift
+  risk noted in #156.
 
 ---
 
 ## Open Questions
 
-1. **Component frequency:** How often should the teacher generate a component vs. text-only? Too many cards could feel noisy. Too few and the feature is invisible. The ~30% target from the design philosophy section is confirmed as the right starting point (CEO review 2026-03-19). Increase or decrease based on engagement data.
-
-2. ~~**Score rendering library:**~~ RESOLVED -- Verovio WASM in a Web Worker (shipped, Phase 2: `score-ir.ts`, `score-cursor.ts`, `score-renderer.ts`, `score-worker.ts`). iOS renderer SHIPPED (#57): scorehost WKWebView bundle.
-
-3. **Reference browser content quality:** YouTube search results vary in quality. Should the teacher validate results (check video title, duration, relevance) before showing them? Or trust the search and let the student skip irrelevant results? (Note: the reference-browser artifact was never built; `play_passage` replaced the stub.)
-
-4. **Preference learning from references:** How quickly can the system learn preferences from reference interactions? After 3 listens of Argerich vs. 1 of Rubinstein, is that enough signal? Or does the student need to explicitly say "I like this one"?
-
-5. **Offline behavior:** Score highlight and exercise set can work offline (data is local or cached). Reference browser requires network. Keyboard guide depends on whether score data is cached. Should offline components degrade or simply not appear?
-
-6. **Component as conversation turn:** When the student interacts with a component (taps "Try it" on an exercise, listens to a reference), should that interaction feed back into the conversation? E.g., "I see you tried the crescendo isolation exercise -- how did it feel?"
+1. **Pause threshold tuning.** 20s is a starting value; real sessions will
+   say whether marks feel timely or laggy. Config-tunable, not a hard commit.
+2. **Mark density ceiling.** How many marks per session before the review
+   feels like a report card? The bandwidth gate controls this implicitly;
+   validate with real use.
+3. **Open learner model.** Whether to ever show the student their own
+   baseline/trend directly is an unresolved design bet (metacognitive aid vs.
+   anxiety; literature is thin both ways).
+4. **iOS parity.** All surfaces are designed web-first; native SwiftUI
+   equivalents follow after web validation.
