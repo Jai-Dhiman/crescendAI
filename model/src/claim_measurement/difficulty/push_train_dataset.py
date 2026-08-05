@@ -35,7 +35,7 @@ class BundleReport:
     checksum: str
 
 
-def _referenced_seg_ids(plans: list) -> list:
+def _referenced_seg_ids(plans: list[FoldPlan]) -> list:
     seg_ids: set = set()
     for plan in plans:
         seg_ids.update(plan.train_seg_ids)
@@ -45,7 +45,7 @@ def _referenced_seg_ids(plans: list) -> list:
 
 
 def stage_training_bundle(
-    paths: BundleSources, plans: list, staging_dir: Path
+    paths: BundleSources, plans: list[FoldPlan], staging_dir: Path
 ) -> BundleReport:
     staging_dir = Path(staging_dir)
     midi_out = staging_dir / "midi"

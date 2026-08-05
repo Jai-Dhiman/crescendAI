@@ -13,17 +13,22 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 
-from claim_measurement.difficulty.bakeoff_cv import composer_disjoint_folds, paired_boot, tau_c
+from claim_measurement.difficulty.bakeoff_cv import (
+    composer_disjoint_folds,
+    paired_boot,
+    tau_c,
+)
 
 N_FOLDS, SEED = 5, 2026
 ALPHAS = np.logspace(-1, 5, 25)
 
 
-def midi_drift(reference_notes: list, candidate_notes: list, onset_tolerance: float) -> dict:
+def midi_drift(
+    reference_notes: list, candidate_notes: list, onset_tolerance: float
+) -> dict:
     """note-count delta (candidate - reference) and onset F1: a candidate
     note matches a reference note when they share pitch and onsets differ by
     <= onset_tolerance seconds. Matching is greedy nearest-onset-first, and
@@ -48,9 +53,13 @@ def midi_drift(reference_notes: list, candidate_notes: list, onset_tolerance: fl
 
     precision = tp / len(candidate_notes) if candidate_notes else 0.0
     recall = tp / len(reference_notes) if reference_notes else 0.0
-    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
+    f1 = (
+        (2 * precision * recall / (precision + recall))
+        if (precision + recall) > 0 else 0.0)
 
-    return {"note_count_delta": len(candidate_notes) - len(reference_notes), "onset_f1": f1}
+    return {
+        "note_count_delta": len(candidate_notes) - len(reference_notes),
+        "onset_f1": f1}
 
 
 def _import_transcribe_wav():

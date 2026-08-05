@@ -77,7 +77,9 @@ def _carve_val(train_pool, val_frac: float, seed: int):
     return tuple(train_seg_ids), tuple(val_seg_ids)
 
 
-def check_fold_plans(plans, eval_entries, pool_entries, n_folds: int, seed: int) -> list:
+def check_fold_plans(
+    plans, eval_entries, pool_entries, n_folds: int, seed: int
+) -> list:
     """Re-derive the expected test folds and return every leakage/consistency
     violation found, as human-readable strings. Empty list == clean."""
     violations: list = []
@@ -96,7 +98,8 @@ def check_fold_plans(plans, eval_entries, pool_entries, n_folds: int, seed: int)
         if set(plan.test_seg_ids) != expected_test:
             violations.append(
                 f"fold {plan.fold}: test_seg_ids do not equal "
-                f"composer_disjoint_folds(eval composers, {n_folds}, {seed})[{plan.fold}]")
+                f"composer_disjoint_folds(eval composers, {n_folds}, "
+                f"{seed})[{plan.fold}]")
 
         train_set = set(plan.train_seg_ids)
         val_set = set(plan.val_seg_ids)
@@ -108,7 +111,8 @@ def check_fold_plans(plans, eval_entries, pool_entries, n_folds: int, seed: int)
         if train_set & val_set:
             violations.append(f"fold {plan.fold}: train/val seg_id overlap")
         if (train_set | val_set) & eval_seg_id_set:
-            violations.append(f"fold {plan.fold}: an eval piece leaked into train or val")
+            violations.append(
+                f"fold {plan.fold}: an eval piece leaked into train or val")
 
         test_composers = {composer_of[s] for s in plan.test_seg_ids}
         train_composers = {composer_of[s] for s in plan.train_seg_ids}

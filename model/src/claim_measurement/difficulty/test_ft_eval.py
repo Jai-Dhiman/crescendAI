@@ -13,7 +13,8 @@ from claim_measurement.difficulty.ft_eval import oof_tau_per_fold
 def test_oof_tau_per_fold_recovers_a_strong_per_fold_linear_signal():
     rng = np.random.default_rng(2026)
     n = 200
-    composers = np.array([f"composer_{i}" for i in range(n)])  # all distinct -> vacuous disjointness
+    # all distinct -> vacuous disjointness
+    composers = np.array([f"composer_{i}" for i in range(n)])
     y = rng.integers(0, 11, size=n).astype(float)
 
     emb_by_fold = {}
