@@ -114,15 +114,22 @@ def main(argv=None, transcriber=None) -> int:
     return 0 if not failed else 1
 
 
-def score_audio_subset(emb_by_fold: dict, audio_embeddings: dict, y: np.ndarray,
-                        composers: np.ndarray, seg_ids: list, n_folds: int,
-                        seed: int) -> dict:
+def score_audio_subset(emb_by_fold: dict, audio_embeddings: dict,
+                        features37_x: np.ndarray, y: np.ndarray,
+                        composers: np.ndarray, seg_ids: list,
+                        n_folds: int, seed: int) -> dict:
     """For every seg_id in audio_embeddings (a subset of seg_ids), fit a ridge
     model on that piece's OWN test fold's train rows of emb_by_fold[fold] and
     score the piece's audio-derived embedding through it. Also scores the
     SAME piece's original symbolic embedding through the SAME model, so any
     audio-vs-symbolic gap is attributable to audio provenance, not to the
-    subset being easier or harder (design spec's real-audio second gate)."""
+    subset being easier or harder (design spec's real-audio second gate, item
+    (b)). THE GATE (item (a)): features37_x is scored via ordinary
+    composer-disjoint OOF over the FULL piece set (fit on each fold's train
+    rows, predict that fold's own test rows) -- never refit on the audio
+    subset alone -- and those OOF predictions are then restricted to the
+    audio subset's rows and paired-bootstrapped against the audio-derived
+    predictions on those same rows."""
     from sklearn.linear_model import RidgeCV
     from sklearn.pipeline import make_pipeline
     from sklearn.preprocessing import StandardScaler
@@ -131,7 +138,16 @@ def score_audio_subset(emb_by_fold: dict, audio_embeddings: dict, y: np.ndarray,
     test_folds = composer_disjoint_folds(composers, n_folds, seed)
     fold_of_idx = {i: f for f, idx in enumerate(test_folds) for i in idx}
 
-    audio_pred, symbolic_pred, subset_y = [], [], []
+    # features37 OOF over the full set, matching folds/seed exactly -- computed
+    # once here, independent of which pieces have audio, then subset below.
+    f37_oof = np.full(len(y), np.nan)
+    for fold, test_idx in enumerate(test_folds):
+        train_idx = np.setdiff1d(np.arange(len(seg_ids)), test_idx)
+        f37_model = make_pipeline(StandardScaler(), RidgeCV(alphas=ALPHAS))
+        f37_model.fit(features37_x[train_idx], y[train_idx])
+        f37_oof[test_idx] = f37_model.predict(features37_x[test_idx])
+
+    audio_pred, symbolic_pred, f37_pred, subset_y = [], [], [], []
     ridge_cache: dict = {}
     for seg_id, audio_embedding in audio_embeddings.items():
         i = idx_of[seg_id]
@@ -144,17 +160,26 @@ def score_audio_subset(emb_by_fold: dict, audio_embeddings: dict, y: np.ndarray,
         model = ridge_cache[fold]
         audio_pred.append(model.predict(audio_embedding.reshape(1, -1))[0])
         symbolic_pred.append(model.predict(emb_by_fold[fold][i].reshape(1, -1))[0])
+        f37_pred.append(f37_oof[i])
         subset_y.append(y[i])
 
     subset_y = np.array(subset_y)
-    audio_pred, symbolic_pred = np.array(audio_pred), np.array(symbolic_pred)
-    d, lo, hi, p = paired_boot(symbolic_pred, audio_pred, subset_y, seed=seed)
+    audio_pred = np.array(audio_pred)
+    symbolic_pred = np.array(symbolic_pred)
+    f37_pred = np.array(f37_pred)
+    d_sym, lo_sym, hi_sym, p_sym = paired_boot(
+        symbolic_pred, audio_pred, subset_y, seed=seed)
+    d_f37, lo_f37, hi_f37, p_f37 = paired_boot(
+        f37_pred, audio_pred, subset_y, seed=seed)
     return {
         "n": len(subset_y),
         "audio_tau_c": tau_c(audio_pred, subset_y),
         "symbolic_tau_c": tau_c(symbolic_pred, subset_y),
-        "delta_vs_symbolic": d, "ci_lo_vs_symbolic": lo,
-        "ci_hi_vs_symbolic": hi, "p_le_0_vs_symbolic": p,
+        "features37_tau_c": tau_c(f37_pred, subset_y),
+        "delta_vs_symbolic": d_sym, "ci_lo_vs_symbolic": lo_sym,
+        "ci_hi_vs_symbolic": hi_sym, "p_le_0_vs_symbolic": p_sym,
+        "delta_vs_features37": d_f37, "ci_lo_vs_features37": lo_f37,
+        "ci_hi_vs_features37": hi_f37, "p_le_0_vs_features37": p_f37,
     }
 
 

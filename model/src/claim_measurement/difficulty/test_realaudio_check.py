@@ -79,9 +79,46 @@ def test_score_audio_subset_reports_matched_symbolic_and_audio_tau_c():
         for i, seg_id in enumerate(seg_ids) if seg_id in audio_subset
     }
 
-    result = score_audio_subset(emb_by_fold, audio_embeddings, y, composers, seg_ids,
-                                 n_folds=5, seed=2026)
+    # unused by this test's assertions
+    features37_x = rng.normal(size=(n, 5)).astype(np.float32)
+
+    result = score_audio_subset(emb_by_fold, audio_embeddings, features37_x, y,
+                                 composers, seg_ids, n_folds=5, seed=2026)
 
     assert result["n"] == 20
     assert result["audio_tau_c"] > 0.9
     assert result["symbolic_tau_c"] > 0.9
+
+
+def test_score_audio_subset_reports_features37_gate_paired_against_audio():
+    rng = np.random.default_rng(2026)
+    n = 60
+    # distinct -> vacuous disjointness
+    composers = np.array([f"composer_{i}" for i in range(n)])
+    y = rng.integers(0, 11, size=n).astype(float)
+    seg_ids = [f"p{i:03d}" for i in range(n)]
+
+    emb_by_fold = {
+        f: np.column_stack([y, rng.normal(size=(n, 2)) * 0.01]).astype(np.float32)
+        for f in range(5)
+    }
+    # A deliberately weak features37 stand-in (heavy noise on top of y) so the
+    # near-perfect audio arm clearly beats it -- this fixture only needs to
+    # prove the gate computes and pairs correctly, not that any real numbers hold.
+    features37_x = np.column_stack([y + rng.normal(scale=4.0, size=n),
+                                     rng.normal(size=(n, 4))]).astype(np.float32)
+    audio_subset = set(seg_ids[:20])
+    audio_embeddings = {
+        seg_id: np.array([y[i] + 0.05, 0.0, 0.0], dtype=np.float32)
+        for i, seg_id in enumerate(seg_ids) if seg_id in audio_subset
+    }
+
+    result = score_audio_subset(emb_by_fold, audio_embeddings, features37_x, y,
+                                 composers, seg_ids, n_folds=5, seed=2026)
+
+    assert result["n"] == 20
+    assert result["audio_tau_c"] > result["features37_tau_c"]
+    assert result["delta_vs_features37"] > 0
+    assert result["ci_lo_vs_features37"] > 0  # SIG on this fixture
+    assert (result["ci_lo_vs_features37"] <= result["delta_vs_features37"]
+            <= result["ci_hi_vs_features37"])
