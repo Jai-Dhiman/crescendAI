@@ -20,3 +20,16 @@ def ordered_pairs(grades: torch.Tensor) -> torch.Tensor:
     gj = grades.unsqueeze(0).expand(n, n)
     mask = gi > gj
     return mask.nonzero(as_tuple=False)
+
+
+def pairwise_ranking_loss(scores: torch.Tensor, grades: torch.Tensor) -> torch.Tensor:
+    """Pairwise logistic ranking loss: -log(sigmoid(score_i - score_j)) for
+    every strictly grade-ordered pair (i higher-graded than j). Returns a
+    finite 0.0 still attached to `scores`' autograd graph when the batch has
+    zero ordered pairs (e.g. every piece shares one grade) rather than NaN
+    from averaging an empty tensor -- see Task 8."""
+    pairs = ordered_pairs(grades)
+    if pairs.shape[0] == 0:
+        return scores.sum() * 0.0
+    hi, lo = pairs[:, 0], pairs[:, 1]
+    return torch.nn.functional.softplus(-(scores[hi] - scores[lo])).mean()
