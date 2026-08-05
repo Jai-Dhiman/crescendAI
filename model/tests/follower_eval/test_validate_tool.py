@@ -132,6 +132,38 @@ def test_list_clips_attaches_resolved_score_and_relabel_flag(tmp_path):
     assert clips[0]["relabeled"] is True
 
 
+def test_list_clips_carries_already_saved_spans_and_verdict(tmp_path):
+    # Re-selecting a labeled clip must restore what is on disk. Blanking it let a
+    # second save overwrite real marks with [], which is how the 40-clip corpus
+    # pass lost every wrong_span it recorded.
+    bundles = _bundle(tmp_path, "fur_elise", "z")
+    (bundles / "fur_elise" / "z.validate.json").write_text(
+        json.dumps({"verdict": "wrong", "wrong_spans": [[3.5, 9.25]]})
+    )
+    subset = tmp_path / "subset.json"
+    subset.write_text(
+        json.dumps(
+            {"clips": [{"piece": "fur_elise", "video_id": "z", "v1_confidence": 0.4}]}
+        )
+    )
+    clips = vt.list_clips(subset, bundles, use_all=False, pieces=None, id_map={})
+    assert clips[0]["saved_spans"] == [[3.5, 9.25]]
+    assert clips[0]["saved_verdict"] == "wrong"
+
+
+def test_list_clips_unlabeled_clip_has_no_saved_state(tmp_path):
+    bundles = _bundle(tmp_path, "fur_elise", "z")
+    subset = tmp_path / "subset.json"
+    subset.write_text(
+        json.dumps(
+            {"clips": [{"piece": "fur_elise", "video_id": "z", "v1_confidence": 0.4}]}
+        )
+    )
+    clips = vt.list_clips(subset, bundles, use_all=False, pieces=None, id_map={})
+    assert clips[0]["saved_spans"] == []
+    assert clips[0]["saved_verdict"] is None
+
+
 def test_list_clips_confirmed_label_is_not_relabeled(tmp_path):
     # piece-ID agreeing with the folder label must NOT be reported as a re-label
     bundles = _bundle(tmp_path, "bach_prelude_c_wtc1", "w")
@@ -178,6 +210,8 @@ def test_generate_html_surfaces_unverified_scores(tmp_path):
             "title": None,
             "v1_confidence": 0.2,
             "existing": False,
+            "saved_spans": [],
+            "saved_verdict": None,
             "score_id": "beethoven.fur_elise",
             "score_source": "label",
             "relabeled": False,

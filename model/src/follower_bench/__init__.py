@@ -1,6 +1,10 @@
-"""Synthetic clip generator for the symbolic score-follower benchmark (issue #111).
+"""Score-follower matcher core (issue #111, reduced by #133).
 
-Splices ASAP performances (already beat-aligned to their score MIDI) into
-practice-pathology clips with exact ground-truth score-position trajectories.
-See docs/specs/2026-07-06-follower-clip-generator-design.md.
+This package began as the synthetic clip benchmark. That machinery -- the clip
+generator, spliced pathologies, and their trajectory/metric scoring -- was
+retired once the real-audio eval passed its PASS bars
+(docs/model/realaudio-follower-eval.md). What remains is the matcher itself
+(the #115 monotonic DP -> #118 jump-aware DP -> #119 HMM line) plus the
+score-note loader, performance-note segmentation, and ASAP alignment reader that
+``follower_eval`` imports.
 """

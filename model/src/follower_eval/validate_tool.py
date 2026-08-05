@@ -145,6 +145,9 @@ def list_clips(
         if not wav.exists():
             raise ValidateToolError(f"missing WAV {wav} for {piece}/{vid}")
         vpath = bundles_root / piece / f"{vid}.validate.json"
+        # Re-selecting a clip must restore what was already saved for it, not blank
+        # the UI: a silent reset is how marked spans get overwritten with [].
+        saved = json.loads(vpath.read_text()) if vpath.exists() else {}
         score_id, score_source = resolve_score_id(piece, vid, id_map)
         label_sid = SCORE_FILENAME_BY_PIECE.get(piece, "").removesuffix(".json")
         out.append(
@@ -156,6 +159,8 @@ def list_clips(
                 "title": bundle.get("title"),
                 "v1_confidence": e["v1_confidence"],
                 "existing": vpath.exists(),
+                "saved_spans": saved.get("wrong_spans", []),
+                "saved_verdict": saved.get("verdict"),
                 "score_id": score_id,
                 "score_source": score_source,
             }
@@ -316,6 +321,8 @@ def generate_html(clips: list[dict]) -> str:
             "title": c["title"] or c["video_id"],
             "v1_confidence": c["v1_confidence"],
             "existing": c["existing"],
+            "saved_spans": c["saved_spans"],
+            "saved_verdict": c["saved_verdict"],
             "score_id": c["score_id"],
             "score_source": c["score_source"],
             "relabeled": c["relabeled"],
@@ -399,10 +406,17 @@ function decodeAt(tt, ss, t) {{
 }}
 
 async function selectClip(i) {{
+  // Leaving a clip with marks or a verdict that were never saved silently
+  // destroyed them, which is how wrong_spans reached disk as []. Refuse instead.
+  if (cur>=0 && i!==cur && dirty()) {{
+    if (!confirm('This clip has '+wrongSpans.length+' unsaved mark(s)'+(verdict?' and verdict "'+verdict+'"':'')+'. Leave without saving?')) return;
+  }}
   if (raf) cancelAnimationFrame(raf);
   if (audioEl) audioEl.pause();
-  cur=i; wrongSpans=[]; spanOpen=null; verdict=null;
   const c=CLIPS[i];
+  cur=i; spanOpen=null;
+  wrongSpans = (c.saved_spans||[]).map(s=>s.slice());
+  verdict = c.saved_verdict || null;
   document.getElementById('panel').innerHTML = `<p class="meta">loading follower for ${{c.piece}}/${{c.video_id}}...</p>`;
   const r = await fetch(`/clip/${{c.piece}}/${{c.video_id}}`);
   view = await r.json();
@@ -428,10 +442,17 @@ function renderPanel() {{
         ([k,l])=>`<button class="verdict-btn" data-v="${{k}}" onclick="setVerdict('${{k}}')">${{l}}</button>`).join('')}}
     </div>
     <div class="save-row"><button class="save-btn" onclick="saveClip()">Save</button>
+      <span class="status" id="markcount"></span>
       <span class="status" id="status"></span></div>`;
   audioEl=document.getElementById('audio');
   canvas=document.getElementById('roll'); ctx=canvas.getContext('2d');
   audioEl.addEventListener('timeupdate', updateWrongBar);
+  // Space is the mark key. If the audio element holds focus it also toggles
+  // native play/pause, which freezes currentTime under the hold and destroys
+  // the mark -- so never let the player keep focus.
+  audioEl.addEventListener('focus', ()=>audioEl.blur());
+  audioEl.addEventListener('loadedmetadata', ()=>{{ updateWrongBar(); updateMarkCount(); }});
+  syncVerdictButtons(); updateWrongBar(); updateMarkCount();
   loop();
 }}
 
@@ -465,7 +486,26 @@ function loop() {{
   draw(view.score, mid+6, h-6, ()=> '#888');
 }}
 
-function setVerdict(v) {{ verdict=v; document.querySelectorAll('.verdict-btn').forEach(b=>b.classList.toggle('sel',b.dataset.v===v)); }}
+// Unsaved work = marks or a verdict that differ from what is on disk for this clip.
+function dirty() {{
+  if (cur<0) return false;
+  const c=CLIPS[cur];
+  return JSON.stringify(wrongSpans)!==JSON.stringify((c.saved_spans||[]).map(s=>s.slice()))
+      || verdict!==(c.saved_verdict||null);
+}}
+function setVerdict(v) {{ verdict=v; syncVerdictButtons(); updateMarkCount(); }}
+function syncVerdictButtons() {{
+  document.querySelectorAll('.verdict-btn').forEach(b=>b.classList.toggle('sel',b.dataset.v===verdict));
+}}
+// The mark count is shown next to Save so what will be POSTed is always visible.
+// Silent divergence between the red bar and the payload is the failure we hit.
+function updateMarkCount() {{
+  const el=document.getElementById('markcount'); if(!el) return;
+  el.textContent = wrongSpans.length===0 ? 'no marks' :
+    wrongSpans.length+' mark'+(wrongSpans.length===1?'':'s')+
+    ' ('+wrongSpans.reduce((s,[a,b])=>s+(b-a),0).toFixed(1)+'s)';
+  el.style.color = wrongSpans.length ? '#e05a5a' : '#666';
+}}
 
 function updateWrongBar() {{
   if (!audioEl||!audioEl.duration) return;
@@ -475,6 +515,9 @@ function updateWrongBar() {{
   const ph=`<div class="ph" style="left:${{100*audioEl.currentTime/D}}%"></div>`;
   bar.innerHTML=segs+ph;
 }}
+
+// A reload also discards in-memory marks; make that a prompt, not a surprise.
+window.addEventListener('beforeunload',(e)=>{{ if (dirty()) {{ e.preventDefault(); e.returnValue=''; }} }});
 
 document.addEventListener('keydown',(e)=>{{
   if (e.target.tagName==='INPUT') return;
@@ -486,8 +529,14 @@ document.addEventListener('keyup',(e)=>{{
   if (e.code==='Space' && spanOpen!=null && audioEl) {{
     e.preventDefault();
     const a=Math.min(spanOpen,audioEl.currentTime), b=Math.max(spanOpen,audioEl.currentTime);
-    if (b-a>0.05) wrongSpans.push([a,b]);
-    spanOpen=null; updateWrongBar();
+    // A hold that spans no playback time used to vanish with no feedback. Say so:
+    // it means the audio was paused under the hold, and the mark was NOT recorded.
+    if (b-a>0.05) {{ wrongSpans.push([a,b]); }}
+    else {{
+      const st=document.getElementById('status');
+      if (st) st.textContent='mark NOT recorded: audio did not advance under the hold (paused?) -- play, then hold Space';
+    }}
+    spanOpen=null; updateWrongBar(); updateMarkCount();
   }}
 }});
 
@@ -496,6 +545,15 @@ function saveClip() {{
   if (!verdict) {{ st.textContent='pick a verdict first'; return; }}
   const D = audioEl && audioEl.duration ? audioEl.duration : null;
   const wrong = wrongSpans.reduce((s,[a,b])=>s+(b-a),0);
+  // The red bar and the payload must agree. If they ever diverge, stop -- do not
+  // write a record whose spans contradict what the labeler was looking at.
+  const shown = document.querySelectorAll('#wrongbar .seg').length;
+  if (shown !== wrongSpans.length) {{
+    st.textContent='NOT saved: '+shown+' mark(s) on the bar but '+wrongSpans.length+' in memory. Reload and re-mark this clip.';
+    return;
+  }}
+  if ((verdict==='wrong'||verdict==='junk') && wrongSpans.length===0
+      && !confirm('Verdict "'+verdict+'" with no marked spans. Save anyway?')) {{ return; }}
   st.textContent='saving...';
   fetch('/save-validate',{{method:'POST',headers:{{'Content-Type':'application/json'}},
     body:JSON.stringify({{piece:c.piece,video_id:c.video_id,verdict,wrong_spans:wrongSpans,
@@ -503,7 +561,10 @@ function saveClip() {{
       follower_confidence:view.median_confidence,
       audio_duration_sec:D, fraction_wrong: D? +(wrong/D).toFixed(4): null}})}})
   .then(r=>r.json()).then(d=>{{ if(d.error) throw new Error(d.error);
-    CLIPS[cur].existing=true; st.textContent='saved -> '+d.path; renderList(); }})
+    CLIPS[cur].existing=true;
+    // Track what is now on disk so dirty() and re-select restore stay accurate.
+    CLIPS[cur].saved_spans=wrongSpans.map(s=>s.slice()); CLIPS[cur].saved_verdict=verdict;
+    st.textContent='saved '+wrongSpans.length+' mark(s) -> '+d.path; renderList(); }})
   .catch(e=>{{ st.textContent='error: '+e.message; }});
 }}
 
