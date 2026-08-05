@@ -28,7 +28,11 @@ import json
 import numpy as np
 import torch
 
-from claim_measurement.difficulty.train_fold import main, read_fold_embeddings
+from claim_measurement.difficulty.train_fold import (
+    _extract_full_piece,
+    main,
+    read_fold_embeddings,
+)
 
 
 class _FakeLayer(torch.nn.Module):
@@ -138,3 +142,29 @@ def test_main_trains_a_lora_adapter_and_writes_emb_fold_for_all_eval_pieces(tmp_
     assert fold_data["embeddings"].shape == (2, 4)
     assert list(fold_data["grades"]) == [2, 9]
     assert list(fold_data["composer_ids"]) == [0, 1]
+
+
+def test_extraction_is_byte_identical_across_repeated_calls_in_eval_mode():
+    """LoRA's lora_dropout=0.05 is active in train mode -- torch.no_grad()
+    does NOT disable dropout -- so extraction is only deterministic once the
+    model has been put in eval mode. Regression test for the P0 finding: the
+    graded emb_fold{F}.npz must not be stochastic."""
+    from peft import LoraConfig, get_peft_model
+
+    outer = _FakeOuter(hidden=4, n_layers=1, vocab=16)
+    lora_config = LoraConfig(
+        r=4, lora_alpha=8, lora_dropout=0.05,
+        target_modules=["self_attn.q_proj", "self_attn.k_proj",
+                         "self_attn.v_proj", "self_attn.o_proj",
+                         "mlp.gate_proj", "mlp.up_proj", "mlp.down_proj"])
+    peft_model = get_peft_model(outer, lora_config)
+    transformer = peft_model.model.model
+    tokens = torch.arange(6) % 16
+
+    peft_model.eval()
+    first = _extract_full_piece(transformer, tokens, max_len=4)
+    second = _extract_full_piece(transformer, tokens, max_len=4)
+    third = _extract_full_piece(transformer, tokens, max_len=4)
+
+    np.testing.assert_array_equal(first, second)
+    np.testing.assert_array_equal(first, third)

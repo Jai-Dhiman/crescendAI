@@ -143,9 +143,11 @@ def _mean_pool_window(
 
 def _extract_full_piece(transformer: torch.nn.Module, tokens: torch.Tensor,
                          max_len: int) -> np.ndarray:
-    """Byte-identical extraction to moonbeam_extract_script.py: chunk to
-    max_len, forward every chunk, concatenate, mean over ALL tokens -- so the
-    gate stays paired against frozen 0.8257."""
+    """Extraction shaped like moonbeam_extract_script.py's forward pass
+    (chunk to max_len, forward every chunk, concatenate, mean over ALL
+    tokens), so the gate stays paired against frozen 0.8257. Deterministic
+    ONLY if the caller has already put the model in eval mode -- LoRA
+    dropout is active in train mode and would make this stochastic."""
     chunks = [tokens[i:i + max_len] for i in range(0, len(tokens), max_len)]
     with torch.no_grad():
         hidden = [
@@ -235,6 +237,7 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader) -> int:
     val_seg_ids = list(plan["val_seg_ids"])
 
     for epoch in range(args.epochs):
+        peft_model.train()
         order = rng.permutation(len(train_seg_ids))
         for start in range(0, len(order), args.micro_batch):
             batch_ids = [
@@ -258,6 +261,7 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader) -> int:
             loss.backward()
             optimizer.step()
 
+        peft_model.eval()
         with torch.no_grad():
             val_scores = []
             for seg_id in val_seg_ids:
@@ -273,6 +277,7 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     peft_model.save_pretrained(str(out_dir / "adapter"))
 
+    peft_model.eval()
     with torch.no_grad():
         embeddings = np.stack([
             _extract_full_piece(
