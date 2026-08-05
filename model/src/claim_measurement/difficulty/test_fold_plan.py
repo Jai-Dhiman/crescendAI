@@ -76,3 +76,16 @@ def test_check_fold_plans_flags_a_composer_that_straddles_test_and_train():
         tampered_plans, eval_entries, pool_entries, n_folds=5, seed=2026)
 
     assert any("fold 0" in v for v in violations)
+
+
+def test_check_fold_plans_returns_empty_for_plans_build_fold_plans_produced():
+    eval_entries = _entries(n_composers=10, pieces_per_composer=1, prefix="eval_")
+    pool_entries = eval_entries + _entries(
+        n_composers=30, pieces_per_composer=4, prefix="pool_")
+    plans = build_fold_plans(
+        eval_entries, pool_entries, n_folds=5, seed=2026, val_frac=0.12)
+
+    violations = check_fold_plans(
+        plans, eval_entries, pool_entries, n_folds=5, seed=2026)
+
+    assert violations == []
