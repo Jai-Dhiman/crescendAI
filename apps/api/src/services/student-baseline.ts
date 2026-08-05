@@ -106,13 +106,6 @@ export function initialBaselineState(): BaselineState {
 	return { lastSessionTimestamp: null, dimensions };
 }
 
-/**
- * Pure fold: (state, session) -> state. No clock, no randomness, no I/O.
- * NOTE: this is a deliberately minimal first cut -- it establishes the call
- * shape and return type only. It does not yet validate input (Tasks 2-5) or
- * fold any evidence (Tasks 6+); every dimension simply passes through
- * unchanged.
- */
 function validateSession(state: BaselineState, session: SessionSamples): void {
 	const timestampMs = Date.parse(session.timestamp);
 	if (Number.isNaN(timestampMs)) {
@@ -158,11 +151,6 @@ function medianAbsoluteDeviation(
 	return median(values.map((v) => Math.abs(v - centre)));
 }
 
-/**
- * NOTE: deliberately crude for this task -- any deviant sample fires
- * immediately, ignoring persistence. Task 7 replaces this with the real
- * FIRE_PERSISTENCE-threshold counter mechanism.
- */
 function foldDimension(
 	prior: DimensionBaselineState,
 	samples: readonly number[],
@@ -178,11 +166,35 @@ function foldDimension(
 				if (Math.abs(s - sessionCentre) > threshold) withinSessionDeviants += 1;
 			}
 		}
+		withinSessionDeviants = Math.min(
+			withinSessionDeviants,
+			config.maxWithinSessionContribution,
+		);
 	}
-	const lifecycle = withinSessionDeviants > 0 ? "active" : prior.lifecycle;
-	return { ...prior, lifecycle };
+
+	const contribution = withinSessionDeviants;
+	let consecutiveOutOfBand = prior.consecutiveOutOfBand;
+	let consecutiveInBand = prior.consecutiveInBand;
+	if (contribution > 0) {
+		consecutiveOutOfBand += contribution;
+		consecutiveInBand = 0;
+	} else {
+		consecutiveInBand += 1;
+		consecutiveOutOfBand = 0;
+	}
+
+	let lifecycle = prior.lifecycle;
+	if (
+		lifecycle === "absent" &&
+		consecutiveOutOfBand >= config.firePersistence
+	) {
+		lifecycle = "active";
+	}
+
+	return { ...prior, lifecycle, consecutiveOutOfBand, consecutiveInBand };
 }
 
+/** Pure fold: (state, session) -> state. No clock, no randomness, no I/O. */
 export function updateBaseline(
 	state: BaselineState,
 	session: SessionSamples,
