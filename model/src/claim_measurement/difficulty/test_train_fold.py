@@ -60,12 +60,15 @@ class _FakeLayer(torch.nn.Module):
 
 
 class _FakeInner(torch.nn.Module):
-    def __init__(self, hidden, n_layers, vocab):
+    def __init__(self, hidden, n_layers, vocab, record=None):
         super().__init__()
         self.embed_tokens = torch.nn.Embedding(vocab, hidden)
         self.layers = torch.nn.ModuleList([_FakeLayer(hidden) for _ in range(n_layers)])
+        self._record = record
 
     def forward(self, input_ids, position_ids=None, use_cache=False, return_dict=True):
+        if self._record is not None:
+            self._record.append((input_ids.device, self.embed_tokens.weight.device))
         h = self.embed_tokens(input_ids)
         for layer in self.layers:
             h = layer(h)
@@ -82,9 +85,9 @@ class _FakeOuter(torch.nn.Module):
     """Mimics LlamaForCausalLM: a .model attribute (inner transformer) plus an
     lm_head this design never calls and never LoRA-targets."""
 
-    def __init__(self, hidden=4, n_layers=1, vocab=16):
+    def __init__(self, hidden=4, n_layers=1, vocab=16, record=None):
         super().__init__()
-        self.model = _FakeInner(hidden, n_layers, vocab)
+        self.model = _FakeInner(hidden, n_layers, vocab, record=record)
         self.lm_head = torch.nn.Linear(hidden, vocab, bias=False)
 
 
@@ -150,6 +153,8 @@ def test_main_trains_a_lora_adapter_and_writes_emb_fold_for_all_eval_pieces(tmp_
             "--max-len", "4",
             "--epochs", "1",
             "--micro-batch", "2",
+            "--device", "cpu",
+            "--no-trackio",
         ],
         loader_factory=fake_loader_factory,
     )
@@ -256,6 +261,8 @@ def test_main_actually_updates_lora_weights_not_just_the_score_head(
             "--max-len", "4",
             "--epochs", "1",
             "--micro-batch", "2",
+            "--device", "cpu",
+            "--no-trackio",
         ],
         loader_factory=fake_loader_factory,
     )
@@ -297,6 +304,8 @@ def _fold0_args(tmp_path, out_dir, extra=()):
         "--max-len", "4",
         "--epochs", "1",
         "--micro-batch", "2",
+        "--device", "cpu",
+        "--no-trackio",
         *extra,
     ]
 
@@ -400,6 +409,8 @@ def _bundle_only_args(bundle_dir, out_dir, extra=()):
         "--max-len", "4",
         "--epochs", "1",
         "--micro-batch", "2",
+        "--device", "cpu",
+        "--no-trackio",
         *extra,
     ]
 
@@ -611,3 +622,240 @@ def test_main_stubs_absent_models_before_importing_peft():
     peft_import = src.index("    from peft import LoraConfig, get_peft_model")
     assert stub_call < peft_import, (
         "_stub_absent_transformers_models() must precede the peft import in main()")
+
+
+# --- device placement (#149 defect 1) ---------------------------------------
+#
+# A CPU-only fixture cannot assert "this ran on a GPU". What it CAN assert is
+# that the model and every input tensor are moved onto the RESOLVED device, and
+# that resolving `cuda` without cuda dies instead of degrading. Those two facts
+# together are what job 6a73a7d7 lacked: it had no .to() anywhere, so an
+# a100-large ran CPU training for an hour before it was cancelled.
+
+
+class _RecordingTokens(torch.Tensor):
+    """Token tensor that records every .to() call made on it. On a CPU-only
+    box `input_ids.device == cpu` holds whether or not the code moves
+    anything, so the load-bearing assertion is that the move HAPPENS."""
+
+    moves: list = []
+
+    def to(self, *args, **kwargs):
+        _RecordingTokens.moves.append((args, kwargs))
+        return super().to(*args, **kwargs)
+
+
+def test_resolve_device_refuses_to_fall_back_when_cuda_is_unavailable(monkeypatch):
+    from claim_measurement.difficulty.train_fold import resolve_device
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+
+    with pytest.raises(RuntimeError, match="Refusing to fall back"):
+        resolve_device("cuda")
+    assert resolve_device("cpu") == torch.device("cpu")
+    # 'auto' is the ONLY value allowed to degrade, and it must be asked for.
+    assert resolve_device("auto") == torch.device("cpu")
+
+
+def test_device_defaults_to_cuda_so_a_job_missing_the_flag_dies_loudly(
+    tmp_path, monkeypatch
+):
+    """The submit line in the runbook passes no --device. If the default were
+    'auto' or 'cpu', a rented a100-large would silently train on CPU again."""
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    bundle_dir = _stage_full_fake_bundle(tmp_path)
+    args = _bundle_only_args(bundle_dir, tmp_path / "fold0")
+    device_idx = args.index("--device")
+    del args[device_idx:device_idx + 2]
+
+    with pytest.raises(RuntimeError, match="Refusing to fall back"):
+        main(args, loader_factory=_fake_loader_factory)
+
+
+def test_main_moves_the_model_and_every_input_tensor_onto_the_selected_device(
+    tmp_path
+):
+    bundle_dir = _stage_full_fake_bundle(tmp_path)
+    forwards: list = []
+    _RecordingTokens.moves = []
+    selected = torch.device("cpu")
+
+    def recording_loader_factory(checkpoint_path, repo_root, model_config):
+        outer = _FakeOuter(hidden=4, n_layers=1, vocab=16, record=forwards)
+
+        def tokenize(midi_path):
+            n = _TOKEN_LENGTHS[midi_path.stem]
+            return (torch.arange(n) % 16).as_subclass(_RecordingTokens)
+
+        return outer, tokenize, 4
+
+    exit_code = main(_bundle_only_args(bundle_dir, tmp_path / "fold0"),
+                     loader_factory=recording_loader_factory)
+
+    assert exit_code == 0
+    assert forwards, "the fake model was never forwarded"
+    for input_device, param_device in forwards:
+        assert input_device == selected
+        assert param_device == selected
+    # LoRA casts dtype through the same .to(), so filter to the device moves.
+    device_moves = [args for args, _ in _RecordingTokens.moves
+                    if any(isinstance(a, torch.device) for a in args)]
+    assert device_moves, (
+        "no input tensor was ever moved onto the selected device -- this is the "
+        "exact defect that rented an a100-large to run CPU training")
+    assert {a for args in device_moves for a in args} == {selected}
+    # 4 train + 1 val + 2 eval pieces: every forwarded piece is moved.
+    assert len(device_moves) == 7
+
+
+# --- trackio telemetry (#149 defect 3) --------------------------------------
+
+
+def _no_trackio_stripped(args):
+    stripped = list(args)
+    stripped.remove("--no-trackio")
+    return stripped
+
+
+def test_trackio_init_runs_before_the_checkpoint_download_and_the_model_load(
+    tmp_path
+):
+    """Fatal-at-init only helps if init happens while the job is still cheap.
+    Ordering is the contract: a bad Trackio config must kill the run before the
+    1.6 GB checkpoint download and the model load, not after GPU minutes."""
+    bundle_dir = _stage_full_fake_bundle(tmp_path)
+    args = _no_trackio_stripped(_bundle_only_args(bundle_dir, tmp_path / "fold0"))
+    checkpoint_idx = args.index("--checkpoint")
+    del args[checkpoint_idx:checkpoint_idx + 2]
+    order, init_calls = [], []
+
+    def fake_trackio_init(project, name, space_id, config):
+        order.append("trackio")
+        init_calls.append((project, name, space_id, config))
+
+        class _Handle:
+            def log(self, metrics, step=None):
+                pass
+
+        return _Handle()
+
+    def fake_downloader(repo_id, filename):
+        order.append("checkpoint")
+        return tmp_path / "downloaded.pt"
+
+    def recording_loader_factory(checkpoint_path, repo_root, model_config):
+        order.append("loader")
+        return _fake_loader_factory(checkpoint_path, repo_root, model_config)
+
+    exit_code = main(args, loader_factory=recording_loader_factory,
+                     checkpoint_downloader=fake_downloader,
+                     trackio_init=fake_trackio_init)
+
+    assert exit_code == 0
+    assert order[:3] == ["trackio", "checkpoint", "loader"]
+    project, name, space_id, config = init_calls[0]
+    assert (project, name, space_id) == ("phase1-lora", "fold0", None)
+    assert config["fold"] == 0 and config["device"] == "cpu"
+
+
+def test_trackio_init_is_fatal_when_it_fails(tmp_path):
+    """A telemetry failure at init must kill the job, not be swallowed: the
+    spec's whole point is failing BEFORE GPU spend."""
+    bundle_dir = _stage_full_fake_bundle(tmp_path)
+
+    def exploding_trackio_init(project, name, space_id, config):
+        raise ModuleNotFoundError("No module named 'trackio'")
+
+    with pytest.raises(ModuleNotFoundError):
+        main(_no_trackio_stripped(_bundle_only_args(bundle_dir, tmp_path / "fold0")),
+             loader_factory=_fake_loader_factory,
+             trackio_init=exploding_trackio_init)
+
+
+def test_no_trackio_skips_initialisation_entirely(tmp_path):
+    bundle_dir = _stage_full_fake_bundle(tmp_path)
+    calls = []
+
+    exit_code = main(
+        _bundle_only_args(bundle_dir, tmp_path / "fold0"),
+        loader_factory=_fake_loader_factory,
+        trackio_init=lambda *a, **kw: calls.append(a))
+
+    assert exit_code == 0
+    assert not calls
+
+
+def test_main_logs_per_step_metrics_to_trackio(tmp_path):
+    bundle_dir = _stage_full_fake_bundle(tmp_path)
+    # tau_c needs >=3 points with a non-constant grade vector, or it returns
+    # None and no val row is emitted at all.
+    (bundle_dir / "fold_plans.json").write_text(json.dumps([{
+        "fold": 0,
+        "test_seg_ids": ["e0", "e1"],
+        "train_seg_ids": ["t0", "t1", "t2", "t3"],
+        "val_seg_ids": ["v0", "t3", "t1"],
+    }]))
+    logged = []
+
+    class _Handle:
+        def log(self, metrics, step=None):
+            logged.append((metrics, step))
+
+    def distinct_loader_factory(checkpoint_path, repo_root, model_config):
+        """_fake_loader_factory hands every piece of the same length the SAME
+        token content, which can make the val scores identical and tau_c
+        None. Offset each piece so the val row is actually emitted."""
+        outer = _FakeOuter(hidden=4, n_layers=1, vocab=16)
+        offsets = {stem: i * 3 for i, stem in enumerate(sorted(_TOKEN_LENGTHS))}
+
+        def tokenize(midi_path):
+            n = _TOKEN_LENGTHS[midi_path.stem]
+            return (torch.arange(n) + offsets[midi_path.stem]) % 16
+
+        return outer, tokenize, 4
+
+    exit_code = main(
+        _no_trackio_stripped(_bundle_only_args(bundle_dir, tmp_path / "fold0")),
+        loader_factory=distinct_loader_factory,
+        trackio_init=lambda *a, **kw: _Handle())
+
+    assert exit_code == 0
+    # 4 train pieces / micro-batch 2 = 2 steps, plus one val_ranking_tau row.
+    assert [step for _, step in logged] == [0, 1, 2]
+    assert {"loss", "epoch", "step_seconds", "pieces_per_second"} <= set(logged[0][0])
+    assert "val_ranking_tau" in logged[-1][0]
+
+
+def test_a_mid_run_trackio_failure_warns_once_and_never_kills_training(capsys):
+    """Fatal at init, warn-and-continue after: losing telemetry must not throw
+    away a training run that is otherwise healthy."""
+    from claim_measurement.difficulty.train_fold import _trackio_log
+
+    class _Broken:
+        def log(self, metrics, step=None):
+            raise RuntimeError("trackio server gone")
+
+    warned: list = []
+    _trackio_log(_Broken(), {"loss": 1.0}, 0, warned)
+    _trackio_log(_Broken(), {"loss": 0.9}, 1, warned)
+
+    assert len(warned) == 1
+    assert capsys.readouterr().out.count("WARNING: trackio.log failed") == 1
+
+
+def test_main_prints_per_step_throughput_during_the_epoch(tmp_path, capsys):
+    """Defect 2: the loop's only output used to be one line per ~477-step
+    epoch, so a hung run and a working run looked identical for an hour. A
+    step line carrying s/step is what makes CPU-speed throughput visible in
+    minute one."""
+    bundle_dir = _stage_full_fake_bundle(tmp_path)
+
+    exit_code = main(_bundle_only_args(bundle_dir, tmp_path / "fold0",
+                                        extra=("--log-every", "1")),
+                     loader_factory=_fake_loader_factory)
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "step 0/2" in out and "step 1/2" in out
+    assert "s/step" in out and "pieces/s" in out and "eta=" in out
+    assert "device: cpu" in out
