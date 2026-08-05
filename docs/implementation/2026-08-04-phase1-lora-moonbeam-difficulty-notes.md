@@ -31,23 +31,30 @@ Decisions, deviations, and tradeoffs made during build. Read this before running
   this worktree's `model/data` is empty. UNVERIFIED in this build.
 
 ## Group B (Tasks 6-10): `ranking_loss.py`
-- Commits `264642a3`, `fbcfb644`, `7b76f321`, `dedc5512`. Task 8's test content landed
-  inside Group A's commit `80bb1209` instead of its own commit (see race note below);
-  content is correct and present, only the commit provenance is misattributed.
+- Commits `264642a3`, `fbcfb644`, `7b76f321`, `dedc5512`. Task 8's degenerate-batch test
+  (`test_pairwise_ranking_loss_is_a_finite_zero_for_a_degenerate_batch`) landed in `7b76f321`
+  -- the same commit as Task 9's `ordinal_loss` work -- not in Group A's `80bb1209` (that
+  commit touches only `fold_plan.py`/`test_fold_plan.py`; verified via
+  `git show --stat 80bb1209`). Content is correct and present, only the commit trail
+  originally recorded here was wrong.
+- Task 8's implementation (the `if pairs.shape[0] == 0: return scores.sum() * 0.0` guard
+  in `pairwise_ranking_loss`) was already written in `fbcfb644` -- Task 7's commit -- before
+  Task 8's red step was ever run. So Task 8's red step could not have failed for the
+  intended reason (a NaN from averaging an empty tensor): the guard pre-existed, and the
+  step was not a genuine red.
 - Permitted structural liberty: the plan's per-task inline imports were consolidated into
   one import block at the top of the test file (required by the repo's import-sort hook).
-- Task 8's red step failed at `assert loss.item() == 0.0` (nan != 0.0) rather than the
-  plan's stated `RuntimeError` from `.backward()`. The broken stand-in did fail, just at
-  an earlier assertion line.
 
 ## Build-process deviation: concurrent groups shared one git index
 Groups A and B were dispatched in parallel per the plan's group markers. They touch
 disjoint FILES but share one worktree and therefore one git index, so a bare
 `git commit -m` (no pathspec) commits the whole index, including the other agent's
-staged files. This fired once (Task 8's content swept into `80bb1209`) and was partially
-corrected in flight. Both agents then switched to `git commit -m "..." -- <paths>`.
-Consequence for the rest of the build: remaining groups were run SEQUENTIALLY rather than
-with the plan's C/D/E/F parallelism, to keep one committer in the tree at a time.
+staged files. Both agents used `git commit -m "..." -- <paths>` throughout; no cross-group
+sweep was observed in the final history (the note previously recorded here, that Task 8's
+content swept into `80bb1209`, does not hold up against `git show --stat 80bb1209` and has
+been corrected above). Consequence for the rest of the build: remaining groups were run
+SEQUENTIALLY rather than with the plan's C/D/E/F parallelism, to keep one committer in the
+tree at a time.
 
 ## Group C (Tasks 11-12): `train_fold.py`
 - Commits `d5343f97`, `3963b84b`. No logic deviations from the plan's literal code;
