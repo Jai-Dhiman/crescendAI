@@ -361,3 +361,151 @@ def test_main_does_not_upload_when_output_repo_is_not_set(tmp_path):
 
     assert exit_code == 0
     assert not calls
+
+
+def _stage_full_fake_bundle(tmp_path):
+    """A bundle staged the way push_train_dataset.py stages one: code/ plus
+    every input path train_fold.py now DEFAULTS into, at the same relative
+    locations. The submit line inside a job container passes none of them,
+    because snapshot_download's cache path is unknowable at submit time."""
+    bundle_dir = _stage_fake_bundle_dir(tmp_path)
+    (bundle_dir / "fold_plans.json").write_text(json.dumps([{
+        "fold": 0,
+        "test_seg_ids": ["e0", "e1"],
+        "train_seg_ids": ["t0", "t1", "t2", "t3"],
+        "val_seg_ids": ["v0"],
+    }]))
+    (bundle_dir / "grades.json").write_text(json.dumps(
+        {"t0": 1, "t1": 5, "t2": 8, "t3": 3, "v0": 4}))
+    (bundle_dir / "eval_manifest.json").write_text(json.dumps([
+        {"seg_id": "e0", "grade": 2, "composer_id": 0},
+        {"seg_id": "e1", "grade": 9, "composer_id": 1},
+    ]))
+    (bundle_dir / "midi").mkdir()
+    config_dir = bundle_dir / "moonbeam_repo" / "src" / "llama_recipes" / "configs"
+    config_dir.mkdir(parents=True)
+    (config_dir / "model_config.json").write_text("{}")
+    return bundle_dir
+
+
+def _bundle_only_args(bundle_dir, out_dir, extra=()):
+    return [
+        "--fold", "0",
+        "--out-dir", str(out_dir),
+        "--bundle-dir", str(bundle_dir),
+        "--checkpoint", str(bundle_dir / "fake.pt"),
+        "--hidden-size", "4",
+        "--n-layers", "1",
+        "--n-top-layers", "1",
+        "--max-len", "4",
+        "--epochs", "1",
+        "--micro-batch", "2",
+        *extra,
+    ]
+
+
+def test_main_defaults_every_input_path_into_the_downloaded_bundle(tmp_path):
+    """The whole point of #149's FIX 1: inside `hf jobs uv run` the bundle
+    lands at snapshot_download's cache path, so a submit line can only name
+    --fold/--bundle-repo/--output-repo/--out-dir. Everything else must resolve
+    itself out of the downloaded bundle."""
+    bundle_dir = _stage_full_fake_bundle(tmp_path)
+    out_dir = tmp_path / "fold0"
+    seen = {}
+
+    def recording_loader_factory(checkpoint_path, repo_root, model_config):
+        seen["repo_root"] = Path(repo_root)
+        seen["model_config"] = Path(model_config)
+        return _fake_loader_factory(checkpoint_path, repo_root, model_config)
+
+    exit_code = main(_bundle_only_args(bundle_dir, out_dir),
+                     loader_factory=recording_loader_factory)
+
+    assert exit_code == 0
+    assert seen["repo_root"] == bundle_dir / "moonbeam_repo"
+    assert seen["model_config"] == (
+        bundle_dir / "moonbeam_repo" / "src" / "llama_recipes" / "configs"
+        / "model_config.json")
+    fold_data = read_fold_embeddings(out_dir / "emb_fold0.npz")
+    assert fold_data["seg_ids"] == ["e0", "e1"]
+
+
+def test_an_explicitly_passed_path_still_wins_over_the_bundle_default(tmp_path):
+    """Local runs against loose files depend on this; a default that silently
+    overrode an explicit flag would also be a very quiet way to train on the
+    wrong fold plan."""
+    bundle_dir = _stage_full_fake_bundle(tmp_path)
+    other_plan = tmp_path / "other_fold_plans.json"
+    other_plan.write_text(json.dumps([{
+        "fold": 0,
+        "test_seg_ids": ["e0"],
+        "train_seg_ids": ["t0", "t1"],
+        "val_seg_ids": [],
+    }]))
+    (bundle_dir / "eval_manifest.json").write_text(json.dumps([
+        {"seg_id": "e0", "grade": 2, "composer_id": 0},
+    ]))
+    out_dir = tmp_path / "fold0_explicit"
+
+    exit_code = main(
+        _bundle_only_args(bundle_dir, out_dir,
+                          extra=("--fold-plan", str(other_plan))),
+        loader_factory=_fake_loader_factory)
+
+    assert exit_code == 0
+    assert read_fold_embeddings(out_dir / "emb_fold0.npz")["seg_ids"] == ["e0"]
+
+
+def test_main_names_the_missing_bundle_file_when_a_default_does_not_exist(tmp_path):
+    """A bundle staged by an older push_train_dataset.py has no
+    eval_manifest.json. Dying here, naming the resolved path, beats dying a
+    hundred lines later inside an unrelated read_text()."""
+    bundle_dir = _stage_full_fake_bundle(tmp_path)
+    (bundle_dir / "eval_manifest.json").unlink()
+
+    with pytest.raises(FileNotFoundError, match="--eval-manifest"):
+        main(_bundle_only_args(bundle_dir, tmp_path / "fold0"),
+             loader_factory=_fake_loader_factory)
+
+
+def test_main_downloads_the_checkpoint_when_none_is_given(tmp_path):
+    """moonbeam_839M.pt is 1.6 GB, public, and deliberately not in the bundle
+    -- a fresh job container has no local copy, so --checkpoint must be
+    optional and fall back to a Hub download."""
+    bundle_dir = _stage_full_fake_bundle(tmp_path)
+    args = _bundle_only_args(bundle_dir, tmp_path / "fold0")
+    checkpoint_idx = args.index("--checkpoint")
+    del args[checkpoint_idx:checkpoint_idx + 2]
+    downloads, seen = [], {}
+
+    def fake_downloader(repo_id, filename):
+        downloads.append((repo_id, filename))
+        return tmp_path / "downloaded_moonbeam_839M.pt"
+
+    def recording_loader_factory(checkpoint_path, repo_root, model_config):
+        seen["checkpoint"] = Path(checkpoint_path)
+        return _fake_loader_factory(checkpoint_path, repo_root, model_config)
+
+    exit_code = main(args, loader_factory=recording_loader_factory,
+                     checkpoint_downloader=fake_downloader)
+
+    assert exit_code == 0
+    assert downloads == [
+        ("guozixunnicolas/moonbeam-midi-foundation-model", "moonbeam_839M.pt")]
+    assert seen["checkpoint"] == tmp_path / "downloaded_moonbeam_839M.pt"
+
+
+def test_main_does_not_download_a_checkpoint_that_was_passed_explicitly(tmp_path):
+    bundle_dir = _stage_full_fake_bundle(tmp_path)
+    downloads = []
+
+    def fake_downloader(repo_id, filename):
+        downloads.append((repo_id, filename))
+        return tmp_path / "never_used.pt"
+
+    exit_code = main(_bundle_only_args(bundle_dir, tmp_path / "fold0"),
+                     loader_factory=_fake_loader_factory,
+                     checkpoint_downloader=fake_downloader)
+
+    assert exit_code == 0
+    assert not downloads

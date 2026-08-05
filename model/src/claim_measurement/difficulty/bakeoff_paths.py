@@ -32,3 +32,21 @@ def resolve_paths(data_root: Path | None = None) -> BakeoffPaths:
         emb_root=root / "results" / "bakeoff",
         feature37_cache=root / "results" / "mirex_137_tk_features.json",
     )
+
+
+def features37_dir(emb_root: Path) -> Path:
+    return Path(emb_root) / "emb" / "features37"
+
+
+def features37_seg_ids(features37_dir: Path) -> list[str]:
+    """The CANONICAL eval-piece row order: the features37 .npz filenames,
+    sorted. Every artifact that is compared row-for-row against features37 --
+    ft_eval.py's per-fold emb_fold{F}.npz, push_train_dataset.py's staged
+    eval_manifest.json -- must be built from this one function, because
+    ft_eval.py rejects any emb_fold{F}.npz whose seg_ids do not match it
+    exactly (an unpaired comparison is worse than no comparison)."""
+    features37_dir = Path(features37_dir)
+    paths = sorted(features37_dir.glob("*.npz"))
+    if not paths:
+        raise FileNotFoundError(f"no features37 .npz files under {features37_dir}")
+    return [p.stem for p in paths]

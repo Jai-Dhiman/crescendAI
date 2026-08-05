@@ -8,7 +8,8 @@ import json
 import numpy as np
 import pytest
 
-from claim_measurement.difficulty.realaudio_check import midi_drift
+from claim_measurement.difficulty.bakeoff_npz import write_embedding_npz
+from claim_measurement.difficulty.realaudio_check import build_wav_manifest, midi_drift
 
 
 def test_midi_drift_computes_note_count_delta_and_onset_f1_with_tolerance_matching():
@@ -147,3 +148,50 @@ def test_score_audio_subset_reports_features37_gate_paired_against_audio():
     assert result["ci_lo_vs_features37"] > 0  # SIG on this fixture
     assert (result["ci_lo_vs_features37"] <= result["delta_vs_features37"]
             <= result["ci_hi_vs_features37"])
+
+
+def test_build_wav_manifest_lists_only_the_eval_pieces_that_have_a_wav(tmp_path):
+    """709 of the 900 eval pieces have a local WAV. A piece without one is
+    omitted, never pointed at a missing file -- the gate's n must be the real
+    audio that exists."""
+    wav_dir = tmp_path / "wav"
+    wav_dir.mkdir()
+    (wav_dir / "p001.wav").write_bytes(b"RIFF")
+    (wav_dir / "p003.wav").write_bytes(b"RIFF")
+
+    entries = build_wav_manifest(["p001", "p002", "p003"], wav_dir)
+
+    assert entries == [
+        {"seg_id": "p001", "wav_path": str(wav_dir / "p001.wav")},
+        {"seg_id": "p003", "wav_path": str(wav_dir / "p003.wav")},
+    ]
+
+
+def test_write_wav_manifest_mode_takes_its_seg_ids_from_features37(tmp_path):
+    features37_dir = tmp_path / "features37"
+    features37_dir.mkdir()
+    for i, seg_id in enumerate(["p002", "p001", "p003"]):
+        write_embedding_npz(features37_dir / f"{seg_id}.npz",
+                            {"raw37": np.arange(37, dtype=np.float32)},
+                            grade=i, composer_id=i)
+    wav_dir = tmp_path / "wav"
+    wav_dir.mkdir()
+    (wav_dir / "p001.wav").write_bytes(b"RIFF")
+    (wav_dir / "p003.wav").write_bytes(b"RIFF")
+    manifest_path = tmp_path / "audio_wav_manifest.json"
+
+    calls = []
+
+    def fake_transcriber(wav_path):
+        calls.append(wav_path)
+        return ([], [])
+
+    exit_code = main(["--write-wav-manifest", str(manifest_path),
+                      "--wav-dir", str(wav_dir),
+                      "--features37-dir", str(features37_dir)],
+                     transcriber=fake_transcriber)
+
+    assert exit_code == 0
+    assert not calls  # manifest generation never transcribes
+    assert [e["seg_id"] for e in json.loads(manifest_path.read_text())] == [
+        "p001", "p003"]
