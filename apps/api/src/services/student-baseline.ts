@@ -310,6 +310,16 @@ function foldDimension(
 		}
 	}
 
+	// Derived purely from accumulated evidence (updateCount) -- descriptive
+	// only. Nothing above this line, and nothing in the lifecycle switch,
+	// reads `confidence`: it never gates.
+	const confidence: DimensionBaselineState["confidence"] =
+		updateCount >= config.confidenceEstablishedUpdates
+			? "established"
+			: updateCount >= config.confidenceProvisionalUpdates
+				? "provisional"
+				: "exploratory";
+
 	return {
 		...prior,
 		lifecycle,
@@ -324,6 +334,7 @@ function foldDimension(
 		evidenceWeeks,
 		initialized: true,
 		updateCount,
+		confidence,
 	};
 }
 

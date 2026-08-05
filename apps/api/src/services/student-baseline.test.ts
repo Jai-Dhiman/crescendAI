@@ -271,3 +271,31 @@ describe("promotion", () => {
 		expect(trace[3].dimensions.articulation.promoted).toBe(false);
 	});
 });
+
+describe("confidence", () => {
+	it("fires while confidence is still exploratory", () => {
+		const trace = runSequence([
+			{
+				timestamp: "2026-01-01T00:00:00Z",
+				scores: { pedaling: CLUSTER_WITH_3_OUTLIERS },
+			},
+		]);
+		expect(trace[0].dimensions.pedaling.lifecycle).toBe("active");
+		expect(trace[0].dimensions.pedaling.confidence).toBe("exploratory");
+	});
+
+	it("advances confidence toward established purely from accumulated updates, independent of lifecycle", () => {
+		const sessions: SessionSamples[] = Array.from({ length: 8 }, (_, i) => ({
+			timestamp: `2026-01-0${i + 1}T00:00:00Z`,
+			scores: { phrasing: CLUSTER },
+		}));
+		const trace = runSequence(sessions);
+		expect(trace[1].dimensions.phrasing.confidence).toBe("exploratory"); // updateCount 2
+		expect(trace[2].dimensions.phrasing.confidence).toBe("provisional"); // updateCount 3
+		expect(trace[7].dimensions.phrasing.confidence).toBe("established"); // updateCount 8
+		// CLUSTER never deviates, so lifecycle stays absent throughout -- this
+		// dimension becomes fully established while still saying nothing,
+		// which is the other half of "confidence never gates."
+		expect(trace[7].dimensions.phrasing.lifecycle).toBe("absent");
+	});
+});
