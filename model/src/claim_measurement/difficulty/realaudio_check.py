@@ -153,8 +153,8 @@ def score_audio_subset(emb_by_fold: dict, audio_embeddings: dict,
     for fold, test_idx in enumerate(test_folds):
         train_idx = np.setdiff1d(np.arange(len(seg_ids)), test_idx)
         f37_model = make_pipeline(StandardScaler(), RidgeCV(alphas=ALPHAS))
-        f37_model.fit(features37_x[train_idx], y[train_idx])
-        f37_oof[test_idx] = f37_model.predict(features37_x[test_idx])
+        f37_model.fit(np.nan_to_num(features37_x[train_idx]), y[train_idx])
+        f37_oof[test_idx] = f37_model.predict(np.nan_to_num(features37_x[test_idx]))
 
     audio_pred, symbolic_pred, f37_pred, subset_y = [], [], [], []
     ridge_cache: dict = {}
