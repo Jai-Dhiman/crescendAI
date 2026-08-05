@@ -26,3 +26,12 @@ def test_oof_tau_per_fold_recovers_a_strong_per_fold_linear_signal():
 
     assert not np.isnan(oof).any()
     assert tau_c(oof, y) > 0.9
+
+
+def test_oof_tau_per_fold_raises_on_missing_fold_embeddings():
+    composers = np.array([f"composer_{i}" for i in range(50)])
+    y = np.arange(50, dtype=float) % 11
+    emb_by_fold = {0: np.random.default_rng(0).normal(size=(50, 2))}  # folds 1-4 gone
+
+    with pytest.raises(KeyError):
+        oof_tau_per_fold(emb_by_fold, y, composers, n_folds=5, seed=2026)
