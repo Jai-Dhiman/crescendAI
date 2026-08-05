@@ -142,9 +142,10 @@ export function ListeningMode({
 								top: `${originY}%`,
 								x: "-50%",
 								y: "-50%",
-								border: "2px solid rgba(122, 154, 130, 0.7)",
+								border:
+									"2px solid color-mix(in srgb, var(--color-accent) 70%, transparent)",
 								boxShadow:
-									"0 0 20px rgba(122, 154, 130, 0.3), inset 0 0 20px rgba(122, 154, 130, 0.1)",
+									"0 0 20px color-mix(in srgb, var(--color-accent) 30%, transparent), inset 0 0 20px color-mix(in srgb, var(--color-accent) 10%, transparent)",
 							}}
 							initial={{ width: 0, height: 0, opacity: 0 }}
 							animate={{
@@ -173,7 +174,7 @@ export function ListeningMode({
 						<m.div
 							key="overlay"
 							ref={overlayRef}
-							className="fixed inset-0 z-50 bg-espresso"
+							className="fixed inset-0 z-50 bg-surface-page"
 							initial={{
 								clipPath: `circle(0% at ${clipOrigin})`,
 							}}
@@ -196,7 +197,7 @@ export function ListeningMode({
 										transition={{ duration: 0.2 }}
 									>
 										{/* Top bar: piece info */}
-										<div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-border">
+										<div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-border-subtle">
 											<div className="flex items-center gap-3">
 												<div className="relative">
 													<button
@@ -205,7 +206,7 @@ export function ListeningMode({
 														className={`flex items-center gap-2 px-3 py-2 rounded-lg transition ${
 															metronome.isPlaying
 																? "bg-accent/20 text-accent"
-																: "bg-surface text-text-secondary hover:text-cream"
+																: "bg-surface-raised text-ink-secondary hover:text-ink-primary"
 														}`}
 														aria-label="Toggle metronome"
 													>
@@ -239,7 +240,7 @@ export function ListeningMode({
 															value={pieceName}
 															onChange={(e) => setPieceName(e.target.value)}
 															placeholder="Piece name"
-															className="bg-surface border border-border rounded-lg px-3 py-1 text-body-sm text-cream outline-none w-56"
+															className="bg-surface-raised border border-border-subtle rounded-lg px-3 py-1 text-body-sm text-ink-primary outline-none w-56"
 															// biome-ignore lint/a11y/noAutofocus: intentional UX for inline editor
 															autoFocus
 														/>
@@ -248,12 +249,12 @@ export function ListeningMode({
 															value={sectionName}
 															onChange={(e) => setSectionName(e.target.value)}
 															placeholder="Section (e.g., bars 1-16)"
-															className="bg-surface border border-border rounded-lg px-3 py-1 text-body-xs text-cream outline-none w-56"
+															className="bg-surface-raised border border-border-subtle rounded-lg px-3 py-1 text-body-xs text-ink-primary outline-none w-56"
 														/>
 														<button
 															type="button"
 															onClick={() => setIsEditingPiece(false)}
-															className="text-body-xs text-accent hover:text-accent-lighter transition mt-1"
+															className="text-body-xs text-accent hover:text-accent/70 transition mt-1"
 														>
 															Done
 														</button>
@@ -264,10 +265,10 @@ export function ListeningMode({
 														onClick={() => setIsEditingPiece(true)}
 														className="text-right group"
 													>
-														<span className="text-label-sm text-text-tertiary uppercase tracking-wider block">
+														<span className="text-label-sm text-ink-tertiary uppercase tracking-wider block">
 															Now practicing
 														</span>
-														<span className="text-body-sm text-cream group-hover:text-accent transition">
+														<span className="text-body-sm text-ink-primary group-hover:text-accent transition">
 															{pieceName}
 														</span>
 														{sectionName && (
@@ -283,7 +284,7 @@ export function ListeningMode({
 										{/* Center: waveform */}
 										<div className="flex-1 flex flex-col items-center justify-center px-6 relative">
 											{wsStatus === "reconnecting" && isRecording && (
-												<div className="absolute top-4 left-4 flex items-center gap-2 text-amber-400 z-10">
+												<div className="absolute top-4 left-4 flex items-center gap-2 text-warn z-10">
 													<CircleNotch size={14} className="animate-spin" />
 													<span className="text-body-xs">Reconnecting...</span>
 												</div>
@@ -299,14 +300,14 @@ export function ListeningMode({
 										</div>
 
 										{/* Bottom bar: notes + stop */}
-										<div className="shrink-0 flex items-center justify-between px-6 py-4 border-t border-border">
+										<div className="shrink-0 flex items-center justify-between px-6 py-4 border-t border-border-subtle">
 											<div>{/* Spacer */}</div>
 											<div className="flex items-center gap-4">
 												{/* Notepad toggle */}
 												<button
 													type="button"
 													onClick={() => setShowNotepad(!showNotepad)}
-													className="w-10 h-10 rounded-lg bg-surface flex items-center justify-center text-text-secondary hover:text-cream transition"
+													className="w-10 h-10 rounded-lg bg-surface-raised flex items-center justify-center text-ink-secondary hover:text-ink-primary transition"
 													aria-label="Toggle notepad"
 												>
 													<span className="text-body-sm">N</span>
@@ -316,7 +317,7 @@ export function ListeningMode({
 													type="button"
 													onClick={handleStop}
 													disabled={!isRecording}
-													className="w-14 h-14 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-500 text-on-accent transition-colors disabled:opacity-50"
+													className="w-14 h-14 flex items-center justify-center rounded-full bg-danger hover:bg-danger/85 text-on-accent transition-colors disabled:opacity-50"
 													aria-label="Stop recording"
 												>
 													<Stop size={22} weight="fill" />
@@ -373,20 +374,20 @@ function NotepadDrawer({
 			/>
 			{/* Drawer */}
 			<m.div
-				className="fixed bottom-0 left-0 right-0 z-50 bg-espresso border-t border-border rounded-t-2xl max-h-[60vh] sm:max-h-[40vh] flex flex-col"
+				className="fixed bottom-0 left-0 right-0 z-50 bg-surface-page border-t border-border-subtle rounded-t-2xl max-h-[60vh] sm:max-h-[40vh] flex flex-col"
 				style={{ bottom: bottomOffset }}
 				initial={{ opacity: 0, y: 20, scale: 0.95 }}
 				animate={{ opacity: 1, y: 0, scale: 1 }}
 				transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
 			>
-				<div className="flex items-center justify-between px-5 py-3 border-b border-border">
-					<span className="text-label-sm text-text-tertiary uppercase tracking-wider">
+				<div className="flex items-center justify-between px-5 py-3 border-b border-border-subtle">
+					<span className="text-label-sm text-ink-tertiary uppercase tracking-wider">
 						Notes
 					</span>
 					<button
 						type="button"
 						onClick={onClose}
-						className="text-body-sm text-accent hover:text-accent-lighter transition"
+						className="text-body-sm text-accent hover:text-accent/70 transition"
 					>
 						Done
 					</button>
@@ -397,7 +398,7 @@ function NotepadDrawer({
 						value={notes}
 						onChange={(e) => onChange(e.target.value)}
 						placeholder="Jot down thoughts while you play..."
-						className="w-full h-full min-h-[120px] bg-transparent text-body-sm text-cream placeholder:text-text-tertiary outline-none resize-none"
+						className="w-full h-full min-h-[120px] bg-transparent text-body-sm text-ink-primary placeholder:text-ink-tertiary outline-none resize-none"
 					/>
 				</div>
 			</m.div>
@@ -419,21 +420,21 @@ function MetronomePanel({
 				<button
 					type="button"
 					onClick={() => metronome.adjustBpm(-1)}
-					className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-text-secondary hover:text-cream transition"
+					className="w-8 h-8 rounded-full bg-surface-sunken flex items-center justify-center text-ink-secondary hover:text-ink-primary transition"
 					aria-label="Decrease BPM"
 				>
 					<Minus size={14} />
 				</button>
 				<div className="text-center">
-					<span className="text-display-sm text-cream tabular-nums">
+					<span className="text-display-sm text-ink-primary tabular-nums">
 						{metronome.bpm}
 					</span>
-					<span className="block text-body-xs text-text-tertiary">BPM</span>
+					<span className="block text-body-xs text-ink-tertiary">BPM</span>
 				</div>
 				<button
 					type="button"
 					onClick={() => metronome.adjustBpm(1)}
-					className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-text-secondary hover:text-cream transition"
+					className="w-8 h-8 rounded-full bg-surface-sunken flex items-center justify-center text-ink-secondary hover:text-ink-primary transition"
 					aria-label="Increase BPM"
 				>
 					<Plus size={14} />
@@ -444,7 +445,7 @@ function MetronomePanel({
 			<button
 				type="button"
 				onClick={metronome.tapTempo}
-				className="w-full py-2 rounded-lg bg-surface-2 text-body-sm text-text-secondary hover:text-cream transition mb-3"
+				className="w-full py-2 rounded-lg bg-surface-sunken text-body-sm text-ink-secondary hover:text-ink-primary transition mb-3"
 			>
 				Tap Tempo
 			</button>
@@ -459,7 +460,7 @@ function MetronomePanel({
 						className={`flex-1 py-1.5 rounded-lg text-body-sm transition ${
 							metronome.timeSignature === ts
 								? "bg-accent text-on-accent"
-								: "bg-surface-2 text-text-secondary hover:text-cream"
+								: "bg-surface-sunken text-ink-secondary hover:text-ink-primary"
 						}`}
 					>
 						{ts}
@@ -469,7 +470,7 @@ function MetronomePanel({
 
 			{/* Accent + On/Off */}
 			<div className="flex items-center justify-between">
-				<label className="flex items-center gap-2 text-body-sm text-text-secondary cursor-pointer">
+				<label className="flex items-center gap-2 text-body-sm text-ink-secondary cursor-pointer">
 					<input
 						type="checkbox"
 						checked={metronome.accentFirstBeat}
@@ -483,7 +484,7 @@ function MetronomePanel({
 					onClick={metronome.toggle}
 					className={`px-3 py-1.5 rounded-lg text-body-sm transition ${
 						metronome.isPlaying
-							? "bg-red-600 text-on-accent hover:bg-red-500"
+							? "bg-danger text-on-accent hover:bg-danger/85"
 							: "bg-accent text-on-accent hover:brightness-110"
 					}`}
 				>
@@ -503,7 +504,7 @@ function MetronomePanel({
 			/>
 			{/* Desktop dropdown */}
 			<m.div
-				className="absolute top-full left-0 mt-2 z-50 bg-surface border border-border rounded-xl p-4 min-w-[220px] shadow-card hidden md:block"
+				className="absolute top-full left-0 mt-2 z-50 bg-surface-raised border border-border-subtle rounded-xl p-4 min-w-[220px] shadow-card hidden md:block"
 				initial={{ opacity: 0, y: -8, scale: 0.95 }}
 				animate={{ opacity: 1, y: 0, scale: 1 }}
 				transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
@@ -512,7 +513,7 @@ function MetronomePanel({
 			</m.div>
 			{/* Mobile bottom sheet */}
 			<m.div
-				className="fixed bottom-0 left-0 right-0 z-50 bg-surface border-t border-border rounded-t-2xl p-4 shadow-card md:hidden"
+				className="fixed bottom-0 left-0 right-0 z-50 bg-surface-raised border-t border-border-subtle rounded-t-2xl p-4 shadow-card md:hidden"
 				initial={{ opacity: 0, y: 20 }}
 				animate={{ opacity: 1, y: 0 }}
 				transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
