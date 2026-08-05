@@ -247,7 +247,10 @@ at commit `4e2c015` live in `model/data/weights/moonbeam/` (gitignored).
 37 hand-engineered difficulty features alone score **0.8048** tau-c -- so
 MoonBeam's real lead over the reference feature set is **+0.024**, not the
 headline +0.047 vs Aria. 0.8048 is the #149 Phase 1 gate a fine-tuned encoder
-must clear. Canonical source: `docs/mirex/track-a-difficulty-prediction.md`.
+must clear. As of 2026-08-04 the Phase 1 LoRA harness is merged and CPU-verified,
+but **no fine-tune has been run and the gate is unmeasured**; operator steps live
+in `docs/mirex/phase1-lora-runbook.md`.
+Canonical source: `docs/mirex/track-a-difficulty-prediction.md`.
 
 ---
 
