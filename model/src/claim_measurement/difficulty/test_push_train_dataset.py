@@ -59,3 +59,18 @@ def test_stage_training_bundle_copies_every_referenced_piece_and_reports_counts(
     }
     staged_plans = json.loads((staging_dir / "fold_plans.json").read_text())
     assert len(staged_plans) == 2
+
+
+def test_stage_training_bundle_raises_when_a_referenced_piece_has_no_grade(tmp_path):
+    midi_dir = tmp_path / "transkun_mid"
+    midi_dir.mkdir()
+    (midi_dir / "a.mid").write_bytes(b"x")
+    repo_snapshot_dir = tmp_path / "repo"
+    _write_fake_repo(repo_snapshot_dir)
+    plans = [FoldPlan(fold=0, test_seg_ids=("a",), train_seg_ids=(), val_seg_ids=())]
+    paths = BundleSources(
+        midi_dir=midi_dir, grades={}, repo_snapshot_dir=repo_snapshot_dir
+    )
+
+    with pytest.raises(ValueError, match="no grade"):
+        stage_training_bundle(paths, plans, tmp_path / "staging")
