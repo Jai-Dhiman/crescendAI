@@ -1,7 +1,7 @@
 # /// script
 # requires-python = "==3.12.*"
 # dependencies = [
-#     "numpy>=1.24.0", "scipy>=1.10.0", "torch>=2.0.0", "peft>=0.11.0", "trackio",
+#     "numpy>=1.24.0", "scipy>=1.10.0", "torch>=2.0.0", "peft==0.11.1", "trackio",
 #     "mido", "music21", "pandas", "tqdm", "regex", "requests",
 #     "filelock", "pyyaml", "safetensors", "tokenizers==0.19.1",
 #     "huggingface_hub",
@@ -83,6 +83,47 @@ def lora_target_modules(n_layers: int, n_top: int) -> list[str]:
         raise ValueError(f"n_top ({n_top}) cannot exceed n_layers ({n_layers})")
     return [f"model.layers.{layer}.{proj}"
             for layer in range(n_layers - n_top, n_layers) for proj in PROJECTIONS]
+
+
+# peft imports names the fork's VENDORED transformers advertises but does not ship.
+# Kept next to _real_loader because it is part of the same vendored-transformers
+# contract: _real_loader puts the fork's transformers on sys.path FIRST, and this
+# is the price of that.
+_ABSENT_TRANSFORMERS_MODELS = {
+    # peft/utils/constants.py does `from transformers import BloomPreTrainedModel`
+    # purely to feature-probe `hasattr(..., "_convert_to_standard_cache")`. The
+    # fork's transformers/__init__.py advertises models.bloom in _import_structure
+    # but ships only auto/bert/encoder_decoder/llama, so the lazy loader raises
+    # "No module named 'transformers.models.bloom'". A stub WITHOUT that attribute
+    # selects the modern-cache branch, which is the correct behaviour here.
+    "transformers.models.bloom": ("BloomPreTrainedModel",),
+}
+
+
+def _stub_absent_transformers_models(absent: dict | None = None) -> list[str]:
+    """Register do-nothing stubs for transformers submodules the fork advertises
+    but does not ship, so importing peft does not explode. Returns the names it
+    actually had to stub (empty when running against a complete transformers).
+
+    Only registers a stub when the real import genuinely fails -- against a full
+    transformers install this is a no-op, so it can never shadow real classes.
+    """
+    import importlib
+    import types
+
+    stubbed = []
+    for module_name, attrs in (absent or _ABSENT_TRANSFORMERS_MODELS).items():
+        if module_name in sys.modules:
+            continue
+        try:
+            importlib.import_module(module_name)
+        except Exception:  # noqa: BLE001 -- any import failure means "not shippable"
+            module = types.ModuleType(module_name)
+            for attr in attrs:
+                setattr(module, attr, type(attr, (), {}))
+            sys.modules[module_name] = module
+            stubbed.append(module_name)
+    return stubbed
 
 
 def _real_loader(checkpoint_path: Path, repo_root: Path, model_config: Path):
@@ -360,6 +401,7 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader,
             f"{config_max_len} -- this would silently unpair the fine-tuned arm's "
             f"extraction from frozen 0.8257")
 
+    _stub_absent_transformers_models()
     from peft import LoraConfig, get_peft_model
     lora_config = LoraConfig(
         r=16, lora_alpha=32, lora_dropout=0.05,

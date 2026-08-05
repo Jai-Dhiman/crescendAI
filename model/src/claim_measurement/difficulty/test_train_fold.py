@@ -555,3 +555,59 @@ def test_script_header_declares_every_dep_the_staged_bundle_code_imports():
                     f"{filename} imports {root!r} at module scope, but train_fold.py's "
                     f"`# /// script` header does not declare it. The HF Jobs container "
                     f"would die on import. Declared: {sorted(declared)}")
+
+
+def test_stub_absent_transformers_models_is_a_noop_against_real_transformers():
+    """Against a COMPLETE transformers install the stub must do nothing, so it can
+    never shadow a real class. It only fires when the fork's partial vendored
+    transformers is on sys.path first."""
+    from claim_measurement.difficulty.train_fold import (
+        _stub_absent_transformers_models,
+    )
+
+    assert _stub_absent_transformers_models() == []
+
+
+def test_stub_absent_transformers_models_supplies_what_peft_probes_for():
+    """The fork's vendored transformers advertises models.bloom but ships only
+    auto/bert/encoder_decoder/llama, and peft/utils/constants.py does
+    `from transformers import BloomPreTrainedModel` to feature-probe
+    `_convert_to_standard_cache`. Reproduced against the real fork + real peft:
+    without this stub the job dies ~1 min in, after the 6260-file bundle
+    download, with "No module named 'transformers.models.bloom'".
+
+    The stub must NOT carry _convert_to_standard_cache -- that attribute selects
+    peft's legacy-cache branch, and MoonBeam is not bloom.
+    """
+    import sys
+
+    from claim_measurement.difficulty.train_fold import (
+        _ABSENT_TRANSFORMERS_MODELS,
+        _stub_absent_transformers_models,
+    )
+
+    assert _ABSENT_TRANSFORMERS_MODELS["transformers.models.bloom"] == (
+        "BloomPreTrainedModel",)
+
+    absent = {"claim_measurement_absent_probe.models.nope": ("BloomPreTrainedModel",)}
+    try:
+        assert _stub_absent_transformers_models(absent) == list(absent)
+        stub = sys.modules["claim_measurement_absent_probe.models.nope"]
+        assert hasattr(stub, "BloomPreTrainedModel")
+        assert not hasattr(stub.BloomPreTrainedModel, "_convert_to_standard_cache")
+    finally:
+        sys.modules.pop("claim_measurement_absent_probe.models.nope", None)
+
+
+def test_main_stubs_absent_models_before_importing_peft():
+    """Ordering guard: the stub must run BEFORE `from peft import ...` in main(),
+    not after. Asserted on the source because the import order is the contract."""
+    from pathlib import Path
+
+    from claim_measurement.difficulty import train_fold as train_fold_module
+
+    src = Path(train_fold_module.__file__).read_text()
+    stub_call = src.index("    _stub_absent_transformers_models()\n")
+    peft_import = src.index("    from peft import LoraConfig, get_peft_model")
+    assert stub_call < peft_import, (
+        "_stub_absent_transformers_models() must precede the peft import in main()")
