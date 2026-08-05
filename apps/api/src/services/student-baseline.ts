@@ -114,9 +114,16 @@ export function initialBaselineState(): BaselineState {
  * unchanged.
  */
 function validateSession(_state: BaselineState, session: SessionSamples): void {
-	for (const dimension of Object.keys(session.scores)) {
+	for (const [dimension, samples] of Object.entries(session.scores)) {
 		if (!(DIMS_6 as readonly string[]).includes(dimension)) {
 			throw new Error(`updateBaseline: unknown dimension "${dimension}"`);
+		}
+		for (const score of samples ?? []) {
+			if (!Number.isFinite(score)) {
+				throw new Error(
+					`updateBaseline: non-finite score ${score} for dimension "${dimension}"`,
+				);
+			}
 		}
 	}
 }

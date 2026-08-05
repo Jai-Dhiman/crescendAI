@@ -57,4 +57,14 @@ describe("explicit failures", () => {
 			}),
 		).toThrow(/unknown dimension/);
 	});
+
+	it("throws on a non-finite score", () => {
+		const state = initialBaselineState();
+		expect(() =>
+			updateBaseline(state, {
+				timestamp: "2026-01-01T00:00:00Z",
+				scores: { pedaling: [0.5, Number.NaN, 0.5] },
+			}),
+		).toThrow(/non-finite/);
+	});
 });
