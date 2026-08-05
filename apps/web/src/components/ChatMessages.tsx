@@ -125,13 +125,13 @@ const MessageBubble = memo(function MessageBubble({
 	) {
 		return (
 			<div className="flex items-center gap-3 py-3">
-				<div className="flex-1 border-t border-border" />
-				<span className="text-xs text-text-tertiary whitespace-nowrap">
+				<div className="flex-1 border-t border-border-subtle" />
+				<span className="text-xs text-ink-tertiary whitespace-nowrap">
 					{message.messageType === "session_start"
 						? "Recording started"
 						: "Recording ended"}
 				</span>
-				<div className="flex-1 border-t border-border" />
+				<div className="flex-1 border-t border-border-subtle" />
 			</div>
 		);
 	}
@@ -139,8 +139,8 @@ const MessageBubble = memo(function MessageBubble({
 	if (message.role === "user") {
 		return (
 			<div className="flex justify-end">
-				<div className="bg-surface border border-border rounded-2xl px-5 py-3 max-w-[80%]">
-					<p className="text-body-md text-cream whitespace-pre-wrap">
+				<div className="bg-surface-raised border border-border-subtle rounded-2xl px-5 py-3 max-w-[80%]">
+					<p className="text-body-md text-ink-primary whitespace-pre-wrap">
 						{message.content}
 					</p>
 				</div>
@@ -240,7 +240,7 @@ const MessageBubble = memo(function MessageBubble({
 		>
 			<div className="max-w-[80%]">
 				{message.messageType === "observation" && message.dimension && (
-					<span className="inline-block text-xs px-2 py-0.5 rounded-full bg-surface-2 text-text-secondary mb-1">
+					<span className="inline-block text-xs px-2 py-0.5 rounded-full bg-surface-sunken text-ink-secondary mb-1">
 						{message.dimension}
 					</span>
 				)}
@@ -277,8 +277,8 @@ const MessageBubble = memo(function MessageBubble({
 						disabled={tryState === "loading"}
 						className={`mt-2 text-body-xs px-3 py-1.5 rounded-lg border transition ${
 							tryState === "error"
-								? "border-red-500 text-red-400 hover:bg-red-500/10"
-								: "border-border text-text-tertiary hover:text-cream hover:border-accent hover:bg-surface disabled:opacity-50"
+								? "border-danger text-danger hover:bg-danger/10"
+								: "border-border-subtle text-ink-tertiary hover:text-ink-primary hover:border-accent hover:bg-surface-raised disabled:opacity-50"
 						}`}
 					>
 						{tryState === "loading"

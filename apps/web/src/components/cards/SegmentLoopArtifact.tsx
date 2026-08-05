@@ -17,7 +17,7 @@ export function SegmentLoopArtifactCard({ config }: Props) {
 
 	if (status === "completed") {
 		return (
-			<div className="bg-surface-card border border-border rounded-xl p-4">
+			<div className="bg-surface-raised border border-border-subtle rounded-xl p-4">
 				<p className="font-medium text-accent">
 					Loop complete — bars {config.barsStart}–{config.barsEnd}
 				</p>
@@ -27,8 +27,8 @@ export function SegmentLoopArtifactCard({ config }: Props) {
 
 	if (status === "dismissed" || status === "superseded") {
 		return (
-			<div className="bg-surface-card border border-border rounded-xl p-4 opacity-50">
-				<p className="text-body-sm text-text-tertiary">
+			<div className="bg-surface-raised border border-border-subtle rounded-xl p-4 opacity-50">
+				<p className="text-body-sm text-ink-tertiary">
 					Bars {config.barsStart}–{config.barsEnd} — {status}
 				</p>
 			</div>
@@ -36,23 +36,23 @@ export function SegmentLoopArtifactCard({ config }: Props) {
 	}
 
 	return (
-		<div className="bg-surface-card border border-border rounded-xl p-4 space-y-3">
+		<div className="bg-surface-raised border border-border-subtle rounded-xl p-4 space-y-3">
 			<div>
-				<p className="font-medium text-text-primary">
+				<p className="font-medium text-ink-primary">
 					Practice loop: bars {config.barsStart}–{config.barsEnd}
 				</p>
 				{config.dimension && (
-					<p className="text-body-sm text-text-secondary">
+					<p className="text-body-sm text-ink-secondary">
 						Focus: {config.dimension}
 					</p>
 				)}
 			</div>
 
-			{error && <p className="text-body-xs text-red-400">{error}</p>}
+			{error && <p className="text-body-xs text-danger">{error}</p>}
 
 			{status === "active" && (
 				<div className="flex items-center gap-2">
-					<span className="text-body-sm text-text-primary">
+					<span className="text-body-sm text-ink-primary">
 						{attempts} / {config.requiredCorrect} attempts
 					</span>
 					<button
@@ -68,7 +68,7 @@ export function SegmentLoopArtifactCard({ config }: Props) {
 								);
 							}
 						}}
-						className="ml-auto text-body-xs text-text-secondary underline"
+						className="ml-auto text-body-xs text-ink-secondary underline"
 					>
 						Dismiss
 					</button>
@@ -90,7 +90,7 @@ export function SegmentLoopArtifactCard({ config }: Props) {
 								);
 							}
 						}}
-						className="rounded-lg bg-accent px-3 py-1 text-body-sm text-cream"
+						className="rounded-lg bg-accent px-3 py-1 text-body-sm text-ink-primary"
 					>
 						Accept
 					</button>
@@ -107,7 +107,7 @@ export function SegmentLoopArtifactCard({ config }: Props) {
 								);
 							}
 						}}
-						className="rounded-lg border border-border px-3 py-1 text-body-sm text-text-secondary"
+						className="rounded-lg border border-border-subtle px-3 py-1 text-body-sm text-ink-secondary"
 					>
 						Skip
 					</button>
