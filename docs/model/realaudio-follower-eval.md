@@ -1,6 +1,6 @@
-# Real-Audio Score-Follower Eval — Provisional
+# Real-Audio Score-Follower Eval
 
-**Status:** Track A is complete on 55 competition-grade recordings. Track B's human labeling pass is **complete on the 32-clip subset** (2026-08-03) — no high-confidence failure observed, 22/22 tracked or recovered where the piece is verified — and **complete on a representative 40-clip random sample** (2026-08-05) — 31/31 verified-score success, 0 `wrong` verdicts, 0 high-confidence failures, and a corpus mislabel rate of **2.5%** rather than the subset's 16%. PASS bars are now set: **bar 1 (zero high-confidence failures) passes; bar 2 (verified success ≥0.90 at the 95% Wilson lower bound) is at 0.890 and needs a few more verified clips.** This eval is therefore **not yet the score-follower source of truth** — it is one labeling round away. The bar-tap approach is superseded: labeling by ear requires bar numbers against scores the labeler does not have. Track A uses ASAP's alignment, and Track B asks the listener only to watch and flag disagreements.
+**Status:** Track A is complete on 55 competition-grade recordings. Track B's human labeling pass is **complete on the 32-clip subset** (2026-08-03) — no high-confidence failure observed, 22/22 tracked or recovered where the piece is verified — and **complete on a corpus-representative 55-clip random pool** (2026-08-05). **Both PASS bars are MET**: zero failures among 46 high-confidence clips, and 42/42 verified-score success with a 95% Wilson lower bound of **0.9162**. Zero `wrong` verdicts across all 55 corpus clips; corpus mislabel rate **1.8%**, not the extreme-sampled subset's 16%. This eval is now the score-follower source of truth for amateur real audio, within its stated scope. The bar-tap approach is superseded: labeling by ear requires bar numbers against scores the labeler does not have. Track A uses ASAP's alignment, and Track B asks the listener only to watch and flag disagreements.
 
 ## Why this exists
 
@@ -150,7 +150,7 @@ The 40 clips of `_random_sample.json` are all labeled. **These are corpus rates;
 
 **Confidence is conservative on the corpus, not merely calibrated — and the subset hid this.** In `gold_subset` the low-confidence stratum was 1 tracked against 9 wrong/junk; in the corpus sample it is **3 tracked against 4 junk**, with tracked clips going down to confidence **0.283** (`mozart_k545_mvt1/anaTIyEI9vI`, also `chopin_etude_op10no4/inatg1mSCqE` 0.317, `liszt_liebestraum_3/MnZRLzeplJg` 0.433). Selecting the lowest-confidence clip per piece selects the cases where low confidence was *right*; the corpus also contains hard playing the follower follows correctly anyway. Reading: a low-confidence corpus clip is roughly a coin flip between "unusable clip" and "tracked fine", so low confidence should suppress a claim, not be reported as a follower failure.
 
-**`fraction_wrong` is UNUSABLE for this pass — the spans were lost, not absent.** It reads 0.000 on all 40 clips, but the labeler marked confusing passages with SPACE and saw the red spans render on the timeline; they did not reach disk. Do not interpret 0.000 as "no mistracked playback was observed": it is missing data. **The verdicts are unaffected** — they are a separate field, were entered and saved normally, and are what both PASS bars are computed from — so the bar results stand.
+**`fraction_wrong` is UNUSABLE for the 40-clip pass — the spans were lost, not absent.** (The fix below is confirmed working: the 15-clip pass captured real spans, including 5 spans covering 13.6% of playback on `fantaisie_impromptu/V4a_F21W-bo`. Only the 40 are affected.) It reads 0.000 on all 40 clips, but the labeler marked confusing passages with SPACE and saw the red spans render on the timeline; they did not reach disk. Do not interpret 0.000 as "no mistracked playback was observed": it is missing data. **The verdicts are unaffected** — they are a separate field, were entered and saved normally, and are what both PASS bars are computed from — so the bar results stand.
 
 Root cause is not fully established. The end-to-end path (real key hold → real verdict click → real Save) was driven under Playwright and writes spans correctly, including under the labeler's reported conditions (audio playing throughout, never pausing). Four defects were found and fixed; the leading candidate is the third, which silently overwrote saved spans with `[]` on any re-visit-and-re-save:
 
@@ -163,20 +163,40 @@ Root cause is not fully established. The end-to-end path (real key hold → real
 
 Regression tests cover the round-trip (`test_list_clips_carries_already_saved_spans_and_verdict`, `test_list_clips_unlabeled_clip_has_no_saved_state`).
 
-## PASS bars (owner-set, 2026-08-05)
+## PASS bars — both MET (owner-set 2026-08-05, measured 2026-08-05)
 
 Two bars, both on Track B, chosen by the owner from the observed distribution. `recovered` counts toward success but is always reported separately, since relocking is partial evidence.
 
-| # | bar | measured on | status |
+| # | bar | measured on | result |
 |---|---|---|---|
-| 1 | **Zero `wrong` or `junk` verdicts among clips with resolved-score confidence ≥ 0.5** | all labeled clips | **PASS** — 0/33 corpus, 0/55 pooled |
-| 2 | **Verified-score success ≥ 0.90 as the 95% Wilson *lower* bound** | corpus-representative clips only (`_random_sample*.json`), never `gold_subset` | **PENDING** — 31/31 gives 0.890, short by 0.010 |
+| 1 | **Zero `wrong` or `junk` verdicts among clips with resolved-score confidence ≥ 0.5** | corpus-representative pool | **PASS** — 0/46 |
+| 2 | **Verified-score success ≥ 0.90 as the 95% Wilson *lower* bound** | corpus-representative pool only (`_random_sample*.json`), never `gold_subset` | **PASS** — 42/42 = 1.000, lower **0.9162** |
 
-Bar 1 is zero-tolerance rather than a rate because the consequence is asymmetric: a confidently-wrong alignment is the one the product acts on, so a single instance is qualitatively different from a rate. Bar 1 can never be *proven*, only left unrefuted at the current n; quote the sample size with it.
+Bar 1 is zero-tolerance rather than a rate because the consequence is asymmetric: a confidently-wrong alignment is the one the product acts on, so a single instance is qualitatively different from a rate. It can never be *proven*, only left unrefuted at the current n — always quote the sample size with it.
 
-Bar 2 is stated on the lower bound, not the point estimate, so that it cannot be passed by a small sample that happens to be clean. It is **not yet met**: 31 verified clips at 100% success bound out at 0.890. Thirty-five perfect verified clips reach 0.9011. `_random_sample2.json` (15 more clips, `random.Random(1330)` over the 207 still unlabeled) was drawn to close that gap; it is poolable with `_random_sample.json` because both are uniform draws, and poolable with neither `gold_subset.json` nor any confidence-selected set.
+Bar 2 is stated on the lower bound, not the point estimate, so that it cannot be passed by a small sample that happens to be clean. That distinction did real work: at 31 verified clips a **perfect** 31/31 still bounded out at 0.890 and failed. `_random_sample2.json` (15 clips, `random.Random(1330)` over the 207 then-unlabeled) closed the gap to 42 verified clips. Note that at n=42 bar 2 tolerates **zero** failures — 41/42 bounds at 0.877 and would fail — so it is not yet an independent accuracy floor; that needs 53 verified clips (1 failure) or 69 (2).
 
-**Do not report the pooled 72-clip success fraction as a rate.** Pooling is defensible only for the *existence* claim behind bar 1 — a counterexample found in either sample refutes it — and even there the pooled bound (0.065 upper) describes a mixture that is harder than the corpus, not the corpus itself.
+**Do not report the pooled 87-clip success fraction as a rate.** Only `_random_sample.json` + `_random_sample2.json` (both uniform draws, 55 clips) are corpus-representative. `gold_subset.json` is confidence-selected and belongs in no rate estimate.
+
+## Corpus-representative result (55 clips, 2026-08-05)
+
+| stratum | tracked | recovered | wrong | junk |
+|---|---|---|---|---|
+| high confidence (≥0.5) | 43 | 3 | **0** | **0** |
+| low confidence | 3 | 0 | **0** | 6 |
+| score **verified** by piece-ID | 41 | 1 | **0** | **0** |
+| score **unverified** (abstained) | 5 | 2 | **0** | 6 |
+
+**Zero `wrong` verdicts across all 55 corpus clips.** Combined corpus piece-ID over both draws: 74.5% confirmed, **1.8% re-labeled** [0.3%, 9.6%], 23.6% abstain.
+
+**Abstain is a sensitive, low-precision detector of unusable clips: 6/6 recall, 6/13 precision.** Every human-judged `junk` clip in the corpus pool was one piece-ID had abstained on, and no `junk` clip reached the verified stratum. The two `junk` clips from the second draw show why the mechanism works and what it is actually detecting:
+
+| clip | why it is unusable | piece-ID |
+|---|---|---|
+| `fantaisie_impromptu/V4a_F21W-bo` | a **left-hand-only arrangement** — the catalog score genuinely is not what is being played | ABSTAIN, conf 0.164 |
+| `fur_elise/gJ9x1vXYijU` | performed on a **steel pan**, not piano; its harmonics defeat the transcription front-end | ABSTAIN, conf 0.372 |
+
+Both are "this audio is not this score played on a piano" — a *score-resolution or transcription-domain* failure, not a follower failure. That is exactly why bar 2 excludes the unverified stratum: with the wrong score on screen the clip cannot test follower accuracy in either direction. The other 7 abstained clips tracked or recovered normally, so abstain means "do not trust a claim here", not "this clip is bad".
 
 ## How to run the accuracy tracks (#133 S3)
 
