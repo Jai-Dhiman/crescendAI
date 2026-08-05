@@ -1,6 +1,6 @@
 # Real-Audio Score-Follower Eval — Provisional
 
-**Status:** Track A is complete on 55 competition-grade recordings. Track B's human labeling pass is **complete on the 32-clip subset** (2026-08-03) — no high-confidence failure observed, 22/22 tracked or recovered where the piece is verified — but that subset is extreme-sampled by construction, and PASS bars are still unset. A representative 40-clip random sample is drawn and piece-ID'd (corpus mislabel rate **2.5%**, not the subset's 16%); its human follower-accuracy pass is the outstanding step. This eval is therefore **not yet the score-follower source of truth**: it needs that pass and agreed bars. The bar-tap approach is superseded: labeling by ear requires bar numbers against scores the labeler does not have. Track A uses ASAP's alignment, and Track B asks the listener only to watch and flag disagreements.
+**Status:** Track A is complete on 55 competition-grade recordings. Track B's human labeling pass is **complete on the 32-clip subset** (2026-08-03) — no high-confidence failure observed, 22/22 tracked or recovered where the piece is verified — and **complete on a representative 40-clip random sample** (2026-08-05) — 31/31 verified-score success, 0 `wrong` verdicts, 0 high-confidence failures, and a corpus mislabel rate of **2.5%** rather than the subset's 16%. PASS bars are now set: **bar 1 (zero high-confidence failures) passes; bar 2 (verified success ≥0.90 at the 95% Wilson lower bound) is at 0.890 and needs a few more verified clips.** This eval is therefore **not yet the score-follower source of truth** — it is one labeling round away. The bar-tap approach is superseded: labeling by ear requires bar numbers against scores the labeler does not have. Track A uses ASAP's alignment, and Track B asks the listener only to watch and flag disagreements.
 
 ## Why this exists
 
@@ -129,9 +129,43 @@ Stated at the strength the data supports: the design argument is what settles th
 
 The single corpus re-label is `rachmaninoff_prelude_csm/t0i7L6kE5k4` → `rachmaninoff.preludes_op_23.4` (conf 0.95) — the **same folder and same wrong target** as the subset's `v80RecqrtJ8`. That folder holds four sampled clips: two genuine Op. 3/2, one Op. 23/4, one abstain. Contamination clusters by folder rather than spreading uniformly, so a corpus-wide rate averages over folders that are clean and folders that are partly mis-filed; treat per-folder purity, not the global rate, as the thing to check before trusting any single piece's clips.
 
-**PASS bars remain unset — deliberately, and this is a human-lit call.** The distribution needed to set them now exists (above, plus Track A's per-beat errors), but choosing thresholds is research-gate interpretation, not a derivation. Candidate shape, for a decision rather than as a decision: gate on *no high-confidence failures* plus a floor on verified-score success, and keep `recovered` separate from `tracked` since relocking is partial evidence. Do not gate on the pooled 32-clip success fraction — it mixes strata that mean different things.
+**PASS bars are set — see [PASS bars](#pass-bars-owner-set-2026-08-05).** They were deliberately left unset until a corpus-representative distribution existed, because the 32-clip subset could not support any meaningful threshold: at n=22 verified clips, even a perfect 22/22 yields a 95% Wilson lower bound of 0.851, so a "≥0.90" bar was unmeetable regardless of how well the follower performed. Setting bars from that sample would have meant either an unclearable gate or a gate quietly lowered to fit the evidence.
 
 **Provenance note.** Six records (the 2026-08-01 labeling session) predate `validate_tool` recording score provenance and were **backfilled**, not re-labeled: `score_id` / `score_source` recomputed via `resolve_score_id`, `follower_confidence` read from that clip's cached view. Those three fields are derived and were verified byte-identical to what the validator writes on all 26 natively-saved records; the human verdicts and wrong spans are untouched. The migrated records carry `provenance: "backfilled"`. Five of the six are the re-labeled clips, so if any result hinges on them, re-label rather than trust the migration.
+
+## Track B corpus pass — result (2026-08-05, random 40 clips)
+
+The 40 clips of `_random_sample.json` are all labeled. **These are corpus rates; the 32-clip table above is not.** Never pool the two for rate estimation.
+
+| stratum | tracked | recovered | wrong | junk |
+|---|---|---|---|---|
+| high confidence (≥0.5) | 31 | 2 | **0** | **0** |
+| low confidence | 3 | 0 | **0** | 4 |
+| score **verified** by piece-ID | 30 | 1 | **0** | **0** |
+| score **unverified** (abstained) | 4 | 1 | **0** | 4 |
+
+- **Verified-score success (tracked + recovered): 31/31 = 1.000**, 95% Wilson [0.890, 1.000].
+- **High-confidence failures: 0/33**, 95% Wilson upper bound 10.4% (the subset alone gave 14.9%).
+- **Zero `wrong` verdicts anywhere in the corpus sample.** The subset's two `wrong` rows were both products of its selection: one was a mislabeled clip, one a candidate genuine failure at confidence 0.24.
+
+**Confidence is conservative on the corpus, not merely calibrated — and the subset hid this.** In `gold_subset` the low-confidence stratum was 1 tracked against 9 wrong/junk; in the corpus sample it is **3 tracked against 4 junk**, with tracked clips going down to confidence **0.283** (`mozart_k545_mvt1/anaTIyEI9vI`, also `chopin_etude_op10no4/inatg1mSCqE` 0.317, `liszt_liebestraum_3/MnZRLzeplJg` 0.433). Selecting the lowest-confidence clip per piece selects the cases where low confidence was *right*; the corpus also contains hard playing the follower follows correctly anyway. Reading: a low-confidence corpus clip is roughly a coin flip between "unusable clip" and "tracked fine", so low confidence should suppress a claim, not be reported as a follower failure.
+
+**Caveat on `fraction_wrong`.** It is 0.000 on all 40 clips — no wrong span was ever flagged. The labeler's report was that brief confusions did occur but were not worth holding SPACE for. So the "median 0.0 of playback flagged wrong" figure reflects a labeling threshold as well as follower behavior, and must not be read as "provably zero mistracked time". The verdict field, not `fraction_wrong`, carries the evidence here.
+
+## PASS bars (owner-set, 2026-08-05)
+
+Two bars, both on Track B, chosen by the owner from the observed distribution. `recovered` counts toward success but is always reported separately, since relocking is partial evidence.
+
+| # | bar | measured on | status |
+|---|---|---|---|
+| 1 | **Zero `wrong` or `junk` verdicts among clips with resolved-score confidence ≥ 0.5** | all labeled clips | **PASS** — 0/33 corpus, 0/55 pooled |
+| 2 | **Verified-score success ≥ 0.90 as the 95% Wilson *lower* bound** | corpus-representative clips only (`_random_sample*.json`), never `gold_subset` | **PENDING** — 31/31 gives 0.890, short by 0.010 |
+
+Bar 1 is zero-tolerance rather than a rate because the consequence is asymmetric: a confidently-wrong alignment is the one the product acts on, so a single instance is qualitatively different from a rate. Bar 1 can never be *proven*, only left unrefuted at the current n; quote the sample size with it.
+
+Bar 2 is stated on the lower bound, not the point estimate, so that it cannot be passed by a small sample that happens to be clean. It is **not yet met**: 31 verified clips at 100% success bound out at 0.890. Thirty-five perfect verified clips reach 0.9011. `_random_sample2.json` (15 more clips, `random.Random(1330)` over the 207 still unlabeled) was drawn to close that gap; it is poolable with `_random_sample.json` because both are uniform draws, and poolable with neither `gold_subset.json` nor any confidence-selected set.
+
+**Do not report the pooled 72-clip success fraction as a rate.** Pooling is defensible only for the *existence* claim behind bar 1 — a counterexample found in either sample refutes it — and even there the pooled bound (0.065 upper) describes a mixture that is harder than the corpus, not the corpus itself.
 
 ## How to run the accuracy tracks (#133 S3)
 
