@@ -33,6 +33,10 @@ describe("SessionDataCard", () => {
 		expect(
 			screen.getByText("Pedal changes lag the harmony."),
 		).toBeInTheDocument();
+		const swatch = screen.getByText("pedaling").previousElementSibling;
+		expect(swatch).toHaveStyle({
+			backgroundColor: "var(--dim-pedaling)",
+		});
 	});
 
 	it("renders recent_sessions with per-dimension averages", async () => {

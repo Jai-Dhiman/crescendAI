@@ -1,4 +1,4 @@
-import { DIMENSION_COLORS } from "../../lib/mock-session";
+import { DIMENSION_COLOR_VAR } from "../../lib/dimension-colors";
 import type {
 	SessionDataConfig,
 	SessionDataObservationRow,
@@ -16,7 +16,7 @@ const QUERY_LABEL: Record<SessionDataConfig["queryType"], string> = {
 };
 
 const DIM_FIELDS: Array<{
-	dim: keyof typeof DIMENSION_COLORS;
+	dim: keyof typeof DIMENSION_COLOR_VAR;
 	field: keyof SessionDataSessionRow;
 }> = [
 	{ dim: "dynamics", field: "avgDynamics" },
@@ -49,16 +49,16 @@ function DimensionScores({ row }: { row: SessionDataSessionRow }) {
 			{DIM_FIELDS.map(({ dim, field }) => (
 				<span
 					key={dim}
-					className="flex items-center gap-1 rounded bg-surface px-1.5 py-0.5"
+					className="flex items-center gap-1 rounded bg-surface-raised px-1.5 py-0.5"
 				>
 					<span
 						className="w-1.5 h-1.5 rounded-full shrink-0"
-						style={{ backgroundColor: DIMENSION_COLORS[dim] }}
+						style={{ backgroundColor: DIMENSION_COLOR_VAR[dim] }}
 					/>
-					<span className="text-label-sm text-text-tertiary uppercase tracking-wide">
+					<span className="text-label-sm text-ink-tertiary uppercase tracking-wide">
 						{dim.slice(0, 3)}
 					</span>
-					<span className="text-body-xs text-text-primary tabular-nums">
+					<span className="text-body-xs text-ink-primary tabular-nums">
 						{formatScore(row[field] as number | null)}
 					</span>
 				</span>
@@ -69,7 +69,7 @@ function DimensionScores({ row }: { row: SessionDataSessionRow }) {
 
 function EmptyState() {
 	return (
-		<p className="text-body-sm text-text-tertiary italic">
+		<p className="text-body-sm text-ink-tertiary italic">
 			No session data yet.
 		</p>
 	);
@@ -79,8 +79,8 @@ export function SessionDataCard({ config }: SessionDataCardProps) {
 	const rows = Array.isArray(config.data) ? config.data : [];
 
 	return (
-		<div className="bg-surface-card border border-border rounded-xl p-4 mt-3 flex flex-col gap-3">
-			<span className="text-label-sm text-text-tertiary uppercase tracking-wide">
+		<div className="bg-surface-raised border border-border-subtle rounded-xl p-4 mt-3 flex flex-col gap-3">
+			<span className="text-label-sm text-ink-tertiary uppercase tracking-wide">
 				{QUERY_LABEL[config.queryType]}
 			</span>
 
@@ -90,9 +90,9 @@ export function SessionDataCard({ config }: SessionDataCardProps) {
 					{rows.filter(isRecord).map((raw, i) => {
 						const row = raw as unknown as SessionDataObservationRow;
 						const color =
-							DIMENSION_COLORS[
-								row.dimension as keyof typeof DIMENSION_COLORS
-							] ?? "#7a9a82";
+							DIMENSION_COLOR_VAR[
+								row.dimension as keyof typeof DIMENSION_COLOR_VAR
+							] ?? "var(--color-accent)";
 						return (
 							<div
 								key={row.id ?? `obs-${i}`}
@@ -103,18 +103,18 @@ export function SessionDataCard({ config }: SessionDataCardProps) {
 										className="w-1.5 h-1.5 rounded-full shrink-0"
 										style={{ backgroundColor: color }}
 									/>
-									<span className="text-label-sm text-text-tertiary uppercase tracking-wide">
+									<span className="text-label-sm text-ink-tertiary uppercase tracking-wide">
 										{row.dimension}
 									</span>
 								</div>
 								<div className="min-w-0">
-									<span className="text-body-xs text-text-tertiary">
+									<span className="text-body-xs text-ink-tertiary">
 										{formatScore(row.dimensionScore)}
 										{formatDate(row.createdAt) &&
 											` · ${formatDate(row.createdAt)}`}
 									</span>
 									{row.observationText && (
-										<p className="text-body-sm text-text-primary mt-0.5 leading-snug">
+										<p className="text-body-sm text-ink-primary mt-0.5 leading-snug">
 											{row.observationText}
 										</p>
 									)}
@@ -135,7 +135,7 @@ export function SessionDataCard({ config }: SessionDataCardProps) {
 								key={row.id ?? `sess-${i}`}
 								className="flex flex-col gap-1.5"
 							>
-								<span className="text-body-xs text-text-tertiary">
+								<span className="text-body-xs text-ink-tertiary">
 									{formatDate(row.startedAt) || "Session"}
 								</span>
 								<DimensionScores row={row} />
@@ -148,7 +148,7 @@ export function SessionDataCard({ config }: SessionDataCardProps) {
 			{config.queryType === "session_detail" &&
 				(isRecord(config.data) ? (
 					<div className="flex flex-col gap-1.5">
-						<span className="text-body-xs text-text-tertiary">
+						<span className="text-body-xs text-ink-tertiary">
 							{formatDate(
 								(config.data as unknown as SessionDataSessionRow).startedAt,
 							) || "Session"}
