@@ -47,7 +47,15 @@ export const Route = createRootRoute({
 	component: RootDocument,
 });
 
-const THEME_FLASH_SCRIPT = `(function(){var path=location.pathname;if(path==="/"||path==="/signin")return;var p=localStorage.getItem("crescend-theme");var t=p==="light"||p==="dark"?p:window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";if(t==="light")document.documentElement.dataset.theme="light"})();`;
+const THEME_FLASH_SCRIPT = `(function(){var path=location.pathname;if(path==="/"||path==="/signin"){document.documentElement.dataset.theme="dark";return}var p=localStorage.getItem("crescend-theme");var t;if(p==="light"||p==="dark"){t=p}else{var h=new Date().getHours();t=(h>=19||h<7)?"dark":"light"}document.documentElement.dataset.theme=t})();`;
+
+export function resolveDocumentTheme(input: {
+	pathname: string;
+	storeTheme: "light" | "dark";
+}): "light" | "dark" {
+	const isAlwaysDark = input.pathname === "/" || input.pathname === "/signin";
+	return isAlwaysDark ? "dark" : input.storeTheme;
+}
 
 function RootDocument() {
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -60,14 +68,10 @@ function RootDocument() {
 		function applyTheme() {
 			const p = pathnameRef.current;
 			const t = useThemeStore.getState().theme;
-			const isAlwaysDark = p === "/" || p === "/signin";
-			if (isAlwaysDark) {
-				delete document.documentElement.dataset.theme;
-			} else if (t === "light") {
-				document.documentElement.dataset.theme = "light";
-			} else {
-				delete document.documentElement.dataset.theme;
-			}
+			document.documentElement.dataset.theme = resolveDocumentTheme({
+				pathname: p,
+				storeTheme: t,
+			});
 		}
 
 		applyTheme();
@@ -96,7 +100,7 @@ function RootDocument() {
 					src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js"
 				/>
 			</head>
-			<body className="bg-espresso text-text-primary font-sans">
+			<body className="bg-surface-page text-ink-primary font-sans">
 				<QueryClientProvider client={queryClient}>
 					<AuthProvider>
 						{!isAppShell && <Header />}
@@ -135,12 +139,15 @@ function Header() {
 			style={{ transform: hidden ? "translateY(-100%)" : "translateY(0)" }}
 		>
 			<div className="max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between h-16">
-				<a href="/" className="font-display text-lg text-cream tracking-tight">
+				<a
+					href="/"
+					className="font-display text-lg text-ink-primary tracking-tight"
+				>
 					crescend
 				</a>
 				<a
 					href="/signin"
-					className="font-display text-body-sm text-cream hover:text-text-secondary transition-colors"
+					className="font-display text-body-sm text-ink-primary hover:text-ink-secondary transition-colors"
 				>
 					Sign In
 				</a>
@@ -153,23 +160,23 @@ function Footer() {
 	return (
 		<footer className="py-12 lg:py-16">
 			<div className="max-w-7xl mx-auto px-6 lg:px-12">
-				<div className="flex flex-col md:flex-row items-center justify-between gap-6 text-body-xs text-text-tertiary">
+				<div className="flex flex-col md:flex-row items-center justify-between gap-6 text-body-xs text-ink-tertiary">
 					<a
 						href="/"
-						className="font-display text-sm text-cream tracking-tight"
+						className="font-display text-sm text-ink-primary tracking-tight"
 					>
 						crescend
 					</a>
 					<div className="flex items-center gap-6">
 						<a
 							href="/terms"
-							className="hover:text-text-secondary transition-colors"
+							className="hover:text-ink-secondary transition-colors"
 						>
 							Terms of Service
 						</a>
 						<a
 							href="/privacy"
-							className="hover:text-text-secondary transition-colors"
+							className="hover:text-ink-secondary transition-colors"
 						>
 							Privacy Policy
 						</a>
