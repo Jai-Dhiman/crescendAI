@@ -151,12 +151,28 @@ function medianAbsoluteDeviation(
 	return median(values.map((v) => Math.abs(v - centre)));
 }
 
+function alphaFromHalfLife(halfLifeSessions: number): number {
+	return 1 - 2 ** (-1 / halfLifeSessions);
+}
+
+function ewma(
+	prev: number,
+	value: number,
+	alpha: number,
+	initialized: boolean,
+): number {
+	if (!initialized) return value;
+	return prev + alpha * (value - prev);
+}
+
 function foldDimension(
 	prior: DimensionBaselineState,
 	samples: readonly number[],
 	config: BaselineConfig,
 ): DimensionBaselineState {
+	const alphaLong = alphaFromHalfLife(config.longHalfLifeSessions);
 	const sessionCentre = median(samples);
+
 	let withinSessionDeviants = 0;
 	if (samples.length >= config.minSamplesForSpread) {
 		const mad = medianAbsoluteDeviation(samples, sessionCentre);
@@ -172,7 +188,21 @@ function foldDimension(
 		);
 	}
 
-	const contribution = withinSessionDeviants;
+	const longMean = ewma(
+		prior.longMean,
+		sessionCentre,
+		alphaLong,
+		prior.initialized,
+	);
+	// NOTE: deliberately crude for this task -- ANY nonzero gap between this
+	// session's own centre and the pre-update long-run mean counts as
+	// out-of-band, with no band width yet. Task 9 introduces the real band
+	// (noiseFloor/longSd); Task 10 replaces this raw-centre comparison with
+	// the smoothed short EWMA the spec calls for.
+	const acrossSessionOutOfBand =
+		prior.initialized && sessionCentre !== prior.longMean;
+
+	const contribution = withinSessionDeviants + (acrossSessionOutOfBand ? 1 : 0);
 	let consecutiveOutOfBand = prior.consecutiveOutOfBand;
 	let consecutiveInBand = prior.consecutiveInBand;
 	if (contribution > 0) {
@@ -191,7 +221,14 @@ function foldDimension(
 		lifecycle = "active";
 	}
 
-	return { ...prior, lifecycle, consecutiveOutOfBand, consecutiveInBand };
+	return {
+		...prior,
+		lifecycle,
+		longMean,
+		consecutiveOutOfBand,
+		consecutiveInBand,
+		initialized: true,
+	};
 }
 
 /** Pure fold: (state, session) -> state. No clock, no randomness, no I/O. */

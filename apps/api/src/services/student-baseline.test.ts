@@ -119,3 +119,19 @@ describe("session 1 within-session evidence", () => {
 		expect(trace[0].dimensions.pedaling.lifecycle).toBe("absent");
 	});
 });
+
+describe("across-session evidence", () => {
+	it("fires on persistent deviation across FIRE_PERSISTENCE sessions", () => {
+		const shifted = [0.79, 0.81, 0.79, 0.81, 0.79, 0.81];
+		const trace = runSequence([
+			{ timestamp: "2026-01-01T00:00:00Z", scores: { dynamics: CLUSTER } },
+			{ timestamp: "2026-01-02T00:00:00Z", scores: { dynamics: shifted } },
+			{ timestamp: "2026-01-03T00:00:00Z", scores: { dynamics: shifted } },
+			{ timestamp: "2026-01-04T00:00:00Z", scores: { dynamics: shifted } },
+		]);
+		expect(trace[0].dimensions.dynamics.lifecycle).toBe("absent");
+		expect(trace[1].dimensions.dynamics.lifecycle).toBe("absent");
+		expect(trace[2].dimensions.dynamics.lifecycle).toBe("absent");
+		expect(trace[3].dimensions.dynamics.lifecycle).toBe("active");
+	});
+});
