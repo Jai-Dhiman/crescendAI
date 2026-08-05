@@ -22,8 +22,8 @@ function buttonProps(
 	const base =
 		"text-body-sm px-4 py-2 rounded-lg border transition font-medium";
 	const active = `${base} border-accent text-accent hover:bg-accent/10`;
-	const disabled_cls = `${base} border-border text-text-tertiary opacity-50`;
-	const error_cls = `${base} border-red-500 text-red-400 hover:bg-red-500/10`;
+	const disabled_cls = `${base} border-border-subtle text-ink-tertiary opacity-50`;
+	const error_cls = `${base} border-danger text-danger hover:bg-danger/10`;
 	const completed_cls = `${base} border-accent text-accent cursor-default`;
 
 	switch (status) {
@@ -153,19 +153,19 @@ function ExpandedExerciseItem({
 	);
 
 	return (
-		<div className="border border-border rounded-xl p-4 flex flex-col gap-3">
+		<div className="border border-border-subtle rounded-xl p-4 flex flex-col gap-3">
 			<div className="flex items-start justify-between gap-3">
 				<div className="flex flex-col gap-1 min-w-0">
-					<span className="text-body-md font-medium text-text-primary">
+					<span className="text-body-md font-medium text-ink-primary">
 						{exercise.title}
 					</span>
 					<div className="flex items-center gap-2 flex-wrap">
 						{exercise.hands && (
-							<span className="text-body-sm text-text-secondary bg-surface-elevated px-2 py-0.5 rounded">
+							<span className="text-body-sm text-ink-secondary bg-surface-elevated px-2 py-0.5 rounded">
 								{handsLabel(exercise.hands)}
 							</span>
 						)}
-						<span className="text-body-sm text-text-tertiary">
+						<span className="text-body-sm text-ink-tertiary">
 							{exercise.focusDimension}
 						</span>
 					</div>
@@ -179,7 +179,7 @@ function ExpandedExerciseItem({
 					{btn.label}
 				</button>
 			</div>
-			<p className="text-body-sm text-text-secondary">{exercise.instruction}</p>
+			<p className="text-body-sm text-ink-secondary">{exercise.instruction}</p>
 		</div>
 	);
 }
@@ -209,10 +209,10 @@ export function ExerciseSetExpanded({
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="flex flex-col gap-1">
-				<span className="text-body-lg font-semibold text-text-primary">
+				<span className="text-body-lg font-semibold text-ink-primary">
 					{config.targetSkill}
 				</span>
-				<span className="text-body-sm text-text-secondary">
+				<span className="text-body-sm text-ink-secondary">
 					{config.sourcePassage}
 				</span>
 			</div>
@@ -227,8 +227,8 @@ export function ExerciseSetExpanded({
 				))}
 			</div>
 
-			<div className="mt-6 pt-4 border-t border-border flex flex-col gap-2">
-				<span className="text-body-sm text-text-secondary">
+			<div className="mt-6 pt-4 border-t border-border-subtle flex flex-col gap-2">
+				<span className="text-body-sm text-ink-secondary">
 					{completedCount} of {totalCount} completed
 				</span>
 				<div className="w-full h-1.5 bg-surface-elevated rounded-full overflow-hidden">

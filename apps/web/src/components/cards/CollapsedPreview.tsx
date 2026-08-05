@@ -27,7 +27,7 @@ export function CollapsedPreview({
 					onRestore();
 				}
 			}}
-			className="bg-surface-card border border-border rounded-xl px-3 py-2 mt-3 flex items-center gap-3 cursor-pointer hover:bg-surface transition group"
+			className="bg-surface-raised border border-border-subtle rounded-xl px-3 py-2 mt-3 flex items-center gap-3 cursor-pointer hover:bg-surface-raised transition group"
 		>
 			{/* Accent bar */}
 			<div className="w-1 self-stretch rounded-full bg-accent shrink-0" />
@@ -35,14 +35,14 @@ export function CollapsedPreview({
 			{/* Content */}
 			<div className="flex-1 min-w-0">
 				<div className="flex items-center gap-2">
-					<span className="text-body-sm font-medium text-cream truncate">
+					<span className="text-body-sm font-medium text-ink-primary truncate">
 						{title}
 					</span>
-					<span className="text-body-xs text-text-tertiary shrink-0">
+					<span className="text-body-xs text-ink-tertiary shrink-0">
 						{badge}
 					</span>
 				</div>
-				<p className="text-body-xs text-text-secondary truncate">{subtitle}</p>
+				<p className="text-body-xs text-ink-secondary truncate">{subtitle}</p>
 			</div>
 
 			{/* Expand chevron */}
@@ -52,7 +52,7 @@ export function CollapsedPreview({
 					e.stopPropagation();
 					onExpand();
 				}}
-				className="shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-text-tertiary hover:text-cream hover:bg-surface-2 transition"
+				className="shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-ink-tertiary hover:text-ink-primary hover:bg-surface-sunken transition"
 				aria-label="Expand artifact"
 			>
 				<CaretRight size={14} weight="bold" />
