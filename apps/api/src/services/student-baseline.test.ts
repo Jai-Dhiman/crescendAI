@@ -91,3 +91,19 @@ describe("explicit failures", () => {
 		).toThrow(/precedes/);
 	});
 });
+
+const CLUSTER_WITH_3_OUTLIERS = [
+	0.49, 0.51, 0.49, 0.51, 0.49, 0.51, 0.1, 0.1, 0.1,
+];
+
+describe("session 1 within-session evidence", () => {
+	it("fires immediately from >=3 deviant samples in the first sitting", () => {
+		const trace = runSequence([
+			{
+				timestamp: "2026-01-01T00:00:00Z",
+				scores: { pedaling: CLUSTER_WITH_3_OUTLIERS },
+			},
+		]);
+		expect(trace[0].dimensions.pedaling.lifecycle).toBe("active");
+	});
+});

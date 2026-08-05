@@ -142,14 +142,58 @@ function validateSession(state: BaselineState, session: SessionSamples): void {
 	}
 }
 
+function median(values: readonly number[]): number {
+	const sorted = [...values].sort((a, b) => a - b);
+	const mid = Math.floor(sorted.length / 2);
+	return sorted.length % 2 === 0
+		? (sorted[mid - 1] + sorted[mid]) / 2
+		: sorted[mid];
+}
+
+/** Median absolute deviation — robust to the minority-outlier case this gate targets. */
+function medianAbsoluteDeviation(
+	values: readonly number[],
+	centre: number,
+): number {
+	return median(values.map((v) => Math.abs(v - centre)));
+}
+
+/**
+ * NOTE: deliberately crude for this task -- any deviant sample fires
+ * immediately, ignoring persistence. Task 7 replaces this with the real
+ * FIRE_PERSISTENCE-threshold counter mechanism.
+ */
+function foldDimension(
+	prior: DimensionBaselineState,
+	samples: readonly number[],
+	config: BaselineConfig,
+): DimensionBaselineState {
+	const sessionCentre = median(samples);
+	let withinSessionDeviants = 0;
+	if (samples.length >= config.minSamplesForSpread) {
+		const mad = medianAbsoluteDeviation(samples, sessionCentre);
+		if (mad > 0) {
+			const threshold = config.deviantSampleMultiple * mad;
+			for (const s of samples) {
+				if (Math.abs(s - sessionCentre) > threshold) withinSessionDeviants += 1;
+			}
+		}
+	}
+	const lifecycle = withinSessionDeviants > 0 ? "active" : prior.lifecycle;
+	return { ...prior, lifecycle };
+}
+
 export function updateBaseline(
 	state: BaselineState,
 	session: SessionSamples,
-	_config: BaselineConfig = DEFAULT_BASELINE_CONFIG,
+	config: BaselineConfig = DEFAULT_BASELINE_CONFIG,
 ): BaselineState {
 	validateSession(state, session);
-	return {
-		lastSessionTimestamp: session.timestamp,
-		dimensions: state.dimensions,
-	};
+	const dimensions = { ...state.dimensions };
+	for (const [dimension, samples] of Object.entries(session.scores)) {
+		if (!samples || samples.length === 0) continue;
+		const dim = dimension as Dimension;
+		dimensions[dim] = foldDimension(dimensions[dim], samples, config);
+	}
+	return { lastSessionTimestamp: session.timestamp, dimensions };
 }
