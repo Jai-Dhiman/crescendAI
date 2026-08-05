@@ -211,6 +211,8 @@ export interface BaselineConfig {
 	maxWithinSessionContribution: number;
 	minSamplesForSpread: number;
 	deviantSampleMultiple: number;
+	confidenceProvisionalUpdates: number;
+	confidenceEstablishedUpdates: number;
 }
 
 export const DEFAULT_BASELINE_CONFIG: BaselineConfig = {
@@ -224,6 +226,8 @@ export const DEFAULT_BASELINE_CONFIG: BaselineConfig = {
 	maxWithinSessionContribution: 3,
 	minSamplesForSpread: 3,
 	deviantSampleMultiple: 1.5,
+	confidenceProvisionalUpdates: 3,
+	confidenceEstablishedUpdates: 8,
 };
 
 const DimensionStateSchema = z.object({
@@ -232,12 +236,17 @@ const DimensionStateSchema = z.object({
 	longSd: z.number(),
 	shortMean: z.number(),
 	noiseFloor: z.number(),
+	halfWidth: z.number(),
 	consecutiveOutOfBand: z.number().int().min(0),
 	consecutiveInBand: z.number().int().min(0),
 	promoted: z.boolean(),
 	evidenceWeeks: z.array(z.string()),
 	initialized: z.boolean(),
 	updateCount: z.number().int().min(0),
+	// Never gates -- see docs/specs/2026-08-05-student-baseline-gate-design.md's
+	// "Divergence from 03-memory-system.md" section. Purely a display hint so
+	// the teacher can frame early marks as exploratory prose.
+	confidence: z.enum(["exploratory", "provisional", "established"]),
 });
 
 // An explicit object (one key per DIMS_6 entry), not z.record: z.record infers
@@ -268,12 +277,14 @@ export function initialBaselineState(): BaselineState {
 			longSd: 0,
 			shortMean: 0,
 			noiseFloor: 0,
+			halfWidth: 0,
 			consecutiveOutOfBand: 0,
 			consecutiveInBand: 0,
 			promoted: false,
 			evidenceWeeks: [],
 			initialized: false,
 			updateCount: 0,
+			confidence: "exploratory",
 		};
 	}
 	return { lastSessionTimestamp: null, dimensions };
@@ -1021,12 +1032,12 @@ git add apps/api/src/services/student-baseline.ts apps/api/src/services/student-
 **Group:** sequential (depends on Task 8)
 
 **Behavior being verified:** the band's effective half-width (bias-corrected
-`noiseFloor`/`longSd`) shrinks as more consistent sessions accumulate — the
-behavioural proof that cold start has no session-count branch: a wide band
-from sparse evidence narrows smoothly, rather than a fixed rule flipping at
-session 3.
-**Interface under test:** `updateBaseline` (reads `noiseFloor`, `longSd`,
-`updateCount` off the returned state).
+`noiseFloor`/`longSd`, exposed on the state as `halfWidth`) shrinks strictly
+as more consistent sessions accumulate — the behavioural proof that cold
+start has no session-count branch: a wide band from sparse evidence narrows
+smoothly, rather than a fixed rule flipping at session 3.
+**Interface under test:** `updateBaseline` (reads `halfWidth` directly off
+the returned state).
 
 **Files:**
 - Modify: `apps/api/src/services/student-baseline.ts`
@@ -1052,31 +1063,23 @@ import {
 describe("band width", () => {
 	it("narrows the band monotonically under consistent evidence", () => {
 		// Same call shape every session -- no session-count branch anywhere in
-		// updateBaseline. The narrowing is read off the *effective*, bias-
-		// corrected band width, not the raw EWMA (which a constant CLUSTER
-		// input would hold flat from session 1 and prove nothing).
+		// updateBaseline. `halfWidth` is read directly off the returned state
+		// (the exact value foldDimension used), not recomputed here -- a test
+		// that re-derives the implementation's own arithmetic would only prove
+		// two copies of a formula agree, not that the formula is right.
 		const sessions: SessionSamples[] = Array.from({ length: 6 }, (_, i) => ({
 			timestamp: `2026-01-0${i + 1}T00:00:00Z`,
 			scores: { phrasing: CLUSTER },
 		}));
 		const trace = runSequence(sessions);
-		const halfWidths = trace.map((s) => {
-			const d = s.dimensions.phrasing;
-			const alphaShort =
-				1 - 2 ** (-1 / DEFAULT_BASELINE_CONFIG.shortHalfLifeSessions);
-			const alphaLong =
-				1 - 2 ** (-1 / DEFAULT_BASELINE_CONFIG.longHalfLifeSessions);
-			const weightShort = 1 - (1 - alphaShort) ** d.updateCount;
-			const weightLong = 1 - (1 - alphaLong) ** d.updateCount;
-			return Math.max(
-				d.noiseFloor / weightShort,
-				DEFAULT_BASELINE_CONFIG.minBandSdFraction * (d.longSd / weightLong),
-			);
-		});
+		const halfWidths = trace.map((s) => s.dimensions.phrasing.halfWidth);
+		// Hand-verified for this exact CLUSTER sequence and DEFAULT_BASELINE_CONFIG:
+		// 0.0628 -> 0.0341 -> 0.0247 -> 0.02 -> 0.0173 -> 0.0155 (strictly decreasing).
 		for (let i = 1; i < halfWidths.length; i++) {
-			expect(halfWidths[i]).toBeLessThanOrEqual(halfWidths[i - 1] + 1e-9);
+			expect(halfWidths[i]).toBeLessThan(halfWidths[i - 1]);
 		}
-		expect(halfWidths[halfWidths.length - 1]).toBeLessThan(halfWidths[0]);
+		expect(halfWidths[0]).toBeCloseTo(0.0629, 3);
+		expect(halfWidths[5]).toBeCloseTo(0.0155, 3);
 	});
 });
 ```
@@ -1086,19 +1089,20 @@ describe("band width", () => {
 ```bash
 cd apps/api && bun run test:scripts -- student-baseline
 ```
-Expected: FAIL — `noiseFloor`, `longSd`, and `updateCount` are never updated
-by `foldDimension` today (they stay at their `initialBaselineState()`
-defaults of `0`). `weightShort`/`weightLong` compute
-`1 - (1 - alpha) ** 0 = 0`, so every `halfWidths` entry is `0 / 0 = NaN`. The
-final assertion `expect(NaN).toBeLessThan(NaN)` throws
-`AssertionError: expected NaN to be less than NaN`.
+Expected: FAIL — `foldDimension` never sets `halfWidth` today, so it stays at
+its `initialBaselineState()` default of `0` through every session; all six
+`halfWidths` entries are `0`. The strict-decrease loop's first iteration
+(`i = 1`) asserts `expect(halfWidths[1]).toBeLessThan(halfWidths[0])`, i.e.
+`expect(0).toBeLessThan(0)`, which throws
+`AssertionError: expected 0 to be less than 0`.
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
 
 Add `biasCorrected` to `student-baseline.ts`, and extend `foldDimension` to
-compute and carry `noiseFloor`, `longSd`, and `updateCount` — **not yet
-consulted by the out-of-band decision**, which still uses Task 8's crude
-raw-centre comparison:
+compute and carry `noiseFloor`, `longSd`, `updateCount`, and the derived
+`halfWidth` — **`halfWidth` is not yet consulted by the out-of-band
+decision**, which still uses Task 8's crude raw-centre comparison; this task
+only proves it narrows correctly:
 
 ```typescript
 /**
@@ -1156,9 +1160,15 @@ function foldDimension(
 	const longMean = ewma(prior.longMean, sessionCentre, alphaLong, prior.initialized);
 	const updateCount = prior.updateCount + 1;
 
-	// Still Task 8's crude decision -- noiseFloor/longSd/updateCount are
-	// computed and carried on state (proving the band narrows) but not yet
-	// consulted here. Task 10 wires them into the real decision.
+	// The real band half-width, computed and carried on state (proving it
+	// narrows) but not yet consulted by the out-of-band decision below, which
+	// is still Task 8's crude raw-centre comparison.
+	const effectiveNoiseFloor = biasCorrected(noiseFloor, alphaShort, updateCount);
+	const effectiveLongSd = biasCorrected(longSd, alphaLong, updateCount);
+	const halfWidth = Math.max(
+		effectiveNoiseFloor,
+		config.minBandSdFraction * effectiveLongSd,
+	);
 	const acrossSessionOutOfBand = prior.initialized && sessionCentre !== prior.longMean;
 
 	const contribution = withinSessionDeviants + (acrossSessionOutOfBand ? 1 : 0);
@@ -1183,6 +1193,7 @@ function foldDimension(
 		longMean,
 		longSd,
 		noiseFloor,
+		halfWidth,
 		consecutiveOutOfBand,
 		consecutiveInBand,
 		initialized: true,
@@ -1330,6 +1341,7 @@ function foldDimension(
 		longSd,
 		shortMean,
 		noiseFloor,
+		halfWidth,
 		consecutiveOutOfBand,
 		consecutiveInBand,
 		initialized: true,
@@ -1346,7 +1358,10 @@ cd apps/api && bun run test:scripts -- student-baseline
 Expected: PASS (11 tests). Confirm no regression: re-run Task 8's persistent-
 deviation test — the 0.3-magnitude `shifted` cluster is far enough outside
 even the inflated early-session band to still fire by the 4th session (index
-3).
+3). Also confirm Task 9's band-width test still passes: `halfWidth` is now
+both computed and consulted by the decision (rather than merely carried),
+but the formula producing it — and therefore its six-session values — is
+unchanged from Task 9.
 
 - [ ] **Step 5: Commit**
 
@@ -1540,7 +1555,10 @@ once it has recorded out-of-band evidence while `active` in at least
 `PROMOTION_DISTINCT_WEEKS` (2) distinct ISO weeks; evidence confined to a
 single week does not promote. Both branches of this one gate are asserted in
 a single test, matching the issue's single success criterion ("recurs across
-weeks... not one week").
+weeks... not one week"). The same test also carries the promoted dimension
+through to `resolved` and confirms `promoted` stays `true` — retirement is
+`lifecycle === "resolved"` alone, so promotion must not be reset by it (there
+is no second retirement field to keep in sync).
 **Interface under test:** `updateBaseline`.
 
 **Files:**
@@ -1551,18 +1569,32 @@ weeks... not one week").
 
 ```typescript
 describe("promotion", () => {
-	it("promotes only once out-of-band evidence while active spans >=2 distinct ISO weeks", () => {
+	it("promotes only once out-of-band evidence while active spans >=2 distinct ISO weeks, and stays promoted through resolution", () => {
 		const shifted = [0.79, 0.81, 0.79, 0.81, 0.79, 0.81];
+		// After promotion, 15 consistent CLUSTER sessions carry the dimension
+		// through improving to resolved (generated by date arithmetic, not
+		// string interpolation, so the run safely crosses the Feb/Mar boundary).
+		const inBandSessions: SessionSamples[] = Array.from({ length: 15 }, (_, i) => {
+			const date = new Date(Date.UTC(2026, 1, 1));
+			date.setUTCDate(date.getUTCDate() + i);
+			return { timestamp: date.toISOString(), scores: { articulation: CLUSTER } };
+		});
 		const trace = runSequence([
 			{ timestamp: "2026-01-05T00:00:00Z", scores: { articulation: CLUSTER } }, // Mon wk02
 			{ timestamp: "2026-01-06T00:00:00Z", scores: { articulation: shifted } }, // wk02
 			{ timestamp: "2026-01-07T00:00:00Z", scores: { articulation: shifted } }, // wk02
 			{ timestamp: "2026-01-08T00:00:00Z", scores: { articulation: shifted } }, // wk02, fires
 			{ timestamp: "2026-01-13T00:00:00Z", scores: { articulation: shifted } }, // wk03, more evidence
+			...inBandSessions,
 		]);
 		expect(trace[3].dimensions.articulation.lifecycle).toBe("active");
 		expect(trace[3].dimensions.articulation.promoted).toBe(false);
 		expect(trace[4].dimensions.articulation.promoted).toBe(true);
+		const resolvedEntry = trace.find(
+			(s) => s.dimensions.articulation.lifecycle === "resolved",
+		);
+		expect(resolvedEntry).toBeDefined();
+		expect(resolvedEntry?.dimensions.articulation.promoted).toBe(true);
 	});
 
 	it("does not promote when all evidence falls inside a single ISO week", () => {
@@ -1587,7 +1619,8 @@ cd apps/api && bun run test:scripts -- student-baseline
 Expected: FAIL — `foldDimension` never touches `evidenceWeeks`/`promoted`
 today, so `promoted` stays `false` from `initialBaselineState()` at every
 step: `AssertionError: expected false to be true` on the first test's
-`trace[4].dimensions.articulation.promoted` assertion.
+`trace[4].dimensions.articulation.promoted` assertion (execution stops there,
+before the later `resolvedEntry` assertions in the same test are reached).
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
 
@@ -1616,8 +1649,10 @@ function isoWeek(timestamp: string): string {
 }
 ```
 
-Change `foldDimension`'s signature to accept `timestamp`, and add the
-promotion block at the end, right before the `return`:
+Replace `foldDimension` in its entirety with this complete version — it
+threads `timestamp` through the signature and adds the promotion block at
+the end, right before the `return`; every other line is copied unchanged
+from Task 12's final form:
 
 ```typescript
 function foldDimension(
@@ -1626,7 +1661,71 @@ function foldDimension(
 	timestamp: string,
 	config: BaselineConfig,
 ): DimensionBaselineState {
-	// ...unchanged body through the lifecycle switch (Task 12)...
+	const alphaShort = alphaFromHalfLife(config.shortHalfLifeSessions);
+	const alphaLong = alphaFromHalfLife(config.longHalfLifeSessions);
+	const sessionCentre = median(samples);
+
+	let withinSessionDeviants = 0;
+	if (samples.length >= config.minSamplesForSpread) {
+		const mad = medianAbsoluteDeviation(samples, sessionCentre);
+		if (mad > 0) {
+			const threshold = config.deviantSampleMultiple * mad;
+			for (const s of samples) {
+				if (Math.abs(s - sessionCentre) > threshold) withinSessionDeviants += 1;
+			}
+		}
+		withinSessionDeviants = Math.min(
+			withinSessionDeviants,
+			config.maxWithinSessionContribution,
+		);
+	}
+
+	const noiseFloorSample =
+		samples.length >= config.minSamplesForSpread
+			? medianAbsoluteDeviation(samples, sessionCentre)
+			: prior.noiseFloor;
+	const noiseFloor = ewma(prior.noiseFloor, noiseFloorSample, alphaShort, prior.initialized);
+
+	const deviation = prior.initialized ? sessionCentre - prior.longMean : 0;
+	const longSd = ewma(prior.longSd, Math.abs(deviation), alphaLong, prior.initialized);
+
+	const shortMean = ewma(prior.shortMean, sessionCentre, alphaShort, prior.initialized);
+	const longMean = ewma(prior.longMean, sessionCentre, alphaLong, prior.initialized);
+
+	const updateCount = prior.updateCount + 1;
+	const effectiveNoiseFloor = biasCorrected(noiseFloor, alphaShort, updateCount);
+	const effectiveLongSd = biasCorrected(longSd, alphaLong, updateCount);
+	const halfWidth = Math.max(
+		effectiveNoiseFloor,
+		config.minBandSdFraction * effectiveLongSd,
+	);
+	const acrossSessionOutOfBand = Math.abs(shortMean - longMean) > halfWidth;
+
+	const contribution = withinSessionDeviants + (acrossSessionOutOfBand ? 1 : 0);
+	let consecutiveOutOfBand = prior.consecutiveOutOfBand;
+	let consecutiveInBand = prior.consecutiveInBand;
+	if (contribution > 0) {
+		consecutiveOutOfBand += contribution;
+		consecutiveInBand = 0;
+	} else {
+		consecutiveInBand += 1;
+		consecutiveOutOfBand = 0;
+	}
+
+	let lifecycle = prior.lifecycle;
+	if (lifecycle === "absent") {
+		if (consecutiveOutOfBand >= config.firePersistence) lifecycle = "active";
+	} else if (lifecycle === "active") {
+		if (consecutiveInBand >= config.improvingPersistence) lifecycle = "improving";
+	} else if (lifecycle === "improving") {
+		if (consecutiveOutOfBand >= config.firePersistence) {
+			lifecycle = "active";
+		} else if (consecutiveInBand >= config.retirePersistence) {
+			lifecycle = "resolved";
+		}
+	} else if (lifecycle === "resolved") {
+		if (consecutiveOutOfBand >= config.firePersistence) lifecycle = "active";
+	}
 
 	let evidenceWeeks = prior.evidenceWeeks;
 	let promoted = prior.promoted;
@@ -1647,6 +1746,7 @@ function foldDimension(
 		longSd,
 		shortMean,
 		noiseFloor,
+		halfWidth,
 		consecutiveOutOfBand,
 		consecutiveInBand,
 		promoted,
@@ -1681,9 +1781,6 @@ export function updateBaseline(
 }
 ```
 
-`student-baseline.ts` is now complete and matches the module described in
-the spec's Modules section.
-
 - [ ] **Step 4: Run test — verify it PASSES**
 
 ```bash
@@ -1699,9 +1796,209 @@ git add apps/api/src/services/student-baseline.ts apps/api/src/services/student-
 
 ---
 
+## Task 13a: `confidence` labels evidence maturity but never gates firing
+
+**Group:** sequential (depends on Task 13)
+
+**Behavior being verified:** each dimension carries a `confidence` label
+(`"exploratory" | "provisional" | "established"`) derived purely from
+`updateCount` — `exploratory` below `CONFIDENCE_PROVISIONAL_UPDATES` (3)
+updates, `provisional` from there below `CONFIDENCE_ESTABLISHED_UPDATES` (8)
+updates, `established` at 8 or more. The label is descriptive only: a
+dimension can fire (`lifecycle` reach `"active"`) while still `exploratory`,
+proving confidence is never consulted by the firing decision.
+**Interface under test:** `updateBaseline` (reads `confidence` off the
+returned state).
+
+**Files:**
+- Modify: `apps/api/src/services/student-baseline.ts`
+- Modify: `apps/api/src/services/student-baseline.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```typescript
+describe("confidence", () => {
+	it("fires while confidence is still exploratory", () => {
+		const trace = runSequence([
+			{
+				timestamp: "2026-01-01T00:00:00Z",
+				scores: { pedaling: CLUSTER_WITH_3_OUTLIERS },
+			},
+		]);
+		expect(trace[0].dimensions.pedaling.lifecycle).toBe("active");
+		expect(trace[0].dimensions.pedaling.confidence).toBe("exploratory");
+	});
+
+	it("advances confidence toward established purely from accumulated updates, independent of lifecycle", () => {
+		const sessions: SessionSamples[] = Array.from({ length: 8 }, (_, i) => ({
+			timestamp: `2026-01-0${i + 1}T00:00:00Z`,
+			scores: { phrasing: CLUSTER },
+		}));
+		const trace = runSequence(sessions);
+		expect(trace[1].dimensions.phrasing.confidence).toBe("exploratory"); // updateCount 2
+		expect(trace[2].dimensions.phrasing.confidence).toBe("provisional"); // updateCount 3
+		expect(trace[7].dimensions.phrasing.confidence).toBe("established"); // updateCount 8
+		// CLUSTER never deviates, so lifecycle stays absent throughout -- this
+		// dimension becomes fully established while still saying nothing,
+		// which is the other half of "confidence never gates."
+		expect(trace[7].dimensions.phrasing.lifecycle).toBe("absent");
+	});
+});
+```
+
+- [ ] **Step 2: Run test — verify it FAILS**
+
+```bash
+cd apps/api && bun run test:scripts -- student-baseline
+```
+Expected: FAIL — `foldDimension` never computes `confidence` today, so it
+stays at its `initialBaselineState()` default of `"exploratory"` regardless
+of `updateCount`. The first test passes trivially (a fresh dimension really
+is `"exploratory"`), but the second test's
+`expect(trace[2].dimensions.phrasing.confidence).toBe("provisional")` fails:
+`AssertionError: expected 'exploratory' to be 'provisional'`.
+
+- [ ] **Step 3: Implement the minimum to make the test pass**
+
+Replace `foldDimension` in its entirety with this complete version — it adds
+the `confidence` derivation from `updateCount` right before the `return`;
+every other line is copied unchanged from Task 13's final form:
+
+```typescript
+function foldDimension(
+	prior: DimensionBaselineState,
+	samples: readonly number[],
+	timestamp: string,
+	config: BaselineConfig,
+): DimensionBaselineState {
+	const alphaShort = alphaFromHalfLife(config.shortHalfLifeSessions);
+	const alphaLong = alphaFromHalfLife(config.longHalfLifeSessions);
+	const sessionCentre = median(samples);
+
+	let withinSessionDeviants = 0;
+	if (samples.length >= config.minSamplesForSpread) {
+		const mad = medianAbsoluteDeviation(samples, sessionCentre);
+		if (mad > 0) {
+			const threshold = config.deviantSampleMultiple * mad;
+			for (const s of samples) {
+				if (Math.abs(s - sessionCentre) > threshold) withinSessionDeviants += 1;
+			}
+		}
+		withinSessionDeviants = Math.min(
+			withinSessionDeviants,
+			config.maxWithinSessionContribution,
+		);
+	}
+
+	const noiseFloorSample =
+		samples.length >= config.minSamplesForSpread
+			? medianAbsoluteDeviation(samples, sessionCentre)
+			: prior.noiseFloor;
+	const noiseFloor = ewma(prior.noiseFloor, noiseFloorSample, alphaShort, prior.initialized);
+
+	const deviation = prior.initialized ? sessionCentre - prior.longMean : 0;
+	const longSd = ewma(prior.longSd, Math.abs(deviation), alphaLong, prior.initialized);
+
+	const shortMean = ewma(prior.shortMean, sessionCentre, alphaShort, prior.initialized);
+	const longMean = ewma(prior.longMean, sessionCentre, alphaLong, prior.initialized);
+
+	const updateCount = prior.updateCount + 1;
+	const effectiveNoiseFloor = biasCorrected(noiseFloor, alphaShort, updateCount);
+	const effectiveLongSd = biasCorrected(longSd, alphaLong, updateCount);
+	const halfWidth = Math.max(
+		effectiveNoiseFloor,
+		config.minBandSdFraction * effectiveLongSd,
+	);
+	const acrossSessionOutOfBand = Math.abs(shortMean - longMean) > halfWidth;
+
+	const contribution = withinSessionDeviants + (acrossSessionOutOfBand ? 1 : 0);
+	let consecutiveOutOfBand = prior.consecutiveOutOfBand;
+	let consecutiveInBand = prior.consecutiveInBand;
+	if (contribution > 0) {
+		consecutiveOutOfBand += contribution;
+		consecutiveInBand = 0;
+	} else {
+		consecutiveInBand += 1;
+		consecutiveOutOfBand = 0;
+	}
+
+	let lifecycle = prior.lifecycle;
+	if (lifecycle === "absent") {
+		if (consecutiveOutOfBand >= config.firePersistence) lifecycle = "active";
+	} else if (lifecycle === "active") {
+		if (consecutiveInBand >= config.improvingPersistence) lifecycle = "improving";
+	} else if (lifecycle === "improving") {
+		if (consecutiveOutOfBand >= config.firePersistence) {
+			lifecycle = "active";
+		} else if (consecutiveInBand >= config.retirePersistence) {
+			lifecycle = "resolved";
+		}
+	} else if (lifecycle === "resolved") {
+		if (consecutiveOutOfBand >= config.firePersistence) lifecycle = "active";
+	}
+
+	let evidenceWeeks = prior.evidenceWeeks;
+	let promoted = prior.promoted;
+	if (lifecycle === "active" && contribution > 0) {
+		const week = isoWeek(timestamp);
+		if (!evidenceWeeks.includes(week)) {
+			evidenceWeeks = [...evidenceWeeks, week];
+		}
+		if (evidenceWeeks.length >= config.promotionDistinctWeeks) {
+			promoted = true;
+		}
+	}
+
+	// Derived purely from accumulated evidence (updateCount) -- descriptive
+	// only. Nothing above this line, and nothing in the lifecycle switch,
+	// reads `confidence`: it never gates.
+	const confidence: DimensionBaselineState["confidence"] =
+		updateCount >= config.confidenceEstablishedUpdates
+			? "established"
+			: updateCount >= config.confidenceProvisionalUpdates
+				? "provisional"
+				: "exploratory";
+
+	return {
+		...prior,
+		lifecycle,
+		longMean,
+		longSd,
+		shortMean,
+		noiseFloor,
+		halfWidth,
+		consecutiveOutOfBand,
+		consecutiveInBand,
+		promoted,
+		evidenceWeeks,
+		initialized: true,
+		updateCount,
+		confidence,
+	};
+}
+```
+
+`student-baseline.ts` is now complete and matches the module described in
+the spec's Modules section.
+
+- [ ] **Step 4: Run test — verify it PASSES**
+
+```bash
+cd apps/api && bun run test:scripts -- student-baseline
+```
+Expected: PASS (17 tests: all tasks 0-13a).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/api/src/services/student-baseline.ts apps/api/src/services/student-baseline.test.ts && git commit -m "feat(baseline): derive a confidence label from updateCount that never gates firing"
+```
+
+---
+
 ## Task 14: Full verification — both runtimes, typecheck, lint
 
-**Group:** sequential (depends on Task 13; final task)
+**Group:** sequential (depends on Task 13a; final task)
 
 **Behavior being verified:** the module and its test suite are clean in both
 Vitest configurations (workerd pool and Node), and the whole `apps/api`
@@ -1719,10 +2016,10 @@ cd apps/api && bun run test && bun run test:scripts && bun run typecheck && bun 
 - [ ] **Step 2: Interpret the results**
 
 - `bun run test` (workerd pool, `vitest.config.ts`) must show
-  `src/services/student-baseline.test.ts` passing all 15 tests, alongside the
+  `src/services/student-baseline.test.ts` passing all 17 tests, alongside the
   rest of the existing suite.
 - `bun run test:scripts` (Node, `vitest.node.config.ts`) must show the same
-  15 tests passing.
+  17 tests passing.
 - `bun run typecheck` must show no errors attributable to
   `src/services/student-baseline.ts` or `.test.ts`. **Known pre-existing,
   unrelated failures**: `src/services/wasm-bridge.ts` reports two
@@ -1754,7 +2051,7 @@ the plan complete.
 
 ## Task Groups
 
-All 15 tasks (0-14) are **sequential** — every task modifies
+All 16 tasks (0-14, plus 13a) are **sequential** — every task modifies
 `apps/api/src/services/student-baseline.ts` and/or
 `apps/api/src/services/student-baseline.test.ts`, so there is no pair of
 tasks that can run as a parallel group. This is a single vertical slice

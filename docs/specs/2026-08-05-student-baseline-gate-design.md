@@ -109,7 +109,10 @@ early feedback harms retention) favours the later gate. Session-1 flags rest on 
 thinner spread estimate and will be less reliable than session-10 flags. The
 `confidence` field records this so the teacher can frame early marks as
 exploratory prose, but confidence **never** gates. `03-memory-system.md` must be
-updated to match when this ships.
+updated to match when this ships. `confidence` is derived purely from
+accumulated evidence (`updateCount`) against the `CONFIDENCE_PROVISIONAL_UPDATES`
+/ `CONFIDENCE_ESTABLISHED_UPDATES` thresholds in the Constants table below —
+nothing else feeds it, and nothing reads it before deciding whether to fire.
 
 ### Band construction
 
@@ -195,6 +198,8 @@ Doc-sourced, in one exported config object, overridable per call:
 | `MAX_WITHIN_SESSION_CONTRIBUTION` | 3 | equals `FIRE_PERSISTENCE` |
 | `MIN_SAMPLES_FOR_SPREAD` | 3 | arithmetic: spread is undefined below 3 points |
 | `DEVIANT_SAMPLE_MULTIPLE` | 1.5 | **uncalibrated** — see Open Questions |
+| `CONFIDENCE_PROVISIONAL_UPDATES` | 3 | matches `FIRE_PERSISTENCE`-scale evidence |
+| `CONFIDENCE_ESTABLISHED_UPDATES` | 8 | doc: "by session 8 the student's own data dominates" |
 
 Scale-agnostic: the module accepts any finite score scale. The pipeline emits
 `0..1`; nothing in the module assumes it.
@@ -207,7 +212,11 @@ Scale-agnostic: the module accepts any finite score scale. The pipeline emits
 
 - **Interface:** `initialBaselineState()`, `updateBaseline(state, session, config?)`,
   `BaselineStateSchema`, `DEFAULT_BASELINE_CONFIG`, and the `BaselineState` /
-  `SessionSamples` types. Two functions and a schema.
+  `SessionSamples` types. Two functions and a schema. Each dimension's state
+  additionally exposes `halfWidth` (the band half-width this fold actually
+  used) and `confidence` (`"exploratory" | "provisional" | "established"`,
+  derived from `updateCount`; never gates — see "Divergence from
+  `docs/apps/03-memory-system.md`" above).
 - **Hides:** bias-corrected dual EWMA, within-session centre and spread
   estimation, noise-floor tracking, band construction, the two-level evidence
   fold, the persistence counter, the five-transition lifecycle machine, ISO-week
@@ -215,9 +224,12 @@ Scale-agnostic: the module accepts any finite score scale. The pipeline emits
 - **Depth verdict:** DEEP. The interface is a fold plus a schema; the hidden
   surface is the entire state clock. Callers never see an EWMA, a counter, or a
   week bucket.
-- **Tested through:** the public interface only — synthetic session sequences fed
-  through `updateBaseline`, asserting on the returned state's lifecycle,
-  `markWorthy`, `promoted` and band fields. No test reaches an internal helper.
+- **Tested through:** the public interface only — synthetic session sequences
+  fed through `updateBaseline`, asserting on the returned state's `lifecycle`,
+  `promoted`, `halfWidth`, and `confidence` fields. Mark-worthiness is
+  deliberately not a separate stored field: a caller derives it as
+  `lifecycle !== "absent"`, which keeps one source of truth instead of two
+  that could drift apart. No test reaches an internal helper.
 
 `src/services/` and not `src/lib/`: TS_STYLE §11 reserves `lib/` for "shared
 utilities, types, error classes — no business logic," and a feedback gate is
