@@ -57,9 +57,9 @@ Group A (sequential-internal): Tasks 2-5   (parallel with Group B) [fold_plan.py
 Group B (sequential-internal): Tasks 6-10  (parallel with Group A) [ranking_loss.py]
 Group C (sequential-internal): Tasks 11-12 (depends on Group B)    [train_fold.py]
 Group D (sequential-internal): Tasks 13-15 (depends on Group C)    [ft_eval.py]
-Group E (sequential-internal): Tasks 16-18 (depends on Group 0; parallel with C/D/F) [realaudio_check.py]
-Group F (sequential-internal): Tasks 19-22 (depends on Group A; parallel with C/D/E) [push_train_dataset.py]
-Group G (solo, last):          Task 23     (depends on C, D, E, F) [docs/mirex/phase1-lora-runbook.md]
+Group E (sequential-internal): Tasks 16-19 (depends on Group 0; parallel with C/D/F) [realaudio_check.py]
+Group F (sequential-internal): Tasks 20-23 (depends on Group A; parallel with C/D/E) [push_train_dataset.py]
+Group G (solo, last):          Task 24     (depends on C, D, E, F) [docs/mirex/phase1-lora-runbook.md]
 ```
 
 Group 0 must complete before any other group starts (bakeoff_cv.py is the shared
@@ -1891,13 +1891,28 @@ Second gate, on the 709-piece real-audio subset. Scope note (deliberate, not an
 oversight): this module's `main()` implements exactly the resumable-transcription
 stage the spec's "Tested through" line commits to testing
 (`main --stage transcribe` with an injected fake transcriber). The scoring
-primitive (`score_audio_subset`) is built and unit-tested as a pure function in
-Task 18; wiring it against real per-piece audio embeddings (themselves produced
-by a separate `moonbeam_extract_script.py`-style run against each fold's saved
-adapter — a GPU step, out of this module's scope) is a short driver snippet
+primitive (`score_audio_subset`) is built and unit-tested as a pure function
+across Tasks 18-19; wiring it against real per-piece audio embeddings (themselves
+produced by a separate `moonbeam_extract_script.py`-style run against each fold's
+saved adapter — a GPU step, out of this module's scope) is a short driver snippet
 documented in the runbook (Group G), not additional untested CLI code. This
 mirrors `features37_compare.py`'s own `main()`, which likewise has no dedicated
 pytest coverage — verified by a real-data script re-run instead (Task 1).
+
+The design spec's "Real-audio second gate" section requires `realaudio_check.py`
+to report three things: (a) tau-c on the audio subset, paired-bootstrapped
+against **features37 on the same pieces** — this is the actual gate; (b) the
+same subset's symbolic tau-c, so any gap is attributable to audio provenance
+rather than the subset being easier or harder; (c) MIDI drift vs the stored
+Transkun MIDIs. Task 16 covers (c). Task 18 builds the (b) scaffolding —
+matched audio-vs-symbolic scoring per fold. Task 19 adds (a) — the
+features37-paired gate — by scoring features37 through the SAME
+composer-disjoint folds (`bakeoff_cv.composer_disjoint_folds` at the same
+seed) as ordinary OOF (fit on each fold's train rows, predict that fold's
+test rows), then restricting those OOF predictions to the audio subset's
+rows before pairing against the audio-derived predictions. features37 is
+never refit on only the audio subset — that would change its training set
+and break the pairing.
 
 ### Task 16: `midi_drift` computes note-count delta and onset F1 with greedy pitch+tolerance matching
 
@@ -2166,13 +2181,15 @@ git add model/src/claim_measurement/difficulty/realaudio_check.py \
 
 ### Task 18: `score_audio_subset` reports matched audio and symbolic tau-c on the same piece subset
 
-**Group:** E (depends on Task 17, last task in this group)
+**Group:** E (depends on Task 17)
 
 **Behavior being verified:** For each audio piece, fit a ridge model on its OWN
 fold's train rows and score BOTH its audio-derived embedding and its original
 symbolic embedding through that same model — so any audio-vs-symbolic gap is
 attributable to audio provenance, not to the subset being easier/harder (design
-spec, "Real-audio second gate").
+spec, "Real-audio second gate", item (b)). This task builds that scaffolding
+plus the (c) MIDI-drift context; Task 19 adds the (a) features37-paired gate,
+which is the actual pass/fail criterion the spec requires.
 
 **Interface under test:** `realaudio_check.score_audio_subset(emb_by_fold, audio_embeddings, y, composers, seg_ids, n_folds, seed) -> dict`
 
@@ -2199,7 +2216,10 @@ def test_score_audio_subset_reports_matched_symbolic_and_audio_tau_c():
     }
     audio_subset = set(seg_ids[:20])
     audio_embeddings = {
-        seg_id: np.array([y[i] + 0.05, 0.0], dtype=np.float32)
+        # 3 columns to match emb_by_fold's 3-column shape (y + 2 noise cols) --
+        # score_audio_subset scores this row through the SAME ridge model fit
+        # on emb_by_fold[fold], so the feature count must match exactly.
+        seg_id: np.array([y[i] + 0.05, 0.0, 0.0], dtype=np.float32)
         for i, seg_id in enumerate(seg_ids) if seg_id in audio_subset
     }
 
@@ -2259,7 +2279,7 @@ def score_audio_subset(emb_by_fold: dict, audio_embeddings: dict, y: np.ndarray,
         "n": len(subset_y),
         "audio_tau_c": tau_c(audio_pred, subset_y),
         "symbolic_tau_c": tau_c(symbolic_pred, subset_y),
-        "delta": d, "ci_lo": lo, "ci_hi": hi, "p_le_0": p,
+        "delta_vs_symbolic": d, "ci_lo_vs_symbolic": lo, "ci_hi_vs_symbolic": hi, "p_le_0_vs_symbolic": p,
     }
 ```
 
@@ -2278,6 +2298,170 @@ git add model/src/claim_measurement/difficulty/realaudio_check.py \
     && git commit -m "feat(#149): realaudio_check.score_audio_subset -- matched audio-vs-symbolic tau-c"
 ```
 
+### Task 19: `score_audio_subset` adds the features37-paired gate on the same audio subset
+
+**Group:** E (depends on Task 18, last task in this group)
+
+**Behavior being verified:** features37 is scored through the SAME
+composer-disjoint folds (`bakeoff_cv.composer_disjoint_folds` at the same
+seed) as ordinary out-of-fold prediction (fit on each fold's train rows,
+predict that fold's test rows) over the FULL piece set, then those OOF
+predictions are restricted to the audio subset's rows and paired-bootstrapped
+against the audio-derived predictions on those same rows. This is the actual
+gate the design spec's "Real-audio second gate" section requires (item (a)):
+"tau-c on the audio subset, paired-bootstrapped against features37 on the
+same pieces." features37 is never refit on only the 20-piece audio subset —
+only its already-computed, full-set OOF predictions are subset-restricted —
+so the comparison stays paired against the same features37 fit the 0.8048
+reference number itself rests on.
+
+**Interface under test:** `realaudio_check.score_audio_subset(emb_by_fold, audio_embeddings, features37_x, y, composers, seg_ids, n_folds, seed) -> dict`
+(now takes `features37_x`, the full-piece-set 37-feature matrix, as a new
+required argument)
+
+**Files:**
+- Modify: `model/src/claim_measurement/difficulty/realaudio_check.py`
+- Modify: `model/src/claim_measurement/difficulty/test_realaudio_check.py`
+
+- [ ] **Step 1: Write the failing test** (append to `test_realaudio_check.py`;
+  also update Task 18's test call site, since the signature gains a required
+  argument)
+
+```python
+def test_score_audio_subset_reports_features37_gate_paired_against_audio():
+    rng = np.random.default_rng(2026)
+    n = 60
+    composers = np.array([f"composer_{i}" for i in range(n)])  # distinct -> vacuous disjointness
+    y = rng.integers(0, 11, size=n).astype(float)
+    seg_ids = [f"p{i:03d}" for i in range(n)]
+
+    emb_by_fold = {
+        f: np.column_stack([y, rng.normal(size=(n, 2)) * 0.01]).astype(np.float32)
+        for f in range(5)
+    }
+    # A deliberately weak features37 stand-in (heavy noise on top of y) so the
+    # near-perfect audio arm clearly beats it -- this fixture only needs to
+    # prove the gate computes and pairs correctly, not that any real numbers hold.
+    features37_x = np.column_stack([y + rng.normal(scale=4.0, size=n),
+                                     rng.normal(size=(n, 4))]).astype(np.float32)
+    audio_subset = set(seg_ids[:20])
+    audio_embeddings = {
+        seg_id: np.array([y[i] + 0.05, 0.0, 0.0], dtype=np.float32)
+        for i, seg_id in enumerate(seg_ids) if seg_id in audio_subset
+    }
+
+    result = score_audio_subset(emb_by_fold, audio_embeddings, features37_x, y, composers, seg_ids,
+                                 n_folds=5, seed=2026)
+
+    assert result["n"] == 20
+    assert result["audio_tau_c"] > result["features37_tau_c"]
+    assert result["delta_vs_features37"] > 0
+    assert result["ci_lo_vs_features37"] > 0  # SIG on this fixture
+    assert result["ci_lo_vs_features37"] <= result["delta_vs_features37"] <= result["ci_hi_vs_features37"]
+```
+
+Also update the earlier test's call site (Task 18's
+`test_score_audio_subset_reports_matched_symbolic_and_audio_tau_c`) to pass a
+`features37_x` matching `emb_by_fold`'s column count, since the signature is
+now shared:
+
+```python
+    features37_x = rng.normal(size=(n, 5)).astype(np.float32)  # unused by this test's assertions
+
+    result = score_audio_subset(emb_by_fold, audio_embeddings, features37_x, y, composers, seg_ids,
+                                 n_folds=5, seed=2026)
+```
+
+- [ ] **Step 2: Run test — verify it FAILS**
+
+```bash
+cd model && uv run python -m pytest src/claim_measurement/difficulty/test_realaudio_check.py -q --no-cov
+```
+Expected: FAIL — `TypeError` from `score_audio_subset()` on both tests: Task
+18's `score_audio_subset` (still 7 params: `emb_by_fold, audio_embeddings, y,
+composers, seg_ids, n_folds, seed`) does not accept the `features37_x`
+argument both updated call sites now pass.
+
+- [ ] **Step 3: Implement** (replace `score_audio_subset` in `realaudio_check.py`)
+
+```python
+def score_audio_subset(emb_by_fold: dict, audio_embeddings: dict, features37_x: np.ndarray,
+                        y: np.ndarray, composers: np.ndarray, seg_ids: list,
+                        n_folds: int, seed: int) -> dict:
+    """For every seg_id in audio_embeddings (a subset of seg_ids), fit a ridge
+    model on that piece's OWN test fold's train rows of emb_by_fold[fold] and
+    score the piece's audio-derived embedding through it. Also scores the
+    SAME piece's original symbolic embedding through the SAME model, so any
+    audio-vs-symbolic gap is attributable to audio provenance, not to the
+    subset being easier or harder (design spec's real-audio second gate, item
+    (b)). THE GATE (item (a)): features37_x is scored via ordinary
+    composer-disjoint OOF over the FULL piece set (fit on each fold's train
+    rows, predict that fold's own test rows) -- never refit on the audio
+    subset alone -- and those OOF predictions are then restricted to the
+    audio subset's rows and paired-bootstrapped against the audio-derived
+    predictions on those same rows."""
+    from sklearn.linear_model import RidgeCV
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+
+    idx_of = {s: i for i, s in enumerate(seg_ids)}
+    test_folds = composer_disjoint_folds(composers, n_folds, seed)
+    fold_of_idx = {i: f for f, idx in enumerate(test_folds) for i in idx}
+
+    # features37 OOF over the full set, matching folds/seed exactly -- computed
+    # once here, independent of which pieces have audio, then subset below.
+    f37_oof = np.full(len(y), np.nan)
+    for fold, test_idx in enumerate(test_folds):
+        train_idx = np.setdiff1d(np.arange(len(seg_ids)), test_idx)
+        f37_model = make_pipeline(StandardScaler(), RidgeCV(alphas=ALPHAS))
+        f37_model.fit(features37_x[train_idx], y[train_idx])
+        f37_oof[test_idx] = f37_model.predict(features37_x[test_idx])
+
+    audio_pred, symbolic_pred, f37_pred, subset_y = [], [], [], []
+    ridge_cache: dict = {}
+    for seg_id, audio_embedding in audio_embeddings.items():
+        i = idx_of[seg_id]
+        fold = fold_of_idx[i]
+        if fold not in ridge_cache:
+            train_idx = np.setdiff1d(np.arange(len(seg_ids)), test_folds[fold])
+            model = make_pipeline(StandardScaler(), RidgeCV(alphas=ALPHAS))
+            model.fit(emb_by_fold[fold][train_idx], y[train_idx])
+            ridge_cache[fold] = model
+        model = ridge_cache[fold]
+        audio_pred.append(model.predict(audio_embedding.reshape(1, -1))[0])
+        symbolic_pred.append(model.predict(emb_by_fold[fold][i].reshape(1, -1))[0])
+        f37_pred.append(f37_oof[i])
+        subset_y.append(y[i])
+
+    subset_y = np.array(subset_y)
+    audio_pred, symbolic_pred, f37_pred = np.array(audio_pred), np.array(symbolic_pred), np.array(f37_pred)
+    d_sym, lo_sym, hi_sym, p_sym = paired_boot(symbolic_pred, audio_pred, subset_y, seed=seed)
+    d_f37, lo_f37, hi_f37, p_f37 = paired_boot(f37_pred, audio_pred, subset_y, seed=seed)
+    return {
+        "n": len(subset_y),
+        "audio_tau_c": tau_c(audio_pred, subset_y),
+        "symbolic_tau_c": tau_c(symbolic_pred, subset_y),
+        "features37_tau_c": tau_c(f37_pred, subset_y),
+        "delta_vs_symbolic": d_sym, "ci_lo_vs_symbolic": lo_sym, "ci_hi_vs_symbolic": hi_sym, "p_le_0_vs_symbolic": p_sym,
+        "delta_vs_features37": d_f37, "ci_lo_vs_features37": lo_f37, "ci_hi_vs_features37": hi_f37, "p_le_0_vs_features37": p_f37,
+    }
+```
+
+- [ ] **Step 4: Run test — verify it PASSES**
+
+```bash
+cd model && uv run python -m pytest src/claim_measurement/difficulty/ -q --no-cov
+```
+Expected: PASS, 61 passed.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add model/src/claim_measurement/difficulty/realaudio_check.py \
+        model/src/claim_measurement/difficulty/test_realaudio_check.py \
+    && git commit -m "feat(#149): realaudio_check.score_audio_subset -- add the features37-paired gate"
+```
+
 ---
 
 ## Group F — `push_train_dataset.py` (sequential internally; depends on Group A; parallel with C/D/E)
@@ -2286,9 +2470,9 @@ The judgment is entirely in WHAT gets staged; the upload itself is three lines
 behind an injected `uploader` so no test ever touches the network. Staging
 itself never touches the network either — the MoonBeam fork snapshot and the
 Transkun MIDIs must already exist locally (see `moonbeam_extract_script.py`'s
-SETUP section). Four tasks, one file, run in order 19 → 20 → 21 → 22.
+SETUP section). Four tasks, one file, run in order 20 → 21 → 22 → 23.
 
-### Task 19: `stage_training_bundle` copies every piece referenced by any fold plan and reports counts
+### Task 20: `stage_training_bundle` copies every piece referenced by any fold plan and reports counts
 
 **Group:** F (first)
 
@@ -2451,7 +2635,7 @@ def stage_training_bundle(paths: BundleSources, plans: list, staging_dir: Path) 
 
 
 if __name__ == "__main__":
-    sys.exit(0)  # placeholder exit; main() is added in Task 22
+    sys.exit(0)  # placeholder exit; main() is added in Task 23
 ```
 
 - [ ] **Step 4: Run test — verify it PASSES**
@@ -2469,9 +2653,9 @@ git add model/src/claim_measurement/difficulty/push_train_dataset.py \
     && git commit -m "feat(#149): push_train_dataset.stage_training_bundle -- hermetic bundle staging"
 ```
 
-### Task 20: `stage_training_bundle` raises loudly when a referenced piece has no grade
+### Task 21: `stage_training_bundle` raises loudly when a referenced piece has no grade
 
-**Group:** F (depends on Task 19)
+**Group:** F (depends on Task 20)
 
 **Behavior being verified:** A missing grade must abort staging, not silently
 omit the piece from `grades.json` (a truncated bundle is worse than no bundle —
@@ -2499,7 +2683,7 @@ def test_stage_training_bundle_raises_when_a_referenced_piece_has_no_grade(tmp_p
         stage_training_bundle(paths, plans, tmp_path / "staging")
 ```
 
-- [ ] **Step 2: Run test — verify it currently PASSES** (Task 19's
+- [ ] **Step 2: Run test — verify it currently PASSES** (Task 20's
   `missing_grades` guard already implements this; run to confirm no
   false-negative risk)
 
@@ -2515,7 +2699,7 @@ Expected: PASS (2 tests)
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/ -q --no-cov
 ```
-Expected: PASS, 62 passed.
+Expected: PASS, 63 passed.
 
 - [ ] **Step 5: Commit**
 
@@ -2524,9 +2708,9 @@ git add model/src/claim_measurement/difficulty/test_push_train_dataset.py \
     && git commit -m "test(#149): stage_training_bundle raises loudly on a missing grade"
 ```
 
-### Task 21: `stage_training_bundle` raises loudly when a referenced piece has no MIDI on disk
+### Task 22: `stage_training_bundle` raises loudly when a referenced piece has no MIDI on disk
 
-**Group:** F (depends on Task 20)
+**Group:** F (depends on Task 21)
 
 **Behavior being verified:** A missing MIDI file must abort staging with a
 clear message naming the piece — never silently produce a bundle short of a
@@ -2552,7 +2736,7 @@ def test_stage_training_bundle_raises_when_a_referenced_piece_has_no_midi_on_dis
         stage_training_bundle(paths, plans, tmp_path / "staging")
 ```
 
-- [ ] **Step 2: Run test — verify it currently PASSES** (Task 19's
+- [ ] **Step 2: Run test — verify it currently PASSES** (Task 20's
   `src.exists()` guard already implements this)
 
 ```bash
@@ -2567,7 +2751,7 @@ Expected: PASS (3 tests)
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/ -q --no-cov
 ```
-Expected: PASS, 63 passed.
+Expected: PASS, 64 passed.
 
 - [ ] **Step 5: Commit**
 
@@ -2576,9 +2760,9 @@ git add model/src/claim_measurement/difficulty/test_push_train_dataset.py \
     && git commit -m "test(#149): stage_training_bundle raises loudly on a missing MIDI file"
 ```
 
-### Task 22: `main()` builds fold plans from the manifest, stages the bundle, and calls the injected uploader
+### Task 23: `main()` builds fold plans from the manifest, stages the bundle, and calls the injected uploader
 
-**Group:** F (depends on Task 21, last task in this group)
+**Group:** F (depends on Task 22, last task in this group)
 
 **Behavior being verified:** `main()` joins the manifest/labels (via
 `load_bakeoff_manifest`), restricts to the eval sample, calls
@@ -2711,7 +2895,7 @@ if __name__ == "__main__":
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/ -q --no-cov
 ```
-Expected: PASS, 64 passed (23 net-new tests over the 41 baseline).
+Expected: PASS, 65 passed (24 net-new tests over the 41 baseline).
 
 - [ ] **Step 5: Commit**
 
@@ -2725,9 +2909,9 @@ git add model/src/claim_measurement/difficulty/push_train_dataset.py \
 
 ## Group G — Runbook (solo, last; depends on Groups C, D, E, F)
 
-### Task 23: Write `docs/mirex/phase1-lora-runbook.md`
+### Task 24: Write `docs/mirex/phase1-lora-runbook.md`
 
-**Group:** G (depends on Tasks 12, 15, 18, 22 — every CLI this doc references
+**Group:** G (depends on Tasks 12, 15, 19, 23 — every CLI this doc references
 must exist and be tested first)
 
 **Behavior being verified:** N/A (documentation, not code) — there is no pytest
@@ -2856,7 +3040,9 @@ into `audio_emb/` via the standard `bakeoff_npz.write_embedding_npz` contract
 (key `"mean_pool"`). This step is a GPU-optional but compute-bearing step
 outside `realaudio_check.py`'s tested scope; wire it as a short local script.
 
-Then compute the matched audio-vs-symbolic comparison:
+Then compute the real-audio gate — audio vs. features37 on the SAME subset,
+scored through the SAME composer-disjoint folds/seed — plus the matched
+symbolic comparison that makes it interpretable:
 
 ```python
 import json
@@ -2876,14 +3062,20 @@ audio_dir = Path("/path/to/audio_emb")
 audio_embeddings = {p.stem: read_embedding_npz(p).embeddings["mean_pool"]
                     for p in sorted(audio_dir.glob("*.npz"))}
 
-result = score_audio_subset(emb_by_fold, audio_embeddings, y, composers, seg_ids,
+result = score_audio_subset(emb_by_fold, audio_embeddings, Xf, y, composers, seg_ids,
                              n_folds=5, seed=2026)
 print(result)
 ```
-Expected: `audio_tau_c` and `symbolic_tau_c` both reported, `delta`/`ci_lo`/`ci_hi`
-for the SAME paired-bootstrap contract Stage 4 uses. **The gate passes only if
-`ci_lo > 0`** on this n=709(-ish) subset (half-width ≈ ±0.017 per the design
-spec, enough to resolve the +0.024 margin).
+Expected: `audio_tau_c`, `symbolic_tau_c`, and `features37_tau_c` all reported.
+`delta_vs_features37`/`ci_lo_vs_features37`/`ci_hi_vs_features37` are **THE
+GATE** (item (a) of the design spec's "Real-audio second gate": tau-c on the
+audio subset, paired-bootstrapped against features37 on the same pieces).
+**The gate passes only if `ci_lo_vs_features37 > 0`** on this n=709(-ish)
+subset (half-width ≈ ±0.017 per the design spec, enough to resolve the
++0.024 margin). `delta_vs_symbolic`/`ci_lo_vs_symbolic`/`ci_hi_vs_symbolic`
+are item (b) — context, not the gate — showing whether any audio-vs-symbolic
+gap is attributable to audio provenance rather than the subset being
+easier or harder.
 
 Also compute MIDI drift per piece (`realaudio_check.midi_drift`) against the
 stored Transkun MIDIs at `model/data/results/amt_gap_curve/transkun_mid/` to
@@ -2900,13 +3092,13 @@ at ship time, once real numbers exist).
 ## If either gate fails
 
 Report the negative result plainly. A `noise` verdict on gate (i) or a
-`ci_lo <= 0` on gate (ii) is a real finding — #137's own history is seven
-converging nulls; an eighth is not a failure of this plan, it is data.
+`ci_lo_vs_features37 <= 0` on gate (ii) is a real finding — #137's own history
+is seven converging nulls; an eighth is not a failure of this plan, it is data.
 ```
 
 - [ ] **Step 2: No test to run — this is documentation.** Sanity-check by grep
   that every CLI flag mentioned resolves to a real `argparse.add_argument` call
-  in the corresponding module (manual review against Tasks 12, 15, 17, 22 above).
+  in the corresponding module (manual review against Tasks 12, 15, 17, 23 above).
 
 - [ ] **Step 3: N/A**
 
@@ -2915,7 +3107,7 @@ converging nulls; an eighth is not a failure of this plan, it is data.
 ```bash
 cd model && uv run python -m pytest src/claim_measurement/difficulty/ -q --no-cov
 ```
-Expected: PASS, 64 passed (unchanged from Task 22 — this task adds no code).
+Expected: PASS, 65 passed (unchanged from Task 23 — this task adds no code).
 
 - [ ] **Step 5: Commit**
 
@@ -2931,23 +3123,26 @@ git add docs/mirex/phase1-lora-runbook.md \
 1. **Spec coverage.** Every module in the spec's Modules section has at least
    one task group: `fold_plan.py` (A), `ranking_loss.py` (B), `train_fold.py`
    (C), `ft_eval.py` (D), `realaudio_check.py` (E), `push_train_dataset.py` (F).
-   Task Group 0 (paired_boot promotion) is Task 1. The runbook is Task 23. The
+   Task Group 0 (paired_boot promotion) is Task 1. The runbook is Task 24. The
    spec's File Changes table is covered file-for-file.
 2. **Placeholder scan.** No task contains "TBD"/"TODO"/"implement later"; every
    step has literal code or an exact command. The two module-start tasks (11,
-   13, 16, 19 for train_fold/ft_eval/realaudio_check/push_train_dataset) each
+   13, 16, 20 for train_fold/ft_eval/realaudio_check/push_train_dataset) each
    end their file with an explicit `if __name__ == "__main__": sys.exit(0)  #
    placeholder exit; main() is added in Task N` comment — this is intentional
    scaffolding within a single vertical slice sequence (the file is genuinely
    incomplete until its `main()` task lands later in the SAME group), not an
    unfinished deliverable left dangling across groups.
 3. **Type/signature consistency.** `FoldPlan(fold, test_seg_ids, train_seg_ids,
-   val_seg_ids)` is used identically in Tasks 2-5, 12 (JSON round-trip), 19-22.
+   val_seg_ids)` is used identically in Tasks 2-5, 12 (JSON round-trip), 20-23.
    `lora_target_modules(n_layers, n_top)` in Task 11 is called with the same
    argument names in Task 12's CLI (`--n-layers`, `--n-top-layers`). `paired_boot`'s
    signature `(oof_a, oof_b, y, seed=2026, n_boot=2000)` is identical across
-   Task 1, Task 15, and Task 18. `read_fold_embeddings`/`write_fold_embeddings`
-   in `train_fold.py` (Task 12) are imported unchanged by `ft_eval.py` (Task 15).
+   Task 1, Task 15, Task 18, and Task 19 — Task 19 also adds the features37-paired
+   arm required by the design spec's "Real-audio second gate", scored through
+   `bakeoff_cv.composer_disjoint_folds` at the same seed the moonbeam arm uses.
+   `read_fold_embeddings`/`write_fold_embeddings` in `train_fold.py` (Task 12)
+   are imported unchanged by `ft_eval.py` (Task 15).
 4. **Group correctness.** No two tasks in the same group touch the same file
    concurrently — each group is stated as sequential-internally precisely
    because its tasks share one file; groups that DO run concurrently (0 vs
@@ -2955,7 +3150,7 @@ git add docs/mirex/phase1-lora-runbook.md \
    against the File Changes table.
 5. **Vertical slice check.** Every task is one test (or one already-passing
    test added for regression-proofing, explicitly called out as such in Tasks
-   5, 14, 17, 20, 21) + one implementation + one commit. Task 1 is the sole
+   5, 14, 17, 21, 22) + one implementation + one commit. Task 1 is the sole
    deliberate exception (bundles two tests plus a real-data script re-run) —
    this matches the spec's own explicit framing of "Task Group 0" as one
    harness deliverable, not an oversight.
