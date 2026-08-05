@@ -1,5 +1,5 @@
 // src/components/ScorePanel.test.tsx
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useScorePanelStore } from "../stores/score-panel";
@@ -61,5 +61,28 @@ describe("ScorePanel", () => {
 			expect(mockLoad).toHaveBeenCalledWith("chopin.ballades.1");
 			expect(mockGetPage).toHaveBeenCalledWith("chopin.ballades.1", 1);
 		});
+	});
+
+	it("colors the observation chip swatch with the shared dimension color var", async () => {
+		useScorePanelStore.getState().openHighlight({
+			pieceId: "chopin.ballades.1",
+			highlights: [
+				{
+					bars: [1, 4] as [number, number],
+					dimension: "dynamics",
+					annotation: "hushed opening",
+				},
+			],
+		});
+
+		const { ScorePanel } = await import("./ScorePanel");
+		render(React.createElement(ScorePanel));
+
+		const chip = await screen.findByText("dynamics");
+		const swatch = chip.parentElement?.querySelector("span.rounded-full");
+		expect(swatch).not.toBeNull();
+		expect((swatch as HTMLElement).style.backgroundColor).toBe(
+			"var(--dim-dynamics)",
+		);
 	});
 });
