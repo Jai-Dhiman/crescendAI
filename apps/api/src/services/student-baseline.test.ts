@@ -197,3 +197,29 @@ describe("symmetric retirement", () => {
 		expect(trace[11].dimensions.timing.lifecycle).toBe("resolved");
 	});
 });
+
+describe("recurrence", () => {
+	it("returns lifecycle to active after a resolved dimension recurs", () => {
+		const shifted = [0.79, 0.81, 0.79, 0.81, 0.79, 0.81];
+		const sessions: SessionSamples[] = [
+			{ timestamp: "2026-01-01T00:00:00Z", scores: { timing: CLUSTER } },
+			{ timestamp: "2026-01-02T00:00:00Z", scores: { timing: shifted } },
+			{ timestamp: "2026-01-03T00:00:00Z", scores: { timing: shifted } },
+			{ timestamp: "2026-01-04T00:00:00Z", scores: { timing: shifted } }, // fires -> active
+			{ timestamp: "2026-02-01T00:00:00Z", scores: { timing: CLUSTER } },
+			{ timestamp: "2026-02-02T00:00:00Z", scores: { timing: CLUSTER } },
+			{ timestamp: "2026-02-03T00:00:00Z", scores: { timing: CLUSTER } },
+			{ timestamp: "2026-02-04T00:00:00Z", scores: { timing: CLUSTER } },
+			{ timestamp: "2026-02-05T00:00:00Z", scores: { timing: CLUSTER } },
+			{ timestamp: "2026-02-06T00:00:00Z", scores: { timing: CLUSTER } },
+			{ timestamp: "2026-02-07T00:00:00Z", scores: { timing: CLUSTER } }, // -> improving
+			{ timestamp: "2026-02-08T00:00:00Z", scores: { timing: CLUSTER } }, // -> resolved
+			{ timestamp: "2026-03-01T00:00:00Z", scores: { timing: shifted } },
+			{ timestamp: "2026-03-02T00:00:00Z", scores: { timing: shifted } },
+			{ timestamp: "2026-03-03T00:00:00Z", scores: { timing: shifted } }, // recurs -> active
+		];
+		const trace = runSequence(sessions);
+		expect(trace[11].dimensions.timing.lifecycle).toBe("resolved");
+		expect(trace[14].dimensions.timing.lifecycle).toBe("active");
+	});
+});

@@ -269,7 +269,13 @@ function foldDimension(
 		if (consecutiveInBand >= config.improvingPersistence)
 			lifecycle = "improving";
 	} else if (lifecycle === "improving") {
-		if (consecutiveInBand >= config.retirePersistence) lifecycle = "resolved";
+		if (consecutiveOutOfBand >= config.firePersistence) {
+			lifecycle = "active";
+		} else if (consecutiveInBand >= config.retirePersistence) {
+			lifecycle = "resolved";
+		}
+	} else if (lifecycle === "resolved") {
+		if (consecutiveOutOfBand >= config.firePersistence) lifecycle = "active";
 	}
 
 	return {
