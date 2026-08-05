@@ -16,6 +16,15 @@ import {
 
 const PAGE_SIZE = 20;
 
+const SKELETON_ROWS = [
+	"skeleton-a",
+	"skeleton-b",
+	"skeleton-c",
+	"skeleton-d",
+	"skeleton-e",
+	"skeleton-f",
+];
+
 function AllChats() {
 	const navigate = useNavigate();
 	const { data: conversations = [], isPending } = useConversations();
@@ -157,9 +166,9 @@ function AllChats() {
 				{/* Conversation list */}
 				{isPending ? (
 					<div className="space-y-2">
-						{Array.from({ length: 6 }).map((_, i) => (
+						{SKELETON_ROWS.map((rowId) => (
 							<div
-								key={`skeleton-${i}`}
+								key={rowId}
 								className="h-12 rounded-lg bg-surface animate-pulse"
 							/>
 						))}
@@ -182,6 +191,7 @@ function AllChats() {
 				) : (
 					<div className="space-y-1">
 						{visible.map((conv) => (
+							// biome-ignore lint/a11y/useSemanticElements: the row contains its own delete <button>; a <button> wrapper would nest interactive controls.
 							<div
 								role="button"
 								tabIndex={0}

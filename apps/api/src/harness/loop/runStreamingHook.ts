@@ -1,10 +1,13 @@
 import { ConfigError } from "../../lib/errors";
-import { getCompoundBinding } from "./compound-registry";
-import { runPhase1Streaming } from "../../services/teacher";
-import type { HookKind, HookContext, PhaseContext } from "./types";
-import type { ToolResult } from "../../services/tool-processor";
-import type { AnthropicContentBlock, AnthropicSystemBlock } from "../../services/llm";
+import type {
+	AnthropicContentBlock,
+	AnthropicSystemBlock,
+} from "../../services/llm";
 import type { TeacherEvent } from "../../services/teacher";
+import { runPhase1Streaming } from "../../services/teacher";
+import type { ToolResult } from "../../services/tool-processor";
+import { getCompoundBinding } from "./compound-registry";
+import type { HookContext, HookKind, PhaseContext } from "./types";
 
 type ProcessToolFn = (name: string, input: unknown) => Promise<ToolResult>;
 

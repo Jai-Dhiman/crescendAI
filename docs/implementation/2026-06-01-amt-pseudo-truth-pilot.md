@@ -131,7 +131,7 @@ See plan + spec to be created via `/plan`. High-level scope:
 6. **AMT checkpoint pinning** — `model/config/amt_version.json` (or equivalent) committed; regen command refuses to write cache if AMT endpoint reports a different checkpoint.
 
 Out of scope:
-- MAESTRO + ASAP path (removed; `gold_truth_builder.py` becomes dead code or gets deleted).
+- MAESTRO + ASAP path (removed; `gold_truth_builder.py` becomes dead code or gets deleted). (Reversed: #133's real-audio eval later rebuilt on ASAP alignment + MAESTRO audio — see docs/model/realaudio-follower-eval.md.)
 - HF AMT endpoint deploy (separate work; local AMT regenerates the cache fine).
 - AMT itself (we measure DTW under realistic AMT noise; AMT improvements are a separate research track).
 

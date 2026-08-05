@@ -2,7 +2,9 @@
 
 Anchor doc for CrescendAI's middle system -- everything between the model outputs and the student's screen. Parallel to `docs/architecture.md` (system-level view) and `docs/model/00-research-timeline.md` (model-level view).
 
-> **Status (2026-08-02):** The runtime-consumed catalog contains 14 atoms, 7 registered molecules, and 4 compounds. Typed Zod artifact contracts and the catalog validator live in `apps/api/src/harness/`. The former Qwen training program is historical; the catalog now serves the provider-agnostic V6 harness and its evaluations.
+> **Status (2026-08-04):** The runtime-consumed catalog contains 14 atoms, 7 registered molecules, and 4 compounds. Typed Zod artifact contracts and the catalog validator live in `apps/api/src/harness/`. The former Qwen training program is historical; the catalog now serves the provider-agnostic V6 harness and its evaluations.
+
+> **Redesign in flight (epic #154, #162 pipeline retarget, 2026-08-04):** The score-first redesign changes the V6 synthesis output contract from chat prose to one verdict sentence + consolidated marks + one carry-forward, all grounded in MPM evidence; chat survives only as passage-scoped ask threads attached to marks. The model stream is also retargeting: MuQ is being removed in favor of Transkun AMT -> alignment -> MPM-style per-bar features -> MoonBeam-839M scoring. This doc's durable primitives and V6 loop mechanics are largely unaffected; see `docs/apps/05-ui-system.md` and `docs/apps/02-pipeline.md` for the target delivery and pipeline shape.
 
 ---
 
@@ -12,14 +14,7 @@ CrescendAI's competitive advantage is not which audio model it calls. The advant
 
 ### Four Systems (Model / Harness / Runtime / Client)
 
-The architecture has four systems, not two. A recent distinction from the deep-agents-runtime literature: **harness shapes model behavior; runtime handles machinery.** Conflating the two produces doc drift.
-
-- **Model system** (`docs/model/`) -- frozen MuQ instrumentation, Transkun AMT, score alignment, research encoders, training data, and measurement discipline. Outputs signals.
-- **Harness system** (this doc) -- context graph, skills, agent loop, student memory, contracts, artifacts. Markdown-first. Turns signals into teaching.
-- **Runtime system** -- Cloudflare Workers + Durable Objects + D1 + R2 + AI Gateway + Sentry. Handles durable execution, checkpointing, multi-tenancy, observability, sandbox. Invisible to skill authors.
-- **Client system** (`apps/ios/`, `apps/web/`) -- capture, playback, UI, local-first sync. Surfaces teaching.
-
-Naming these separately matters because without the split, harness work gets scattered into `apps/` and runtime concerns leak into skills. They do not belong together.
+The canonical breakdown of the four systems (Model / Harness / Runtime / Client) lives in `docs/architecture.md`. This doc is the anchor for the Harness system specifically; see architecture.md for how it relates to Model, Runtime, and Client.
 
 ---
 
@@ -48,7 +43,7 @@ Durable primitives the harness is built from. Each has a precise definition; imp
 Bottom-up, model to user. Each vertical has a doc home and a tier.
 
 ### V1 -- Model & Signals
-MuQ (audio encoder), Aria (symbolic encoder), AMT (transcription), score follower, piece ID. Populates the enrichment cache with prompt-aware keys. Doc home: `docs/model/`.
+MoonBeam-839M (symbolic encoder; #138, 2026-08-03; see docs/mirex/track-a-difficulty-prediction.md), AMT (transcription), score follower, piece ID. Populates the enrichment cache with prompt-aware keys. Doc home: `docs/model/`. MuQ is being removed under the #162 pipeline retarget (epic #154); the Transkun AMT -> alignment -> MPM feature -> MoonBeam-839M path is the target, see `docs/apps/02-pipeline.md`.
 **Tier:** NEXT (Phase B/C in flight).
 
 ### V2 -- Context Graph (Content / Entity / Fact)
@@ -69,7 +64,7 @@ Three-tier skill catalog. 14 atoms, 7 registered molecules, 4 compounds. Each ha
 
 ### V6 -- Agent Loop & Orchestration
 Teacher loop with deferred tool loading, NLAH contracts, event hooks + middleware hooks. Writes stay single-threaded: skills contribute intelligence, one teacher path writes. Providers remain replaceable behind capability and evaluation gates. Doc home: `docs/apps/02-pipeline.md` (Target section).
-**Tier:** Core loop SHIPPED (2026-04-29) -- two-phase compound loop, `compound-registry` with `OnSessionEnd` + `OnChatMessage` bindings, `HARNESS_V6_ENABLED=true` in prod. NEXT: capability-router across providers, deferred tool loading, remaining hooks (`OnWeeklyReview`, `OnPieceDetected`).
+**Tier:** Core loop SHIPPED (2026-04-29) -- two-phase compound loop, `compound-registry` with `OnSessionEnd` + `OnChatMessage` bindings, V6 is the only synthesis path (flag deleted in #28). NEXT: capability-router across providers, deferred tool loading, remaining hooks (`OnWeeklyReview`, `OnPieceDetected`).
 
 ### V7 -- Student Memory / Personalization
 Typed per-student memory (baseline, recurring_issue, preference, repertoire, goal, breakthrough) with MIA-style multidim retrieval. `STUDENT.md` index per student. Doc home: `docs/apps/03-memory-system.md`.
@@ -81,14 +76,9 @@ Artifacts as NLAH durable outputs. Direct-action tools that interrupt playthroug
 
 ---
 
-## The Two Clocks (recap)
+## The Two Clocks
 
-From `docs/apps/03-memory-system.md`, retained here because it is foundational vocabulary:
-
-- **State clock** -- what is true right now (baselines per dimension, current level, goals).
-- **Event clock** -- what happened, in what order, with what reasoning (observation history, reasoning traces, synthesized facts).
-
-Most systems build only the state clock. Piano teaching requires both: a teacher who has worked with a student for months knows patterns, not just current skill levels. The context graph in V2 is the event clock made addressable.
+Canonical definition lives in `docs/apps/03-memory-system.md` (state clock vs event clock).
 
 ---
 
@@ -146,7 +136,6 @@ Drawn from external sources (Mahler wiki: Agent Harnesses, Natural Language Harn
 
 - `docs/architecture.md` -- system view (model + harness + runtime + client)
 - `docs/model/00-research-timeline.md` -- model system entry point
-- `docs/apps/00-status.md` -- implementation dashboard
 - `docs/apps/02-pipeline.md` -- current pipeline + Target: Agent Loop
 - `docs/apps/03-memory-system.md` -- two clocks + three layers + enrichment cache
 - `docs/apps/07-evaluation.md` -- eval harness including signal ablation and per-tier reliability

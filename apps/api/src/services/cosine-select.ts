@@ -19,26 +19,26 @@ const MANIFEST = manifest as Record<string, ManifestEntry>;
 
 // id -> normalized vector, built once at module load.
 const VECTORS: Map<string, number[]> = new Map(
-  ASSET.ids.map((id, i) => [id, ASSET.vectors[i]]),
+	ASSET.ids.map((id, i) => [id, ASSET.vectors[i]]),
 );
 
 export type CosineMatch = { primitiveId: string; score: number };
 
 function l2normalize(v: number[]): number[] {
-  let sumsq = 0;
-  for (const x of v) sumsq += x * x;
-  const norm = Math.sqrt(sumsq);
-  if (norm === 0) {
-    // A zero query has no direction; refuse it rather than dividing by zero.
-    throw new Error("cosine-select: query embedding has zero magnitude");
-  }
-  return v.map((x) => x / norm);
+	let sumsq = 0;
+	for (const x of v) sumsq += x * x;
+	const norm = Math.sqrt(sumsq);
+	if (norm === 0) {
+		// A zero query has no direction; refuse it rather than dividing by zero.
+		throw new Error("cosine-select: query embedding has zero magnitude");
+	}
+	return v.map((x) => x / norm);
 }
 
 function dot(a: number[], b: number[]): number {
-  let s = 0;
-  for (let i = 0; i < a.length; i++) s += a[i] * b[i];
-  return s;
+	let s = 0;
+	for (let i = 0; i < a.length; i++) s += a[i] * b[i];
+	return s;
 }
 
 /**
@@ -51,32 +51,32 @@ function dot(a: number[], b: number[]): number {
  * match_exercises determinism.
  */
 export function cosineSelectWithinDimension(
-  query: number[],
-  targetDimension: string,
+	query: number[],
+	targetDimension: string,
 ): CosineMatch | null {
-  if (query.length !== ASSET.dim) {
-    throw new Error(
-      `cosine-select: query dim ${query.length} != catalog dim ${ASSET.dim}`,
-    );
-  }
-  const q = l2normalize(query);
+	if (query.length !== ASSET.dim) {
+		throw new Error(
+			`cosine-select: query dim ${query.length} != catalog dim ${ASSET.dim}`,
+		);
+	}
+	const q = l2normalize(query);
 
-  let best: CosineMatch | null = null;
-  for (const id of ASSET.ids) {
-    const entry = MANIFEST[id];
-    if (entry === undefined || !entry.dimensions.includes(targetDimension)) {
-      continue;
-    }
-    const vec = VECTORS.get(id);
-    if (vec === undefined) continue;
-    const score = dot(q, vec);
-    if (
-      best === null ||
-      score > best.score ||
-      (score === best.score && id < best.primitiveId)
-    ) {
-      best = { primitiveId: id, score };
-    }
-  }
-  return best;
+	let best: CosineMatch | null = null;
+	for (const id of ASSET.ids) {
+		const entry = MANIFEST[id];
+		if (entry === undefined || !entry.dimensions.includes(targetDimension)) {
+			continue;
+		}
+		const vec = VECTORS.get(id);
+		if (vec === undefined) continue;
+		const score = dot(q, vec);
+		if (
+			best === null ||
+			score > best.score ||
+			(score === best.score && id < best.primitiveId)
+		) {
+			best = { primitiveId: id, score };
+		}
+	}
+	return best;
 }

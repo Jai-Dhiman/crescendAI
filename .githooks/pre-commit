@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+set -uo pipefail
+
+ROOT=$(git rev-parse --show-toplevel)
+cd "$ROOT"
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
+
+fail=0
+
+python3 scripts/standards_check.py --staged || fail=1
+
+# biome + ruff, filtered to the lines this commit changed.
+python3 scripts/lint_changed.py || fail=1
+
+if [ "$fail" -ne 0 ]; then
+    echo ""
+    echo "pre-commit: blocked. Fix the findings above, or run 'git commit --no-verify'"
+    echo "to break glass (and say so in the commit message)."
+    exit 1
+fi

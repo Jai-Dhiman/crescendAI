@@ -34,7 +34,6 @@ class PipelineObservation:
     score: float
     baseline: float
     reasoning_trace: str
-    is_fallback: bool = False
     raw_message: dict = field(default_factory=dict)
 
 
@@ -49,11 +48,21 @@ class PieceIdentification:
 
 @dataclass
 class SynthesisResult:
-    """Session synthesis output from the teacher LLM."""
+    """Session synthesis output from the teacher LLM.
+
+    There is deliberately no `is_fallback` field. The DO emits a `synthesis`
+    message only when V6 produced a valid artifact -- `buildV6WsPayload`
+    hardcodes `isFallback: false` and is the sole emitter. A V6 failure
+    (validation error or null artifact) makes the DO return without sending
+    anything, so the failure signal is `SessionResult.synthesis is None`
+    plus the "No synthesis received" entry in `SessionResult.errors` (#28).
+    """
     text: str
-    is_fallback: bool
     eval_context: dict = field(default_factory=dict)
     prescribed_exercise: dict | None = None
+    # Full SynthesisArtifact. `text` is only artifact.headline (what the student
+    # sees); the judge grades render_artifact_text(), which needs the rest (#28).
+    artifact: dict | None = None
 
 
 @dataclass
@@ -242,16 +251,19 @@ async def run_recording(
 
             try:
                 while True:
-                    raw = await asyncio.wait_for(ws.recv(), timeout=60.0)
+                    # 60s was tuned for the single-prompt legacy path. The grounded
+                    # two-phase V6 pipeline on a cold glm needs far longer (#28).
+                    raw = await asyncio.wait_for(ws.recv(), timeout=240.0)
                     response = json.loads(raw)
                     msg_type = response.get("type", "")
 
                     if msg_type == "synthesis":
+                        eval_context = response.get("eval_context", {})
                         synthesis_result = SynthesisResult(
                             text=response.get("text", ""),
-                            is_fallback=response.get("is_fallback", False),
-                            eval_context=response.get("eval_context", {}),
-                            prescribed_exercise=response.get("eval_context", {}).get("prescribed_exercise"),
+                            eval_context=eval_context,
+                            prescribed_exercise=eval_context.get("prescribed_exercise"),
+                            artifact=eval_context.get("artifact"),
                         )
                     elif msg_type == "observation":
                         observations.append(_parse_observation(response))
@@ -288,17 +300,70 @@ async def run_recording(
     )
 
 
+def render_artifact_text(synthesis: SynthesisResult) -> str:
+    """Render the full SynthesisArtifact as prose for the judge.
+
+    `synthesis.text` is only `artifact.headline` -- the one paragraph delivered to
+    the student. Judging that alone grades a fraction of what the system produced
+    and ignores the structured reasoning (strengths, focus areas, suggestions,
+    next-session focus) the V6 harness exists to generate (#28).
+
+    Falls back to the headline when no artifact is attached (non-eval sessions).
+    """
+    artifact = synthesis.artifact
+    if not artifact:
+        return synthesis.text
+
+    parts: list[str] = [artifact.get("headline", synthesis.text)]
+
+    strengths = artifact.get("strengths") or []
+    if strengths:
+        parts.append("\nStrengths:")
+        parts.extend(f"- {s['dimension']}: {s['one_liner']}" for s in strengths)
+
+    focus_areas = artifact.get("focus_areas") or []
+    if focus_areas:
+        parts.append("\nFocus areas:")
+        parts.extend(
+            f"- {f['dimension']} ({f['severity']}): {f['one_liner']}" for f in focus_areas
+        )
+
+    if artifact.get("recurring_pattern"):
+        parts.append(f"\nRecurring pattern: {artifact['recurring_pattern']}")
+
+    if artifact.get("next_session_focus"):
+        parts.append(f"\nNext session focus: {artifact['next_session_focus']}")
+
+    return "\n".join(parts)
+
+
 def _parse_observation(response: dict) -> PipelineObservation:
-    """Parse a WebSocket observation message into a PipelineObservation."""
+    """Parse a WebSocket observation message into a PipelineObservation.
+
+    The student-facing payload carries only text/dimension/framing. Everything
+    numeric lives under `eval_context`, which the DO attaches for eval sessions
+    only (session-brain.ts buildObservationPayload). These fields were
+    previously read from the top level, where they have never existed -- so
+    every observation silently reported chunk 0 and zeroed scores (#143).
+
+    A missing `eval_context` means this was not an eval session; raise rather
+    than hand the caller zeros that look like real measurements.
+    """
+    if "eval_context" not in response:
+        raise KeyError(
+            "observation message has no eval_context -- the session was not "
+            "started as an eval session, or the DO is not attaching it "
+            f"(keys present: {sorted(response)})"
+        )
+    ctx = response["eval_context"]
     return PipelineObservation(
         text=response.get("text", ""),
         dimension=response.get("dimension", ""),
         framing=response.get("framing", ""),
-        chunk_index=response.get("chunk_index", 0),
-        score=response.get("score", 0.0),
-        baseline=response.get("baseline", 0.0),
-        reasoning_trace=response.get("reasoning_trace", ""),
-        is_fallback=response.get("is_fallback", False),
+        chunk_index=ctx["chunk_index"],
+        score=ctx["score"],
+        baseline=ctx["baseline"],
+        reasoning_trace=ctx["reasoning_trace"],
         raw_message=response,
     )
 

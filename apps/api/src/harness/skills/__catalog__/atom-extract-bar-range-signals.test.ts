@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { validateSkill } from "../validator";
 
 test("atom: extract-bar-range-signals conforms to spec", async () => {

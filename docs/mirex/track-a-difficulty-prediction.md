@@ -80,9 +80,46 @@ Note: **PSyllabus is audio** (matches the task's audio input) — the primary tr
 2. Whether difficulty is meant as **score difficulty** (composition) or **performance difficulty** (execution) — the two-recordings-per-piece design suggests they want a piece-level score robust to performer, i.e. score difficulty. Confirm.
 3. PSyllabus/CIPI licenses.
 
+## Stage 2 — Transkun difficulty-head re-fit (#135, closed — final verdict MARGINAL, see the 2026-07-31 decision-log entry)
+
+**Why:** aria-amt was replaced repo-wide by Transkun (#128). Swapping the transcriber *alone* is tau-c-neutral because the deployed LightGBM head was trained on **clean** score note-counts and overfit the transcriber's biases. The fix is to **re-fit the head on Transkun-transcribed features**. The Stage-2 learning-curve gate confirmed this is worth it:
+
+| eval N | arm B (transkun-trained) | deployed 7.9k-clean on transkun | B − A (matched-N) | verdict |
+|---|---|---|---|---|
+| 39 | — | — | +0.035 CI[−0.058,+0.129] | underpowered (looked dead) |
+| 161 | — | 0.812 | +0.043 CI[+0.007,+0.081] | marginally significant |
+| **604** | **0.807** | **0.804** | **+0.050 CI[+0.029,+0.071]** | **STRONG green** |
+
+At n=604 a head trained on just 604 Transkun pieces already matches the deployed head trained on all 7,899 clean pieces (reading Transkun), and is still climbing → the full re-fit should beat deployed by ~**+0.04–0.05 tau-c** (full task).
+
+**Harness:** `model/src/claim_measurement/transcription_bench/stage2_refit_curve.py` (stages: `prep` | `transcribe` | `pipeline` | `curve`). Data lands in `model/data/results/amt_gap_curve/` (gitignored). Imports the #104 difficulty feature code by absolute path (the `.worktrees/issue-104-mirex-difficulty` worktree must exist).
+
+### Runbook (full 7.9k transcription)
+
+Run the pipeline (per piece: download → Transkun → drop wav; disk-safe, resumable, skips pieces that already have a MIDI). It auto-resumes on any non-zero exit and `caffeinate` blocks system sleep — **lid open, on AC**:
+
+```
+caffeinate -is bash -c 'until uv run --script /Users/jdhiman/Documents/crescendai/.worktrees/issue-135-transkun-refit/model/src/claim_measurement/transcription_bench/stage2_refit_curve.py --stage pipeline --all --workers 4; do echo "[$(date)] stopped; resuming in 15s"; sleep 15; done'
+```
+
+Watch progress in a second terminal (climbs toward ~7,100–7,300; ~8.5% of pieces are unavailable on YouTube):
+
+```
+watch -n 30 'ls /Users/jdhiman/Documents/crescendai/model/data/results/amt_gap_curve/transkun_mid/*.mid | wc -l; df -h /Users/jdhiman/Documents/crescendai | tail -1'
+```
+
+When the count plateaus, re-run the gate curve at full N:
+
+```
+uv run --script /Users/jdhiman/Documents/crescendai/.worktrees/issue-135-transkun-refit/model/src/claim_measurement/transcription_bench/stage2_refit_curve.py --stage curve
+```
+
+**Still to build** (after the data lands): the retrain+eval stage — extract the 37 difficulty features from all Transkun MIDIs, retrain the LightGBM head (`DEPLOYED_PARAMS`) on Transkun features, CV-eval vs the clean-trained deployed head; if it wins, that head is the MIREX Track A submission.
+
 ## Decision log (append-only)
 - **2026-07-03** — Track A spec captured from MIREX task page; assets mapped (strong fit). Deep research NOT yet done — next session should run the Research checklist before /brainstorm. Provisional lean: this is the higher-value track (real asset transfer vs Track B's no-moat).
 - **2026-07-22 (#125 Stage-1)** — Transkun adopted over aria-amt for the symbolic stream (offset F1 0.79 vs 0.37, MIT licence). Swap measured neutral on difficulty tau-c on its own; the adopt decision stood on transcription quality, not on a difficulty win.
+- **2026-07-27** — Stage-2 Transkun re-fit gate = STRONG green at n=604 (#135); full 7.9k transcription launched (user-driven, see Runbook). Earlier #104 "closed research line / feature wall ~0.76" conclusions predate the head-re-fit lever, which the n=39 probe was too underpowered to detect.
 - **2026-07-31 (#135)** — Full-scale Stage-2 re-fit gate came back **MARGINAL**: re-training the head on Transkun features rather than clean MIDI gave B−A = +0.016 at n=5,798. Diagnosis: the 37 features exclude offsets *by design*, so they are transcriber-robust and clean-vs-Transkun barely differs — the gate tested the wrong lever. Motivated the #137/#138 split.
 - **2026-08-01 (#137) — FEATURE FRONTIER CLOSED.** Built 32 Transkun-unlocked features (articulation via duration/IOI ratio, duration entropy/LZ, true time-weighted voicing, chord-release dispersion, pedal timing) and a composer-disjoint CV tau-c ablation with fixed folds shared by all arms and a paired bootstrap over pieces. Result: **+0.0064 tau-c** (0.7929 → 0.7988), significant but negligible; the new family is ~90% redundant with the 37 and takes 8.6% of model gain. **This was the last untested feature premise** — every prior null was measured on offset-blind features, and removing that blindness did not move the wall. Two by-products: (a) established that the **0.824 anchor is train-on-test contaminated**; (b) established that **Transkun cannot express pedal depth** (binary CC64). Harness: `model/src/claim_measurement/difficulty/{transkun_features,tk_ablation}.py`, 26 unit tests.
   - *Not refuted, still open:* the lambdarank arm scored −0.139 but used **one query group per fold**, and NDCG is top-heavy while tau-c scores the whole list — a formulation bug, not a verdict on rank-native objectives. Multi-scale / per-section aggregation of the new features remains untried.
@@ -106,4 +143,16 @@ Note: **PSyllabus is audio** (matches the task's audio input) — the primary tr
   - *Caveat on this sample:* 900 pieces spanning 900 **distinct** composers (one piece each), so the composer-disjoint constraint is vacuous here and these folds are effectively random splits — unlike `tk_ablation.py`'s 5,798 pieces over 1,066 composers, where the constraint bites. Trust the paired within-protocol deltas, not the levels.
   - **Phase 1 gate:** a fine-tuned MoonBeam must clear **0.8048** on these folds, not 0.7790 and not 0.7929. Beating frozen 0.8257 without clearing the feature baseline by a paired-bootstrap-significant margin is a partial result.
 - **2026-08-03 — TRACK B DROPPED; Track A is the sole MIREX 2026 submission.** The parallel Task-2 (CMI-RewardBench) exploration is closed: its issues (#105, #106, #107, #122, #123, #124) were already closed, and its standalone repo, cached corpora, and R2 archive have been deleted. Rationale and the one transferable finding (CLAP window granularity, not head architecture, was the lever) are recorded in [README.md](./README.md). All remaining MIREX effort goes to #137/#138 under this doc.
+- **2026-08-04 (#138 Phase 1) — DESIGN APPROVED, no implementation yet. Tracked in [#149](https://github.com/Jai-Dhiman/crescendAI/issues/149), which holds the full design.** Four things settled here are load-bearing and were measured, not assumed:
+  - **Composer-disjointness is a PER-FOLD constraint, not a global one.** An earlier framing held that only 765 of the 4,898 non-eval pieces are usable, because 4,133 share a composer with some eval piece. That bound applies only if a single fine-tune must serve every fold. Excluding just the *test fold's* 180 composers leaves **4,535 / 4,802 / 5,003 / 4,748 / 4,869** training pieces per fold at seed 2026. The adopted rule (option D) additionally excludes all 900 eval pieces, leaving **3,815 / 4,082 / 4,283 / 4,028 / 4,149** — chosen so no reviewer can object that the encoder trained on the pieces the ridge head was later fit on. This moved the compute plan by an order of magnitude.
+  - **The gate costs 5 fine-tunes, not 25.** `features37_compare.py`'s `paired_boot` resamples the pooled OOF at `SEEDS[0]=2026` only; the 5-seed ± is display, not the verdict. A set of per-fold fine-tunes is *welded to one seed* — seed 2027's test fold contains composers that seed 2026's adapters trained on — so every extra seed costs a fresh set of five. Plan is staged: pilot → 5 (gate) → 20 more only if the gate passes.
+  - **Compute priced against the real CLI, not an assumption.** The Phase 0 log flagged "HF Jobs A100" as an untested assumption; `hf` 1.7.1 confirms `hf jobs uv run|ps|logs|inspect|stats|cancel|hardware` with `-d/--detach`, `--timeout`, `--secrets`, `--flavor`. **`a100-large` is $2.50/hr**, so ≈$13 for the gate and ≈$63 including the ±. `h200` and `rtx-pro-6000` appear in `hf jobs hardware` but are **not** in `hf jobs uv run`'s `--flavor` enum. The ~1 GPU-hr per fold-model figure is a FLOP-based **estimate, not measured** — the pilot fold exists partly to check it.
+  - **Real-audio eval is now a second gate, not a sanity floor.** Eval pieces with local audio went **83 → 709 of 900**, uniform 75–88% coverage across all 11 grades, by re-fetching from the manifest's `video_id` fields (`model/data/results/amt_gap_curve/refetch_report.json`). At n=709 the paired-difference CI half-width is ≈±0.017, enough to resolve the +0.024 margin; the n≥500 threshold separating "gate" from "floor" was fixed *before* the yield was known. The 191 failures are **yt-dlp bot-detection, not unavailable videos** — zero failures in the first 626 attempts, then 191 consecutive. The missing PSyllabus audio is **not in R2**: `mirex/track-a/amt-gap-curve/transkun-mid` is a MIDI backup, and `raw/amt_audio` / `raw/amt_recordings` are Chopin-competition (T2) audio. Do not search R2 for it again.
+  - **HARNESS BUILT AND MERGED (2026-08-04) — but NOTHING IS TRAINED.** The Phase 1 code is on local main and CPU-verified by 72 tests. **No GPU has run and no money has been spent; the gate is UNMEASURED.** Operator instructions: [phase1-lora-runbook.md](./phase1-lora-runbook.md). Harness: `model/src/claim_measurement/difficulty/{fold_plan,ranking_loss,train_fold,ft_eval,push_train_dataset,realaudio_check}.py`.
+  - *Anchors re-derived, not copied forward.* `features37|ridge` **0.8048 ± 0.0008** and `moonbeam_mean|ridge` **0.8257 ± 0.0018** (delta **+0.0244 [+0.0091, +0.0397]** SIG) were regenerated from scratch this session and reproduce to four decimals after 40+ intervening commits. The gate value 0.8048 is live, not historical.
+  - *LoRA targeting verified against real peft 0.18.1.* `get_peft_model` mutates the outer model **in place** (`peft_model.model is base_model`), and `peft_model.model.model.layers[L].<proj>` becomes a peft LoRA `Linear`. Targets are layers **10–14 × {q,k,v,o,gate,up,down}_proj = 35 modules**; peft's **default** `target_modules` would wrongly adapt `lm_head`, `decoder_embedding`, `fc_out`, and `summary_projection` on this fork.
+  - **GOTCHA — `torch.no_grad()` does NOT disable dropout.** `train_fold.py` originally extracted the graded embeddings without `eval()`, leaving `lora_dropout=0.05` active. That would have made `emb_fold{F}.npz` stochastic and biased the fine-tuned arm's tau-c **down** — a false negative on the gate that no test caught and no crash revealed.
+  - **GOTCHA — a statistical fixture cannot detect "one adapter's embeddings reused for every fold."** A single matrix used consistently across a fold's train and test rows is a legitimate CV of a different experiment and scores identically (0.9986 either way). The guard must be **structural**: the committed one breaks the symmetry so only fold 0's file carries signal, making correct routing score LOW and the bug score 0.9876.
+  - *Per-fold adapters are welded to ONE seed.* Seed 2027's test fold contains composers seed 2026's adapters trained on. Never re-score seed-2026 embeddings under another seed.
+  - *Re-derived from live data:* option-D per-fold training pools **3,815 / 4,082 / 4,283 / 4,028 / 4,149**; **709 of 900** eval pieces have local WAVs for the real-audio second gate.
 - **Standing implication** — with hand-crafted symbolic features exhausted, **#138 Phase 1 (LoRA fine-tune of MoonBeam-839M, pairwise ranking + ordinal aux) is the remaining unrefuted lever** before the 2026-10-01 deadline.

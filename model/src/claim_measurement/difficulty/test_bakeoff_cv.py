@@ -11,6 +11,7 @@ import numpy as np
 from claim_measurement.difficulty.bakeoff_cv import (
     composer_disjoint_folds,
     oof_tau_ridge,
+    paired_boot,
     tau_c,
 )
 
@@ -113,3 +114,28 @@ def test_oof_tau_ridge_reports_zero_seeds_when_target_is_constant():
     result = oof_tau_ridge(X, y, composers, n_folds=5, seeds=[2026])
 
     assert result == {"mean": None, "std": None, "n_seeds": 0}
+
+
+def test_paired_boot_ci_is_strictly_positive_when_b_is_uniformly_better():
+    rng = np.random.default_rng(0)
+    y = rng.integers(0, 11, size=200).astype(float)
+    oof_a = y + rng.normal(scale=3.0, size=200)  # noisy
+    oof_b = y + rng.normal(scale=0.2, size=200)  # much less noisy -> higher tau-c
+
+    mean_diff, lo, hi, p_le_0 = paired_boot(oof_a, oof_b, y, seed=2026, n_boot=500)
+
+    assert mean_diff > 0
+    assert lo > 0
+    assert p_le_0 < 0.05
+
+
+def test_paired_boot_ci_straddles_zero_when_arms_are_identical():
+    rng = np.random.default_rng(0)
+    y = rng.integers(0, 11, size=200).astype(float)
+    oof_a = y + rng.normal(scale=1.0, size=200)
+    oof_b = oof_a.copy()  # identical arm -> diff is exactly zero every resample
+
+    mean_diff, lo, hi, p_le_0 = paired_boot(oof_a, oof_b, y, seed=2026, n_boot=200)
+
+    assert abs(mean_diff) < 1e-9
+    assert lo <= 0 <= hi

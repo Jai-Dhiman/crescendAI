@@ -1,16 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { parseAnthropicStream, parseOpenAIStream, stripAnalysis, synthesizeV6, chatV6 } from "./teacher";
-import type { InlineComponent } from "./tool-processor";
-import type { SynthesisInput, TeacherEvent } from "./teacher";
-import type { ServiceContext } from "../lib/types";
-import type { HookEvent } from "../harness/loop/types";
 import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
+import type { HookEvent } from "../harness/loop/types";
+import type { ServiceContext } from "../lib/types";
+import type { SynthesisInput, TeacherEvent } from "./teacher";
+import {
+	chatV6,
+	parseAnthropicStream,
+	parseOpenAIStream,
+	stripAnalysis,
+	synthesizeV6,
+} from "./teacher";
+import type { InlineComponent } from "./tool-processor";
 
 vi.mock("./llm", async (importOriginal) => {
-	const actual = await importOriginal() as Record<string, unknown>;
+	const actual = (await importOriginal()) as Record<string, unknown>;
 	return { ...actual, callAnthropicStream: vi.fn() };
 });
-vi.mock("./memory", () => ({ buildMemoryContext: vi.fn().mockResolvedValue("") }));
+vi.mock("./memory", () => ({
+	buildMemoryContext: vi.fn().mockResolvedValue(""),
+}));
 
 // ---------------------------------------------------------------------------
 // Helpers for building fake SSE streams
@@ -310,7 +318,10 @@ describe("parseAnthropicStream - failed tool", () => {
 		// tool_start + tool_error + done -- intermediate narration discarded (Fix C),
 		// tool_error replaces tool_result because isError: true
 		expect(events).toHaveLength(3);
-		expect(events[0]).toEqual({ type: "tool_start", name: "prescribe_exercise" });
+		expect(events[0]).toEqual({
+			type: "tool_start",
+			name: "prescribe_exercise",
+		});
 		expect(events[1]).toEqual({
 			type: "tool_error",
 			name: "prescribe_exercise",
@@ -650,8 +661,20 @@ describe("synthesizeV6 adapter", () => {
 			),
 		);
 
+		// synthesizeV6 calls buildGroundedDigest, which reads per-session
+		// dimension means. Empty session => no observation rows.
 		const ctx = {
-			db: {} as ServiceContext["db"],
+			db: {
+				select: () => ({
+					from: () => ({
+						where: () => ({
+							groupBy: () => ({
+								orderBy: () => ({ limit: () => Promise.resolve([]) }),
+							}),
+						}),
+					}),
+				}),
+			} as unknown as ServiceContext["db"],
 			env: {
 				AI_GATEWAY_ENDPOINT: "https://gw.example",
 				AI_GATEWAY_TOKEN: "test-gw-token",
@@ -721,7 +744,12 @@ describe("chatV6", () => {
 		vi.mocked(callAnthropicStream).mockResolvedValue(makeSSEStream("Hi"));
 
 		const events = [];
-		for await (const e of chatV6(stubCtx, "student1", [{ role: "user", content: "hello" }], "")) {
+		for await (const e of chatV6(
+			stubCtx,
+			"student1",
+			[{ role: "user", content: "hello" }],
+			"",
+		)) {
 			events.push(e);
 		}
 
@@ -756,7 +784,7 @@ const noopOpenAITool = async (_name: string, _input: unknown) => ({
 // Tool processor that returns a fake component for "prescribe_exercise".
 const exerciseTool = async (name: string, _input: unknown) => ({
 	name,
-	componentsJson: [{ type: "exercise_card", data: { id: "ex-1" } }],
+	componentsJson: [{ type: "exercise_card", config: { id: "ex-1" } }],
 	isError: false as const,
 });
 
@@ -774,19 +802,27 @@ describe("parseOpenAIStream — text-only response", () => {
 		];
 
 		const events: TeacherEvent[] = [];
-		for await (const ev of parseOpenAIStream(makeOpenAIStream(sseChunks), noopOpenAITool)) {
+		for await (const ev of parseOpenAIStream(
+			makeOpenAIStream(sseChunks),
+			noopOpenAITool,
+		)) {
 			events.push(ev);
 		}
 
 		const deltaTexts = events
-			.filter((e): e is Extract<TeacherEvent, { type: "delta" }> => e.type === "delta")
+			.filter(
+				(e): e is Extract<TeacherEvent, { type: "delta" }> =>
+					e.type === "delta",
+			)
 			.map((d) => d.text);
 		expect(deltaTexts).toEqual(["Hello", ", world"]);
 
 		const firstDeltaIdx = events.findIndex((e) => e.type === "delta");
 		const doneIdx = events.findIndex((e) => e.type === "done");
 		const lastDeltaIdx =
-			events.length - 1 - [...events].reverse().findIndex((e) => e.type === "delta");
+			events.length -
+			1 -
+			[...events].reverse().findIndex((e) => e.type === "delta");
 		expect(firstDeltaIdx).toBeGreaterThanOrEqual(0);
 		expect(lastDeltaIdx).toBeLessThan(doneIdx);
 
@@ -815,12 +851,23 @@ describe("parseOpenAIStream — streamed tool-call (fragment accumulation)", () 
 		];
 
 		const events: TeacherEvent[] = [];
-		for await (const ev of parseOpenAIStream(makeOpenAIStream(sseChunks), exerciseTool)) {
+		for await (const ev of parseOpenAIStream(
+			makeOpenAIStream(sseChunks),
+			exerciseTool,
+		)) {
 			events.push(ev);
 		}
 
-		expect(events.some((e) => e.type === "tool_start" && e.name === "prescribe_exercise")).toBe(true);
-		expect(events.some((e) => e.type === "tool_result" && e.name === "prescribe_exercise")).toBe(true);
+		expect(
+			events.some(
+				(e) => e.type === "tool_start" && e.name === "prescribe_exercise",
+			),
+		).toBe(true);
+		expect(
+			events.some(
+				(e) => e.type === "tool_result" && e.name === "prescribe_exercise",
+			),
+		).toBe(true);
 
 		const done = events.at(-1);
 		expect(done?.type).toBe("done");
@@ -846,12 +893,23 @@ describe("parseOpenAIStream — single-chunk tool-call (no streaming fragments)"
 		];
 
 		const events: TeacherEvent[] = [];
-		for await (const ev of parseOpenAIStream(makeOpenAIStream(sseChunks), exerciseTool)) {
+		for await (const ev of parseOpenAIStream(
+			makeOpenAIStream(sseChunks),
+			exerciseTool,
+		)) {
 			events.push(ev);
 		}
 
-		expect(events.some((e) => e.type === "tool_start" && e.name === "prescribe_exercise")).toBe(true);
-		expect(events.some((e) => e.type === "tool_result" && e.name === "prescribe_exercise")).toBe(true);
+		expect(
+			events.some(
+				(e) => e.type === "tool_start" && e.name === "prescribe_exercise",
+			),
+		).toBe(true);
+		expect(
+			events.some(
+				(e) => e.type === "tool_result" && e.name === "prescribe_exercise",
+			),
+		).toBe(true);
 
 		const done = events.at(-1);
 		expect(done?.type).toBe("done");

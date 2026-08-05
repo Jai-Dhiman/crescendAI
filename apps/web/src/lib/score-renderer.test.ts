@@ -2,20 +2,20 @@
 // Note: vi.stubGlobal, vi.resetModules, vi.doMock are not available in this
 // Vitest version (4.0.18). Worker is mocked via globalThis in beforeEach/afterEach.
 // api is mocked at module level via vi.mock() to avoid dynamic import issues.
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./api", () => ({
-  api: {
-    scores: {
-      getData: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
-    },
-  },
+	api: {
+		scores: {
+			getData: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+		},
+	},
 }));
 
 vi.mock("./sentry", () => ({
-  Sentry: {
-    captureException: vi.fn(),
-  },
+	Sentry: {
+		captureException: vi.fn(),
+	},
 }));
 
 // Worker mock: intercepts postMessage and captures onmessage/onerror handlers.
@@ -23,124 +23,143 @@ const mockPostMessage = vi.fn();
 let workerInstance: MockWorker | null = null;
 
 class MockWorker {
-  onmessage: ((e: MessageEvent) => void) | null = null;
-  onerror: ((e: ErrorEvent) => void) | null = null;
-  constructor() {
-    workerInstance = this;
-  }
-  postMessage(data: unknown) {
-    mockPostMessage(data);
-  }
+	onmessage: ((e: MessageEvent) => void) | null = null;
+	onerror: ((e: ErrorEvent) => void) | null = null;
+	constructor() {
+		workerInstance = this;
+	}
+	postMessage(data: unknown) {
+		mockPostMessage(data);
+	}
 }
 
 const FAKE_IR = {
-  pieceId: "test-piece",
-  verovioVersion: "4.0.0",
-  pageWidth: 2400,
-  pages: [{ pageN: 1, viewBox: "0 0 2400 800", width: 2400, height: 800, systemBboxes: [] }],
-  bars: [],
-  notes: {},
+	pieceId: "test-piece",
+	verovioVersion: "4.0.0",
+	pageWidth: 2400,
+	pages: [
+		{
+			pageN: 1,
+			viewBox: "0 0 2400 800",
+			width: 2400,
+			height: 800,
+			systemBboxes: [],
+		},
+	],
+	bars: [],
+	notes: {},
 };
 
 function simulateWorkerResponse(requestId: string, payload: unknown) {
-  if (workerInstance?.onmessage) {
-    workerInstance.onmessage(new MessageEvent("message", { data: { requestId, payload } }));
-  }
+	if (workerInstance?.onmessage) {
+		workerInstance.onmessage(
+			new MessageEvent("message", { data: { requestId, payload } }),
+		);
+	}
 }
 
 let originalWorker: unknown;
 
 describe("ScoreRenderer.load", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    workerInstance = null;
-    originalWorker = (globalThis as Record<string, unknown>).Worker;
-    (globalThis as Record<string, unknown>).Worker = MockWorker;
-  });
+	beforeEach(() => {
+		vi.clearAllMocks();
+		workerInstance = null;
+		originalWorker = (globalThis as Record<string, unknown>).Worker;
+		(globalThis as Record<string, unknown>).Worker = MockWorker;
+	});
 
-  afterEach(() => {
-    (globalThis as Record<string, unknown>).Worker = originalWorker;
-  });
+	afterEach(() => {
+		(globalThis as Record<string, unknown>).Worker = originalWorker;
+	});
 
-  it("resolves with {ir, pageSvgs} after a successful load message exchange", async () => {
-    const { ScoreRenderer } = await import("./score-renderer");
-    const renderer = new ScoreRenderer();
+	it("resolves with {ir, pageSvgs} after a successful load message exchange", async () => {
+		const { ScoreRenderer } = await import("./score-renderer");
+		const renderer = new ScoreRenderer();
 
-    const payload = { ir: FAKE_IR, pageSvgs: ["<svg>page1</svg>"] };
+		const payload = { ir: FAKE_IR, pageSvgs: ["<svg>page1</svg>"] };
 
-    const loadPromise = renderer.load("test-piece");
+		const loadPromise = renderer.load("test-piece");
 
-    // Wait for ensureBytes (async fetch) to complete and postMessage to be called.
-    await new Promise((r) => setTimeout(r, 10));
+		// Wait for ensureBytes (async fetch) to complete and postMessage to be called.
+		await new Promise((r) => setTimeout(r, 10));
 
-    const sentMsg = mockPostMessage.mock.calls[0]?.[0] as { requestId: string };
-    simulateWorkerResponse(sentMsg.requestId, payload);
+		const sentMsg = mockPostMessage.mock.calls[0]?.[0] as { requestId: string };
+		simulateWorkerResponse(sentMsg.requestId, payload);
 
-    const result = await loadPromise;
-    expect(result).not.toBe("failed");
-    if (result === "failed") return;
-    expect(result.ir.pieceId).toBe("test-piece");
-    expect(result.pageSvgs).toEqual(["<svg>page1</svg>"]);
-  });
+		const result = await loadPromise;
+		expect(result).not.toBe("failed");
+		if (result === "failed") return;
+		expect(result.ir.pieceId).toBe("test-piece");
+		expect(result.pageSvgs).toEqual(["<svg>page1</svg>"]);
+	});
 
-  it("getIR returns the cached IR synchronously after load resolves", async () => {
-    const { ScoreRenderer } = await import("./score-renderer");
-    const renderer = new ScoreRenderer();
-    const payload = { ir: FAKE_IR, pageSvgs: ["<svg>page1</svg>"] };
+	it("getIR returns the cached IR synchronously after load resolves", async () => {
+		const { ScoreRenderer } = await import("./score-renderer");
+		const renderer = new ScoreRenderer();
+		const payload = { ir: FAKE_IR, pageSvgs: ["<svg>page1</svg>"] };
 
-    const loadPromise = renderer.load("test-piece");
-    await new Promise((r) => setTimeout(r, 10));
-    const sentMsg = mockPostMessage.mock.calls[0]?.[0] as { requestId: string };
-    simulateWorkerResponse(sentMsg.requestId, payload);
-    await loadPromise;
+		const loadPromise = renderer.load("test-piece");
+		await new Promise((r) => setTimeout(r, 10));
+		const sentMsg = mockPostMessage.mock.calls[0]?.[0] as { requestId: string };
+		simulateWorkerResponse(sentMsg.requestId, payload);
+		await loadPromise;
 
-    const ir = renderer.getIR("test-piece");
-    expect(ir).not.toBeNull();
-    expect(ir?.pieceId).toBe("test-piece");
-  });
+		const ir = renderer.getIR("test-piece");
+		expect(ir).not.toBeNull();
+		expect(ir?.pieceId).toBe("test-piece");
+	});
 
-  it("getIR returns null when load has not been called", async () => {
-    const { ScoreRenderer } = await import("./score-renderer");
-    const renderer = new ScoreRenderer();
-    expect(renderer.getIR("nonexistent-piece")).toBeNull();
-  });
+	it("getIR returns null when load has not been called", async () => {
+		const { ScoreRenderer } = await import("./score-renderer");
+		const renderer = new ScoreRenderer();
+		expect(renderer.getIR("nonexistent-piece")).toBeNull();
+	});
 
-  it("cleans up sentPieceIds on worker error so a retry re-sends bytes", async () => {
-    const { ScoreRenderer } = await import("./score-renderer");
-    const renderer = new ScoreRenderer();
+	it("cleans up sentPieceIds on worker error so a retry re-sends bytes", async () => {
+		const { ScoreRenderer } = await import("./score-renderer");
+		const renderer = new ScoreRenderer();
 
-    // First call: simulate worker responding with an error message.
-    const firstLoadPromise = renderer.load("retry-piece");
-    await new Promise((r) => setTimeout(r, 10));
+		// First call: simulate worker responding with an error message.
+		const firstLoadPromise = renderer.load("retry-piece");
+		await new Promise((r) => setTimeout(r, 10));
 
-    const firstMsg = mockPostMessage.mock.calls[0]?.[0] as { requestId: string; bytes: unknown };
-    // Verify bytes were sent on the first call.
-    expect(firstMsg.bytes).toBeInstanceOf(ArrayBuffer);
+		const firstMsg = mockPostMessage.mock.calls[0]?.[0] as {
+			requestId: string;
+			bytes: unknown;
+		};
+		// Verify bytes were sent on the first call.
+		expect(firstMsg.bytes).toBeInstanceOf(ArrayBuffer);
 
-    // Simulate worker error response (triggers onmessage error path, then catch).
-    if (workerInstance?.onmessage) {
-      workerInstance.onmessage(
-        new MessageEvent("message", {
-          data: { requestId: firstMsg.requestId, error: "Verovio load failed" },
-        }),
-      );
-    }
+		// Simulate worker error response (triggers onmessage error path, then catch).
+		if (workerInstance?.onmessage) {
+			workerInstance.onmessage(
+				new MessageEvent("message", {
+					data: { requestId: firstMsg.requestId, error: "Verovio load failed" },
+				}),
+			);
+		}
 
-    const firstResult = await firstLoadPromise;
-    expect(firstResult).toBe("failed");
+		const firstResult = await firstLoadPromise;
+		expect(firstResult).toBe("failed");
 
-    // Second call: sentPieceIds must have been cleaned up, so bytes are re-sent.
-    mockPostMessage.mockClear();
-    const secondLoadPromise = renderer.load("retry-piece");
-    await new Promise((r) => setTimeout(r, 10));
+		// Second call: sentPieceIds must have been cleaned up, so bytes are re-sent.
+		mockPostMessage.mockClear();
+		const secondLoadPromise = renderer.load("retry-piece");
+		await new Promise((r) => setTimeout(r, 10));
 
-    const secondMsg = mockPostMessage.mock.calls[0]?.[0] as { requestId: string; bytes: unknown };
-    expect(secondMsg.bytes).toBeInstanceOf(ArrayBuffer);
+		const secondMsg = mockPostMessage.mock.calls[0]?.[0] as {
+			requestId: string;
+			bytes: unknown;
+		};
+		expect(secondMsg.bytes).toBeInstanceOf(ArrayBuffer);
 
-    // Resolve the second call successfully so the promise settles.
-    const payload = { ir: { ...FAKE_IR, pieceId: "retry-piece" }, pageSvgs: [] };
-    simulateWorkerResponse(secondMsg.requestId, payload);
-    const secondResult = await secondLoadPromise;
-    expect(secondResult).not.toBe("failed");
-  });
+		// Resolve the second call successfully so the promise settles.
+		const payload = {
+			ir: { ...FAKE_IR, pieceId: "retry-piece" },
+			pageSvgs: [],
+		};
+		simulateWorkerResponse(secondMsg.requestId, payload);
+		const secondResult = await secondLoadPromise;
+		expect(secondResult).not.toBe("failed");
+	});
 });

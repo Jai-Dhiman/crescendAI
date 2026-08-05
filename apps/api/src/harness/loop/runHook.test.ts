@@ -1,8 +1,8 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Bindings } from "../../lib/types";
-import type { HookContext, HookEvent } from "./types";
-import { runHook } from "./runHook";
 import type { SynthesisArtifact } from "../artifacts/synthesis";
+import { runHook } from "./runHook";
+import type { HookContext, HookEvent } from "./types";
 
 const MOCK_BINDINGS = {
 	AI_GATEWAY_ENDPOINT: "https://gw.example",

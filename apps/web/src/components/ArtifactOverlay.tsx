@@ -83,17 +83,13 @@ function ArtifactOverlayContent({
 
 	return (
 		<div ref={overlayRef} className="fixed inset-0 z-50">
-			<div
+			<button
+				type="button"
 				data-backdrop
-				role="button"
 				tabIndex={-1}
+				aria-label="Close"
 				className="absolute inset-0 bg-black/60 animate-backdrop-in"
 				onClick={handleClose}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						handleClose();
-					}
-				}}
 			/>
 			<div
 				data-panel

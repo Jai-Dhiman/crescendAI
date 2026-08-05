@@ -1,7 +1,7 @@
-import { InferenceError } from "../lib/errors";
-import type { Bindings } from "../lib/types";
 import type { AnthropicChatRequest } from "../harness/loop/tool-format";
 import { toOpenAIChatRequest } from "../harness/loop/tool-format";
+import { InferenceError } from "../lib/errors";
+import type { Bindings } from "../lib/types";
 
 // ---------------------------------------------------------------------------
 // Content block types for multi-turn tool_use conversations

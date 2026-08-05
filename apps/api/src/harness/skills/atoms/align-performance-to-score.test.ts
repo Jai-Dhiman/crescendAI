@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { alignPerformanceToScore } from "./align-performance-to-score";
 
 test("alignPerformanceToScore: two perf notes align to two score notes with matching pitch and near onset", async () => {

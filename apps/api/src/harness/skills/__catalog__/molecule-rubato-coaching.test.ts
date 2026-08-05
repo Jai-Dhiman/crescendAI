@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { validateSkill } from "../validator";
 
 test("molecule: rubato-coaching conforms to spec", async () => {

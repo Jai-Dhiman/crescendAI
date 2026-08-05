@@ -1,11 +1,11 @@
 import { describe, expect, it, test } from "vitest";
+import { InferenceError } from "../../lib/errors";
 import {
 	redactPii,
 	reviewArtifact,
 	withRetries,
 	wrapToolCall,
 } from "./middleware";
-import { InferenceError } from "../../lib/errors";
 import type { PhaseContext } from "./types";
 
 const MOCK_CTX = {
@@ -35,7 +35,10 @@ describe("redactPii", () => {
 
 describe("wrapToolCall", () => {
 	it("returns the inner invocation result unchanged", async () => {
-		const result = await wrapToolCall("some_tool", MOCK_CTX, async () => ({ ok: true, value: 42 }));
+		const result = await wrapToolCall("some_tool", MOCK_CTX, async () => ({
+			ok: true,
+			value: 42,
+		}));
 		expect(result).toEqual({ ok: true, value: 42 });
 	});
 
@@ -122,11 +125,19 @@ describe("reviewArtifact stub", () => {
 });
 
 test("wrapToolCall passes through non-action tools unchanged", async () => {
-	const result = await wrapToolCall("search_catalog", MOCK_CTX, async () => "result");
+	const result = await wrapToolCall(
+		"search_catalog",
+		MOCK_CTX,
+		async () => "result",
+	);
 	expect(result).toBe("result");
 });
 
 test("wrapToolCall passes through assign_segment_loop (gating is in atom)", async () => {
-	const result = await wrapToolCall("assign_segment_loop", MOCK_CTX, async () => ({ status: "pending" }));
+	const result = await wrapToolCall(
+		"assign_segment_loop",
+		MOCK_CTX,
+		async () => ({ status: "pending" }),
+	);
 	expect(result).toEqual({ status: "pending" });
 });

@@ -106,9 +106,11 @@ export interface SessionDataConfig {
 	data: unknown;
 }
 
+// Mirrors what apps/api processPlayPassage actually emits: session_id is a
+// required uuid and no pieceId is ever sent. PlayPassageCard resolves the piece
+// from the fetched PassageManifest, not from this config.
 export interface PlayPassageConfig {
-	pieceId: string;
-	sessionId?: string;
+	sessionId: string;
 	bars: [number, number];
 	focusBars?: [number, number];
 	dimension: string;

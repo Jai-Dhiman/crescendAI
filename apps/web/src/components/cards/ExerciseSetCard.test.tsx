@@ -82,7 +82,9 @@ describe("ExerciseSetCard", () => {
 			],
 		};
 		const { ExerciseSetCard } = await import("./ExerciseSetCard");
-		const { container } = render(React.createElement(ExerciseSetCard, { config }));
+		const { container } = render(
+			React.createElement(ExerciseSetCard, { config }),
+		);
 		await waitFor(() => {
 			expect(mockGetClip).toHaveBeenCalledWith("chopin.ballades.1", 5, 8, 0);
 		});
@@ -119,7 +121,8 @@ describe("ExerciseSetCard", () => {
 			exercises: [
 				{
 					title: "Timing corpus drill",
-					instruction: "Timing drill coming soon. Practice bars 1-8 at 80% tempo.",
+					instruction:
+						"Timing drill coming soon. Practice bars 1-8 at 80% tempo.",
 					focusDimension: "timing",
 					// no exerciseId — corpus_drill path
 				},
@@ -127,7 +130,9 @@ describe("ExerciseSetCard", () => {
 			// no scoreClip
 		};
 		const { ExerciseSetCard } = await import("./ExerciseSetCard");
-		expect(() => render(React.createElement(ExerciseSetCard, { config }))).not.toThrow();
+		expect(() =>
+			render(React.createElement(ExerciseSetCard, { config })),
+		).not.toThrow();
 		await waitFor(() => {
 			expect(document.body.textContent).toContain("timing focus");
 			expect(document.body.textContent).toContain("Timing corpus drill");
@@ -151,7 +156,9 @@ describe("ExerciseSetCard", () => {
 			],
 		};
 		const { ExerciseSetCard } = await import("./ExerciseSetCard");
-		expect(() => render(React.createElement(ExerciseSetCard, { config }))).not.toThrow();
+		expect(() =>
+			render(React.createElement(ExerciseSetCard, { config })),
+		).not.toThrow();
 		await waitFor(() => {
 			expect(document.body.textContent).toContain("pedaling focus");
 		});
@@ -164,9 +171,25 @@ describe("ExerciseSetCard", () => {
 				pieceId: "test",
 				verovioVersion: "4.0.0",
 				pageWidth: 1600,
-				pages: [{ pageN: 1, viewBox: "0 0 1600 600", width: 1600, height: 600, systemBboxes: [] }],
+				pages: [
+					{
+						pageN: 1,
+						viewBox: "0 0 1600 600",
+						width: 1600,
+						height: 600,
+						systemBboxes: [],
+					},
+				],
 				bars: [
-					{ barNumber: 5, measureOn: "m5", pageN: 1, bbox: { x: 0, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 16, qstampEnd: 20 },
+					{
+						barNumber: 5,
+						measureOn: "m5",
+						pageN: 1,
+						bbox: { x: 0, y: 0, w: 0, h: 0 },
+						noteIds: [],
+						qstampStart: 16,
+						qstampEnd: 20,
+					},
 				],
 				notes: {},
 			},
@@ -175,19 +198,34 @@ describe("ExerciseSetCard", () => {
 		const config: ExerciseSetConfig = {
 			sourcePassage: "bars 5-8",
 			targetSkill: "dynamics focus",
-			scoreClip: { pieceId: "chopin.ballades.1", bars: [5, 8], tempoFactor: 0.75 },
+			scoreClip: {
+				pieceId: "chopin.ballades.1",
+				bars: [5, 8],
+				tempoFactor: 0.75,
+			},
 			exercises: [
-				{ title: "Loop passage", instruction: "Loop at 75%.", focusDimension: "dynamics" },
+				{
+					title: "Loop passage",
+					instruction: "Loop at 75%.",
+					focusDimension: "dynamics",
+				},
 			],
 		};
 		const { ExerciseSetCard } = await import("./ExerciseSetCard");
 		render(React.createElement(ExerciseSetCard, { config }));
 
 		await waitFor(() => {
-			expect(mockGetClipPlayback).toHaveBeenCalledWith("chopin.ballades.1", 5, 8, 0);
+			expect(mockGetClipPlayback).toHaveBeenCalledWith(
+				"chopin.ballades.1",
+				5,
+				8,
+				0,
+			);
 			expect(document.body.innerHTML).toContain('data-test="loop-clip"');
 		});
-		expect(document.body.querySelector('[data-testid="loop-transport"]')).not.toBeNull();
+		expect(
+			document.body.querySelector('[data-testid="loop-transport"]'),
+		).not.toBeNull();
 	});
 
 	it("passes correct wiring props (pieceId, bars, tempoFactor) to useLoopPlayer when scoreClip has tempoFactor", async () => {
@@ -200,9 +238,25 @@ describe("ExerciseSetCard", () => {
 				pieceId: "bach.wtc.1",
 				verovioVersion: "4.0.0",
 				pageWidth: 1600,
-				pages: [{ pageN: 1, viewBox: "0 0 1600 600", width: 1600, height: 600, systemBboxes: [] }],
+				pages: [
+					{
+						pageN: 1,
+						viewBox: "0 0 1600 600",
+						width: 1600,
+						height: 600,
+						systemBboxes: [],
+					},
+				],
 				bars: [
-					{ barNumber: 1, measureOn: "m1", pageN: 1, bbox: { x: 0, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 0, qstampEnd: 4 },
+					{
+						barNumber: 1,
+						measureOn: "m1",
+						pageN: 1,
+						bbox: { x: 0, y: 0, w: 0, h: 0 },
+						noteIds: [],
+						qstampStart: 0,
+						qstampEnd: 4,
+					},
 				],
 				notes: {},
 			},
@@ -214,7 +268,11 @@ describe("ExerciseSetCard", () => {
 			targetSkill: "wiring contract",
 			scoreClip: { pieceId: "bach.wtc.1", bars: [1, 4], tempoFactor: 0.8 },
 			exercises: [
-				{ title: "Wiring test", instruction: "Test.", focusDimension: "timing" },
+				{
+					title: "Wiring test",
+					instruction: "Test.",
+					focusDimension: "timing",
+				},
 			],
 		};
 		const { ExerciseSetCard } = await import("./ExerciseSetCard");
@@ -227,7 +285,8 @@ describe("ExerciseSetCard", () => {
 		// useLoopPlayer must have been called with the correct tempoFactor from scoreClip.
 		// This verifies the card-to-hook wiring contract even though the hook itself is mocked.
 		expect(mockUseLoopPlayer).toHaveBeenCalled();
-		const lastCall = mockUseLoopPlayer.mock.calls[mockUseLoopPlayer.mock.calls.length - 1][0];
+		const lastCall =
+			mockUseLoopPlayer.mock.calls[mockUseLoopPlayer.mock.calls.length - 1][0];
 		expect(lastCall.tempoFactor).toBe(0.8);
 		expect(lastCall.beatsPerBar).toBe(4);
 		expect(lastCall.bpmAtUnity).toBe(120);
@@ -250,7 +309,9 @@ describe("ExerciseSetCard", () => {
 		await waitFor(() => {
 			expect(document.body.textContent).toContain("timing focus");
 		});
-		expect(document.body.querySelector('[data-testid="loop-transport"]')).toBeNull();
+		expect(
+			document.body.querySelector('[data-testid="loop-transport"]'),
+		).toBeNull();
 		expect(mockGetClipPlayback).not.toHaveBeenCalled();
 	});
 
@@ -261,9 +322,25 @@ describe("ExerciseSetCard", () => {
 				pieceId: "hanon_001",
 				verovioVersion: "4.0.0",
 				pageWidth: 1600,
-				pages: [{ pageN: 1, viewBox: "0 0 1600 600", width: 1600, height: 600, systemBboxes: [] }],
+				pages: [
+					{
+						pageN: 1,
+						viewBox: "0 0 1600 600",
+						width: 1600,
+						height: 600,
+						systemBboxes: [],
+					},
+				],
 				bars: [
-					{ barNumber: 1, measureOn: "m1", pageN: 1, bbox: { x: 0, y: 0, w: 0, h: 0 }, noteIds: [], qstampStart: 0, qstampEnd: 4 },
+					{
+						barNumber: 1,
+						measureOn: "m1",
+						pageN: 1,
+						bbox: { x: 0, y: 0, w: 0, h: 0 },
+						noteIds: [],
+						qstampStart: 0,
+						qstampEnd: 4,
+					},
 				],
 				notes: {},
 			},
@@ -272,7 +349,12 @@ describe("ExerciseSetCard", () => {
 		const config: ExerciseSetConfig = {
 			sourcePassage: "bars 1-29",
 			targetSkill: "timing",
-			scoreClip: { pieceId: "hanon_001", bars: [1, 29] as [number, number], tempoFactor: 0.8, transpose: 2 },
+			scoreClip: {
+				pieceId: "hanon_001",
+				bars: [1, 29] as [number, number],
+				tempoFactor: 0.8,
+				transpose: 2,
+			},
 			exercises: [{ title: "t", instruction: "i", focusDimension: "timing" }],
 		};
 		const { ExerciseSetCard } = await import("./ExerciseSetCard");

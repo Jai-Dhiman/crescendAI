@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
-import type { Bindings, Variables } from "../lib/types";
+import type { Bindings, Db, Variables } from "../lib/types";
 import { errorHandler } from "../middleware/error-handler";
 import { practiceRoutes, resolveSessionStudentId } from "./practice";
 
@@ -11,7 +11,7 @@ function makeAuthApp(dbStub: Record<string, unknown>) {
 	const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 	app.use("*", async (c, next) => {
 		c.set("studentId", "student-a");
-		c.set("db", dbStub);
+		c.set("db", dbStub as unknown as Db);
 		await next();
 	});
 	app.route("/api/practice", practiceRoutes);

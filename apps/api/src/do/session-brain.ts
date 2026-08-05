@@ -40,14 +40,14 @@ import type {
 } from "../services/teacher";
 
 export function toPastDiagnosisRecord(row: {
-	id: string
-	sessionId: string
-	primaryDimension: string
-	barRangeStart: number | null
-	barRangeEnd: number | null
-	artifactJson: unknown
-	createdAt: Date
-	pieceId: string | null | undefined
+	id: string;
+	sessionId: string;
+	primaryDimension: string;
+	barRangeStart: number | null;
+	barRangeEnd: number | null;
+	artifactJson: unknown;
+	createdAt: Date;
+	pieceId: string | null | undefined;
 }): PastDiagnosisRecord {
 	return {
 		id: row.id,
@@ -58,13 +58,10 @@ export function toPastDiagnosisRecord(row: {
 		artifactJson: row.artifactJson as Record<string, unknown>,
 		createdAt: row.createdAt.toISOString(),
 		pieceId: row.pieceId ?? null,
-	}
+	};
 }
-import {
-	type SynthesisInput,
-	synthesizeV6,
-	synthesize as teacherSynthesize,
-} from "../services/teacher";
+
+import { type SynthesisInput, synthesizeV6 } from "../services/teacher";
 import type { InlineComponent } from "../services/tool-processor";
 import type {
 	ChunkAnalysis,
@@ -75,6 +72,7 @@ import type {
 	ScoreContext,
 	ScoredChunk,
 	StudentBaselines,
+	TeachingMoment,
 } from "../services/wasm-bridge";
 // WASM bridge — imported at top level (bridge handles missing pkg gracefully)
 import * as wasm from "../services/wasm-bridge";
@@ -108,6 +106,92 @@ export function buildV6WsPayload(
 			...(pendingComponent ? [pendingComponent] : []),
 		],
 		isFallback: false,
+	};
+}
+
+/**
+ * Eval-only payload: the accumulator snapshot plus the FULL synthesis artifact.
+ *
+ * The delivered WebSocket payload carries only `artifact.headline`, because that
+ * is all the student sees. The eval judge needs the rest — strengths, focus areas,
+ * suggestions, next_session_focus — or it grades one paragraph and calls it the
+ * system's output (#28).
+ *
+ * `prescribed_exercise` is also lifted to the top level because the exercise-routing
+ * eval already reads it there.
+ */
+export function buildEvalContext(
+	snapshot: Record<string, unknown>,
+	artifact: SynthesisArtifact,
+): Record<string, unknown> {
+	return {
+		...snapshot,
+		artifact,
+		prescribed_exercise: artifact.prescribed_exercise ?? null,
+	};
+}
+
+/**
+ * Per-chunk analysis context attached to an observation for eval sessions only.
+ * Null for real sessions — see buildObservationPayload.
+ */
+export interface ObservationEvalDetail {
+	predictions: [number, number, number, number, number, number];
+	baselines: StudentBaselines | null;
+	analysisFacts: unknown | null;
+	barRange: [number, number] | null;
+	analysisTier: number;
+}
+
+/**
+ * Build the `observation` WebSocket message.
+ *
+ * The student-facing payload is deliberately four keys: the product does not put
+ * raw dimension scores on the wire (the teacher prompt is explicit that numbers
+ * are not shown), so `evalDetail` MUST be null for real sessions.
+ *
+ * For eval sessions the same message carries an `eval_context` block, mirroring
+ * what the synthesis path already does. Without it the observation-quality eval
+ * read `chunk_index`/`score`/`baseline`/`reasoning_trace` off a payload that
+ * never contained them — `.get(key, default)` does not raise, so every
+ * observation silently reported chunk 0 and zeroed scores, collapsing every
+ * trace file onto one filename and grading each observation against an empty
+ * context (#143).
+ */
+export function buildObservationPayload(
+	moment: TeachingMoment,
+	evalDetail: ObservationEvalDetail | null,
+): {
+	type: "observation";
+	text: string;
+	dimension: string;
+	framing: string;
+	eval_context?: Record<string, unknown>;
+} {
+	const payload = {
+		type: "observation" as const,
+		text: moment.is_positive
+			? `Nice work on your ${moment.dimension}.`
+			: `I'm noticing something in your ${moment.dimension} -- let's talk after.`,
+		dimension: moment.dimension,
+		framing: moment.is_positive ? "recognition" : "correction",
+	};
+
+	if (evalDetail === null) return payload;
+
+	return {
+		...payload,
+		eval_context: {
+			chunk_index: moment.chunk_index,
+			score: moment.score,
+			baseline: moment.baseline,
+			reasoning_trace: moment.reasoning,
+			predictions: evalDetail.predictions,
+			baselines: evalDetail.baselines,
+			analysis_facts: evalDetail.analysisFacts,
+			bar_range: evalDetail.barRange,
+			analysis_tier: evalDetail.analysisTier,
+		},
 	};
 }
 
@@ -580,7 +664,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 		await this.ctx.blockConcurrencyWhile(async () => {
 			const state = await this.readState();
 			state.chunksInFlight++;
-			state.receivedRealInferenceChunk = true;  // mark: this session used real inference
 			await this.ctx.storage.put("state", state);
 		});
 
@@ -814,10 +897,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 								})()
 							: null;
 
-					if (
-						noteResult !== null &&
-						noteResult.bar_map.alignments.length > 0
-					) {
+					if (noteResult !== null && noteResult.bar_map.alignments.length > 0) {
 						// Tier 1: score+reference deviations reach the teacher.
 						const { bar_map } = noteResult;
 						chunkBarRange = [bar_map.bar_start, bar_map.bar_end];
@@ -1172,19 +1252,21 @@ export class SessionBrain extends DurableObject<Bindings> {
 					if (!dimSuppressed) {
 						acc.accumulateMoment(accMoment);
 
-						// Send lightweight observation to client
-						const obsText = moment.is_positive
-							? `Nice work on your ${moment.dimension}.`
-							: `I'm noticing something in your ${moment.dimension} -- let's talk after.`;
-
-						const framing = moment.is_positive ? "recognition" : "correction";
-
-						this.sendWs(ws, {
-							type: "observation",
-							text: obsText,
-							dimension: moment.dimension,
-							framing,
-						});
+						this.sendWs(
+							ws,
+							buildObservationPayload(
+								moment,
+								currentState.isEvalSession
+									? {
+											predictions: scoresArray,
+											baselines,
+											analysisFacts: accMoment.llmAnalysis,
+											barRange: chunkBarRange,
+											analysisTier: chunkAnalysisTier,
+										}
+									: null,
+							),
+						);
 					}
 				}
 			} catch (err) {
@@ -1472,16 +1554,21 @@ export class SessionBrain extends DurableObject<Bindings> {
 					};
 					acc.accumulateMoment(accMoment);
 
-					const obsText = moment.is_positive
-						? `Nice work on your ${moment.dimension}.`
-						: `I'm noticing something in your ${moment.dimension} -- let's talk after.`;
-
-					this.sendWs(ws, {
-						type: "observation",
-						text: obsText,
-						dimension: moment.dimension,
-						framing: moment.is_positive ? "recognition" : "correction",
-					});
+					this.sendWs(
+						ws,
+						buildObservationPayload(
+							moment,
+							state.isEvalSession
+								? {
+										predictions: scoresArray,
+										baselines,
+										analysisFacts: accMoment.llmAnalysis,
+										barRange: chunkBarRange,
+										analysisTier: chunkAnalysisTier,
+									}
+								: null,
+						),
+					);
 				}
 			} catch {
 				// WASM unavailable
@@ -1758,224 +1845,137 @@ export class SessionBrain extends DurableObject<Bindings> {
 			referenceMode,
 		};
 
-		// teacher.synthesize() throws on failure — try/catch handles it
+		// synthesizeV6() throws on failure — try/catch handles it.
 		// synthesisCompleted stays true but DB needsSynthesis remains true, enabling deferred retry.
-		// Eval sessions bypass v6 (whose strict validation gates silently no-op on sparse accumulator
-		// state) and use the legacy teacher path — same path the locked ASCF baseline was measured on.
+		// Eval sessions drive the SAME V6 path as production (#28): eval code = prod code, so the
+		// eval measures what ships. There is no legacy synthesis path and no HARNESS_V6_ENABLED flag.
 		try {
-			if (this.env.HARNESS_V6_ENABLED === "true" && (!state.isEvalSession || state.receivedRealInferenceChunk)) {
-				let artifact: SynthesisArtifact | null = null;
-				let validationError: string | null = null;
-				const phase1Results: Array<{ tool: string; output: unknown }> = [];
+			let artifact: SynthesisArtifact | null = null;
+			let validationError: string | null = null;
+			const phase1Results: Array<{ tool: string; output: unknown }> = [];
 
-				for await (const ev of synthesizeV6(
-					ctx,
-					synthInput,
+			for await (const ev of synthesizeV6(
+				ctx,
+				synthInput,
+				state.sessionId,
+				(p) => this.ctx.waitUntil(p),
+			)) {
+				if (ev.type === "artifact") {
+					artifact = ev.value;
+				} else if (ev.type === "validation_error") {
+					validationError = ev.zodError;
+				} else if (ev.type === "phase_error") {
+					console.error(
+						JSON.stringify({
+							level: "error",
+							message: "v6 phase_error",
+							phase: ev.phase,
+							error: ev.error,
+							sessionId: state.sessionId,
+						}),
+					);
+				} else if (ev.type === "phase1_tool_result" && ev.ok) {
+					phase1Results.push({ tool: ev.tool, output: ev.output });
+				}
+			}
+
+			// Persist diagnosis artifacts (non-fatal)
+			if (phase1Results.length > 0) {
+				await persistDiagnosisArtifacts(
+					db,
+					phase1Results,
 					state.sessionId,
-					(p) => this.ctx.waitUntil(p),
-				)) {
-					if (ev.type === "artifact") {
-						artifact = ev.value;
-					} else if (ev.type === "validation_error") {
-						validationError = ev.zodError;
-					} else if (ev.type === "phase_error") {
-						console.error(
-							JSON.stringify({
-								level: "error",
-								message: "v6 phase_error",
-								phase: ev.phase,
-								error: ev.error,
-								sessionId: state.sessionId,
-							}),
-						);
-					} else if (ev.type === "phase1_tool_result" && ev.ok) {
-						phase1Results.push({ tool: ev.tool, output: ev.output });
-					}
-				}
+					state.studentId,
+					state.pieceIdentification?.pieceId ?? null,
+				);
+			}
 
-				// Persist diagnosis artifacts (non-fatal)
-				if (phase1Results.length > 0) {
-					await persistDiagnosisArtifacts(
-						db,
-						phase1Results,
-						state.sessionId,
-						state.studentId,
-						state.pieceIdentification?.pieceId ?? null,
-					);
-				}
-
-				if (validationError !== null) {
-					console.error(
-						JSON.stringify({
-							level: "error",
-							message: "v6 validation_error",
-							error: validationError,
-							sessionId: state.sessionId,
-						}),
-					);
-					return; // leave needsSynthesis=true for retry
-				}
-
-				if (artifact === null) {
-					console.error(
-						JSON.stringify({
-							level: "error",
-							message: "v6 produced no artifact",
-							sessionId: state.sessionId,
-						}),
-					);
-					return;
-				}
-
-				const loopComponents = artifact.assigned_loops.map((ref) =>
-					toLoopComponent({
-						kind: "segment_loop",
-						id: ref.id,
-						studentId: state.studentId,
-						pieceId: ref.pieceId,
-						barsStart: ref.barsStart,
-						barsEnd: ref.barsEnd,
-						requiredCorrect: DEFAULT_LOOP_REQUIRED_CORRECT,
-						attemptsCompleted: 0,
-						status: "active",
-						dimension: null,
+			if (validationError !== null) {
+				console.error(
+					JSON.stringify({
+						level: "error",
+						message: "v6 validation_error",
+						error: validationError,
+						sessionId: state.sessionId,
 					}),
 				);
-				let pendingComponent: InlineComponent | null = null;
-				if (artifact.prescribed_exercise !== null) {
-					try {
-						const staged = await stageDominantExercise(db, {
-							studentId: state.studentId,
-							sessionId: state.sessionId,
-							dominantDimension: artifact.dominant_dimension,
-							routing: artifact.prescribed_exercise,
-							pieceCtx,
-						});
-						pendingComponent = buildPendingExerciseComponent(staged);
-					} catch (err) {
-						const error = err as Error;
-						console.log(
-							JSON.stringify({
-								level: "warn",
-								message:
-									"stageDominantExercise failed; synthesis delivered without pending component",
-								sessionId: state.sessionId,
-								error: error.message,
-							}),
-						);
-					}
-				}
-				const wsPayload = buildV6WsPayload(
-					artifact,
-					loopComponents,
-					pendingComponent,
+				return; // leave needsSynthesis=true for retry
+			}
+
+			if (artifact === null) {
+				console.error(
+					JSON.stringify({
+						level: "error",
+						message: "v6 produced no artifact",
+						sessionId: state.sessionId,
+					}),
 				);
-				const wsPayloadWithEval =
-					evalContext !== null
-						? {
-							...wsPayload,
-							eval_context: {
-								...evalContext,
-								prescribed_exercise: artifact.prescribed_exercise ?? null,
-							},
-						  }
-						: wsPayload;
-				const sockets = this.ctx.getWebSockets();
-				for (const sock of sockets) {
-					this.sendWs(sock, wsPayloadWithEval);
-				}
-
-				if (state.conversationId !== null) {
-					try {
-						await persistSynthesisMessage(
-							db,
-							state.conversationId,
-							wsPayload.text,
-							state.sessionId,
-							wsPayload.components.length > 0
-								? wsPayload.components
-								: undefined,
-						);
-						await persistAccumulatedMoments(
-							db,
-							state.studentId,
-							state.sessionId,
-							state.conversationId,
-							acc.teachingMoments,
-						);
-						await clearNeedsSynthesis(db, state.sessionId);
-					} catch (err) {
-						const error = err as Error;
-						console.error(
-							JSON.stringify({
-								level: "error",
-								message: "v6 synthesis DB persist failed",
-								sessionId: state.sessionId,
-								error: error.message,
-							}),
-						);
-					}
-				}
-
-				// Eval flywheel: sample ~5% of prod sessions into R2 eval queue.
-				// Skip eval sessions themselves to avoid self-feeding the queue.
-				if (!state.isEvalSession && Math.random() < 0.05) {
-					this.ctx.waitUntil(
-						this.env.CHUNKS.put(
-							`eval-queue/${state.sessionId}.json`,
-							JSON.stringify({
-								session_id: state.sessionId,
-								student_id: state.studentId,
-								piece_id: state.pieceIdentification?.pieceId ?? null,
-								synthesis_text: wsPayload.text,
-								top_moments: topMoments,
-								drilling_records: drillingRecords,
-								session_duration_ms: sessionDurationMs,
-								sampled_at: new Date().toISOString(),
-							}),
-							{ httpMetadata: { contentType: "application/json" } },
-						).catch((err: Error) => {
-							console.log(
-								JSON.stringify({
-									level: "warn",
-									message: "eval flywheel write failed",
-									sessionId: state.sessionId,
-									error: err.message,
-								}),
-							);
-						}),
-					);
-				}
-
 				return;
 			}
 
-			// Legacy path (HARNESS_V6_ENABLED !== "true"):
-			const result = await teacherSynthesize(ctx, synthInput);
-
-			// Send synthesis over WebSocket if connection still open
-			const components = result.toolResults.flatMap((r) => r.componentsJson);
+			const loopComponents = artifact.assigned_loops.map((ref) =>
+				toLoopComponent({
+					kind: "segment_loop",
+					id: ref.id,
+					studentId: state.studentId,
+					pieceId: ref.pieceId,
+					barsStart: ref.barsStart,
+					barsEnd: ref.barsEnd,
+					requiredCorrect: DEFAULT_LOOP_REQUIRED_CORRECT,
+					attemptsCompleted: 0,
+					status: "active",
+					dimension: null,
+				}),
+			);
+			let pendingComponent: InlineComponent | null = null;
+			if (artifact.prescribed_exercise !== null) {
+				try {
+					const staged = await stageDominantExercise(db, {
+						studentId: state.studentId,
+						sessionId: state.sessionId,
+						dominantDimension: artifact.dominant_dimension,
+						routing: artifact.prescribed_exercise,
+						pieceCtx,
+					});
+					pendingComponent = buildPendingExerciseComponent(staged);
+				} catch (err) {
+					const error = err as Error;
+					console.log(
+						JSON.stringify({
+							level: "warn",
+							message:
+								"stageDominantExercise failed; synthesis delivered without pending component",
+							sessionId: state.sessionId,
+							error: error.message,
+						}),
+					);
+				}
+			}
+			const wsPayload = buildV6WsPayload(
+				artifact,
+				loopComponents,
+				pendingComponent,
+			);
+			const wsPayloadWithEval =
+				evalContext !== null
+					? {
+							...wsPayload,
+							eval_context: buildEvalContext(evalContext, artifact),
+						}
+					: wsPayload;
 			const sockets = this.ctx.getWebSockets();
 			for (const sock of sockets) {
-				const payload: Record<string, unknown> = {
-					type: "synthesis",
-					text: result.text,
-					components,
-					isFallback: false,
-				};
-				if (evalContext !== null) payload["eval_context"] = evalContext;
-				this.sendWs(sock, payload as Parameters<typeof this.sendWs>[1]);
+				this.sendWs(sock, wsPayloadWithEval);
 			}
 
-			// Persist to DB
 			if (state.conversationId !== null) {
 				try {
 					await persistSynthesisMessage(
 						db,
 						state.conversationId,
-						result.text,
+						wsPayload.text,
 						state.sessionId,
-						components.length > 0 ? components : undefined,
+						wsPayload.components.length > 0 ? wsPayload.components : undefined,
 					);
 					await persistAccumulatedMoments(
 						db,
@@ -1990,20 +1990,49 @@ export class SessionBrain extends DurableObject<Bindings> {
 					console.error(
 						JSON.stringify({
 							level: "error",
-							message: "synthesis DB persist failed",
+							message: "v6 synthesis DB persist failed",
 							sessionId: state.sessionId,
 							error: error.message,
 						}),
 					);
-					// Not fatal: accumulator_json persisted in finalizeSession as safety net
 				}
+			}
+
+			// Eval flywheel: sample ~5% of prod sessions into R2 eval queue.
+			// Skip eval sessions themselves to avoid self-feeding the queue.
+			if (!state.isEvalSession && Math.random() < 0.05) {
+				this.ctx.waitUntil(
+					this.env.CHUNKS.put(
+						`eval-queue/${state.sessionId}.json`,
+						JSON.stringify({
+							session_id: state.sessionId,
+							student_id: state.studentId,
+							piece_id: state.pieceIdentification?.pieceId ?? null,
+							synthesis_text: wsPayload.text,
+							top_moments: topMoments,
+							drilling_records: drillingRecords,
+							session_duration_ms: sessionDurationMs,
+							sampled_at: new Date().toISOString(),
+						}),
+						{ httpMetadata: { contentType: "application/json" } },
+					).catch((err: Error) => {
+						console.log(
+							JSON.stringify({
+								level: "warn",
+								message: "eval flywheel write failed",
+								sessionId: state.sessionId,
+								error: err.message,
+							}),
+						);
+					}),
+				);
 			}
 		} catch (err) {
 			const error = err as Error;
 			console.error(
 				JSON.stringify({
 					level: "error",
-					message: "teacher.synthesize failed",
+					message: "v6 synthesis failed",
 					sessionId: state.sessionId,
 					error: error.message,
 				}),
@@ -2207,9 +2236,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 	} | null> {
 		let artifactJson: string;
 		try {
-			const obj = await this.env.SCORES.get(
-				"fingerprint/v2/piece_index.json",
-			);
+			const obj = await this.env.SCORES.get("fingerprint/v2/piece_index.json");
 			if (!obj) {
 				console.log(
 					JSON.stringify({

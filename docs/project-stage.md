@@ -1,6 +1,6 @@
 # Project Stage — Pre-Beta, Local-First
 
-**Status (2026-06-05): PRE-BETA. Zero real users.** Nothing here is serving customers yet. Read this before reasoning about "production", deploys, or databases.
+**Status (2026-08-04): PRE-BETA. Zero real users.** Nothing here is serving customers yet. Read this before reasoning about "production", deploys, or databases.
 
 ## What "production" and "shipped" mean right now
 
@@ -33,11 +33,13 @@ DATABASE_URL="postgresql://jdhiman:postgres@localhost:5432/crescendai_dev" bun r
 
 If local is green, we are **deploy-ready**. Pulling the trigger is a separate, explicit choice.
 
-## Known measurement caveat (do not forget)
+## Measurement posture
 
-Production runs the **V6 harness** (`HARNESS_V6_ENABLED="true"` → `synthesizeV6` → the hook-driven two-phase compound loop in `apps/api/src/harness/`). The **eval harness bypasses V6** and replays through the legacy single-prompt `synthesize()` path. So:
+**Eval and production run the same code path (#28).** Synthesis always goes through `synthesizeV6` → the hook-driven two-phase compound loop in `apps/api/src/harness/`. The legacy single-prompt `synthesize()` path and the `HARNESS_V6_ENABLED` flag are deleted, so there is no longer an eval-only branch that can diverge from what users hit. The judge grades the full `SynthesisArtifact` (strengths, focus areas with severity, next-session focus), not just the delivered headline.
 
-- Eval numbers (incl. the locked `_SONNET_BASELINE`, #22) measure the **legacy path, not what users hit**. Treat them as a legacy proxy.
-- Making the eval V6-aware is the prerequisite for automatically measuring the real agentic system. Until then, harness behavior is verified by unit tests + manual local click-through.
+Two caveats remain:
+
+- **The locked `_SONNET_BASELINE` (#22) is stale.** It was measured on the now-deleted legacy path, so it is not comparable to anything the current system produces. A fresh glm baseline over the 98-holdout has **not** been locked yet — that is #28 item 4, blocked on Workers AI daily quota.
+- **A failed synthesis is silent, not flagged.** When V6 fails validation or produces no artifact, the DO returns without sending a `synthesis` message at all. The eval detects this as `SessionResult.synthesis is None` plus a "No synthesis received" entry in `SessionResult.errors`. There is deliberately no `is_fallback` boolean — the only emitter hardcoded it to `false`, so it could never report a failure.
 
 See `docs/harness.md` for the V6 architecture and `docs/architecture.md` for the full system.

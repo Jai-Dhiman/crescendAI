@@ -1,6 +1,6 @@
-import { test, expect } from "vitest";
-import { prioritizeDiagnoses } from "./prioritize-diagnoses";
+import { expect, test } from "vitest";
 import type { DiagnosisArtifact } from "../../artifacts/diagnosis";
+import { prioritizeDiagnoses } from "./prioritize-diagnoses";
 
 const makeD = (overrides: Partial<DiagnosisArtifact>): DiagnosisArtifact => ({
 	primary_dimension: "dynamics",

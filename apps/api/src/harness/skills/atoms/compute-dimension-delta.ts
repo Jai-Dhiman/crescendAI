@@ -1,5 +1,5 @@
-import type { ToolDefinition } from "../../loop/types";
 import { DIMENSIONS } from "../../artifacts/diagnosis";
+import type { ToolDefinition } from "../../loop/types";
 
 export const computeDimensionDelta: ToolDefinition = {
 	name: "compute-dimension-delta",

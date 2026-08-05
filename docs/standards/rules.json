@@ -1,0 +1,227 @@
+{
+  "version": 1,
+  "note": "Compact rule index. Prose lives at each rule's `source`; this file is what agents and scripts load. `status` is the promotion ramp: proposed -> approved (advisory, surfaces as P2) -> enforced (blocking). `check` names a function in scripts/standards_check.py; rules without one are enforced by /review.",
+  "rules": {
+    "META-001": {
+      "level": "MUST",
+      "text": "Every TS-* rule id MUST appear both in docs/standards/rules.json and as a [ID] marker in its source document.",
+      "source": "docs/standards/rules.json",
+      "scope": ["docs/standards/rules.json", "apps/api/TS_STYLE.md"],
+      "status": "enforced",
+      "check": "rules_index_sync"
+    },
+    "OPS-001": {
+      "level": "MUST",
+      "text": "Documented or scripted `bun run migrate` invocations MUST set DATABASE_URL explicitly; a bare invocation from apps/api targets the hosted production database.",
+      "source": "CLAUDE.md#stage-and-safety",
+      "scope": ["**"],
+      "status": "enforced",
+      "check": "bare_migrate"
+    },
+    "OPS-002": {
+      "level": "MUST",
+      "text": "`uv run --with <tool>` MUST pass --no-project; without it the command rebuilds the shared model/.venv.",
+      "source": "CLAUDE.md#tooling",
+      "scope": ["**"],
+      "status": "enforced",
+      "check": "uv_run_isolation"
+    },
+    "PY-001": {
+      "level": "MUST",
+      "text": "CLI default paths MUST be anchored to __file__, never relative to the current working directory, because `just` recipes change CWD.",
+      "source": "CLAUDE.md#tooling",
+      "scope": ["**/*.py"],
+      "status": "approved",
+      "check": "cwd_relative_defaults"
+    },
+    "TS-WRK-001": {
+      "level": "MUST",
+      "text": "Worker code MUST read configuration from c.env or the fetch handler env, never process.env.",
+      "source": "apps/api/TS_STYLE.md#1",
+      "scope": ["apps/api/src/**"],
+      "status": "enforced"
+    },
+    "TS-HONO-001": {
+      "level": "MUST",
+      "text": "Validators and handler MUST be chained in a single expression; a separate handler function loses Hono RPC type inference.",
+      "source": "apps/api/TS_STYLE.md#2",
+      "scope": ["apps/api/src/routes/**"],
+      "status": "enforced"
+    },
+    "TS-HONO-002": {
+      "level": "MUST",
+      "text": "AppType MUST be exported from the chained .route() result, not from the base app.",
+      "source": "apps/api/TS_STYLE.md#2",
+      "scope": ["apps/api/src/index.ts"],
+      "status": "enforced"
+    },
+    "TS-HONO-003": {
+      "level": "MUST",
+      "text": "CF service bindings MUST NOT be destructured from c.env; they lose their `this` context and throw Illegal invocation.",
+      "source": "apps/api/TS_STYLE.md#2",
+      "scope": ["apps/api/src/**"],
+      "status": "enforced"
+    },
+    "TS-HONO-004": {
+      "level": "MUST",
+      "text": "Request-scoped data MUST NOT be stored in module-level variables; isolates are reused across requests.",
+      "source": "apps/api/TS_STYLE.md#2",
+      "scope": ["apps/api/src/**"],
+      "status": "enforced"
+    },
+    "TS-HONO-005": {
+      "level": "MUST",
+      "text": "zValidator MUST be given an error hook returning JSON; the default response is plain text.",
+      "source": "apps/api/TS_STYLE.md#2",
+      "scope": ["apps/api/src/routes/**"],
+      "status": "enforced"
+    },
+    "TS-HONO-006": {
+      "level": "MUST",
+      "text": "SSE responses MUST set Content-Encoding: Identity or wrangler dev buffers the stream.",
+      "source": "apps/api/TS_STYLE.md#2",
+      "scope": ["apps/api/src/**"],
+      "status": "enforced"
+    },
+    "TS-HONO-007": {
+      "level": "MUST",
+      "text": "Routes that proxy to a Durable Object MUST forward c.req.raw and MUST NOT use upgradeWebSocket from hono/cloudflare-workers.",
+      "source": "apps/api/TS_STYLE.md#2",
+      "scope": ["apps/api/src/routes/**"],
+      "status": "enforced"
+    },
+    "TS-ERR-001": {
+      "level": "MUST",
+      "text": "Service files MUST NOT import HTTPException or return HTTP status codes; they throw domain errors that the error middleware maps.",
+      "source": "apps/api/TS_STYLE.md#3",
+      "scope": ["apps/api/src/services/**"],
+      "status": "enforced"
+    },
+    "TS-ERR-002": {
+      "level": "MUST",
+      "text": "The onError handler MUST map each domain error to a status and MUST log unmapped errors with message and stack before returning 500.",
+      "source": "apps/api/TS_STYLE.md#3",
+      "scope": ["apps/api/src/middleware/**"],
+      "status": "enforced"
+    },
+    "TS-SVC-001": {
+      "level": "MUST",
+      "text": "Services MUST take a single ServiceContext argument rather than individual dependencies.",
+      "source": "apps/api/TS_STYLE.md#4",
+      "scope": ["apps/api/src/services/**"],
+      "status": "enforced"
+    },
+    "TS-SVC-002": {
+      "level": "MUST",
+      "text": "Services MUST be stateless functions: no cached DB connections, no singletons.",
+      "source": "apps/api/TS_STYLE.md#4",
+      "scope": ["apps/api/src/services/**"],
+      "status": "enforced"
+    },
+    "TS-DB-001": {
+      "level": "MUST",
+      "text": "postgres-js MUST NOT be constructed with prepare: false; Hyperdrive multiplexes prepared statements.",
+      "source": "apps/api/TS_STYLE.md#5",
+      "scope": ["apps/api/src/db/**"],
+      "status": "enforced"
+    },
+    "TS-DB-002": {
+      "level": "MUST",
+      "text": "Inside db.transaction(), every statement MUST use the tx parameter; using the outer db bypasses the transaction.",
+      "source": "apps/api/TS_STYLE.md#5",
+      "scope": ["apps/api/src/**"],
+      "status": "enforced"
+    },
+    "TS-DB-003": {
+      "level": "MUST",
+      "text": "Files under db/migrations/ are drizzle-kit output and MUST NOT be hand-edited.",
+      "source": "apps/api/TS_STYLE.md#5",
+      "scope": ["apps/api/src/db/migrations/**"],
+      "status": "enforced"
+    },
+    "TS-DB-004": {
+      "level": "SHOULD",
+      "text": "Schema columns SHOULD be .notNull() unless genuinely nullable, timestamps SHOULD carry withTimezone, and indexes SHOULD be named idx_{table}_{columns}.",
+      "source": "apps/api/TS_STYLE.md#5",
+      "scope": ["apps/api/src/db/schema/**"],
+      "status": "enforced"
+    },
+    "TS-AUTH-001": {
+      "level": "MUST",
+      "text": "better-auth MUST be created per request; env bindings are request-scoped on Workers.",
+      "source": "apps/api/TS_STYLE.md#6",
+      "scope": ["apps/api/src/**"],
+      "status": "enforced"
+    },
+    "TS-AUTH-002": {
+      "level": "MUST",
+      "text": "session.cookieCache MUST stay disabled while better-auth #4203 is open; enabling it logs users out at cache TTL.",
+      "source": "apps/api/TS_STYLE.md#6",
+      "scope": ["apps/api/src/**"],
+      "status": "enforced"
+    },
+    "TS-DO-001": {
+      "level": "MUST",
+      "text": "Durable Object WebSockets MUST use this.ctx.acceptWebSocket(); server.accept() prevents hibernation and bills idle time.",
+      "source": "apps/api/TS_STYLE.md#7",
+      "scope": ["apps/api/src/do/**"],
+      "status": "enforced"
+    },
+    "TS-DO-002": {
+      "level": "MUST",
+      "text": "Durable Object state read before an await MUST be re-read and version-compared after it; another event can mutate state mid-await.",
+      "source": "apps/api/TS_STYLE.md#7",
+      "scope": ["apps/api/src/do/**"],
+      "status": "enforced"
+    },
+    "TS-DO-003": {
+      "level": "MUST",
+      "text": "Scheduled work in Durable Objects MUST use alarms, never setTimeout or setInterval.",
+      "source": "apps/api/TS_STYLE.md#7",
+      "scope": ["apps/api/src/do/**"],
+      "status": "enforced"
+    },
+    "TS-DO-004": {
+      "level": "MUST",
+      "text": "setAlarm MUST be preceded by a getAlarm check; unconditional sets clobber pending alarms.",
+      "source": "apps/api/TS_STYLE.md#7",
+      "scope": ["apps/api/src/do/**"],
+      "status": "enforced"
+    },
+    "TS-DO-005": {
+      "level": "SHOULD",
+      "text": "Durable Object state SHOULD be validated with its Zod schema on every read from storage.",
+      "source": "apps/api/TS_STYLE.md#7",
+      "scope": ["apps/api/src/do/**"],
+      "status": "enforced"
+    },
+    "TS-LOG-001": {
+      "level": "MUST",
+      "text": "Production logs MUST be console.log(JSON.stringify({...})); plain-string logs are not indexed by Workers Logs.",
+      "source": "apps/api/TS_STYLE.md#8",
+      "scope": ["apps/api/src/**"],
+      "status": "enforced"
+    },
+    "TS-LOG-002": {
+      "level": "MUST",
+      "text": "Error logs MUST include message and stack.",
+      "source": "apps/api/TS_STYLE.md#8",
+      "scope": ["apps/api/src/**"],
+      "status": "enforced"
+    },
+    "TS-TYPE-001": {
+      "level": "MUST",
+      "text": "`any` MUST NOT be used; use unknown and narrow with Zod or a type guard.",
+      "source": "apps/api/TS_STYLE.md#12",
+      "scope": ["apps/api/src/**"],
+      "status": "enforced"
+    },
+    "TS-FILE-001": {
+      "level": "SHOULD",
+      "text": "Files SHOULD be kebab-case and route modules SHOULD use a named {xxxRoutes} export, not a default export.",
+      "source": "apps/api/TS_STYLE.md#11",
+      "scope": ["apps/api/src/**"],
+      "status": "enforced"
+    }
+  }
+}

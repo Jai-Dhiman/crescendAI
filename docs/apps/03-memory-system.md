@@ -2,7 +2,7 @@
 
 How CrescendAI remembers what it knows about a student across sessions. This is the data inventory for the apps layer -- parallel to how `model/01-data.md` catalogs training data, this doc catalogs the runtime data structures that accumulate as a student practices.
 
-> **Status (2026-03-24):** Observations table COMPLETE. Synthesized facts COMPLETE. Session arc COMPLETE (LLM-generated session summary with memory context, client fallback). Memory retrieval wired for both chat and practice session paths. **Eval suite upgraded (2026-03-24):** 20 realistic scenarios added (50 total), JSON output, 3-run baseline (composite 0.735, synth_recall 0.813, temp_accuracy 0.639). Autoresearch found synthesis prompt already well-tuned. Phase 3 retrieval optimization remains.
+> **Status (2026-08-04):** Revised for the score-first redesign (epic #154). The two-clock model, three-layer architecture, bi-temporal facts, and eval suite stand. Two changes: (1) the state-clock baseline is upgraded from a single EMA to the **dual-EWMA + bandwidth/persistence gate** below (#163), which now also drives mark lifecycle; (2) "observations" become **marks** — the durable record of what the teacher flagged (`05-ui-system.md`). Prior status (2026-03-24): observations + synthesized facts + session arc COMPLETE; eval baseline composite 0.735.
 
 See `02-pipeline.md` for the teacher pipeline that produces observations.
 See `model/02-teacher-grounded-taxonomy.md` for the 6 dimensions that define the baseline schema.
@@ -14,16 +14,34 @@ See `02-pipeline.md` for the subagent that consumes memory at inference time.
 
 From Koratana's "How to build a context graph" and Marple's "Building the Event Clock": every system has a **state clock** (what is true now) and an **event clock** (what happened, in what order, with what reasoning). Most systems only build the state clock.
 
-### State Clock (Baselines)
+### State Clock (Baselines — dual EWMA + bandwidth gate)
 
-What level is the student at, right now, per dimension?
+What level is the student at, right now, per dimension — and when is a
+deviation worth saying something about?
 
-- Exponential moving average per dimension (dynamics, timing, pedaling, articulation, phrasing, interpretation)
-- Inferred overall level
-- Explicit goals (student-reported)
-- Already implemented in SwiftData (iOS) + D1 (cloud)
+Per dimension (dynamics, timing, pedaling, articulation, phrasing,
+interpretation), over MoonBeam scores and MPM features:
 
-The state clock answers: "Where does this student stand?"
+- **Short EWMA** (~3-5 session half-life): recent state.
+- **Long EWMA** (~15-25 session half-life): the personal baseline. EWMA over
+  rolling windows because it degrades gracefully from session 1 (every
+  production system that discloses real internals uses EWMA-family smoothing).
+- **Tolerance band** around the long EWMA: width = max(typical-error noise
+  floor from the student's own session-to-session variance, 0.2 × SD).
+- **Mark-worthy** = short EWMA outside the band, **persistently** (2-3
+  consecutive sessions or repeated within-session evidence) — bandwidth
+  feedback, the best-validated intervention gate in the motor-learning
+  literature, doubling as standard false-alarm control.
+- **Symmetric retirement**: persistently back inside the band retires the
+  flag. This single mechanism drives the mark lifecycle
+  (`active -> improving -> resolved`) and the piece page's fading marks.
+- **Cold start** (sessions 1-3): cohort priors from self-reported level,
+  feedback framed as exploratory; real gating from ~session 5-8 once the
+  noise floor is measurable. The cold-start path IS the
+  baseline-unavailable fallback path — one code path.
+
+Design mechanics and tuning live in #163. The state clock answers: "Where
+does this student stand, and is this deviation signal or noise?"
 
 ### Event Clock (Reasoning Traces)
 
@@ -54,15 +72,15 @@ The two clocks describe *what* memory stores. The three-layer architecture descr
 
 The canonical evidence trail, structured as an **enrichment cache with prompt-aware keys**. From the Mahler wiki's *How to grep video*: raw audio (like raw video) is a binary container, not grep-able. The cache is what makes it so. Each audio chunk has multiple coexisting cache entries, one per extraction schema:
 
-- **MuQ-quality extraction** -- 6-dim scores per 15s chunk.
+- **Quality-score extraction** -- 6-dim scores from MoonBeam-839M over MPM-style features, per bar when aligned and per window when pieceless (#162). Previously MuQ over raw audio.
 - **AMT-transcription extraction** -- midi_notes frames, pedal events, velocity curves.
 - **Teaching-moment extraction** -- worst-dimension deviation from baseline + blind-spot dimension.
 - **Score-following extraction** -- bar alignments, onset deviations.
 - **(Future) skill-scoped extractions** -- when a new molecule or atom needs a derived representation that is reused across sessions (e.g., pedal-overlap density, voicing-balance curves), it can add its own extraction schema. The new entry coexists with the existing entries on the same chunks.
 
-**Prompt-aware keys** means the same chunk can carry multiple extraction entries, each queried independently. **Cross-modal queries** combine entries -- "MuQ timing high AND AMT onset drift > 20ms" is the highest-signal diagnostic class and does not exist in any single extraction alone.
+**Prompt-aware keys** means the same chunk can carry multiple extraction entries, each queried independently. **Cross-modal queries** combine entries -- "timing score high AND AMT onset drift > 20ms" is the highest-signal diagnostic class and does not exist in any single extraction alone.
 
-MuQ 6-dim emissions, AMT midi_notes frames, teaching-moment deviations (worst-dimension delta from baseline), score-following alignments, raw audio pointers (R2 keys). Append-only. Signals never change after emission; if the model improves, new signals supersede but do not overwrite old ones. This is what every downstream claim in the harness must be traceable to.
+6-dim quality-score emissions, AMT midi_notes frames, MPM-style feature vectors, teaching-moment deviations (worst-dimension delta from baseline), score-following alignments, raw audio pointers (R2 keys). Append-only. Signals never change after emission; if the model improves, new signals supersede but do not overwrite old ones. This is what every downstream claim in the harness must be traceable to.
 
 ### Layer 2: Entity (Resolved Identity)
 
@@ -97,7 +115,7 @@ Episode capture -- built with the `/api/ask` pipeline. Each row is one teaching 
 | `elaboration_text` | TEXT | Extended explanation (if requested) |
 | `reasoning_trace` | TEXT (JSON) | Condensed subagent reasoning for this observation |
 | `framing` | TEXT | One of: correction, recognition, encouragement, question |
-| `dimension_score` | REAL | MuQ score for this dimension on this chunk |
+| `dimension_score` | REAL | Quality score for this dimension on this chunk |
 | `student_baseline` | REAL | Student's baseline for this dimension at time of observation |
 | `piece_id` | TEXT | Score Library piece ID (e.g., `chopin.etudes_op_10.3`). Nullable -- omitted when piece not identified. Enables efficient per-piece filtering. |
 | `piece_context` | TEXT (JSON) | `{piece_id, composer, title, section, bar_range}` |
@@ -185,6 +203,8 @@ This separation matters because contradictions are handled by invalidation, not 
 
 **Contradiction handling:** When a new observation contradicts an active fact, the synthesis LLM sets `invalid_at` on the old fact and creates a new one. Old facts are preserved -- never deleted.
 
+**Promotion and retirement discipline (#154/#163):** episodic marks promote to a durable habit fact ("consistently rushes descending runs") only when the same pattern recurs across weeks — repeated confirmation, not one session. Retirement is explicit and rule-driven, mirroring the bandwidth gate symmetrically: a pattern persistently back inside the band auto-retires its fact. Staleness is never left to LLM discretion — that is the one documented failure mode shared by every production memory system surveyed (MemGPT, mem0, Zep).
+
 ---
 
 ## Retrieval Strategy
@@ -206,7 +226,7 @@ CrescendAI's domain is narrow enough that structured queries retrieve everything
 
 - **One user per student model** (no identity resolution)
 - **Known ontology** (6 dimensions, pieces, sessions, observations)
-- **Structured numerical data** (MuQ scores, not free-form text)
+- **Structured numerical data** (6-dim quality scores, not free-form text)
 - **Low volume** (dozens of observations per student per month, not thousands)
 
 No graph database, no embedding-based retrieval, no complex memory consolidation pipelines. Simple D1 tables with bi-temporal fields.
@@ -238,7 +258,7 @@ The teacher LLM (stage 2) receives the subagent's output (~200 tokens) plus the 
 | LongMemEval (ICLR 2025) | 500 questions across 5 abilities | Commercial systems score only 30-70%. Temporal reasoning is hardest. |
 | LoCoMo (Snap Research) | 300+ turn conversations, 35 sessions | Most systems fail at multi-session reasoning. |
 | MemBench (Oct 2025) | Dynamic contexts 0-100K tokens | Knowledge updates and temporal reasoning are weakest across all systems. |
-| AMA-Bench (Feb 2026) | Real agentic trajectories | Directly relevant: CrescendAI deals with machine-generated observations (MuQ scores), not human-agent chat. |
+| AMA-Bench (Feb 2026) | Real agentic trajectories | Directly relevant: CrescendAI deals with machine-generated observations (quality scores and MPM features), not human-agent chat. |
 
 ### Systems
 
@@ -286,7 +306,7 @@ Ships with the `/api/ask` pipeline (see `02-pipeline.md`).
 
 ```
 [x] Memory context loaded in finalize_session for summary generation
-[x] LLM-generated session summary (Anthropic Sonnet, 2-4 sentences)
+[x] LLM-generated session summary (teacher LLM, model ID in wrangler.toml; 2-4 sentences)
 [x] Client-built fallback on LLM failure
 [x] Eval session bypass
 [x] CF Workers 30s subrequest limit as timeout backstop
@@ -331,7 +351,7 @@ Matching: regex (Pass 1) + sentence-transformer cosine similarity at threshold 0
 - **Retrieval** (deterministic): Does the system retrieve the right facts?
 - **Synthesis** (Workers AI): Does the LLM produce valid structured facts from observations?
 - **Temporal** (chronological replay): Does the system handle fact lifecycle (creation, invalidation, abstention)?
-- **Downstream** (A/B + Claude judge): Does memory improve feedback quality?
+- **Downstream** (A/B + Claude judge, candidate options; current prod judge/teacher family lives in wrangler.toml): Does memory improve feedback quality?
 - **Chat Extraction** (live API): Does the system extract personal facts from chat?
 - **LoCoMo** (ACL 2024 benchmark): External generalization test.
 
@@ -375,7 +395,7 @@ External benchmark: long-conversation memory via QA pairs. Tests whether the ext
 ### Remaining Gaps (target: F1 > 0.65)
 
 - **Multi-sample eval:** Run 3-5 samples to get stable numbers
-- **Stronger QA model:** Try Claude Haiku or GPT-4o-mini instead of Llama 70B — may reduce variance and improve synthesis
+- **Stronger QA model:** Try Claude Haiku or GPT-4o-mini (candidate options; current prod judge/teacher family lives in wrangler.toml) instead of Llama 70B — may reduce variance and improve synthesis
 - **Chain-of-thought QA:** Add explicit reasoning step before answering open-ended questions
 - **Extraction cap:** Raise from 5 to 8 per exchange to catch missed facts
 - **Semantic dedup threshold:** Current 0.90 is conservative; try 0.85

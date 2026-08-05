@@ -68,7 +68,11 @@ export async function* runPhase2(
 			? `${FIRST_SESSION_GUARDRAIL}\n\n`
 			: "";
 
-	const userPrompt = buildPhase2Prompt(ctx.digest as GroundedDigest, diagnoses, guardrail);
+	const userPrompt = buildPhase2Prompt(
+		ctx.digest as GroundedDigest,
+		diagnoses,
+		guardrail,
+	);
 	const client = routeModel("phase2_voice", ctx.env);
 	const messages: Array<{ role: "user" | "assistant"; content: unknown }> = [
 		{ role: "user", content: userPrompt },

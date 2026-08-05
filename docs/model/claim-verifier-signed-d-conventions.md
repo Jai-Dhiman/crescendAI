@@ -1,5 +1,9 @@
 # Claim Verifier: Per-Dimension Signed-d Conventions and Error-Bar Table
 
+**Status (2026-08-04):** #101/#108 PARKED — GATE 3 is not the active frontier. Resume trigger:
+#133 closes with trusted Track B evidence of a measured follower failure. Content below is the
+evidentiary record through FRONT 9 (2026-07-27).
+
 **Issue:** #65, #94 (first real-audio measurement), #101 (GATE 3 ground-truth baseline + hard gates)
 **Taxonomy version:** v0.3
 **Validation boundary:** This document covers substrate-level measurement. The error bars in

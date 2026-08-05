@@ -1,9 +1,9 @@
-import type { ToolDefinition } from "../../loop/types";
+import { z } from "zod";
 import {
 	type DiagnosisArtifact,
 	DiagnosisArtifactSchema,
 } from "../../artifacts/diagnosis";
-import { z } from "zod";
+import type { ToolDefinition } from "../../loop/types";
 
 const SEVERITY_RANK: Record<string, number> = {
 	significant: 3,

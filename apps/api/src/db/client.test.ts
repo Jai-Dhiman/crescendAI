@@ -1,11 +1,14 @@
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Capture the options passed to postgres() so we can assert connection limits
 const capturedOptions: Record<string, unknown>[] = [];
 const mockSql = { options: {} };
 
 vi.mock("postgres", () => ({
-	default: (_connectionString: string, options: Record<string, unknown> = {}) => {
+	default: (
+		_connectionString: string,
+		options: Record<string, unknown> = {},
+	) => {
 		capturedOptions.push(options);
 		return mockSql;
 	},

@@ -2,7 +2,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockArtifact = vi.fn(() => null);
+const mockArtifact = vi.fn((_component: { type: string }) => null);
 vi.mock("./Artifact", () => ({
 	Artifact: (props: { component: { type: string }; artifactId: string }) => {
 		mockArtifact(props.component);
@@ -142,7 +142,11 @@ describe("ChatMessages — assistant-message testid", () => {
 		vi.doMock("./Artifact", () => ({ Artifact: () => null }));
 		vi.doMock("./MessageContent", () => ({
 			MessageContent: ({ content }: { content: string }) =>
-				React.createElement("div", { "data-testid": "message-content" }, content),
+				React.createElement(
+					"div",
+					{ "data-testid": "message-content" },
+					content,
+				),
 		}));
 		vi.doMock("./ToolCallBar", () => ({ ToolCallBar: () => null }));
 
@@ -154,7 +158,9 @@ describe("ChatMessages — assistant-message testid", () => {
 			createdAt: new Date().toISOString(),
 		};
 		render(React.createElement(ChatMessages, { messages: [message] }));
-		expect(document.querySelector("[data-testid='assistant-message']")).not.toBeNull();
+		expect(
+			document.querySelector("[data-testid='assistant-message']"),
+		).not.toBeNull();
 	});
 
 	it("does NOT add assistant-message testid to a synthesis message", async () => {
@@ -162,7 +168,11 @@ describe("ChatMessages — assistant-message testid", () => {
 		vi.doMock("./Artifact", () => ({ Artifact: () => null }));
 		vi.doMock("./MessageContent", () => ({
 			MessageContent: ({ content }: { content: string }) =>
-				React.createElement("div", { "data-testid": "message-content" }, content),
+				React.createElement(
+					"div",
+					{ "data-testid": "message-content" },
+					content,
+				),
 		}));
 		vi.doMock("./ToolCallBar", () => ({ ToolCallBar: () => null }));
 
@@ -175,8 +185,12 @@ describe("ChatMessages — assistant-message testid", () => {
 			messageType: "synthesis" as const,
 		};
 		render(React.createElement(ChatMessages, { messages: [message] }));
-		expect(document.querySelector("[data-testid='synthesis-message']")).not.toBeNull();
-		expect(document.querySelector("[data-testid='assistant-message']")).toBeNull();
+		expect(
+			document.querySelector("[data-testid='synthesis-message']"),
+		).not.toBeNull();
+		expect(
+			document.querySelector("[data-testid='assistant-message']"),
+		).toBeNull();
 	});
 
 	it("does NOT add assistant-message testid to a user message", async () => {
@@ -184,7 +198,11 @@ describe("ChatMessages — assistant-message testid", () => {
 		vi.doMock("./Artifact", () => ({ Artifact: () => null }));
 		vi.doMock("./MessageContent", () => ({
 			MessageContent: ({ content }: { content: string }) =>
-				React.createElement("div", { "data-testid": "message-content" }, content),
+				React.createElement(
+					"div",
+					{ "data-testid": "message-content" },
+					content,
+				),
 		}));
 		vi.doMock("./ToolCallBar", () => ({ ToolCallBar: () => null }));
 
@@ -196,6 +214,8 @@ describe("ChatMessages — assistant-message testid", () => {
 			createdAt: new Date().toISOString(),
 		};
 		render(React.createElement(ChatMessages, { messages: [message] }));
-		expect(document.querySelector("[data-testid='assistant-message']")).toBeNull();
+		expect(
+			document.querySelector("[data-testid='assistant-message']"),
+		).toBeNull();
 	});
 });

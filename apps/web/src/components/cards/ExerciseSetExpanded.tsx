@@ -15,7 +15,6 @@ interface ButtonProps {
 function buttonProps(
 	status: ExerciseStatus,
 	hasExerciseId: boolean,
-	studentExerciseId: string | undefined,
 	onStart: () => void,
 	onComplete: () => void,
 	onRetry: () => void,
@@ -148,7 +147,6 @@ function ExpandedExerciseItem({
 	const btn = buttonProps(
 		status,
 		!!exercise.exerciseId,
-		studentExerciseId,
 		handleStart,
 		handleComplete,
 		handleRetry,

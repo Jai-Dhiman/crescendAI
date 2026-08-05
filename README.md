@@ -1,17 +1,15 @@
-[![sloprank](https://sloprank.io/badge/jai-dhiman/crescendai.svg)](https://sloprank.io/repo/jai-dhiman/crescendai)
 [![arXiv](https://img.shields.io/badge/arXiv-2601.19029-b31b1b.svg)](https://arxiv.org/abs/2601.19029)
 ![PyTorch](https://img.shields.io/badge/PyTorch-orange?logo=pytorch&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare_Workers-F38020?logo=cloudflare&logoColor=white)
 ![HuggingFace](https://img.shields.io/badge/HuggingFace-yellow?logo=huggingface)
-[![MuQ](https://img.shields.io/badge/MuQ-6366f1)](https://github.com/tencent-ailab/MuQ)
 ![License](https://img.shields.io/badge/license-CC--BY--NC--4.0-blue)
 
 # CrescendAI
 
 **A teacher for every pianist.**
 
-Pre-beta, local-first iOS and web practice companion for evidence-backed piano feedback. The current inference path combines a frozen public MuQ checkpoint with separately trained A1-Max heads for six research scores, plus Transkun transcription and symbolic score alignment. The V6 harness turns those signals into one actionable observation and preserves uncertainty rather than treating any model score as ground truth.
+Practice companion for evidence-backed piano feedback. The current inference path combines a frozen MuQ checkpoint with separately trained A1-Max heads for six research scores, plus Transkun transcription and symbolic score alignment. The V6 harness turns those signals into one actionable observation and preserves uncertainty rather than treating any model score as ground truth.
 
 ## Historical Model Benchmark
 
@@ -91,7 +89,6 @@ See [docs/architecture.md](docs/architecture.md) for the full system diagram and
 | Area | Entry Point | Contents |
 |------|-------------|----------|
 | Architecture | [docs/architecture.md](docs/architecture.md) | System diagram, cross-cutting concerns (auth, sync, observability) |
-| Apps status | [docs/apps/00-status.md](docs/apps/00-status.md) | Implementation dashboard for iOS, web, API, inference |
 | Product vision | [docs/apps/01-product-vision.md](docs/apps/01-product-vision.md) | Target user, interaction model, UX principles |
 | Pipeline | [docs/apps/02-pipeline.md](docs/apps/02-pipeline.md) | Full audio-to-observation pipeline (STOP, subagent, teacher, score following) |
 | Student memory | [docs/apps/03-memory-system.md](docs/apps/03-memory-system.md) | Two-clock model, observations, synthesized facts |
