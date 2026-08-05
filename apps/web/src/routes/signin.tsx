@@ -148,7 +148,7 @@ function WaitlistPage() {
 							<button
 								type="submit"
 								disabled={loading}
-								className="mt-6 w-full bg-accent text-ink-primary px-6 py-3 text-body-sm font-medium rounded-lg hover:brightness-110 transition disabled:opacity-50"
+								className="mt-6 w-full bg-accent text-on-accent px-6 py-3 text-body-sm font-medium rounded-lg hover:brightness-110 transition disabled:opacity-50"
 							>
 								{loading ? "Joining..." : "Join the Waitlist"}
 							</button>
