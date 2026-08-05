@@ -168,3 +168,79 @@ def test_extraction_is_byte_identical_across_repeated_calls_in_eval_mode():
 
     np.testing.assert_array_equal(first, second)
     np.testing.assert_array_equal(first, third)
+
+
+def test_main_actually_updates_lora_weights_not_just_the_score_head(
+    tmp_path, monkeypatch
+):
+    """A stale or un-injected `transformer` reference would still pass every
+    assertion in test_main_trains_a_lora_adapter_and_writes_emb_fold_for_all_eval_pieces
+    (the forward pass, save_pretrained, and extraction all succeed with only
+    the head training) and land indistinguishably near frozen 0.8257 -- a
+    false negative that costs $13 and a wrong MIREX conclusion. Guard against
+    a detached LoRA by asserting lora_A AND lora_B actually move."""
+    fold_plan = [{
+        "fold": 0,
+        "test_seg_ids": ["e0", "e1"],
+        "train_seg_ids": ["t0", "t1", "t2", "t3"],
+        "val_seg_ids": ["v0"],
+    }]
+    (tmp_path / "fold_plan.json").write_text(json.dumps(fold_plan))
+    (tmp_path / "pool_grades.json").write_text(json.dumps(
+        {"t0": 1, "t1": 5, "t2": 8, "t3": 3, "v0": 4}))
+    (tmp_path / "eval_manifest.json").write_text(json.dumps([
+        {"seg_id": "e0", "grade": 2, "composer_id": 0},
+        {"seg_id": "e1", "grade": 9, "composer_id": 1},
+    ]))
+    out_dir = tmp_path / "fold0_lora_moves"
+    captured = {}
+
+    def fake_loader_factory(checkpoint_path, repo_root, model_config):
+        outer = _FakeOuter(hidden=4, n_layers=1, vocab=16)
+        captured["outer"] = outer
+
+        def tokenize(midi_path):
+            n = _TOKEN_LENGTHS[midi_path.stem]
+            return torch.arange(n) % 16
+
+        return outer, tokenize, 4  # matches --max-len below
+
+    import peft
+
+    real_get_peft_model = peft.get_peft_model
+    initial = {}
+
+    def spying_get_peft_model(base_model, lora_config):
+        peft_model = real_get_peft_model(base_model, lora_config)
+        proj = peft_model.model.model.layers[-1].self_attn.q_proj
+        initial["lora_A"] = proj.lora_A["default"].weight.detach().clone()
+        initial["lora_B"] = proj.lora_B["default"].weight.detach().clone()
+        return peft_model
+
+    monkeypatch.setattr(peft, "get_peft_model", spying_get_peft_model)
+
+    exit_code = main(
+        [
+            "--fold", "0",
+            "--checkpoint", str(tmp_path / "fake.pt"),
+            "--repo-root", str(tmp_path / "repo"),
+            "--model-config", str(tmp_path / "repo" / "model_config.json"),
+            "--fold-plan", str(tmp_path / "fold_plan.json"),
+            "--pool-grades", str(tmp_path / "pool_grades.json"),
+            "--eval-manifest", str(tmp_path / "eval_manifest.json"),
+            "--midi-dir", str(tmp_path / "mid"),
+            "--out-dir", str(out_dir),
+            "--hidden-size", "4",
+            "--n-layers", "1",
+            "--n-top-layers", "1",
+            "--max-len", "4",
+            "--epochs", "1",
+            "--micro-batch", "2",
+        ],
+        loader_factory=fake_loader_factory,
+    )
+
+    assert exit_code == 0
+    proj = captured["outer"].model.layers[-1].self_attn.q_proj
+    assert not torch.equal(proj.lora_A["default"].weight.detach(), initial["lora_A"])
+    assert not torch.equal(proj.lora_B["default"].weight.detach(), initial["lora_B"])
