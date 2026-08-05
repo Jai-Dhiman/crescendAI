@@ -46,3 +46,15 @@ describe("cold start", () => {
 		expect(roundTripped).toEqual(result);
 	});
 });
+
+describe("explicit failures", () => {
+	it("throws on an unknown dimension", () => {
+		const state = initialBaselineState();
+		expect(() =>
+			updateBaseline(state, {
+				timestamp: "2026-01-01T00:00:00Z",
+				scores: { not_a_dimension: CLUSTER } as never,
+			}),
+		).toThrow(/unknown dimension/);
+	});
+});

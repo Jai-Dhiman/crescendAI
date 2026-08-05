@@ -113,11 +113,20 @@ export function initialBaselineState(): BaselineState {
  * fold any evidence (Tasks 6+); every dimension simply passes through
  * unchanged.
  */
+function validateSession(_state: BaselineState, session: SessionSamples): void {
+	for (const dimension of Object.keys(session.scores)) {
+		if (!(DIMS_6 as readonly string[]).includes(dimension)) {
+			throw new Error(`updateBaseline: unknown dimension "${dimension}"`);
+		}
+	}
+}
+
 export function updateBaseline(
 	state: BaselineState,
 	session: SessionSamples,
 	_config: BaselineConfig = DEFAULT_BASELINE_CONFIG,
 ): BaselineState {
+	validateSession(state, session);
 	return {
 		lastSessionTimestamp: session.timestamp,
 		dimensions: state.dimensions,
