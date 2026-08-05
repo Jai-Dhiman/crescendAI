@@ -173,3 +173,27 @@ describe("band width", () => {
 		expect(halfWidths[5]).toBeCloseTo(0.0155, 3);
 	});
 });
+
+describe("symmetric retirement", () => {
+	it("walks active -> improving -> resolved on persistent return-to-band", () => {
+		const shifted = [0.79, 0.81, 0.79, 0.81, 0.79, 0.81];
+		const sessions: SessionSamples[] = [
+			{ timestamp: "2026-01-01T00:00:00Z", scores: { timing: CLUSTER } },
+			{ timestamp: "2026-01-02T00:00:00Z", scores: { timing: shifted } },
+			{ timestamp: "2026-01-03T00:00:00Z", scores: { timing: shifted } },
+			{ timestamp: "2026-01-04T00:00:00Z", scores: { timing: shifted } }, // fires -> active
+			{ timestamp: "2026-02-01T00:00:00Z", scores: { timing: CLUSTER } },
+			{ timestamp: "2026-02-02T00:00:00Z", scores: { timing: CLUSTER } },
+			{ timestamp: "2026-02-03T00:00:00Z", scores: { timing: CLUSTER } },
+			{ timestamp: "2026-02-04T00:00:00Z", scores: { timing: CLUSTER } },
+			{ timestamp: "2026-02-05T00:00:00Z", scores: { timing: CLUSTER } },
+			{ timestamp: "2026-02-06T00:00:00Z", scores: { timing: CLUSTER } },
+			{ timestamp: "2026-02-07T00:00:00Z", scores: { timing: CLUSTER } }, // -> improving
+			{ timestamp: "2026-02-08T00:00:00Z", scores: { timing: CLUSTER } }, // -> resolved
+		];
+		const trace = runSequence(sessions);
+		expect(trace[3].dimensions.timing.lifecycle).toBe("active");
+		expect(trace[10].dimensions.timing.lifecycle).toBe("improving");
+		expect(trace[11].dimensions.timing.lifecycle).toBe("resolved");
+	});
+});
