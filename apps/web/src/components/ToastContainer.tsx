@@ -12,16 +12,16 @@ function ToastItem({ toast }: { toast: Toast }) {
 
 	const bgColor =
 		toast.type === "error"
-			? "border-red-500/40"
+			? "border-danger/40"
 			: toast.type === "success"
 				? "border-accent/40"
-				: "border-border";
+				: "border-border-subtle";
 
 	return (
 		<div
-			className={`bg-surface-card border ${bgColor} rounded-lg px-4 py-3 shadow-card animate-slide-in-right min-w-[260px] max-w-sm`}
+			className={`bg-surface-raised border ${bgColor} rounded-lg px-4 py-3 shadow-card animate-slide-in-right min-w-[260px] max-w-sm`}
 		>
-			<p className="text-body-sm text-cream">{toast.message}</p>
+			<p className="text-body-sm text-ink-primary">{toast.message}</p>
 		</div>
 	);
 }

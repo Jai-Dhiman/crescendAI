@@ -10,14 +10,14 @@ function TermsPage() {
 	return (
 		<div className="pt-24 pb-16 lg:pb-24">
 			<div className="max-w-3xl mx-auto px-6 lg:px-12">
-				<h1 className="font-display text-display-md text-cream mb-4">
+				<h1 className="font-display text-display-md text-ink-primary mb-4">
 					Terms of Service
 				</h1>
-				<p className="text-body-sm text-text-tertiary mb-12">
+				<p className="text-body-sm text-ink-tertiary mb-12">
 					Effective: {EFFECTIVE_DATE}
 				</p>
 
-				<div className="space-y-10 text-body-md text-text-secondary leading-relaxed">
+				<div className="space-y-10 text-body-md text-ink-secondary leading-relaxed">
 					<Section title="1. Acceptance of Terms">
 						<p>
 							By accessing or using the {ENTITY_NAME} service ("Service"),
@@ -166,7 +166,9 @@ function Section({
 }) {
 	return (
 		<section>
-			<h2 className="font-display text-display-sm text-cream mb-4">{title}</h2>
+			<h2 className="font-display text-display-sm text-ink-primary mb-4">
+				{title}
+			</h2>
 			{children}
 		</section>
 	);

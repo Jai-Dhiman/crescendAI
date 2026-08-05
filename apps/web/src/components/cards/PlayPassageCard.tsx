@@ -1,7 +1,7 @@
 // apps/web/src/components/cards/PlayPassageCard.tsx
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
-import { DIMENSION_COLORS } from "../../lib/mock-session";
+import { DIMENSION_COLOR_VAR } from "../../lib/dimension-colors";
 import { PassagePlayer } from "../../lib/passage-player";
 import { scoreRenderer } from "../../lib/score-renderer";
 import type { PassageManifest, PlayPassageConfig } from "../../lib/types";
@@ -99,8 +99,8 @@ export function PlayPassageCard({
 	]);
 
 	const color =
-		DIMENSION_COLORS[config.dimension as keyof typeof DIMENSION_COLORS] ??
-		"#7a9a82";
+		DIMENSION_COLOR_VAR[config.dimension as keyof typeof DIMENSION_COLOR_VAR] ??
+		"var(--color-accent)";
 
 	return (
 		// The explicit aria-label matters: without it the row's accessible name is
@@ -110,7 +110,7 @@ export function PlayPassageCard({
 			role="button"
 			tabIndex={0}
 			aria-label={`Expand passage, bars ${config.bars[0]}-${config.bars[1]}`}
-			className="bg-surface-card border border-border rounded-xl overflow-hidden mt-3"
+			className="bg-surface-raised border border-border-subtle rounded-xl overflow-hidden mt-3"
 			onClick={onExpand}
 			onKeyDown={(e) => {
 				if (e.key === "Enter" || e.key === " ") {
@@ -121,7 +121,7 @@ export function PlayPassageCard({
 		>
 			{loadState === "loading" && (
 				<div className="h-10 flex items-center justify-center">
-					<div className="w-3.5 h-3.5 rounded-full border-2 border-text-tertiary/50 border-t-transparent animate-spin" />
+					<div className="w-3.5 h-3.5 rounded-full border-2 border-ink-tertiary/50 border-t-transparent animate-spin" />
 				</div>
 			)}
 			{(loadState === "ready" || loadState === "audio_error") &&
@@ -133,7 +133,7 @@ export function PlayPassageCard({
 								position: "relative",
 								borderRadius: "6px",
 								border: `1.5px solid ${color}40`,
-								backgroundColor: "white",
+								backgroundColor: "var(--color-score-canvas)",
 								overflow: "hidden",
 							}}
 						>
@@ -144,19 +144,19 @@ export function PlayPassageCard({
 								type="button"
 								aria-label="Play passage"
 								onClick={() => void playerRef.current?.play()}
-								className="mt-3 px-3 py-1.5 rounded-md border border-border text-body-sm text-text-primary hover:bg-surface transition-colors"
+								className="mt-3 px-3 py-1.5 rounded-md border border-border-subtle text-body-sm text-ink-primary hover:bg-surface-raised transition-colors"
 							>
 								Play
 							</button>
 						) : (
-							<span className="mt-3 inline-block text-body-sm text-text-tertiary">
+							<span className="mt-3 inline-block text-body-sm text-ink-tertiary">
 								Audio unavailable
 							</span>
 						)}
 					</div>
 				)}
 			{loadState === "error" && (
-				<div className="p-4 text-body-sm text-text-tertiary">
+				<div className="p-4 text-body-sm text-ink-tertiary">
 					couldn't load audio
 				</div>
 			)}
@@ -166,14 +166,14 @@ export function PlayPassageCard({
 						className="w-1.5 h-1.5 rounded-full"
 						style={{ backgroundColor: color }}
 					/>
-					<span className="text-label-sm text-text-tertiary uppercase tracking-wide">
+					<span className="text-label-sm text-ink-tertiary uppercase tracking-wide">
 						{config.dimension}
 					</span>
 				</div>
-				<span className="text-body-xs text-text-tertiary">
+				<span className="text-body-xs text-ink-tertiary">
 					bars {config.bars[0]}–{config.bars[1]}
 				</span>
-				<p className="text-body-sm text-text-primary mt-0.5 leading-snug">
+				<p className="text-body-sm text-ink-primary mt-0.5 leading-snug">
 					{config.annotation}
 				</p>
 			</div>

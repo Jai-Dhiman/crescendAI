@@ -63,20 +63,22 @@ function WaitlistPage() {
 				className="absolute inset-0"
 				style={{
 					background:
-						"radial-gradient(ellipse at center, rgba(45,41,38,0.4) 0%, rgba(45,41,38,0.85) 100%)",
+						"radial-gradient(ellipse at center, color-mix(in srgb, var(--color-surface-page) 40%, transparent) 0%, color-mix(in srgb, var(--color-surface-page) 85%, transparent) 100%)",
 				}}
 			/>
 
 			<div className="relative z-10 flex items-center justify-center h-full px-6">
 				<div
-					className="w-full max-w-sm bg-surface/80 backdrop-blur-xl border border-border px-8 py-14 text-center rounded-2xl"
+					className="w-full max-w-sm bg-surface-raised/80 backdrop-blur-xl border border-border-subtle px-8 py-14 text-center rounded-2xl"
 					style={{
 						animation: "fade-in-up 600ms cubic-bezier(0.16, 1, 0.3, 1) both",
 					}}
 				>
-					<h1 className="font-display text-display-sm text-cream">crescend</h1>
+					<h1 className="font-display text-display-sm text-ink-primary">
+						crescend
+					</h1>
 
-					<p className="mt-3 text-body-md text-text-secondary">
+					<p className="mt-3 text-body-md text-ink-secondary">
 						A teacher for every pianist.
 					</p>
 
@@ -87,22 +89,22 @@ function WaitlistPage() {
 									"fade-in-up 500ms cubic-bezier(0.16, 1, 0.3, 1) both",
 							}}
 						>
-							<p className="mt-8 font-display text-body-lg text-cream font-medium">
+							<p className="mt-8 font-display text-body-lg text-ink-primary font-medium">
 								You're on the list.
 							</p>
-							<p className="mt-2 text-body-sm text-text-secondary">
+							<p className="mt-2 text-body-sm text-ink-secondary">
 								We'll reach out when your spot is ready.
 							</p>
 							<Link
 								to="/"
-								className="mt-6 inline-block text-body-xs text-text-tertiary underline hover:text-text-secondary transition"
+								className="mt-6 inline-block text-body-xs text-ink-tertiary underline hover:text-ink-secondary transition"
 							>
 								Back to homepage
 							</Link>
 						</div>
 					) : (
 						<form onSubmit={handleSubmit} className="mt-8">
-							<p className="text-body-sm text-text-secondary mb-6">
+							<p className="text-body-sm text-ink-secondary mb-6">
 								We're building something new. Join the beta waitlist to be first
 								in.
 							</p>
@@ -113,7 +115,7 @@ function WaitlistPage() {
 								value={email}
 								onChange={(e) => setEmail(e.target.value)}
 								placeholder="Your email"
-								className="w-full bg-surface-2 text-cream border border-border rounded-lg px-4 py-3 text-body-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent transition"
+								className="w-full bg-surface-sunken text-ink-primary border border-border-subtle rounded-lg px-4 py-3 text-body-sm placeholder:text-ink-tertiary focus:outline-none focus:border-accent transition"
 							/>
 
 							{/* Honeypot */}
@@ -127,7 +129,7 @@ function WaitlistPage() {
 							/>
 
 							<label className="block mt-4 text-left">
-								<span className="text-body-xs text-text-tertiary">
+								<span className="text-body-xs text-ink-tertiary">
 									What do you play or practice? (optional)
 								</span>
 								<textarea
@@ -135,23 +137,23 @@ function WaitlistPage() {
 									onChange={(e) => setContext(e.target.value)}
 									rows={2}
 									placeholder="e.g., Working through Chopin Nocturnes, intermediate level"
-									className="mt-1.5 w-full bg-surface-2 text-cream border border-border rounded-lg px-4 py-3 text-body-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent transition resize-none"
+									className="mt-1.5 w-full bg-surface-sunken text-ink-primary border border-border-subtle rounded-lg px-4 py-3 text-body-sm placeholder:text-ink-tertiary focus:outline-none focus:border-accent transition resize-none"
 								/>
 							</label>
 
 							{error && (
-								<p className="mt-4 text-body-sm text-red-400">{error}</p>
+								<p className="mt-4 text-body-sm text-danger">{error}</p>
 							)}
 
 							<button
 								type="submit"
 								disabled={loading}
-								className="mt-6 w-full bg-accent text-cream px-6 py-3 text-body-sm font-medium rounded-lg hover:brightness-110 transition disabled:opacity-50"
+								className="mt-6 w-full bg-accent text-on-accent px-6 py-3 text-body-sm font-medium rounded-lg hover:brightness-110 transition disabled:opacity-50"
 							>
 								{loading ? "Joining..." : "Join the Waitlist"}
 							</button>
 
-							<p className="mt-6 text-body-xs text-text-tertiary">
+							<p className="mt-6 text-body-xs text-ink-tertiary">
 								We'll only email you about beta access.
 							</p>
 						</form>
@@ -331,24 +333,26 @@ function SignInPage() {
 				className="absolute inset-0"
 				style={{
 					background:
-						"radial-gradient(ellipse at center, rgba(45,41,38,0.4) 0%, rgba(45,41,38,0.85) 100%)",
+						"radial-gradient(ellipse at center, color-mix(in srgb, var(--color-surface-page) 40%, transparent) 0%, color-mix(in srgb, var(--color-surface-page) 85%, transparent) 100%)",
 				}}
 			/>
 
 			<div className="relative z-10 flex items-center justify-center h-full px-6">
 				<div
-					className="w-full max-w-sm bg-surface/80 backdrop-blur-xl border border-border px-8 py-14 text-center rounded-2xl"
+					className="w-full max-w-sm bg-surface-raised/80 backdrop-blur-xl border border-border-subtle px-8 py-14 text-center rounded-2xl"
 					style={{
 						animation: "fade-in-up 600ms cubic-bezier(0.16, 1, 0.3, 1) both",
 					}}
 				>
-					<h1 className="font-display text-display-sm text-cream">crescend</h1>
+					<h1 className="font-display text-display-sm text-ink-primary">
+						crescend
+					</h1>
 
-					<p className="mt-3 text-body-md text-text-secondary">
+					<p className="mt-3 text-body-md text-ink-secondary">
 						A teacher for every pianist.
 					</p>
 
-					{error && <p className="mt-4 text-body-sm text-red-400">{error}</p>}
+					{error && <p className="mt-4 text-body-sm text-danger">{error}</p>}
 
 					{GOOGLE_CLIENT_ID && (
 						<div className="relative mt-8 w-full h-[42px]">
@@ -428,13 +432,13 @@ function SignInPage() {
 								}
 							}}
 							disabled={loading}
-							className="mt-3 w-full text-text-tertiary text-body-xs underline hover:text-text-secondary transition disabled:opacity-50"
+							className="mt-3 w-full text-ink-tertiary text-body-xs underline hover:text-ink-secondary transition disabled:opacity-50"
 						>
 							Debug Login
 						</button>
 					)}
 
-					<p className="mt-6 text-body-xs text-text-tertiary">
+					<p className="mt-6 text-body-xs text-ink-tertiary">
 						By signing in, you agree to our Terms of Service
 					</p>
 				</div>

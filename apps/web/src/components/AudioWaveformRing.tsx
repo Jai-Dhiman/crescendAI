@@ -7,10 +7,17 @@ interface AudioWaveformRingProps {
 	active: boolean;
 }
 
-// Sage green
-const SAGE_R = 122;
-const SAGE_G = 154;
-const SAGE_B = 130;
+function readAccentRgb(): [number, number, number] {
+	const hex = getComputedStyle(document.documentElement)
+		.getPropertyValue("--color-accent")
+		.trim();
+	const clean = hex.replace("#", "");
+	return [
+		Number.parseInt(clean.slice(0, 2), 16),
+		Number.parseInt(clean.slice(2, 4), 16),
+		Number.parseInt(clean.slice(4, 6), 16),
+	];
+}
 
 // Number of points around the circle
 const NUM_POINTS = 128;
@@ -58,6 +65,10 @@ export function AudioWaveformRing({
 	const crossfadeRef = useRef(0); // 0 = full breathing, 1 = full frequency
 	const isPlayingRef = useSyncRef(isPlaying);
 	const sizeRef = useRef({ w: 0, h: 0 });
+	// Cached accent RGB, re-parsed only when the theme changes (see MutationObserver
+	// below) instead of every animation frame -- getComputedStyle forces a style
+	// recalc, which is expensive at 60fps.
+	const accentRgbRef = useRef<[number, number, number] | null>(null);
 
 	// Persistent RAF animation loop -- re-initializes when analyserNode or active changes.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: only re-run when analyserNode/active change
@@ -90,6 +101,16 @@ export function AudioWaveformRing({
 			}
 		});
 		observer.observe(canvas);
+
+		// Invalidate the cached accent color only when the theme actually changes,
+		// rather than re-reading it (and forcing a style recalc) every frame.
+		const accentObserver = new MutationObserver(() => {
+			accentRgbRef.current = null;
+		});
+		accentObserver.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ["data-theme", "style"],
+		});
 
 		const ctx = canvas.getContext("2d")!;
 		if (!ctx) return;
@@ -169,6 +190,11 @@ export function AudioWaveformRing({
 				displacements[i] += (target - displacements[i]) * lerpAlpha;
 			}
 
+			if (!accentRgbRef.current) {
+				accentRgbRef.current = readAccentRgb();
+			}
+			const [accentR, accentG, accentB] = accentRgbRef.current;
+
 			// Compute opacity from energy (0.6 to 1.0)
 			const avgEnergy = analyserNode ? totalEnergy / NUM_POINTS : 0;
 			const opacity = 0.6 + avgEnergy * 0.4;
@@ -203,7 +229,7 @@ export function AudioWaveformRing({
 			}
 			ctx.closePath();
 
-			ctx.strokeStyle = `rgba(${SAGE_R}, ${SAGE_G}, ${SAGE_B}, ${opacity})`;
+			ctx.strokeStyle = `rgba(${accentR}, ${accentG}, ${accentB}, ${opacity})`;
 			ctx.lineWidth = STROKE_WIDTH;
 			ctx.stroke();
 
@@ -215,6 +241,7 @@ export function AudioWaveformRing({
 		return () => {
 			cancelAnimationFrame(rafRef.current);
 			observer.disconnect();
+			accentObserver.disconnect();
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [analyserNode, active]);

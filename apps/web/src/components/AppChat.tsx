@@ -738,7 +738,7 @@ export default function AppChat() {
 
 			{/* Sidebar */}
 			<aside
-				className={`shrink-0 border-r border-border flex flex-col py-4 transition-all duration-200 overflow-hidden bg-espresso ${
+				className={`shrink-0 border-r border-border-subtle flex flex-col py-4 transition-all duration-200 overflow-hidden bg-surface-page ${
 					sidebarOpen
 						? "fixed inset-y-0 left-0 z-40 w-64 md:relative md:w-56"
 						: "w-0 md:w-12"
@@ -753,14 +753,14 @@ export default function AppChat() {
 									alt="crescend"
 									className="w-7 h-7 shrink-0"
 								/>
-								<span className="font-display text-body-md text-cream truncate">
+								<span className="font-display text-body-md text-ink-primary truncate">
 									crescend
 								</span>
 							</div>
 							<button
 								type="button"
 								onClick={() => setSidebarOpen(false)}
-								className="shrink-0 w-10 h-10 flex items-center justify-center rounded-lg text-text-secondary hover:text-cream hover:bg-surface transition"
+								className="shrink-0 w-10 h-10 flex items-center justify-center rounded-lg text-ink-secondary hover:text-ink-primary hover:bg-surface-raised transition"
 								aria-label="Collapse sidebar"
 							>
 								<X size={18} className="md:hidden" />
@@ -771,7 +771,7 @@ export default function AppChat() {
 						<button
 							type="button"
 							onClick={() => setSidebarOpen(true)}
-							className="w-10 h-10 flex items-center justify-center rounded-lg text-text-secondary hover:text-cream hover:bg-surface transition mx-auto"
+							className="w-10 h-10 flex items-center justify-center rounded-lg text-ink-secondary hover:text-ink-primary hover:bg-surface-raised transition mx-auto"
 							aria-label="Expand sidebar"
 						>
 							<SidebarSimple size={20} />
@@ -795,7 +795,7 @@ export default function AppChat() {
 							<div className="flex items-center gap-1 px-2 py-1">
 								<MagnifyingGlass
 									size={16}
-									className="shrink-0 text-text-tertiary"
+									className="shrink-0 text-ink-tertiary"
 								/>
 								<input
 									ref={searchInputRef}
@@ -809,7 +809,7 @@ export default function AppChat() {
 										}
 									}}
 									placeholder="Search conversations..."
-									className="flex-1 bg-transparent text-body-sm text-cream placeholder:text-text-tertiary outline-none min-w-0"
+									className="flex-1 bg-transparent text-body-sm text-ink-primary placeholder:text-ink-tertiary outline-none min-w-0"
 									// biome-ignore lint/a11y/noAutofocus: intentional UX for search activation
 									autoFocus
 								/>
@@ -819,7 +819,7 @@ export default function AppChat() {
 										setSearchOpen(false);
 										setSearchQuery("");
 									}}
-									className="shrink-0 w-6 h-6 flex items-center justify-center text-text-tertiary hover:text-cream transition"
+									className="shrink-0 w-6 h-6 flex items-center justify-center text-ink-tertiary hover:text-ink-primary transition"
 									aria-label="Close search"
 								>
 									<X size={14} />
@@ -845,7 +845,7 @@ export default function AppChat() {
 				{/* Conversation list */}
 				{sidebarOpen && (
 					<div className="mt-4 flex-1 overflow-y-auto px-2">
-						<span className="px-3 text-body-xs text-text-tertiary uppercase tracking-wider">
+						<span className="px-3 text-body-xs text-ink-tertiary uppercase tracking-wider">
 							Recent
 						</span>
 						{isConversationsPending ? (
@@ -861,8 +861,8 @@ export default function AppChat() {
 											key={conv.id}
 											className={`group flex w-full items-center gap-2 rounded-lg px-3 py-1.5 cursor-pointer text-body-sm transition min-h-[36px] text-left ${
 												conv.id === activeConversationId
-													? "bg-surface text-cream"
-													: "text-text-secondary hover:text-cream hover:bg-surface"
+													? "bg-surface-raised text-ink-primary"
+													: "text-ink-secondary hover:text-ink-primary hover:bg-surface-raised"
 											}`}
 											onClick={() => {
 												loadConversation(conv.id);
@@ -889,7 +889,7 @@ export default function AppChat() {
 														e.stopPropagation();
 														handleDeleteConversation(conv.id);
 													}}
-													className="opacity-0 group-hover:opacity-100 shrink-0 w-7 h-7 flex items-center justify-center text-text-tertiary hover:text-cream transition"
+													className="opacity-0 group-hover:opacity-100 shrink-0 w-7 h-7 flex items-center justify-center text-ink-tertiary hover:text-ink-primary transition"
 													aria-label="Delete conversation"
 												>
 													<Trash size={14} />
@@ -901,7 +901,7 @@ export default function AppChat() {
 								{filteredConversations !== null &&
 									filteredConversations.length === 0 && (
 										<div className="px-3 py-6 text-center">
-											<span className="text-body-xs text-text-tertiary">
+											<span className="text-body-xs text-ink-tertiary">
 												No conversations matching &lsquo;{searchQuery}&rsquo;
 											</span>
 										</div>
@@ -909,7 +909,7 @@ export default function AppChat() {
 								{!searchOpen && conversations.length > 8 && (
 									<button
 										type="button"
-										className="w-full mt-1 px-3 py-2 text-body-xs text-text-tertiary hover:text-cream transition text-left"
+										className="w-full mt-1 px-3 py-2 text-body-xs text-ink-tertiary hover:text-ink-primary transition text-left"
 										onClick={() => navigate({ to: "/app/chats" })}
 									>
 										See All Chats
@@ -934,18 +934,18 @@ export default function AppChat() {
 							}
 							setShowProfile(!showProfile);
 						}}
-						className={`flex items-center gap-3 min-h-[44px] transition hover:bg-surface ${
+						className={`flex items-center gap-3 min-h-[44px] transition hover:bg-surface-raised ${
 							sidebarOpen
 								? "w-[calc(100%-16px)] mx-2 px-3 rounded-lg"
 								: "w-full justify-center rounded-none"
 						}`}
 					>
-						<span className="shrink-0 w-8 h-8 bg-surface border border-border rounded-full flex items-center justify-center text-body-sm text-cream font-medium">
+						<span className="shrink-0 w-8 h-8 bg-surface-raised border border-border-subtle rounded-full flex items-center justify-center text-body-sm text-ink-primary font-medium">
 							{userInitial}
 						</span>
 						{sidebarOpen && (
 							<div className="flex flex-col items-start min-w-0">
-								<span className="text-body-sm text-cream truncate">
+								<span className="text-body-sm text-ink-primary truncate">
 									{user?.displayName ?? user?.email ?? "User"}
 								</span>
 							</div>
@@ -954,7 +954,7 @@ export default function AppChat() {
 
 					{showProfile && dropdownPos && (
 						<div
-							className="fixed bg-surface border border-border rounded-lg py-1 min-w-[160px] z-50"
+							className="fixed bg-surface-raised border border-border-subtle rounded-lg py-1 min-w-[160px] z-50"
 							style={{
 								bottom: dropdownPos.bottom,
 								left: dropdownPos.left + 8,
@@ -963,7 +963,7 @@ export default function AppChat() {
 							<button
 								type="button"
 								onClick={toggleTheme}
-								className="w-full text-left px-4 py-2 text-body-sm text-text-secondary hover:text-cream hover:bg-surface-2 transition rounded-lg flex items-center gap-2"
+								className="w-full text-left px-4 py-2 text-body-sm text-ink-secondary hover:text-ink-primary hover:bg-surface-sunken transition rounded-lg flex items-center gap-2"
 							>
 								{theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
 								<span>{theme === "light" ? "Dark Mode" : "Light Mode"}</span>
@@ -974,14 +974,14 @@ export default function AppChat() {
 									setShowProfile(false);
 									navigate({ to: "/app/sandbox" });
 								}}
-								className="w-full text-left px-4 py-2 text-body-sm text-text-secondary hover:text-cream hover:bg-surface-2 transition rounded-lg flex items-center gap-2"
+								className="w-full text-left px-4 py-2 text-body-sm text-ink-secondary hover:text-ink-primary hover:bg-surface-sunken transition rounded-lg flex items-center gap-2"
 							>
 								<span>Artifact Sandbox</span>
 							</button>
 							<button
 								type="button"
 								onClick={handleSignOut}
-								className="w-full text-left px-4 py-2 text-body-sm text-text-secondary hover:text-cream hover:bg-surface-2 transition rounded-lg flex items-center gap-2"
+								className="w-full text-left px-4 py-2 text-body-sm text-ink-secondary hover:text-ink-primary hover:bg-surface-sunken transition rounded-lg flex items-center gap-2"
 							>
 								<SignOut size={16} />
 								<span>Sign Out</span>
@@ -996,7 +996,7 @@ export default function AppChat() {
 				<button
 					type="button"
 					onClick={() => setSidebarOpen(true)}
-					className="fixed top-3 left-3 z-20 w-10 h-10 flex items-center justify-center rounded-lg text-text-secondary hover:text-cream hover:bg-surface transition md:hidden"
+					className="fixed top-3 left-3 z-20 w-10 h-10 flex items-center justify-center rounded-lg text-ink-secondary hover:text-ink-primary hover:bg-surface-raised transition md:hidden"
 					aria-label="Open sidebar"
 				>
 					<SidebarSimple size={20} />
@@ -1010,7 +1010,7 @@ export default function AppChat() {
 					<button
 						type="button"
 						onClick={scorePanelToggle}
-						className="absolute top-3 right-3 z-20 flex items-center gap-2 px-3 py-2 rounded-lg bg-surface border border-border text-text-secondary hover:text-cream hover:bg-surface-2 transition text-body-sm"
+						className="absolute top-3 right-3 z-20 flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-raised border border-border-subtle text-ink-secondary hover:text-ink-primary hover:bg-surface-sunken transition text-body-sm"
 						aria-label="Open score panel"
 					>
 						<MusicNote size={16} className="text-accent" />
@@ -1027,7 +1027,7 @@ export default function AppChat() {
 							alt=""
 							className="w-20 h-20 opacity-50 mb-6"
 						/>
-						<h1 className="font-display text-display-md text-cream mb-8">
+						<h1 className="font-display text-display-md text-ink-primary mb-8">
 							{greeting}
 						</h1>
 						<ChatInput
@@ -1106,7 +1106,7 @@ function SidebarButton({
 		<button
 			type="button"
 			onClick={onClick}
-			className={`flex items-center text-text-secondary hover:text-cream hover:bg-surface transition group relative rounded-lg ${
+			className={`flex items-center text-ink-secondary hover:text-ink-primary hover:bg-surface-raised transition group relative rounded-lg ${
 				expanded
 					? "w-[calc(100%-16px)] mx-2 px-3 min-h-[44px] gap-3"
 					: "w-10 min-h-[44px] justify-center mx-auto"
@@ -1120,7 +1120,7 @@ function SidebarButton({
 				<span className="text-body-sm whitespace-nowrap">{label}</span>
 			)}
 			{!expanded && (
-				<span className="absolute left-full ml-2 px-2 py-1 bg-surface-2 rounded text-body-xs text-cream whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
+				<span className="absolute left-full ml-2 px-2 py-1 bg-surface-sunken rounded text-body-xs text-ink-primary whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
 					{label}
 				</span>
 			)}

@@ -1,6 +1,6 @@
 import { ArrowsOut } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
-import { DIMENSION_COLORS } from "../../lib/mock-session";
+import { DIMENSION_COLOR_VAR } from "../../lib/dimension-colors";
 import { scoreRenderer } from "../../lib/score-renderer";
 import type { ScoreHighlightConfig } from "../../lib/types";
 import { useScorePanelStore } from "../../stores/score-panel";
@@ -61,10 +61,10 @@ export function ScoreHighlightCard({
 	}, [config.pieceId, JSON.stringify(config.highlights)]);
 
 	return (
-		<div className="bg-surface-card border border-border rounded-xl overflow-hidden mt-3">
+		<div className="bg-surface-raised border border-border-subtle rounded-xl overflow-hidden mt-3">
 			{renderState === "loading" && (
 				<div className="h-10 flex items-center justify-center">
-					<div className="w-3.5 h-3.5 rounded-full border-2 border-text-tertiary/50 border-t-transparent animate-spin" />
+					<div className="w-3.5 h-3.5 rounded-full border-2 border-ink-tertiary/50 border-t-transparent animate-spin" />
 				</div>
 			)}
 
@@ -72,9 +72,9 @@ export function ScoreHighlightCard({
 				<div className="px-3 pt-3 pb-0 flex flex-col gap-2">
 					{clips.map((clip) => {
 						const color =
-							DIMENSION_COLORS[
-								clip.dimension as keyof typeof DIMENSION_COLORS
-							] ?? "#7a9a82";
+							DIMENSION_COLOR_VAR[
+								clip.dimension as keyof typeof DIMENSION_COLOR_VAR
+							] ?? "var(--color-accent)";
 						return (
 							<div
 								key={`${clip.dimension}-${clip.bars[0]}-${clip.bars[1]}`}
@@ -82,7 +82,7 @@ export function ScoreHighlightCard({
 									position: "relative",
 									borderRadius: "6px",
 									border: `1.5px solid ${color}40`,
-									backgroundColor: "white",
+									backgroundColor: "var(--color-score-canvas)",
 									overflow: "hidden",
 								}}
 							>
@@ -105,12 +105,12 @@ export function ScoreHighlightCard({
 			<div
 				className={`p-4 flex flex-col gap-3.5 ${
 					renderState === "rendered" && clips.length > 0
-						? "border-t border-border/40"
+						? "border-t border-border-subtle/40"
 						: ""
 				}`}
 			>
 				<div className="flex items-center justify-between">
-					<span className="text-body-xs text-text-tertiary">
+					<span className="text-body-xs text-ink-tertiary">
 						{config.highlights.length === 1
 							? "1 annotation"
 							: `${config.highlights.length} annotations`}
@@ -122,7 +122,7 @@ export function ScoreHighlightCard({
 								openHighlight(config);
 								onExpand?.();
 							}}
-							className="w-6 h-6 flex items-center justify-center rounded text-text-tertiary hover:text-cream hover:bg-surface transition-colors"
+							className="w-6 h-6 flex items-center justify-center rounded text-ink-tertiary hover:text-ink-primary hover:bg-surface-raised transition-colors"
 							aria-label="Expand score highlight"
 						>
 							<ArrowsOut size={13} />
@@ -132,8 +132,9 @@ export function ScoreHighlightCard({
 
 				{config.highlights.map((h) => {
 					const color =
-						DIMENSION_COLORS[h.dimension as keyof typeof DIMENSION_COLORS] ??
-						"#7a9a82";
+						DIMENSION_COLOR_VAR[
+							h.dimension as keyof typeof DIMENSION_COLOR_VAR
+						] ?? "var(--color-accent)";
 					return (
 						<div
 							key={`${h.dimension}-${h.bars[0]}-${h.bars[1]}`}
@@ -144,16 +145,16 @@ export function ScoreHighlightCard({
 									className="w-1.5 h-1.5 rounded-full shrink-0"
 									style={{ backgroundColor: color }}
 								/>
-								<span className="text-label-sm text-text-tertiary uppercase tracking-wide">
+								<span className="text-label-sm text-ink-tertiary uppercase tracking-wide">
 									{h.dimension}
 								</span>
 							</div>
 							<div className="min-w-0">
-								<span className="text-body-xs text-text-tertiary">
+								<span className="text-body-xs text-ink-tertiary">
 									bars {h.bars[0]}–{h.bars[1]}
 								</span>
 								{h.annotation && (
-									<p className="text-body-sm text-text-primary mt-0.5 leading-snug">
+									<p className="text-body-sm text-ink-primary mt-0.5 leading-snug">
 										{h.annotation}
 									</p>
 								)}

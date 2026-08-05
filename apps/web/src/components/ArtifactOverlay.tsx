@@ -74,7 +74,7 @@ function ArtifactOverlayContent({
 				);
 			default:
 				return (
-					<p className="text-body-md text-text-secondary">
+					<p className="text-body-md text-ink-secondary">
 						No expanded view available for this component.
 					</p>
 				);
@@ -93,11 +93,11 @@ function ArtifactOverlayContent({
 			/>
 			<div
 				data-panel
-				className="relative max-w-2xl mx-auto mt-16 max-h-[80vh] overflow-y-auto bg-surface-card border border-border rounded-2xl p-6 shadow-card animate-overlay-in"
+				className="relative max-w-2xl mx-auto mt-16 max-h-[80vh] overflow-y-auto bg-surface-raised border border-border-subtle rounded-2xl p-6 shadow-card animate-overlay-in"
 			>
 				<button
 					type="button"
-					className="absolute top-4 right-4 text-text-tertiary hover:text-text-primary transition-colors"
+					className="absolute top-4 right-4 text-ink-tertiary hover:text-ink-primary transition-colors"
 					onClick={handleClose}
 					aria-label="Close"
 				>

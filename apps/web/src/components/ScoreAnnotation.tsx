@@ -1,4 +1,5 @@
-import { DIMENSION_COLORS, DIMENSION_LABELS } from "../lib/mock-session";
+import { DIMENSION_COLOR_VAR } from "../lib/dimension-colors";
+import { DIMENSION_LABELS } from "../lib/mock-session";
 
 interface ScoreAnnotationProps {
 	dimension: string;
@@ -18,7 +19,8 @@ export function ScoreAnnotation({
 	onClick,
 }: ScoreAnnotationProps) {
 	const color =
-		DIMENSION_COLORS[dimension as keyof typeof DIMENSION_COLORS] ?? "#7a9a82";
+		DIMENSION_COLOR_VAR[dimension as keyof typeof DIMENSION_COLOR_VAR] ??
+		"var(--color-accent)";
 	const label =
 		DIMENSION_LABELS[dimension as keyof typeof DIMENSION_LABELS] ?? dimension;
 
@@ -28,19 +30,19 @@ export function ScoreAnnotation({
 			onClick={() => onClick(index)}
 			className={`absolute z-10 flex items-center gap-1 px-2 py-0.5 rounded-full text-label-sm font-medium cursor-pointer transition-all duration-200 ${
 				isActive
-					? "ring-2 ring-cream scale-110 shadow-lg"
+					? "ring-2 ring-ink-primary scale-110 shadow-lg"
 					: "hover:scale-105 hover:shadow-md"
 			}`}
 			style={{
 				...style,
 				backgroundColor: color,
-				color: "#fdf8f0",
+				color: "var(--color-on-accent)",
 				opacity: isActive ? 1 : 0.85,
 			}}
 			aria-label={`${label} observation at bars ${barRange[0]}-${barRange[1]}`}
 			title={`${label}: bars ${barRange[0]}-${barRange[1]}`}
 		>
-			<span className="w-1.5 h-1.5 rounded-full bg-cream/60" />
+			<span className="w-1.5 h-1.5 rounded-full bg-ink-primary/60" />
 			<span>{label}</span>
 		</button>
 	);

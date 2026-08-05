@@ -1,5 +1,6 @@
 // apps/web/src/components/BarScoreChip.tsx
 import type { KeyboardEvent } from "react";
+import { DIMENSION_COLOR_VAR } from "../lib/dimension-colors";
 import type { BarQualityScores } from "../types/landing";
 
 const DIMENSIONS: Array<keyof BarQualityScores> = [
@@ -10,15 +11,6 @@ const DIMENSIONS: Array<keyof BarQualityScores> = [
 	"phrasing",
 	"interpretation",
 ];
-
-const DIMENSION_COLOR: Record<keyof BarQualityScores, string> = {
-	dynamics: "#4f9cf9",
-	timing: "#f97316",
-	pedaling: "#a78bfa",
-	articulation: "#34d399",
-	phrasing: "#fb7185",
-	interpretation: "#fbbf24",
-};
 
 interface BarScoreChipProps {
 	scores: BarQualityScores;
@@ -38,7 +30,7 @@ export function BarScoreChip({
 	return (
 		<div
 			data-testid="bar-score-chip"
-			className="bg-espresso border border-border rounded-lg p-3 shadow-lg min-w-[180px]"
+			className="bg-surface-page border border-border-subtle rounded-lg p-3 shadow-lg min-w-[180px]"
 			role="dialog"
 			aria-modal="true"
 			aria-label={`Quality scores for bar ${barNumber}`}
@@ -46,14 +38,12 @@ export function BarScoreChip({
 			onKeyDown={handleKeyDown}
 		>
 			<div className="flex items-center justify-between mb-2">
-				<span className="text-label-sm text-text-tertiary">
-					Bar {barNumber}
-				</span>
+				<span className="text-label-sm text-ink-tertiary">Bar {barNumber}</span>
 				<button
 					type="button"
 					onClick={onClose}
 					aria-label="Close bar scores"
-					className="text-text-tertiary hover:text-cream text-xs"
+					className="text-ink-tertiary hover:text-ink-primary text-xs"
 				>
 					&#x2715;
 				</button>
@@ -70,7 +60,7 @@ export function BarScoreChip({
 								className="w-full rounded-sm"
 								style={{
 									height: `${Math.round(value * 40)}px`,
-									backgroundColor: DIMENSION_COLOR[dim],
+									backgroundColor: DIMENSION_COLOR_VAR[dim],
 									opacity: 0.85,
 								}}
 								title={`${dim}: ${Math.round(value * 100)}%`}
@@ -81,7 +71,7 @@ export function BarScoreChip({
 			</div>
 			<div className="flex justify-between mt-1.5">
 				{DIMENSIONS.map((dim) => (
-					<span key={dim} className="text-[9px] text-text-tertiary capitalize">
+					<span key={dim} className="text-[9px] text-ink-tertiary capitalize">
 						<span aria-hidden="true">{dim.slice(0, 3)}</span>
 						<span className="sr-only">{dim}</span>
 					</span>

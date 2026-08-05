@@ -23,13 +23,13 @@ export function BrowserFrame({
 					<span className="w-3 h-3 rounded-full bg-white/15" />
 				</div>
 				<div className="flex-1 flex justify-center">
-					<div className="px-3 py-1 rounded-md bg-white/5 text-text-tertiary text-[11px] leading-none max-w-[60%] truncate">
+					<div className="px-3 py-1 rounded-md bg-white/5 text-ink-tertiary text-[11px] leading-none max-w-[60%] truncate">
 						{url}
 					</div>
 				</div>
 				<div className="w-12" />
 			</div>
-			<div className="bg-espresso">{children}</div>
+			<div className="bg-surface-page">{children}</div>
 		</div>
 	);
 }
@@ -45,7 +45,7 @@ export function PhoneFrame({
 		<div
 			className={`rounded-[2.4rem] bg-[#141110] shadow-2xl ring-1 ring-white/5 p-2 ${className}`}
 		>
-			<div className="relative rounded-[2rem] overflow-hidden bg-espresso aspect-[9/19.5]">
+			<div className="relative rounded-[2rem] overflow-hidden bg-surface-page aspect-[9/19.5]">
 				{/* Dynamic Island */}
 				<div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-20 h-5 rounded-full bg-black z-10" />
 				{children}

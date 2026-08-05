@@ -22,12 +22,12 @@ export function LoopTransport({
 	return (
 		<div
 			data-testid="loop-transport"
-			className="flex items-center gap-3 px-4 py-2 bg-surface-card border-t border-border/60"
+			className="flex items-center gap-3 px-4 py-2 bg-surface-raised border-t border-border-subtle/60"
 		>
 			<button
 				type="button"
 				onClick={isPlaying || isCounting ? onPause : onPlay}
-				className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full border border-border hover:border-accent text-text-secondary hover:text-cream transition-colors"
+				className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full border border-border-subtle hover:border-accent text-ink-secondary hover:text-ink-primary transition-colors"
 				aria-label={isPlaying || isCounting ? "Pause" : "Play"}
 			>
 				{isPlaying || isCounting ? (
@@ -58,7 +58,7 @@ export function LoopTransport({
 				type="button"
 				onClick={onStop}
 				disabled={!isPlaying && !isCounting}
-				className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full border border-border hover:border-accent text-text-secondary hover:text-cream transition-colors disabled:opacity-40"
+				className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full border border-border-subtle hover:border-accent text-ink-secondary hover:text-ink-primary transition-colors disabled:opacity-40"
 				aria-label="Stop"
 			>
 				<svg
@@ -73,7 +73,7 @@ export function LoopTransport({
 			</button>
 
 			<div className="flex items-center gap-2 flex-1 min-w-0">
-				<span className="text-label-sm text-text-tertiary shrink-0">Speed</span>
+				<span className="text-label-sm text-ink-tertiary shrink-0">Speed</span>
 				<input
 					type="range"
 					min={0.25}
@@ -84,19 +84,19 @@ export function LoopTransport({
 					className="flex-1 accent-accent"
 					aria-label="Tempo factor"
 				/>
-				<span className="text-label-sm text-text-tertiary shrink-0 w-10 text-right">
+				<span className="text-label-sm text-ink-tertiary shrink-0 w-10 text-right">
 					{Math.round(tempoFactor * 100)}%
 				</span>
 			</div>
 
 			{audioUnavailable && (
-				<span className="text-label-xs text-amber-400 shrink-0">
+				<span className="text-label-xs text-warn shrink-0">
 					Audio unavailable
 				</span>
 			)}
 
 			{isCounting && (
-				<span className="text-label-xs text-text-tertiary shrink-0 animate-pulse">
+				<span className="text-label-xs text-ink-tertiary shrink-0 animate-pulse">
 					Count in...
 				</span>
 			)}

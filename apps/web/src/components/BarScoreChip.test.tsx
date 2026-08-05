@@ -67,3 +67,19 @@ describe("BarScoreChip", () => {
 		expect(onClose).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe("BarScoreChip dimension colors", () => {
+	it("colors each bar from the shared DIMENSION_COLOR_VAR map, not a local bright palette", async () => {
+		const { BarScoreChip } = await import("./BarScoreChip");
+		const { container } = render(
+			React.createElement(BarScoreChip, {
+				scores: SCORES,
+				barNumber: 1,
+				onClose: vi.fn(),
+			}),
+		);
+		const bar = container.querySelector("[title^='dynamics']");
+		expect(bar).not.toBeNull();
+		expect(bar).toHaveStyle({ backgroundColor: "var(--dim-dynamics)" });
+	});
+});

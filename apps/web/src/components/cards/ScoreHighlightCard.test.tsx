@@ -85,4 +85,31 @@ describe("ScoreHighlightCard", () => {
 			expect(html).toContain('data-bars="9-12"');
 		});
 	});
+
+	it("uses the score-canvas token instead of a hard-coded white background", async () => {
+		mockGetClip.mockResolvedValue("<svg data-bars='1-4'></svg>");
+		const config: ScoreHighlightConfig = {
+			pieceId: "chopin.ballades.1",
+			highlights: [
+				{
+					bars: [1, 4] as [number, number],
+					dimension: "dynamics",
+					annotation: "hushed opening",
+				},
+			],
+		};
+		const { ScoreHighlightCard } = await import("./ScoreHighlightCard");
+		const { container } = render(
+			React.createElement(ScoreHighlightCard, { config }),
+		);
+		await waitFor(() => {
+			expect(document.body.innerHTML).toContain('data-bars="1-4"');
+		});
+		const clipContainer = container.querySelector(
+			"[style*='border-radius: 6px']",
+		) as HTMLElement;
+		expect(clipContainer).toHaveStyle({
+			backgroundColor: "var(--color-score-canvas)",
+		});
+	});
 });

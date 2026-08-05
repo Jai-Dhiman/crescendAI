@@ -2,8 +2,8 @@ import { ArrowLeft, MusicNote, X } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useIsMobile } from "../hooks/useDom";
 import { useMountEffect } from "../hooks/useFoundation";
+import { DIMENSION_COLOR_VAR } from "../lib/dimension-colors";
 import type { MockSessionData } from "../lib/mock-session";
-import { DIMENSION_COLORS } from "../lib/mock-session";
 import { scoreRenderer } from "../lib/score-renderer";
 import { useScorePanelStore } from "../stores/score-panel";
 import { ScoreAnnotation } from "./ScoreAnnotation";
@@ -136,12 +136,12 @@ export function ScorePanel() {
 	const panelContent = (
 		<>
 			{/* Header */}
-			<div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
+			<div className="flex items-center gap-3 px-4 py-3 border-b border-border-subtle shrink-0">
 				{isMobile && (
 					<button
 						type="button"
 						onClick={close}
-						className="w-8 h-8 flex items-center justify-center rounded-lg text-text-secondary hover:text-cream hover:bg-surface transition"
+						className="w-8 h-8 flex items-center justify-center rounded-lg text-ink-secondary hover:text-ink-primary hover:bg-surface-raised transition"
 						aria-label="Close score panel"
 					>
 						<ArrowLeft size={18} />
@@ -149,10 +149,10 @@ export function ScorePanel() {
 				)}
 				<MusicNote size={20} className="text-accent shrink-0" />
 				<div className="flex-1 min-w-0">
-					<h2 className="text-body-sm font-medium text-cream truncate">
+					<h2 className="text-body-sm font-medium text-ink-primary truncate">
 						{title}
 					</h2>
-					<p className="text-body-xs text-text-tertiary">
+					<p className="text-body-xs text-ink-tertiary">
 						{section}
 						{durationSeconds > 0 && (
 							<span className="ml-2">
@@ -165,7 +165,7 @@ export function ScorePanel() {
 					<button
 						type="button"
 						onClick={close}
-						className="w-8 h-8 flex items-center justify-center rounded-lg text-text-secondary hover:text-cream hover:bg-surface transition"
+						className="w-8 h-8 flex items-center justify-center rounded-lg text-ink-secondary hover:text-ink-primary hover:bg-surface-raised transition"
 						aria-label="Close score panel"
 					>
 						<X size={16} />
@@ -174,11 +174,12 @@ export function ScorePanel() {
 			</div>
 
 			{/* Dimension legend */}
-			<div className="flex flex-wrap gap-2 px-4 py-2 border-b border-border shrink-0">
+			<div className="flex flex-wrap gap-2 px-4 py-2 border-b border-border-subtle shrink-0">
 				{observations.map((obs, i) => {
 					const color =
-						DIMENSION_COLORS[obs.dimension as keyof typeof DIMENSION_COLORS] ??
-						"#7a9a82";
+						DIMENSION_COLOR_VAR[
+							obs.dimension as keyof typeof DIMENSION_COLOR_VAR
+						] ?? "var(--color-accent)";
 					return (
 						<button
 							type="button"
@@ -186,8 +187,8 @@ export function ScorePanel() {
 							onClick={() => handleAnnotationClick(i)}
 							className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-body-xs transition cursor-pointer ${
 								activeAnnotationIndex === i
-									? "bg-surface-2 text-cream"
-									: "text-text-secondary hover:text-cream hover:bg-surface"
+									? "bg-surface-sunken text-ink-primary"
+									: "text-ink-secondary hover:text-ink-primary hover:bg-surface-raised"
 							}`}
 						>
 							<span
@@ -196,7 +197,7 @@ export function ScorePanel() {
 							/>
 							<span className="capitalize">{obs.dimension}</span>
 							{obs.barRange && (
-								<span className="text-text-tertiary">
+								<span className="text-ink-tertiary">
 									b.{obs.barRange[0]}-{obs.barRange[1]}
 								</span>
 							)}
@@ -221,7 +222,7 @@ export function ScorePanel() {
 	if (isMobile) {
 		return (
 			<div
-				className={`fixed inset-0 z-50 bg-espresso flex flex-col transition-transform duration-300 ${
+				className={`fixed inset-0 z-50 bg-surface-page flex flex-col transition-transform duration-300 ${
 					isOpen ? "translate-x-0" : "translate-x-full"
 				}`}
 			>
@@ -234,7 +235,7 @@ export function ScorePanel() {
 	return (
 		<aside
 			ref={asideRef}
-			className={`shrink-0 border-l border-border bg-espresso flex flex-col overflow-hidden relative ${
+			className={`shrink-0 border-l border-border-subtle bg-surface-page flex flex-col overflow-hidden relative ${
 				isOpen ? "" : "!w-0"
 			}`}
 			style={isOpen ? { width: panelWidth } : undefined}
@@ -247,7 +248,7 @@ export function ScorePanel() {
 						onMouseDown={handleDragStart}
 						onKeyDown={handleResizeKey}
 						tabIndex={0}
-						className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10 bg-border hover:bg-accent transition-colors"
+						className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10 bg-border-subtle hover:bg-accent transition-colors"
 						role="separator"
 						aria-orientation="vertical"
 						aria-label="Resize score panel"
@@ -377,12 +378,12 @@ function ScorePanelScore({
 	return (
 		<div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 relative">
 			{isError && (
-				<div className="flex items-center justify-center h-32 text-text-tertiary text-body-sm">
+				<div className="flex items-center justify-center h-32 text-ink-tertiary text-body-sm">
 					Score unavailable
 				</div>
 			)}
 			{!isRendered && !isError && pieceId && (
-				<div className="flex items-center justify-center h-32 text-text-tertiary text-body-sm">
+				<div className="flex items-center justify-center h-32 text-ink-tertiary text-body-sm">
 					Loading score...
 				</div>
 			)}
@@ -412,11 +413,11 @@ function ScorePanelScore({
 			{/* Active observation detail */}
 			{activeAnnotationIndex !== null &&
 				observations[activeAnnotationIndex] && (
-					<div className="sticky bottom-0 mt-4 p-3 bg-surface-2 border border-border rounded-lg animate-fade-in">
-						<p className="text-body-sm text-cream">
+					<div className="sticky bottom-0 mt-4 p-3 bg-surface-sunken border border-border-subtle rounded-lg animate-fade-in">
+						<p className="text-body-sm text-ink-primary">
 							{observations[activeAnnotationIndex].text}
 						</p>
-						<p className="text-body-xs text-text-tertiary mt-1 capitalize">
+						<p className="text-body-xs text-ink-tertiary mt-1 capitalize">
 							{observations[activeAnnotationIndex].dimension} --{" "}
 							{observations[activeAnnotationIndex].framing}
 						</p>

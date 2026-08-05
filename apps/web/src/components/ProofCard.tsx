@@ -253,7 +253,7 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
 	return (
 		<div
 			ref={cardRef}
-			className="w-full bg-surface border border-border rounded-xl overflow-hidden"
+			className="w-full bg-surface-raised border border-border-subtle rounded-xl overflow-hidden"
 		>
 			{/* Score area */}
 			<div className="relative" data-testid="proof-card-score">
@@ -334,7 +334,7 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
 						<button
 							type="button"
 							aria-label={isPlaying ? "Pause" : "Play"}
-							className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-accent text-cream"
+							className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-accent text-ink-primary"
 							onClick={() => {
 								const audio = audioRef.current;
 								if (!audio) return;
@@ -368,27 +368,27 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
 
 				{/* Piece title and era */}
 				<div>
-					<span className="text-label-sm text-text-tertiary uppercase tracking-wide capitalize">
+					<span className="text-label-sm text-ink-tertiary uppercase tracking-wide capitalize">
 						{manifest.era}
 					</span>
-					<h3 className="font-display text-display-sm text-cream mt-0.5">
+					<h3 className="font-display text-display-sm text-ink-primary mt-0.5">
 						{manifest.title}
 					</h3>
 				</div>
 
 				{/* Teacher diagnosis for focus bar */}
-				<p className="text-body-md text-text-secondary">{manifest.diagnosis}</p>
+				<p className="text-body-md text-ink-secondary">{manifest.diagnosis}</p>
 
 				{/* Generated exercise */}
 				{exerciseComponent != null && (
 					<div data-testid="proof-card-exercise">
 						{/* Render exercise as a static summary — not using Artifact store lifecycle on landing */}
-						<div className="bg-surface-2 border border-border rounded-lg p-4">
-							<p className="text-body-sm font-medium text-cream">
+						<div className="bg-surface-sunken border border-border-subtle rounded-lg p-4">
+							<p className="text-body-sm font-medium text-ink-primary">
 								{(exerciseComponent as { config?: { targetSkill?: string } })
 									.config?.targetSkill ?? "Exercise"}
 							</p>
-							<p className="text-body-xs text-text-secondary mt-1">
+							<p className="text-body-xs text-ink-secondary mt-1">
 								{(exerciseComponent as { config?: { sourcePassage?: string } })
 									.config?.sourcePassage ?? ""}
 							</p>

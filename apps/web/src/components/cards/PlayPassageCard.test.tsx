@@ -125,6 +125,26 @@ describe("PlayPassageCard", () => {
 			expect(screen.queryByText("couldn't load audio")).toBeNull();
 		});
 	});
+
+	it("uses the score-canvas token instead of a hard-coded white background", async () => {
+		mockGetPassage.mockResolvedValue(manifest);
+		mockGetClip.mockResolvedValue("<svg></svg>");
+
+		const { PlayPassageCard } = await import("./PlayPassageCard");
+		const { container } = render(
+			React.createElement(PlayPassageCard, { config }),
+		);
+
+		await waitFor(() => {
+			expect(screen.getByText("you rushed here")).toBeInTheDocument();
+		});
+
+		const clipWrapper = container.querySelector("svg")?.parentElement
+			?.parentElement as HTMLElement;
+		expect(clipWrapper).toHaveStyle({
+			backgroundColor: "var(--color-score-canvas)",
+		});
+	});
 });
 
 describe("PlayPassageCard SVG rendering", () => {

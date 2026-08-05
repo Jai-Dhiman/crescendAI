@@ -54,7 +54,7 @@ export function ChatInput({
 			<div
 				className={`flex items-center gap-3 ${centered ? "" : "max-w-2xl mx-auto"}`}
 			>
-				<div className="flex-1 bg-surface-card/70 backdrop-blur-md border border-border/50 rounded-2xl shadow-card flex items-end px-4 py-2">
+				<div className="flex-1 bg-surface-raised/70 backdrop-blur-md border border-border-subtle/50 rounded-2xl shadow-card flex items-end px-4 py-2">
 					<textarea
 						ref={textareaRef}
 						value={value}
@@ -63,7 +63,7 @@ export function ChatInput({
 						placeholder={placeholder ?? "Message your teacher..."}
 						disabled={disabled}
 						rows={3}
-						className="flex-1 bg-transparent py-1.5 text-body-md text-cream placeholder:text-text-tertiary outline-none resize-none min-h-[4.5rem]"
+						className="flex-1 bg-transparent py-1.5 text-body-md text-ink-primary placeholder:text-ink-tertiary outline-none resize-none min-h-[4.5rem]"
 					/>
 
 					{hasText && (
