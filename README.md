@@ -1,17 +1,15 @@
-[![sloprank](https://sloprank.io/badge/jai-dhiman/crescendai.svg)](https://sloprank.io/repo/jai-dhiman/crescendai)
 [![arXiv](https://img.shields.io/badge/arXiv-2601.19029-b31b1b.svg)](https://arxiv.org/abs/2601.19029)
 ![PyTorch](https://img.shields.io/badge/PyTorch-orange?logo=pytorch&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare_Workers-F38020?logo=cloudflare&logoColor=white)
 ![HuggingFace](https://img.shields.io/badge/HuggingFace-yellow?logo=huggingface)
-[![MuQ](https://img.shields.io/badge/MuQ-6366f1)](https://github.com/tencent-ailab/MuQ)
 ![License](https://img.shields.io/badge/license-CC--BY--NC--4.0-blue)
 
 # CrescendAI
 
 **A teacher for every pianist.**
 
-Pre-beta, local-first iOS and web practice companion for evidence-backed piano feedback. The current inference path combines a frozen public MuQ checkpoint with separately trained A1-Max heads for six research scores, plus Transkun transcription and symbolic score alignment. The V6 harness turns those signals into one actionable observation and preserves uncertainty rather than treating any model score as ground truth.
+Practice companion for evidence-backed piano feedback. The current inference path combines a frozen MuQ checkpoint with separately trained A1-Max heads for six research scores, plus Transkun transcription and symbolic score alignment. The V6 harness turns those signals into one actionable observation and preserves uncertainty rather than treating any model score as ground truth.
 
 ## Historical Model Benchmark
 
