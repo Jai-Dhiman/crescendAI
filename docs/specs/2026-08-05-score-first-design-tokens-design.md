@@ -43,6 +43,30 @@ Three concrete failures follow from this:
    visible seam; on dark it is a glaring white rectangle. It is consumed by
    `ScorePanel.tsx:390` and `ProofCard.tsx:262`.
 
+A full inventory of the 32 consuming files turned up three more problems that
+a token rename alone would not fix, and that the success criterion cannot be
+met without addressing:
+
+4. **The dimension colours are not tokens at all.** The `--dim-*` block
+   (app.css:294-301) has **zero consumers**. The real colours live in two
+   unrelated JavaScript objects: `lib/mock-session.ts` `DIMENSION_COLORS`
+   (the muted family, applied as inline `style={{ backgroundColor }}` by five
+   components) and `components/BarScoreChip.tsx` `DIMENSION_COLOR` — a
+   completely different bright palette (`#4f9cf9`, `#f97316`, `#a78bfa`, …)
+   for the same six dimensions. Three sources of truth, none reading the CSS.
+   Because they are JS literals in inline styles, none of them respond to a
+   theme change at all.
+5. **Token values are duplicated as raw RGB.** The sage accent is written out
+   as `122, 154, 130` in `AudioWaveformRing.tsx` and `ListeningMode.tsx`, and
+   espresso as `45, 41, 38` in `routes/index.tsx` and `routes/signin.tsx`
+   (twice). Five sites that will silently keep the old palette after the swap.
+6. **Error and warning states have no tokens.** ~20 sites across 12 files use
+   raw `text-red-400`, `bg-red-500/10`, `text-amber-400`. Measured against
+   ivory paper every one of them fails AA: `red-400` is 2.66:1, `red-300`
+   1.82:1, `amber-400` 1.60:1. They pass today only because the background is
+   dark. This is not optional polish — the Playwright axe run in the success
+   criterion will fail on these until they are tokenised.
+
 There is also no verification. `axe-core` and `vitest-axe` are already
 dependencies but zero of the 40 test files use them, so nothing today would
 catch a token whose contrast fails.
@@ -84,6 +108,8 @@ Token names describe **role**, not pigment, so they cannot become lies:
 | `--color-border-subtle` | `#e6dcc9` | `#3a3633` |
 | `--color-border-strong` | `#cdbfa6` | `#504b48` |
 | `--color-score-canvas` | `#fdfaf4` | `#f2ece1` |
+| `--color-danger` | `#a33a32` | `#f0938c` |
+| `--color-warn` | `#8a5a1f` | `#e8b563` |
 
 `espresso`, `cream`, `surface`, `surface-2`, `surface-card`, `border`,
 `accent-lighter`, `accent-darker`, `text-primary`, `text-secondary`, and
@@ -95,11 +121,50 @@ Every ratio above is computed, not eyeballed. All text/surface pairs clear
 WCAG AA 4.5:1 in both columns; the tightest is `ink-tertiary` on
 `surface-raised` at 4.56:1 (dark) and 4.92:1 (light).
 
-### Dimension colours need a light column too
+### Error and warning become tokens
 
-The six dimension colours were tuned against a dark background. Measured
-against ivory paper, four still clear the 3:1 non-text UI threshold but two do
-not, so the family survives with two of six values adjusted for light:
+`danger` and `warn` join the table because the raw Tailwind reds and ambers in
+use today fail AA on paper by a wide margin. The two-column values above clear
+AA in both themes (danger 6.28:1 light / 7.14:1 dark; warn 5.66:1 / 8.66:1).
+Every `text-red-*`, `bg-red-*`, and `text-amber-*` in the ~20 affected sites
+maps to `text-danger` / `bg-danger/10` / `text-warn`.
+
+Two categories stay hard-coded and are explicitly exempted from the sweep and
+from the axe run: third-party brand colours (the Google logo SVG fills and the
+white/black OAuth buttons in `routes/signin.tsx`) and the dev-only mock SVG
+fixture in `routes/app.sandbox.tsx`.
+
+### Dimension colours: one source of truth, then a light column
+
+The `--dim-*` CSS variables have no consumers, so giving them a light column
+would change nothing on screen. The fix is to make them real first.
+
+`lib/mock-session.ts` `DIMENSION_COLORS` and `BarScoreChip.tsx`
+`DIMENSION_COLOR` are both deleted. In their place, one exported map from
+dimension key to CSS variable *reference*:
+
+```ts
+// lib/dimension-colors.ts
+export const DIMENSION_COLOR_VAR = {
+  dynamics: "var(--dim-dynamics)",
+  timing: "var(--dim-timing)",
+  // ...
+} as const
+```
+
+Inline styles accept `var()` references, so `style={{ backgroundColor:
+DIMENSION_COLOR_VAR[dim] }}` resolves through the cascade and follows the
+theme for free. This is what makes the CSS variables load-bearing instead of
+decorative, and it is why the light column below is worth defining at all.
+
+`BarScoreChip`'s bright palette (`#4f9cf9`, `#f97316`, …) is drift, not a
+deliberate second meaning — the Visual Direction commits to "six muted
+dimension colours" for mark tinting. It collapses onto the muted family, which
+is a visible change to that component and is called out as such.
+
+With the variables actually consumed, the light column matters. The six were
+tuned against a dark background; on ivory paper four still clear the 3:1
+non-text UI threshold and two do not:
 
 | Dimension | Light | Dark (unchanged) |
 |---|---|---|
@@ -113,6 +178,26 @@ not, so the family survives with two of six values adjusted for light:
 `dim-phrasing` at its dark value measures 2.89:1 on paper — the single reason
 this split exists. Adjusted values hold hue and saturation and lower lightness
 only, so the family still reads as one palette.
+
+### Shadow copies of token values are removed
+
+Five sites re-encode a token value as raw channel numbers and would silently
+keep the old palette through the swap:
+
+| Site | Literal | Becomes |
+|---|---|---|
+| `AudioWaveformRing.tsx:11-13` | `SAGE_R/G/B = 122,154,130` | read `--color-accent` at use |
+| `ListeningMode.tsx:145,147` | `rgba(122,154,130, …)` | `color-mix()` on `--color-accent` |
+| `routes/index.tsx:64` | `#2D2926`, `rgba(45,41,38, …)` | `--color-surface-page` |
+| `routes/signin.tsx:66,334` | `rgba(45,41,38, …)` ×2 | `--color-surface-page` |
+
+Two inline `backgroundColor: "white"` props
+(`cards/PlayPassageCard.tsx:132-137`, `cards/ScoreHighlightCard.tsx:81-87`)
+are the same defect as `.score-container` and take
+`var(--color-score-canvas)` for the same reason.
+
+`--color-accent-darker` has zero consumers and is deleted rather than
+renamed.
 
 ### The score sits on the page
 
@@ -220,10 +305,24 @@ behaviour and out of scope. They will be driven by an explicit
 | `apps/web/src/stores/theme.ts` | Delegate to `resolveTheme`; drop inline system-preference logic | Modify |
 | `apps/web/src/routes/__root.tsx` | Flash script and `applyTheme` set `data-theme="dark"` explicitly | Modify |
 | `apps/web/package.json` | Add `@axe-core/playwright`; add `test:a11y` script | Modify |
+| `apps/web/src/lib/dimension-colors.ts` | Single dimension-key -> CSS-var map | New |
+| `apps/web/src/lib/mock-session.ts` | Delete `DIMENSION_COLORS` | Modify |
+| `apps/web/src/components/BarScoreChip.tsx` | Delete divergent bright palette; use the shared map | Modify |
+| `apps/web/src/components/AudioWaveformRing.tsx` | Drop `SAGE_R/G/B`; read the accent token | Modify |
+| `apps/web/src/components/ListeningMode.tsx` | Replace hard-coded sage `rgba()` | Modify |
+| `apps/web/src/routes/index.tsx`, `signin.tsx` | Replace hard-coded espresso `rgba()` gradients | Modify |
+| `apps/web/src/components/cards/PlayPassageCard.tsx` | Inline `"white"` -> score-canvas token | Modify |
+| `apps/web/src/components/cards/ScoreHighlightCard.tsx` | Inline `"white"` -> score-canvas token | Modify |
+| ~12 files with red/amber literals | `text-red-*`/`text-amber-*` -> `danger`/`warn` tokens | Modify |
 | ~32 component/route files | Rename token utility classes to the new semantic names | Modify |
 
-The exact list of the ~32 consuming files, with the utility forms used in
-each, is enumerated in the implementation plan.
+Measured consumer counts driving the rename sweep: `text-tertiary` 97,
+`cream` 112, `surface` 80, `border` 70, `text-secondary` 66, `accent` 64,
+`surface-card` 18, `surface-2` 17, `text-primary` 16, `espresso` 13.
+Two cross-uses need care rather than a blind find-and-replace:
+`border-text-tertiary/50` (a text token used as a border colour, 4 sites) and
+`bg-border` (a border token used as a fill, 2 sites). The full per-file list
+with exact utility forms is enumerated in the implementation plan.
 
 ## Open Questions
 
@@ -235,6 +334,11 @@ each, is enumerated in the implementation plan.
   as "a white card we failed to remove"?** Default: ship the tint with a
   `--color-border-subtle` edge and judge it in the click-through; it is one
   token to change.
+- **Q: Is `BarScoreChip`'s bright palette actually deliberate?** It is the one
+  visible design change in an otherwise mechanical issue. Default: collapse it
+  onto the muted family per the Visual Direction, and show the before/after in
+  the click-through. If the bright chips turn out to be intentional
+  legibility-at-small-size work, reverting is one file.
 - **Q: iOS `Colors.swift` now drifts from this table.** Default: record the
   drift in #156's closing comment and let the iOS surface work pick it up.
   Nothing in this issue reads the iOS tokens, so the drift is inert until
