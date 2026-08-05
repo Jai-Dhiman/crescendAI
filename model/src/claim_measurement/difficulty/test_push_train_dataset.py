@@ -146,3 +146,76 @@ def test_main_builds_fold_plans_stages_and_calls_the_injected_uploader(tmp_path)
     assert calls == [(staging_dir, "jaidhiman/phase1-lora-bundle")]
     staged_plans = json.loads((staging_dir / "fold_plans.json").read_text())
     assert len(staged_plans) == 2
+
+
+def test_main_refuses_to_stage_when_check_fold_plans_reports_a_violation(
+    tmp_path, monkeypatch
+):
+    """check_fold_plans is the independent re-derivation that catches a leak
+    in the artifact actually uploaded and trained on -- main() must call it
+    and refuse to stage/upload on any violation, rather than leaving it dead."""
+    manifest_path = tmp_path / "manifest.json"
+    labels_path = tmp_path / "labels.json"
+    midi_dir = tmp_path / "transkun_mid"
+    midi_dir.mkdir()
+
+    seg_ids = [f"p{i:02d}" for i in range(10)]
+    manifest = [
+        {
+            "seg_id": s,
+            "key": f"{s}.mid",
+            "grade": i % 11,
+            "video_id": "x",
+            "midi_name": f"mid/{s}.mid",
+        }
+        for i, s in enumerate(seg_ids)
+    ]
+    labels = {f"{s}.mid": {"composer": f"composer_{i}"} for i, s in enumerate(seg_ids)}
+    manifest_path.write_text(json.dumps(manifest))
+    labels_path.write_text(json.dumps(labels))
+    for s in seg_ids:
+        (midi_dir / f"{s}.mid").write_bytes(b"x")
+
+    sample_manifest_path = tmp_path / "sample_manifest.json"
+    sample_manifest_path.write_text(json.dumps([{"seg_id": s} for s in seg_ids[:6]]))
+
+    repo_snapshot_dir = tmp_path / "repo"
+    _write_fake_repo(repo_snapshot_dir)
+    staging_dir = tmp_path / "staging"
+
+    def corrupt_build_fold_plans(eval_entries, pool_entries, n_folds, seed, val_frac):
+        # A deliberately corrupted plan: fold 0's train set overlaps its own
+        # test set, which check_fold_plans must catch.
+        seg_id = eval_entries[0].seg_id
+        return [
+            FoldPlan(fold=0, test_seg_ids=(seg_id,), train_seg_ids=(seg_id,),
+                     val_seg_ids=())
+        ]
+
+    monkeypatch.setattr(
+        "claim_measurement.difficulty.fold_plan.build_fold_plans",
+        corrupt_build_fold_plans,
+    )
+
+    calls = []
+
+    def fake_uploader(staged_dir, repo_id):
+        calls.append((staged_dir, repo_id))
+
+    with pytest.raises(ValueError, match="failed independent re-derivation"):
+        main(
+            [
+                "--manifest", str(manifest_path),
+                "--labels", str(labels_path),
+                "--sample-manifest", str(sample_manifest_path),
+                "--midi-dir", str(midi_dir),
+                "--repo-snapshot-dir", str(repo_snapshot_dir),
+                "--staging-dir", str(staging_dir),
+                "--repo-id", "jaidhiman/phase1-lora-bundle",
+                "--n-folds", "1",
+            ],
+            uploader=fake_uploader,
+        )
+
+    assert not calls
+    assert not staging_dir.exists()

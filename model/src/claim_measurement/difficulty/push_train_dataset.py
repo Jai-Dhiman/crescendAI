@@ -108,7 +108,10 @@ def main(argv=None, uploader=None) -> int:
     args = ap.parse_args(argv)
 
     from claim_measurement.difficulty.bakeoff_sampling import load_bakeoff_manifest
-    from claim_measurement.difficulty.fold_plan import build_fold_plans
+    from claim_measurement.difficulty.fold_plan import (
+        build_fold_plans,
+        check_fold_plans,
+    )
 
     pool_entries = load_bakeoff_manifest(args.manifest, args.labels, args.midi_dir)
     sample_seg_ids = {e["seg_id"] for e in json.loads(args.sample_manifest.read_text())}
@@ -118,6 +121,13 @@ def main(argv=None, uploader=None) -> int:
 
     plans = build_fold_plans(
         eval_entries, pool_entries, args.n_folds, args.seed, args.val_frac)
+
+    violations = check_fold_plans(
+        plans, eval_entries, pool_entries, args.n_folds, args.seed)
+    if violations:
+        raise ValueError(
+            f"fold plan failed independent re-derivation, refusing to stage or "
+            f"upload: {violations}")
 
     grades = {e.seg_id: e.grade for e in pool_entries}
     paths = BundleSources(
