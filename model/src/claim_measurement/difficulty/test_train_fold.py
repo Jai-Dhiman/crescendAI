@@ -24,8 +24,10 @@ def test_lora_target_modules_targets_top_5_of_15_layers_35_modules():
 
 
 import json
+from pathlib import Path
 
 import numpy as np
+import pytest
 import torch
 
 from claim_measurement.difficulty.train_fold import (
@@ -89,6 +91,22 @@ class _FakeOuter(torch.nn.Module):
 _TOKEN_LENGTHS = {"t0": 6, "t1": 7, "t2": 8, "t3": 6, "v0": 7, "e0": 5, "e1": 9}
 
 
+def _stage_fake_bundle_dir(tmp_path):
+    """A minimal already-downloaded push_train_dataset.py bundle: just the
+    code/ subdir main() needs combined_loss/tau_c from, staged from the SAME
+    files push_train_dataset.stage_training_bundle copies verbatim (never a
+    second, vendored implementation)."""
+    import shutil
+
+    bundle_dir = tmp_path / "bundle"
+    code_dir = bundle_dir / "code"
+    code_dir.mkdir(parents=True)
+    module_dir = Path(__file__).resolve().parent
+    shutil.copy2(module_dir / "ranking_loss.py", code_dir / "ranking_loss.py")
+    shutil.copy2(module_dir / "bakeoff_cv.py", code_dir / "bakeoff_cv.py")
+    return bundle_dir
+
+
 def test_main_trains_a_lora_adapter_and_writes_emb_fold_for_all_eval_pieces(tmp_path):
     fold_plan = [{
         "fold": 0,
@@ -125,6 +143,7 @@ def test_main_trains_a_lora_adapter_and_writes_emb_fold_for_all_eval_pieces(tmp_
             "--eval-manifest", str(tmp_path / "eval_manifest.json"),
             "--midi-dir", str(tmp_path / "mid"),
             "--out-dir", str(out_dir),
+            "--bundle-dir", str(_stage_fake_bundle_dir(tmp_path)),
             "--hidden-size", "4",
             "--n-layers", "1",
             "--n-top-layers", "1",
@@ -230,6 +249,7 @@ def test_main_actually_updates_lora_weights_not_just_the_score_head(
             "--eval-manifest", str(tmp_path / "eval_manifest.json"),
             "--midi-dir", str(tmp_path / "mid"),
             "--out-dir", str(out_dir),
+            "--bundle-dir", str(_stage_fake_bundle_dir(tmp_path)),
             "--hidden-size", "4",
             "--n-layers", "1",
             "--n-top-layers", "1",
@@ -244,3 +264,100 @@ def test_main_actually_updates_lora_weights_not_just_the_score_head(
     proj = captured["outer"].model.layers[-1].self_attn.q_proj
     assert not torch.equal(proj.lora_A["default"].weight.detach(), initial["lora_A"])
     assert not torch.equal(proj.lora_B["default"].weight.detach(), initial["lora_B"])
+
+
+def _fold0_args(tmp_path, out_dir, extra=()):
+    fold_plan = [{
+        "fold": 0,
+        "test_seg_ids": ["e0", "e1"],
+        "train_seg_ids": ["t0", "t1", "t2", "t3"],
+        "val_seg_ids": ["v0"],
+    }]
+    (tmp_path / "fold_plan.json").write_text(json.dumps(fold_plan))
+    (tmp_path / "pool_grades.json").write_text(json.dumps(
+        {"t0": 1, "t1": 5, "t2": 8, "t3": 3, "v0": 4}))
+    (tmp_path / "eval_manifest.json").write_text(json.dumps([
+        {"seg_id": "e0", "grade": 2, "composer_id": 0},
+        {"seg_id": "e1", "grade": 9, "composer_id": 1},
+    ]))
+    return [
+        "--fold", "0",
+        "--checkpoint", str(tmp_path / "fake.pt"),
+        "--repo-root", str(tmp_path / "repo"),
+        "--model-config", str(tmp_path / "repo" / "model_config.json"),
+        "--fold-plan", str(tmp_path / "fold_plan.json"),
+        "--pool-grades", str(tmp_path / "pool_grades.json"),
+        "--eval-manifest", str(tmp_path / "eval_manifest.json"),
+        "--midi-dir", str(tmp_path / "mid"),
+        "--out-dir", str(out_dir),
+        "--bundle-dir", str(_stage_fake_bundle_dir(tmp_path)),
+        "--hidden-size", "4",
+        "--n-layers", "1",
+        "--n-top-layers", "1",
+        "--max-len", "4",
+        "--epochs", "1",
+        "--micro-batch", "2",
+        *extra,
+    ]
+
+
+def _fake_loader_factory(checkpoint_path, repo_root, model_config):
+    outer = _FakeOuter(hidden=4, n_layers=1, vocab=16)
+
+    def tokenize(midi_path):
+        n = _TOKEN_LENGTHS[midi_path.stem]
+        return torch.arange(n) % 16
+
+    return outer, tokenize, 4  # matches --max-len in _fold0_args
+
+
+def test_main_requires_bundle_dir_or_bundle_repo(tmp_path):
+    """Neither flag given means main() has no way to reach combined_loss/
+    tau_c (train_fold.py is uploaded alone by `hf jobs uv run`, without the
+    rest of this package) -- refuse loudly rather than crashing deep inside
+    the training loop."""
+    args = _fold0_args(tmp_path, tmp_path / "fold0")
+    # Drop the --bundle-dir this helper adds, to exercise the missing-both case.
+    bundle_idx = args.index("--bundle-dir")
+    del args[bundle_idx:bundle_idx + 2]
+
+    with pytest.raises(ValueError, match="--bundle-dir or --bundle-repo"):
+        main(args, loader_factory=_fake_loader_factory)
+
+
+def test_main_uploads_adapter_and_embeddings_when_output_repo_is_set(tmp_path):
+    """--output-repo must trigger the injected uploader with the out-dir and
+    repo id -- without this, an HF Jobs container's local disk (and the $13
+    of GPU time that filled it) is discarded when the container exits."""
+    out_dir = tmp_path / "fold0"
+    calls = []
+
+    def fake_uploader(uploaded_out_dir, repo_id):
+        calls.append((uploaded_out_dir, repo_id))
+
+    exit_code = main(
+        _fold0_args(tmp_path, out_dir, extra=(
+            "--output-repo", "jaidhiman/phase1-lora-fold0",
+        )),
+        loader_factory=_fake_loader_factory,
+        uploader=fake_uploader,
+    )
+
+    assert exit_code == 0
+    assert calls == [(out_dir, "jaidhiman/phase1-lora-fold0")]
+
+
+def test_main_does_not_upload_when_output_repo_is_not_set(tmp_path):
+    calls = []
+
+    def fake_uploader(uploaded_out_dir, repo_id):
+        calls.append((uploaded_out_dir, repo_id))
+
+    exit_code = main(
+        _fold0_args(tmp_path, tmp_path / "fold0"),
+        loader_factory=_fake_loader_factory,
+        uploader=fake_uploader,
+    )
+
+    assert exit_code == 0
+    assert not calls

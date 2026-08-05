@@ -27,11 +27,20 @@ class BundleSources:
     repo_snapshot_dir: Path
 
 
+# Modules train_fold.py needs at train time but which `hf jobs uv run` never
+# uploads (it uploads only the one file passed on the command line). Staged
+# verbatim into the bundle's code/ subdir so train_fold.py can pull them back
+# via snapshot_download instead of vendoring a second copy of the loss/tau_c
+# implementation that could drift from this one.
+_CODE_FILES = ("ranking_loss.py", "bakeoff_cv.py")
+
+
 @dataclass(frozen=True)
 class BundleReport:
     n_midis: int
     n_fold_plans: int
     repo_snapshot_files: int
+    code_files: int
     checksum: str
 
 
@@ -76,6 +85,12 @@ def stage_training_bundle(
     shutil.copytree(paths.repo_snapshot_dir, repo_out)
     repo_files = sum(1 for p in repo_out.rglob("*") if p.is_file())
 
+    code_out = staging_dir / "code"
+    code_out.mkdir(parents=True, exist_ok=True)
+    module_dir = Path(__file__).resolve().parent
+    for name in _CODE_FILES:
+        shutil.copy2(module_dir / name, code_out / name)
+
     hasher = hashlib.sha256()
     for p in sorted(staging_dir.rglob("*")):
         if p.is_file():
@@ -83,7 +98,8 @@ def stage_training_bundle(
             hasher.update(str(p.stat().st_size).encode())
 
     return BundleReport(n_midis=len(seg_ids), n_fold_plans=len(plans),
-                         repo_snapshot_files=repo_files, checksum=hasher.hexdigest())
+                         repo_snapshot_files=repo_files, code_files=len(_CODE_FILES),
+                         checksum=hasher.hexdigest())
 
 
 def main(argv=None, uploader=None) -> int:
@@ -135,7 +151,8 @@ def main(argv=None, uploader=None) -> int:
         repo_snapshot_dir=args.repo_snapshot_dir)
     report = stage_training_bundle(paths, plans, args.staging_dir)
     print(f"staged {report.n_midis} MIDIs, {report.n_fold_plans} fold plans, "
-          f"{report.repo_snapshot_files} repo files, checksum {report.checksum}")
+          f"{report.repo_snapshot_files} repo files, {report.code_files} code files, "
+          f"checksum {report.checksum}")
 
     if uploader is None:
         from huggingface_hub import HfApi

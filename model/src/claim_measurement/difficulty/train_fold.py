@@ -21,7 +21,19 @@ plus trackio for telemetry.
         --model-config .../model_config.json \\
         --fold-plan .../fold_plans.json --pool-grades .../grades.json \\
         --eval-manifest .../eval_manifest.json \\
-        --midi-dir .../transkun_mid --out-dir .../fold0
+        --midi-dir .../transkun_mid --out-dir .../fold0 \\
+        --bundle-repo <your-hf-username>/phase1-lora-bundle \\
+        --output-repo <your-hf-username>/phase1-lora-fold0
+
+`hf jobs uv run` uploads ONLY this file -- not the rest of this package, so
+`--bundle-repo` (a `push_train_dataset.py`-staged HF dataset repo) is
+snapshot_download'd at startup and its `code/` subdir is where `combined_loss`
+and `tau_c` are imported from (never a second, vendored copy of either). Pass
+`--bundle-dir` instead of `--bundle-repo` for a local/offline run against an
+already-downloaded bundle. `--output-repo` uploads `adapter/` and
+`emb_fold{F}.npz` to a Hub model repo after training -- without it, a job
+container's local disk (and the $13 of GPU time that filled it) is discarded
+when the container exits.
 
 Only the encoder weights are graded (design spec's gate (i)): the score head
 trained here is DISCARDED after training. `emb_fold{F}.npz` -- the only
@@ -182,11 +194,19 @@ def read_fold_embeddings(path: Path) -> dict:
         }
 
 
-def main(argv: list[str] | None = None, loader_factory=_real_loader) -> int:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # -> model/src
-    from claim_measurement.difficulty.bakeoff_cv import tau_c
-    from claim_measurement.difficulty.ranking_loss import combined_loss
+def _real_uploader(out_dir: Path, repo_id: str) -> None:
+    """Upload the trained adapter/ directory and emb_fold{F}.npz to a Hub
+    model repo, so the artifacts survive the HF Jobs container's exit --
+    without this, the $13 of GPU time that produced them is discarded."""
+    from huggingface_hub import HfApi
 
+    api = HfApi()
+    api.create_repo(repo_id, repo_type="model", private=True, exist_ok=True)
+    api.upload_folder(folder_path=str(out_dir), repo_id=repo_id, repo_type="model")
+
+
+def main(argv: list[str] | None = None, loader_factory=_real_loader,
+         uploader=_real_uploader) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--fold", type=int, required=True)
@@ -203,6 +223,24 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader) -> int:
              "in the SAME seg_id-sorted order ft_eval.py reads from emb/features37/")
     ap.add_argument("--midi-dir", type=Path, required=True)
     ap.add_argument("--out-dir", type=Path, required=True)
+    ap.add_argument(
+        "--bundle-dir", type=Path, default=None,
+        help="an already-downloaded push_train_dataset.py bundle (must contain a "
+             "code/ subdir with ranking_loss.py + bakeoff_cv.py) -- skips the "
+             "snapshot_download below. Required when --bundle-repo is not given "
+             "(e.g. a local/offline run).")
+    ap.add_argument(
+        "--bundle-repo", default=None,
+        help="the HF dataset repo id push_train_dataset.py uploaded the training "
+             "bundle to; snapshot_download'd at startup when --bundle-dir is not "
+             "given (this is how the code/ dir reaches the HF Jobs container, "
+             "which `hf jobs uv run` never uploads on its own)")
+    ap.add_argument(
+        "--output-repo", default=None,
+        help="HF Hub model repo id to upload adapter/ + emb_fold{F}.npz to after "
+             "training. If omitted, artifacts are left on local/container disk "
+             "only -- fine for a local run, but a job container discards them "
+             "on exit, so this MUST be set for an `hf jobs uv run` invocation.")
     ap.add_argument("--hidden-size", type=int, default=1920)
     ap.add_argument("--n-layers", type=int, default=15)
     ap.add_argument("--n-top-layers", type=int, default=5)
@@ -215,6 +253,23 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader) -> int:
     ap.add_argument("--seed", type=int, default=2026)
     args = ap.parse_args(argv)
     torch.manual_seed(args.seed)
+
+    if args.bundle_dir is not None:
+        bundle_dir = Path(args.bundle_dir)
+    elif args.bundle_repo:
+        from huggingface_hub import snapshot_download
+        bundle_dir = Path(
+            snapshot_download(repo_id=args.bundle_repo, repo_type="dataset"))
+    else:
+        raise ValueError("either --bundle-dir or --bundle-repo is required, so "
+                          "combined_loss/tau_c can be imported from the bundle's "
+                          "code/ subdir (train_fold.py is uploaded alone by "
+                          "`hf jobs uv run`, without the rest of this package)")
+    sys.path.insert(0, str(bundle_dir / "code"))
+    import bakeoff_cv as _bakeoff_cv
+    import ranking_loss as _ranking_loss
+    tau_c = _bakeoff_cv.tau_c
+    combined_loss = _ranking_loss.combined_loss
 
     plans = json.loads(args.fold_plan.read_text())
     plan = next(p for p in plans if p["fold"] == args.fold)
@@ -303,6 +358,11 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader) -> int:
     )
     print(f"fold {args.fold}: wrote adapter + emb_fold{args.fold}.npz for "
           f"{len(eval_pieces)} eval pieces")
+
+    if args.output_repo is not None:
+        uploader(out_dir, args.output_repo)
+        print(f"fold {args.fold}: uploaded adapter + emb_fold{args.fold}.npz to "
+              f"{args.output_repo}")
     return 0
 
 

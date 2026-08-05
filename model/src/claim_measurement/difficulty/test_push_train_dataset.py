@@ -4,6 +4,7 @@ training-bundle staging + upload, uploader injected so no test hits the network.
 Run: cd model && uv run python -m pytest src/claim_measurement/difficulty/ -q --no-cov
 """
 import json
+from pathlib import Path
 
 import pytest
 
@@ -52,6 +53,7 @@ def test_stage_training_bundle_copies_every_referenced_piece_and_reports_counts(
     assert report.n_midis == 4  # {a,b,c,d}, deduplicated across both plans
     assert report.n_fold_plans == 2
     assert report.repo_snapshot_files == 2
+    assert report.code_files == 2
     assert len(report.checksum) == 64  # sha256 hex digest
     for seg_id in seg_ids:
         assert (staging_dir / "midi" / f"{seg_id}.mid").exists()
@@ -60,6 +62,12 @@ def test_stage_training_bundle_copies_every_referenced_piece_and_reports_counts(
     }
     staged_plans = json.loads((staging_dir / "fold_plans.json").read_text())
     assert len(staged_plans) == 2
+    # code/ carries train_fold.py's runtime deps into the HF Jobs container --
+    # `hf jobs uv run` only uploads the one file passed on the command line.
+    assert (staging_dir / "code" / "ranking_loss.py").read_text() == (
+        Path(__file__).resolve().parent / "ranking_loss.py").read_text()
+    assert (staging_dir / "code" / "bakeoff_cv.py").read_text() == (
+        Path(__file__).resolve().parent / "bakeoff_cv.py").read_text()
 
 
 def test_stage_training_bundle_raises_when_a_referenced_piece_has_no_grade(tmp_path):
