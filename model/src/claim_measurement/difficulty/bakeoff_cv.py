@@ -73,3 +73,21 @@ def oof_tau_ridge(X: np.ndarray, y: np.ndarray, composers: np.ndarray,
     return {"mean": float(np.mean(taus)) if taus else None,
             "std": float(np.std(taus)) if taus else None,
             "n_seeds": len(taus)}
+
+
+def paired_boot(oof_a: np.ndarray, oof_b: np.ndarray, y: np.ndarray, seed: int = 2026,
+                 n_boot: int = 2000) -> tuple[float, float, float, float]:
+    """Bootstrap the tau-c(b) - tau-c(a) difference over PIECES, resampling the
+    SAME indices for both arms so the fold noise they share cancels. Promoted
+    from features37_compare.py (a standalone `# /// script` that ft_eval.py
+    cannot import -- lightgbm is not in model/.venv) so the gate (ft_eval.py,
+    realaudio_check.py) and the Phase 0 baseline share one bootstrap
+    implementation. Returns (mean_diff, ci_lo, ci_hi, P(diff <= 0))."""
+    rng = np.random.default_rng(seed)
+    diffs = np.empty(n_boot)
+    for b in range(n_boot):
+        i = rng.integers(0, len(y), len(y))
+        diffs[b] = (stats.kendalltau(oof_b[i], y[i], variant="c").statistic
+                    - stats.kendalltau(oof_a[i], y[i], variant="c").statistic)
+    lo, hi = (float(v) for v in np.percentile(diffs, [2.5, 97.5]))
+    return float(np.mean(diffs)), lo, hi, float(np.mean(diffs <= 0))

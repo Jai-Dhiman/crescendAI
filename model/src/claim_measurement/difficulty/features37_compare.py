@@ -33,16 +33,16 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from scipy import stats
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from claim_measurement.difficulty.bakeoff_cv import (  # noqa: E402
     composer_disjoint_folds,
+    paired_boot,
     tau_c,
 )
 from claim_measurement.difficulty.bakeoff_paths import resolve_paths  # noqa: E402
 
-N_FOLDS, SEEDS, N_BOOT = 5, list(range(2026, 2031)), 2000
+N_FOLDS, SEEDS = 5, list(range(2026, 2031))
 ALPHAS = np.logspace(-1, 5, 25)
 # #137's REG_PARAMS verbatim, so the LightGBM arm is that model class on these folds.
 LGBM_PARAMS = dict(objective="regression", n_estimators=300, learning_rate=0.03,
@@ -85,19 +85,6 @@ def oof_lgbm(X, y, comp, seed):
         tr = np.setdiff1d(np.arange(len(y)), te)
         oof[te] = lgb.LGBMRegressor(**LGBM_PARAMS).fit(X[tr], y[tr]).predict(X[te])
     return oof
-
-
-def paired_boot(oof_a, oof_b, y, seed=2026):
-    """Bootstrap the tau-c difference over PIECES, resampling the same indices for
-    both arms so the fold noise they share cancels."""
-    rng = np.random.default_rng(seed)
-    diffs = np.empty(N_BOOT)
-    for b in range(N_BOOT):
-        i = rng.integers(0, len(y), len(y))
-        diffs[b] = (stats.kendalltau(oof_b[i], y[i], variant="c").statistic
-                    - stats.kendalltau(oof_a[i], y[i], variant="c").statistic)
-    lo, hi = (float(v) for v in np.percentile(diffs, [2.5, 97.5]))
-    return float(np.mean(diffs)), lo, hi, float(np.mean(diffs <= 0))
 
 
 def main(argv=None) -> int:
