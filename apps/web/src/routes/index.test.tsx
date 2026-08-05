@@ -64,4 +64,13 @@ describe("LandingPage structure", () => {
 		expect(screen.queryByText(/Ballade No\. 1/)).toBeNull();
 		expect(screen.queryByText(/Be first to play/)).toBeNull();
 	});
+
+	it("uses the surface-page token for the hero gradient overlay, not a hard-coded hex", async () => {
+		const { container } = await renderLanding();
+		const gradientOverlay = container.querySelector("div.absolute.inset-0");
+		expect(gradientOverlay).not.toBeNull();
+		const background = (gradientOverlay as HTMLElement).getAttribute("style");
+		expect(background).toContain("var(--color-surface-page)");
+		expect(background).not.toContain("#2D2926");
+	});
 });

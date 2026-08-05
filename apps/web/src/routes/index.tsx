@@ -61,12 +61,12 @@ function HeroSection() {
 				className="absolute inset-0"
 				style={{
 					background:
-						"linear-gradient(to top, #2D2926 0%, #2D2926 5%, rgba(45,41,38,0.7) 30%, rgba(45,41,38,0.2) 60%, rgba(45,41,38,0.05) 100%)",
+						"linear-gradient(to top, var(--color-surface-page) 0%, var(--color-surface-page) 5%, color-mix(in srgb, var(--color-surface-page) 70%, transparent) 30%, color-mix(in srgb, var(--color-surface-page) 20%, transparent) 60%, color-mix(in srgb, var(--color-surface-page) 5%, transparent) 100%)",
 				}}
 			/>
 			<div className="relative z-10 text-center px-6">
 				<h1
-					className="font-display text-cream text-balance"
+					className="font-display text-ink-primary text-balance"
 					style={{
 						fontSize: "clamp(3rem, 8vw, 7rem)",
 						lineHeight: 1.05,
@@ -78,7 +78,7 @@ function HeroSection() {
 				<div className="mt-10">
 					<button
 						type="button"
-						className="bg-cream text-espresso px-8 py-3.5 text-body-sm font-medium hover:brightness-110 transition inline-block"
+						className="bg-ink-primary text-surface-page px-8 py-3.5 text-body-sm font-medium hover:brightness-110 transition inline-block"
 						onClick={() => {
 							trackLandingEvent("landing_hero_cta_click");
 							scrollToWaitlist();
@@ -97,10 +97,10 @@ function GlimpseSection() {
 		<section className="py-24 lg:py-32 overflow-hidden">
 			<div className="max-w-6xl mx-auto px-6 lg:px-12">
 				<div className="text-center mb-16">
-					<h2 className="font-display text-display-md lg:text-display-lg text-cream">
+					<h2 className="font-display text-display-md lg:text-display-lg text-ink-primary">
 						See what your playing sounds like.
 					</h2>
-					<p className="mt-4 text-body-md text-text-secondary">
+					<p className="mt-4 text-body-md text-ink-secondary">
 						Record on your phone. Get back the exact bars to focus on, and why.
 					</p>
 				</div>
@@ -110,10 +110,10 @@ function GlimpseSection() {
 					<BrowserFrame className="w-full lg:w-[78%]">
 						<div className="p-4 lg:p-6">
 							<div className="flex items-center gap-2 mb-3">
-								<span className="text-label-sm uppercase tracking-wide text-text-tertiary">
+								<span className="text-label-sm uppercase tracking-wide text-ink-tertiary">
 									Sample
 								</span>
-								<span className="text-body-xs text-text-tertiary">
+								<span className="text-body-xs text-ink-tertiary">
 									· Chopin, Nocturne Op. 9 No. 2
 								</span>
 							</div>
@@ -130,7 +130,7 @@ function GlimpseSection() {
 					</PhoneFrame>
 				</div>
 
-				<p className="mt-8 lg:mt-20 text-center text-body-xs text-text-tertiary">
+				<p className="mt-8 lg:mt-20 text-center text-body-xs text-ink-tertiary">
 					Real score rendering from CrescendAI. Full performance analysis
 					arrives with the app.
 				</p>
@@ -165,7 +165,7 @@ function NocturneScore({ config }: { config: ScoreHighlightConfig }) {
 	if (status === "loading") {
 		return (
 			<div className="h-40 flex items-center justify-center">
-				<div className="w-4 h-4 rounded-full border-2 border-text-tertiary/50 border-t-transparent animate-spin" />
+				<div className="w-4 h-4 rounded-full border-2 border-ink-tertiary/50 border-t-transparent animate-spin" />
 			</div>
 		);
 	}
@@ -204,7 +204,7 @@ function CascadingQuoteSection() {
 						</div>
 					</div>
 					<div>
-						<blockquote className="font-display italic text-display-md lg:text-display-lg text-cream leading-snug">
+						<blockquote className="font-display italic text-display-md lg:text-display-lg text-ink-primary leading-snug">
 							"What's the one thing that sounds off that I can't hear myself?"
 						</blockquote>
 					</div>
@@ -218,10 +218,10 @@ function WaitlistSection() {
 	return (
 		<section id="waitlist" className="py-32 lg:py-40 scroll-mt-8">
 			<div className="max-w-2xl mx-auto px-6 lg:px-12 text-center">
-				<h2 className="font-display text-display-md lg:text-display-xl text-cream">
+				<h2 className="font-display text-display-md lg:text-display-xl text-ink-primary">
 					Every pianist deserves a great teacher.
 				</h2>
-				<p className="mt-5 text-body-md text-text-secondary">
+				<p className="mt-5 text-body-md text-ink-secondary">
 					We're opening access soon. Join the waitlist and we'll let you know
 					the moment it's ready.
 				</p>
@@ -267,7 +267,7 @@ function WaitlistForm() {
 
 	if (state === "success") {
 		return (
-			<p className="text-body-lg text-cream font-display">
+			<p className="text-body-lg text-ink-primary font-display">
 				You're on the list. We'll be in touch.
 			</p>
 		);
@@ -300,18 +300,18 @@ function WaitlistForm() {
 				onChange={(e) => setEmail(e.target.value)}
 				placeholder="you@example.com"
 				disabled={state === "submitting"}
-				className="flex-1 bg-surface border border-border px-4 py-3 text-body-sm text-cream placeholder:text-text-tertiary focus:outline-none focus:border-accent transition disabled:opacity-60"
+				className="flex-1 bg-surface-raised border border-border-subtle px-4 py-3 text-body-sm text-ink-primary placeholder:text-ink-tertiary focus:outline-none focus:border-accent transition disabled:opacity-60"
 			/>
 			<button
 				type="submit"
 				disabled={state === "submitting"}
-				className="bg-accent text-cream px-6 py-3 text-body-sm font-medium hover:brightness-110 transition disabled:opacity-60 whitespace-nowrap"
+				className="bg-accent text-ink-primary px-6 py-3 text-body-sm font-medium hover:brightness-110 transition disabled:opacity-60 whitespace-nowrap"
 			>
 				{state === "submitting" ? "Joining…" : "Join the waitlist"}
 			</button>
 			{state === "error" && (
 				<p
-					className="sm:absolute sm:mt-16 text-body-xs text-red-400"
+					className="sm:absolute sm:mt-16 text-body-xs text-danger"
 					role="alert"
 				>
 					{errorMsg}
