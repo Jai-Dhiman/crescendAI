@@ -120,8 +120,25 @@ inside a fresh job container.)
 
 Add `--micro-batch 4` if the pilot does not fit `a100-large` at the default 8.
 
+`--device` is not on the submit line because it defaults to `cuda` and **aborts
+rather than falling back to CPU**. That default is the fix for job `6a73a7d7`,
+which rented an `a100-large` and trained on its CPU for an hour because the
+script had no device handling at all. A local run must say `--device cpu` out
+loud. Trackio is initialised before the checkpoint download, so a telemetry
+misconfiguration kills the job in seconds instead of after GPU spend; pass
+`--trackio-space <user>/<space>` to keep the metrics after the container exits
+(without it they are written to container disk and lost), or `--no-trackio` for
+a local run.
+
 Monitor with `hf jobs ps`, `hf jobs logs <job-id>`, `hf jobs inspect <job-id>`.
+The first log lines are `device: cuda:0 (...)`, `trainable params: N on cuda:0`
+and a `steps/epoch x epochs` total; then a throughput line every
+`--log-every` (default 10) steps carrying `loss`, `s/step`, `pieces/s`,
+`elapsed` and `eta`.
+
 Abort criteria (design spec's Open Questions):
+- **The device line says `cpu`, or `s/step` implies CPU speed** — kill the job
+  immediately. This is checkable in minute one, before real money is spent.
 - **Val ranking tau is flat or diverging** across the printed `epoch N:
   val_ranking_tau=...` lines — stop, the objective/LR is not working, do not
   spend money on folds 1-4.

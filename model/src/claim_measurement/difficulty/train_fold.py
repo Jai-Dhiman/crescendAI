@@ -37,6 +37,15 @@ local run against loose files relies on. The 1.6 GB checkpoint is not in the
 bundle at all: with no `--checkpoint`, it is fetched from `--checkpoint-repo` /
 `--checkpoint-filename` on the Hub.
 
+`--device` defaults to `cuda` and REFUSES to fall back: on a rented
+`a100-large` a CPU fallback is silent and ~40x slower, which is what job
+6a73a7d7 spent an hour discovering. A local run has to say `--device cpu` out
+loud. `--log-every` prints a throughput line during the epoch (a ~477-step
+epoch used to emit nothing until it ended, so hung and working looked
+identical), and Trackio is initialised BEFORE the checkpoint download so a
+telemetry misconfiguration is fatal while it is still free -- mid-run
+`trackio.log` failures only warn.
+
 `--output-repo` uploads `adapter/` and `emb_fold{F}.npz` to a Hub model repo
 after training -- without it, a job container's local disk (and the $13 of GPU
 time that filled it) is discarded when the container exits.
@@ -56,6 +65,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -70,6 +80,49 @@ PROJECTIONS = (
     "self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj", "self_attn.o_proj",
     "mlp.gate_proj", "mlp.up_proj", "mlp.down_proj",
 )
+
+
+def resolve_device(requested: str) -> torch.device:
+    """The device every parameter and input tensor is placed on. Defaults to
+    `cuda` (see --device) so a job that forgets the flag dies in seconds
+    instead of quietly training on the CPU of a rented a100-large -- which is
+    exactly how job 6a73a7d7 burned an hour. `auto` is the only value that may
+    silently degrade, and it has to be asked for by name."""
+    if requested == "auto":
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(requested)
+    if device.type == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError(
+            f"--device {requested} was requested but torch.cuda.is_available() "
+            f"is False. Refusing to fall back to CPU: a CPU fallback on a rented "
+            f"GPU flavor is silent, ~40x slower, and cost job 6a73a7d7 an hour. "
+            f"Pass --device cpu to train on CPU deliberately.")
+    return device
+
+
+def _real_trackio_init(project: str, name: str, space_id: str | None, config: dict):
+    """Start the Trackio run. Called BEFORE the checkpoint download and the
+    model load, so a missing/misconfigured trackio kills the job while it is
+    still cheap rather than after GPU minutes have been spent. Mid-run logging
+    is warn-and-continue (see _trackio_log) -- telemetry must never destroy a
+    training run that is otherwise fine."""
+    import trackio
+
+    trackio.init(project=project, name=name, space_id=space_id, config=config)
+    return trackio
+
+
+def _trackio_log(handle, metrics: dict, step: int, warned: list) -> None:
+    """Warn-and-continue: a Trackio outage mid-run must not kill training."""
+    if handle is None:
+        return
+    try:
+        handle.log(metrics, step=step)
+    except Exception as exc:  # noqa: BLE001 -- telemetry is never fatal mid-run
+        if not warned:
+            warned.append(exc)
+            print(f"WARNING: trackio.log failed ({exc!r}); continuing without "
+                  f"telemetry for the rest of this run", flush=True)
 
 
 def lora_target_modules(n_layers: int, n_top: int) -> list[str]:
@@ -209,19 +262,22 @@ def _mean_pool_window(
 
 
 def _extract_full_piece(transformer: torch.nn.Module, tokens: torch.Tensor,
-                         max_len: int) -> np.ndarray:
+                         max_len: int,
+                         device: torch.device | None = None) -> np.ndarray:
     """Extraction shaped like moonbeam_extract_script.py's forward pass
     (chunk to max_len, forward every chunk, concatenate, mean over ALL
     tokens), so the gate stays paired against frozen 0.8257. Deterministic
     ONLY if the caller has already put the model in eval mode -- LoRA
     dropout is active in train mode and would make this stochastic."""
+    if device is not None:
+        tokens = tokens.to(device)
     chunks = [tokens[i:i + max_len] for i in range(0, len(tokens), max_len)]
     with torch.no_grad():
         hidden = [
             transformer(input_ids=c.unsqueeze(0), position_ids=c.unsqueeze(0),
                         use_cache=False, return_dict=True).last_hidden_state.squeeze(0)
             for c in chunks]
-    return torch.cat(hidden, dim=0).mean(dim=0).float().numpy()
+    return torch.cat(hidden, dim=0).mean(dim=0).float().cpu().numpy()
 
 
 def write_fold_embeddings(path: Path, seg_ids: list[str], embeddings: np.ndarray,
@@ -288,7 +344,8 @@ def _real_uploader(out_dir: Path, repo_id: str) -> None:
 
 def main(argv: list[str] | None = None, loader_factory=_real_loader,
          uploader=_real_uploader,
-         checkpoint_downloader=_real_checkpoint_download) -> int:
+         checkpoint_downloader=_real_checkpoint_download,
+         trackio_init=_real_trackio_init) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--fold", type=int, required=True)
@@ -347,8 +404,47 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader,
     ap.add_argument("--n-levels", type=int, default=11)
     ap.add_argument("--micro-batch", type=int, default=8)
     ap.add_argument("--seed", type=int, default=2026)
+    ap.add_argument(
+        "--device", default="cuda",
+        help="torch device for the model and every input tensor. Defaults to "
+             "'cuda' and FAILS if cuda is unavailable, because the failure this "
+             "guards against (a rented a100-large silently running CPU training) "
+             "is invisible for an hour. Pass 'cpu' for a deliberate CPU run, or "
+             "'auto' to accept whatever is there.")
+    ap.add_argument(
+        "--log-every", type=int, default=10,
+        help="print a throughput line every N optimizer steps (step 0 always "
+             "prints). This is how a CPU-speed run is caught in minute one "
+             "instead of at the end of a ~477-step epoch.")
+    ap.add_argument("--trackio-project", default="phase1-lora")
+    ap.add_argument(
+        "--trackio-space", default=None,
+        help="HF Space id to sync Trackio metrics to. Without it the metrics "
+             "live on the container's disk and die with the container.")
+    ap.add_argument(
+        "--no-trackio", action="store_true",
+        help="skip Trackio entirely (local/offline runs). A job run should "
+             "never pass this: telemetry is the only view into the box.")
     args = ap.parse_args(argv)
     torch.manual_seed(args.seed)
+    device = resolve_device(args.device)
+    device_name = (torch.cuda.get_device_name(device)
+                   if device.type == "cuda" else "n/a")
+    print(f"device: {device} (cuda_available={torch.cuda.is_available()}, "
+          f"name={device_name})", flush=True)
+
+    trackio_handle = None
+    if not args.no_trackio:
+        # Fatal on purpose, and fatal HERE -- before the 1.6 GB checkpoint
+        # download and the model load, while the GPU minutes spent are seconds.
+        trackio_handle = trackio_init(
+            args.trackio_project, f"fold{args.fold}", args.trackio_space,
+            {k: (str(v) if isinstance(v, Path) else v)
+             for k, v in vars(args).items()} | {"device": str(device)})
+        if args.trackio_space is None:
+            print("WARNING: --trackio-space not set; Trackio metrics stay on the "
+                  "container disk and are lost when it exits", flush=True)
+    trackio_warned: list = []
 
     if args.bundle_dir is not None:
         bundle_dir = Path(args.bundle_dir)
@@ -410,24 +506,41 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader,
     transformer = peft_model.model.model  # inner transformer, LoRA-injected in place
 
     score_head = _score_head(args.hidden_size, args.n_levels)
+    # Both moved before the optimizer is built: AdamW captures parameter
+    # objects, and .to() on a leaf parameter is in-place, so order is safe --
+    # but state tensors are allocated lazily on the parameter's device, so
+    # moving after the first step() would strand them on CPU.
+    peft_model.to(device)
+    score_head.to(device)
     trainable_params = ([p for p in peft_model.parameters() if p.requires_grad]
                          + list(score_head.parameters()))
     optimizer = torch.optim.AdamW(trainable_params, lr=args.lr)
+    n_trainable = sum(p.numel() for p in trainable_params)
+    print(f"trainable params: {n_trainable:,} on {device}", flush=True)
 
     rng = np.random.default_rng(args.seed)
     train_seg_ids = list(plan["train_seg_ids"])
     val_seg_ids = list(plan["val_seg_ids"])
 
+    steps_per_epoch = -(-len(train_seg_ids) // args.micro_batch)  # ceil
+    total_steps = steps_per_epoch * args.epochs
+    print(f"fold {args.fold}: {len(train_seg_ids)} train / {len(val_seg_ids)} val "
+          f"pieces, {steps_per_epoch} steps/epoch x {args.epochs} epochs = "
+          f"{total_steps} steps", flush=True)
+    global_step = 0
+    run_started = time.perf_counter()
+
     for epoch in range(args.epochs):
         peft_model.train()
         order = rng.permutation(len(train_seg_ids))
         for start in range(0, len(order), args.micro_batch):
+            step_started = time.perf_counter()
             batch_ids = [
                 train_seg_ids[i] for i in order[start:start + args.micro_batch]]
             scores, ordinal_logits, grades = [], [], []
             for seg_id in batch_ids:
                 tokens = tokenize(midi_dir / f"{seg_id}.mid")
-                window = _random_window(tokens, args.max_len, rng)
+                window = _random_window(tokens, args.max_len, rng).to(device)
                 pooled = _mean_pool_window(transformer, window)
                 head_out = score_head(pooled)
                 scores.append(head_out[0])
@@ -435,7 +548,7 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader,
                 grades.append(pool_grades[seg_id])
             scores_t = torch.stack(scores)
             ordinal_t = torch.stack(ordinal_logits)
-            grades_t = torch.tensor(grades, dtype=torch.long)
+            grades_t = torch.tensor(grades, dtype=torch.long, device=device)
 
             loss = combined_loss(
                 scores_t, ordinal_t, grades_t, args.n_levels, args.ordinal_weight)
@@ -443,30 +556,54 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader,
             loss.backward()
             optimizer.step()
 
+            step_seconds = time.perf_counter() - step_started
+            if global_step % args.log_every == 0:
+                remaining = (total_steps - global_step - 1) * step_seconds
+                print(f"fold {args.fold} epoch {epoch} step {global_step}/"
+                      f"{total_steps} loss={loss.item():.4f} "
+                      f"{step_seconds:.2f}s/step "
+                      f"{len(batch_ids) / step_seconds:.2f} pieces/s "
+                      f"elapsed={time.perf_counter() - run_started:.0f}s "
+                      f"eta={remaining:.0f}s", flush=True)
+            _trackio_log(trackio_handle,
+                         {"loss": loss.item(), "epoch": epoch,
+                          "step_seconds": step_seconds,
+                          "pieces_per_second": len(batch_ids) / step_seconds},
+                         global_step, trackio_warned)
+            global_step += 1
+
         peft_model.eval()
         with torch.no_grad():
             val_scores = []
             for seg_id in val_seg_ids:
                 tokens = tokenize(midi_dir / f"{seg_id}.mid")
-                window = _random_window(tokens, args.max_len, rng)
+                window = _random_window(tokens, args.max_len, rng).to(device)
                 pooled = _mean_pool_window(transformer, window)
                 val_scores.append(score_head(pooled)[0].item())
             val_grades = [pool_grades[seg_id] for seg_id in val_seg_ids]
             val_tau = tau_c(val_scores, val_grades) if val_seg_ids else None
-        print(f"epoch {epoch}: val_ranking_tau={val_tau}")
+        print(f"epoch {epoch}: val_ranking_tau={val_tau}", flush=True)
+        if val_tau is not None:
+            _trackio_log(trackio_handle, {"val_ranking_tau": val_tau},
+                         global_step, trackio_warned)
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     peft_model.save_pretrained(str(out_dir / "adapter"))
 
     peft_model.eval()
+    extract_started = time.perf_counter()
     with torch.no_grad():
-        embeddings = np.stack([
-            _extract_full_piece(
+        embeddings = []
+        for i, p in enumerate(eval_pieces):
+            embeddings.append(_extract_full_piece(
                 transformer, tokenize(midi_dir / f"{p['seg_id']}.mid"),
-                args.max_len)
-            for p in eval_pieces
-        ])
+                args.max_len, device))
+            if i % max(args.log_every, 1) == 0:
+                print(f"fold {args.fold}: extracted {i + 1}/{len(eval_pieces)} "
+                      f"eval embeddings "
+                      f"({time.perf_counter() - extract_started:.0f}s)", flush=True)
+        embeddings = np.stack(embeddings)
     write_fold_embeddings(
         out_dir / f"emb_fold{args.fold}.npz",
         seg_ids=[p["seg_id"] for p in eval_pieces],
@@ -475,12 +612,12 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader,
         composer_ids=np.array([p["composer_id"] for p in eval_pieces]),
     )
     print(f"fold {args.fold}: wrote adapter + emb_fold{args.fold}.npz for "
-          f"{len(eval_pieces)} eval pieces")
+          f"{len(eval_pieces)} eval pieces", flush=True)
 
     if args.output_repo is not None:
         uploader(out_dir, args.output_repo)
         print(f"fold {args.fold}: uploaded adapter + emb_fold{args.fold}.npz to "
-              f"{args.output_repo}")
+              f"{args.output_repo}", flush=True)
     return 0
 
 
