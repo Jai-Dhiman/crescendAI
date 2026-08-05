@@ -2,6 +2,8 @@
 
 **"A teacher for every pianist."** Multi-platform (iOS + web) practice companion that evaluates musical expression from audio -- not note accuracy -- and delivers one actionable observation per session.
 
+> **Redesign in flight (epic #154, 2026-08-04):** This doc largely describes the pre-redesign chat-first system and its MuQ/HF-endpoint scoring path, which are being replaced. The target: delivery is score-first (marks on the score/timeline, a session verdict, one carry-forward; chat survives only as passage-scoped ask threads on marks -- see `docs/apps/05-ui-system.md`), and the model path retargets to Transkun AMT -> piece resolution -> alignment -> MPM-style per-bar features -> MoonBeam-839M scoring, with MuQ removed (see `docs/apps/02-pipeline.md`). Sections below are updated where they assert current-and-permanent chat delivery or MuQ scoring; the diagram and platform/cost history remain as a record of the system being replaced.
+
 ---
 
 ## System Diagram
@@ -47,7 +49,7 @@ Both platforms upload 15-second audio chunks to the shared API worker. The worke
 
 **Session intelligence.** The Durable Object that manages web practice sessions is extended to serve as the "session brain" -- a practice mode state machine (warming up / drilling / running through / winding down) with mode-aware observation pacing.
 
-**Unified artifact system.** Rich components (exercises, score highlights, references) render as artifacts in the chat -- inline by default, expandable to viewport on demand. Teacher LLM declares artifacts via tool use. See `docs/apps/05-ui-system.md`.
+**Unified artifact system (historical, superseded by #154/#164).** Rich components (exercises, score highlights, references) rendered as artifacts in the chat -- inline by default, expandable to viewport on demand -- with the teacher LLM declaring artifacts via tool use. The chat-container artifact system is being removed; the score-first design delivers marks, a session verdict, and drills instead. See `docs/apps/05-ui-system.md`.
 
 **Tiered monetization.** Free (daily/weekly limits) / $5 Plus / $20 Pro / $50 Max. Free tier is the growth engine. Inference cost reduction to ~$1/session is part of the model v2 track.
 
@@ -59,7 +61,7 @@ From *The runtime behind production deep agents* (Mahler wiki): "building a good
 
 ### Model System (`docs/model/`)
 
-The audio intelligence layer. A1-Max loads the frozen public `OpenMuQ/MuQ-large-msd-iter` checkpoint and four separately trained pooling/prediction heads; the serving path does not load a fine-tuned MuQ backbone. The historical clean-fold A1-Max training result was 79.85% pairwise accuracy and R2=0.336, but it is not evidence that this serving configuration generalizes to real practice. Transkun (MIT, ISMIR 2024) supplies the parallel note, offset, and pedal stream behind the frozen `/transcribe` contract. These outputs remain research signals rather than trustworthy diagnoses; the benchmark-first teacher program in #139 requires real-audio verification and calibrated abstention before broader claims.
+The audio intelligence layer, mid-retarget under #162 (epic #154). Historically, A1-Max loaded the frozen public `OpenMuQ/MuQ-large-msd-iter` checkpoint and four separately trained pooling/prediction heads (clean-fold result: 79.85% pairwise accuracy, R2=0.336, not evidence this serving configuration generalizes to real practice). MuQ is being removed: the target path is Transkun (MIT, ISMIR 2024) AMT first, then piece resolution, offline alignment, MPM-style per-bar feature extraction, and MoonBeam-839M symbolic scoring behind baseline-gated marks. These outputs remain research signals rather than trustworthy diagnoses; the benchmark-first teacher program in #139 requires real-audio verification and calibrated abstention before broader claims.
 
 Entry point: [`docs/model/00-research-timeline.md`](model/00-research-timeline.md)
 
@@ -88,7 +90,7 @@ Entry point: [`docs/apps/01-product-vision.md`](apps/01-product-vision.md) | Pip
 | Platform | Stack | Key Paths | Notes |
 |----------|-------|-----------|-------|
 | iOS | SwiftUI, AVAudioEngine, SwiftData | `apps/ios/` | On-demand observations, local-first persistence. **Follows web beta.** |
-| Web | TanStack Start, React, Tailwind CSS v4 | `apps/web/` | Real-time observations via WebSocket, chat interface. **Beta-first platform.** |
+| Web | TanStack Start, React, Tailwind CSS v4 | `apps/web/` | Real-time observations via WebSocket; delivery retargeting from chat to score-first marks under #154. **Beta-first platform.** |
 | API | TypeScript/Hono on Cloudflare Workers (Rust WASM for compute-heavy modules) | `apps/api/` | Single worker: inference proxy, LLM pipeline, auth, sync |
 | Inference | PyTorch, HF Inference Endpoint | `apps/inference/`, `model/` | A1-Max 4-fold ensemble, 6-dim scores |
 
@@ -141,12 +143,12 @@ why the system is shaped the way it is, so a choice is not silently re-litigated
 | Multi-provider over single gateway | Workers AI + Anthropic via CF AI Gateway | Co-located inference for the analysis stage; native prompt caching for the teacher. |
 | Local-first data (iOS) | SwiftData on-device, server for backup/sync | Practice works without internet (except the LLM call). Phone is authoritative, so there is no conflict resolution. |
 | Scores as reasoning inputs | Not a report card | The model is ~80% pairwise accurate. Value is in the analysis and the teacher's delivery, not raw numbers. Consequence: raw dimension scores are never sent to the client (see `buildObservationPayload`, #143). |
-| Chat-first UI | Text default, components on-demand | Mirrors real teaching. Most observations are conversational; rich components only when a visual or interactive aid adds pedagogical value. |
+| Chat-first UI (SUPERSEDED by #154) | Text default, components on-demand | Mirrors real teaching. Most observations are conversational; rich components only when a visual or interactive aid adds pedagogical value. Replaced by score-first delivery (marks + verdict + carry-forward, chat scoped to passage asks); see `docs/apps/05-ui-system.md`. |
 | Piece identification | AMT fingerprint + graceful unknown | Unknown pieces still get audio-quality feedback, without bar numbers. Ask piece identity *after* the first observation, not before. Piece ID enriches but never gates. |
 | Memory without vector search | Structured SQL queries, bi-temporal facts | The domain is narrow (6 dimensions, known ontology, low volume). No graph DB, no embeddings. |
 | Platform strategy | Web-first, iOS follows | Web is furthest along, fastest to iterate, and gives a shareable URL. iOS catches up after beta validation. |
 | Session intelligence | Durable Object as session brain | Practice-mode state machine (warming/drilling/running/winding) with mode-aware observation pacing. A single-threaded DO holds all session state. |
-| Artifact system | Unified container (inline to expanded) | One `<Artifact>` component renders every rich content type. Lives in chat, expands to viewport on demand. The teacher declares artifacts via tool_use. |
+| Artifact system (SUPERSEDED by #154/#164) | Unified container (inline to expanded) | One `<Artifact>` component renders every rich content type. Lives in chat, expands to viewport on demand. The teacher declares artifacts via tool_use. Chat-container artifacts are removed under #164; exercise/segment-loop machinery survives as "drills" launched from marks. |
 | First session | Zero-config | Sign in, play anything, get an observation. Degrades gracefully when the piece is unknown. |
 | Monetization | Tiered: Free / $5 Plus / $20 Pro / $50 Max | Free tier with limits as the growth engine. Decided, not yet enforced. |
 

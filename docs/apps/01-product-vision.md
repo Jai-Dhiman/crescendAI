@@ -2,7 +2,7 @@
 
 What CrescendAI is building, for whom, and what the ideal experience feels like. This is the product north star for the apps and delivery layer -- the "why" and "what," not the "how." For the technical pipeline, see `02-pipeline.md`. For UI component details, see `05-ui-system.md`.
 
-> **Status (2026-03-19):** Vision document. CEO review (2026-03-19) established: web-first platform strategy, zero-config first session, unified artifact system, session intelligence via DO state machine, tiered monetization. Core interaction loop IMPLEMENTED on web. Web beta scope defined (~4 weeks).
+> **Status (2026-08-04):** Vision document, revised for the score-first redesign (epic #154). The 2026-03-19 chat-first interaction model is superseded: feedback now attaches to the score as marks, delivery is silent-while-playing and boundary-gated, and chat survives only as passage-scoped ask threads. Web-first platform strategy, DO session intelligence, and tiered monetization stand. Build state lives in #154's sub-issues.
 
 ---
 
@@ -48,50 +48,51 @@ Conservatories and university music programs that need scalable practice monitor
 
 What it feels like from the student's perspective:
 
-**1. Open the app, sign in, play anything.**
-No onboarding form. No piece selection. "Play anything. I'm listening." The screen shows the chat and a record button. The student taps record and plays.
+**1. Open the app, tap your piece, the score appears.**
+Home shows your repertoire. Tap Clair de Lune and the sheet music fills the screen — the app *is* the music stand. Tap record and play. (A "just play" path exists too: record without picking a piece; if the system recognizes it, a quiet confirm chip names its guess.)
 
-**2. The system listens and identifies.**
-Behind the scenes: 15-second chunks stream to the cloud. AMT transcribes MIDI. The system fingerprints against the 242-piece score library. If matched, score context activates silently. If not, the system delivers audio-quality observations without bar numbers and asks "What piece is this?" after the first observation.
+**2. While you play: silence.**
+The app says nothing during playing. No toasts, no messages, no moving cursor. Audio streams to the cloud in the background — Transkun transcribes, alignment maps chunks to bars, analysis runs — so feedback is ready the moment you pause, but nothing is delivered mid-phrase.
 
-**3. First observation in under 60 seconds.**
-The session brain (Durable Object) detects the student is warming up and waits for enough material. After 2-3 chunks, the first observation appears as a toast during recording and as a message in chat:
-> "I notice you're playing Clair de Lune. In the opening measures, your pedaling is creating a nice wash but blurring the bass line changes. Try lifting briefly at each bass note."
+**3. When you pause, a pencil mark.**
+After ~20 seconds of silence, at most one mark lands on the score at the bars in question — like a teacher penciling your music while you catch your breath. Glance down, see it, play on. It never demands a response. Marks fire only when something deviates from *your own* baseline, persistently — not on every imperfection.
 
-**4. Session adapts to practice mode.**
-The session brain detects what the student is doing: warming up (sparse observations), drilling a passage (compare repetitions), running through (observe at phrase boundaries), winding down (no new observations). Observation pacing adapts automatically.
+**4. Stop, and the score becomes the review.**
+Stop recording (or let 60 seconds of silence end the session softly — one tap resumes) and the score you were just reading transitions into the session review: one teacher sentence as the verdict, the session's marks consolidated, and each mark expandable to hear your own playing of exactly those bars, cursor tracking the notation.
 
-**5. Exercises as artifacts in chat.**
-When the teacher observes something worth practicing, an exercise artifact appears inline in the chat. The student can expand it to full screen, play the exercise, and the system evaluates their attempt -- all without leaving the conversation.
+**5. Work on it, or ask about it.**
+From any mark: "work on this" generates a bar-bounded drill of the flagged passage, with variants shaped by your habits. "Ask about this" opens a conversation scoped to that passage — the one place dialogue lives.
 
-**6. Session closes with synthesis.**
-When the student stops recording (or after extended silence), the system synthesizes: "Today you worked on Clair de Lune for 22 minutes. 4 observations. Your pedaling improved. Next time, try the left hand voicing in bars 40-48." Memory persists for the next session.
+**6. One thing carries forward.**
+The review ends with a single next-session focus ("start with bars 40-44"). Next session, the verdict closes the loop: "That bass-blur from Tuesday is gone." Over weeks, the piece page shows your score with marks fading as passages improve — the semester's pencil marks, aging honestly.
 
-**Latency target:** Under 5 seconds from "how was that?" to observation on screen. Because inference runs in the background during playing, most analysis is already done when the student asks.
+**Latency posture:** capture streams continuously so analysis is done by the time you pause or stop; marks land within seconds of a pause, the review within seconds of stopping. Nothing is ever delivered while you play.
 
 ---
 
 ## UX Principles
 
-### Chat-first
+### Score-first
 
-The primary interface is a conversation. The student asks, the teacher responds. This is not a dashboard with charts and scores -- it is a dialogue. Rich components (score highlights, exercises, reference clips) appear as inline cards within the chat when the teacher decides the student needs more than text. See `05-ui-system.md` for component details.
+Feedback attaches to the music, not to a message stream. The score (or the session timeline, when no score is available) is the canvas; feedback is marks on it — the way a real teacher pencils your music. Prose exists at exactly three points: the session verdict, the carry-forward, and on-demand passage explanations. Conversation survives only as passage-scoped ask threads. See `05-ui-system.md`.
 
-### One observation at a time
+This replaces the original chat-first principle, on evidence (recorded in #154): concurrent verbal feedback during play splits attention and undermines the self-error-detection that distinguishes strong pianists; direct manipulation beats conversation for iterate-and-compare loops; and the best-loved analog for post-practice analysis (chess.com's Game Review) is artifact-anchored, not conversational.
 
-The system hears many things. It picks ONE to say. This is the hardest design constraint and the most important one. A real teacher does not list every issue they noticed -- they prioritize. The teaching moment selection pipeline (see `02-pipeline.md`) exists to enforce this discipline.
+### Silent while playing, present at boundaries
 
-### "How was that?"
+The app never speaks during playing. Marks appear only during pauses, at most one per pause, gated on deviation from the student's own baseline (bandwidth feedback — the best-validated mechanism in the motor-learning literature). A real teacher corrects infrequently and selectively; so does this one.
 
-The system observes during practice, paced by the session brain's practice mode detection (warming up: sparse, drilling: comparative, running through: at phrase boundaries, winding down: silent). The student can also ask "how was that?" at any time for an immediate response. Observation pacing replaces the old "student initiates only" model -- but the discipline of "one observation at a time" remains.
+### One mark at a time
+
+The system hears many things. It surfaces ONE per pause, and one verdict plus one carry-forward per session. This remains the hardest and most important design constraint.
 
 ### Progressive disclosure
 
-Default: one sentence of text. Tap for more: additional context, a score view, an exercise. The student controls the depth. Power users who want to see dimension trajectories over time can find them, but they are never the default view.
+Default: a mark. Tap for more: the evidence in words, your own audio of those bars, a drill, a conversation. The student controls the depth. Dimension trajectories exist as direction-over-time statements in drill-down — never numbers, never the default view.
 
-### Text-first, rich when it helps
+### The system may fall silent, never guess
 
-Most observations are text. Sometimes the teacher needs to *show* something -- a passage on the score, a keyboard diagram, a dynamics curve. The teacher LLM declares a modality ("the student needs to see this passage"), and the UI renders the appropriate component. Text is always present; rich components are additive.
+Wrong bar numbers are never shown (anchors degrade to timestamps, which are always true); low-confidence transcription spans are no-comment zones; a failed review says so loudly. Trust is the product's core asset, and a wrong claim costs more than a missing one.
 
 ### Serious, adult, restrained
 
@@ -104,17 +105,18 @@ No gamification. No streaks. No confetti. No "Great job!" after every run-throug
 The fundamental cycle that everything else builds on:
 
 ```
-CAPTURE                    ANALYZE                     OBSERVE
+CAPTURE                    ANALYZE                      MARK
 
-Student plays     --->     Cloud inference      --->    One observation
-(continuous audio)         (MuQ 6-dim scores)           (specific, grounded)
-                           (teaching moment
-                            selection:
-                            deviation gate)
+Student plays     --->     Transkun AMT -> MoonBeam ---> At most one mark
+(continuous audio,         + MPM evidence features       per pause, on the
+ app silent)               (baseline bandwidth gate)     score or timeline
 
       ^                                                      |
-      |                                                      |
-      +--------- Student returns to practicing <-------------+
+      |                                                      v
+      +--- Student plays on <--- glances at the mark --------+
+
+STOP  --->  the score becomes the review: one verdict, the session's
+            marks, own-audio playback per mark, ONE carry-forward
 ```
 
 Three stages, one principle: the system does significant work to produce minimal output. The ratio of analysis to output is deliberately lopsided -- dozens of scored chunks, multiple candidate teaching moments, a full reasoning trace through the subagent -- all to produce one or two sentences.
@@ -131,17 +133,17 @@ Three stages, one principle: the system does significant work to produce minimal
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Audio capture (iOS) | COMPLETE | AVAudioEngine + ring buffer + chunking |
-| Audio capture (web) | COMPLETE | MediaRecorder + WebSocket streaming |
-| Cloud inference (MuQ) | DEPLOYED | A1-Max 4-fold ensemble, HF endpoint |
-| Teaching moment selection | COMPLETE | Deviation-magnitude gate (worst dim below baseline) + blind-spot ranking + positive-moment fallback + dedup |
-| Two-stage subagent | COMPLETE | Workers AI analysis + teacher LLM (model ID lives in wrangler.toml), AI Gateway |
-| Session synthesis | COMPLETE | Alarm-triggered, all exit paths, deferred recovery |
-| Zero-config piece ID | COMPLETE | N-gram + rerank + DTW (pending AMT container deploy) |
-| Artifact system | COMPLETE | Unified container, Anthropic tool_use (exercise type) |
-| Student model | PARTIAL | SwiftData models built, synthesized facts COMPLETE |
-| Chat interface (iOS) | PARTIAL | Basic session screen |
-| Chat interface (web) | COMPLETE | Chat + recording + real-time observations + synthesis |
+| Audio capture (iOS) | COMPLETE, carried forward | AVAudioEngine + ring buffer + chunking |
+| Audio capture (web) | COMPLETE, carried forward | MediaRecorder + WebSocket streaming (capture transport only) |
+| Transkun AMT + alignment | CARRIED FORWARD | #125 adoption; offline chroma-DTW; open-set piece-ID gate (#26) |
+| MoonBeam scoring + MPM extraction | NOT STARTED | #162 — replaces the retired MuQ HF-endpoint path |
+| Mark system + canvases | NOT STARTED | #157 — the central contract |
+| Practice mode (music stand) | NOT STARTED | #158 |
+| Session review | NOT STARTED | #159 — promotes shipped play_passage machinery |
+| Student baseline (dual EWMA) | NOT STARTED | #163 — supersedes the alpha=0.3 EMA baseline |
+| Session synthesis (V6 harness) | COMPLETE, output contract changing | verdict + marks + carry-forward (#162) |
+| Exercise / segment-loop machinery | COMPLETE, being promoted | from chat cards to first-class drills (#159) |
+| Chat interface | BEING REMOVED | #161/#164 — passage-scoped asks replace it |
 
 ---
 

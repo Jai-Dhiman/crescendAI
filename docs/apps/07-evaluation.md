@@ -1,6 +1,8 @@
 # Evaluation Framework
 
 > Status: 2026-04-27 -- Eval harness v4 shipped: cluster-based teacher voice injection wired into both prod synthesis (`prompts.ts`) and eval (`run_eval.py`) via `shared/teacher-style/playbook.yaml` single source of truth; 4-condition signal ablation harness implemented (`apps/evals/teaching_knowledge/ablation/`); 8x5 atomic-skill rubric matrix implemented (`apps/evals/shared/judge_atomic.py`). Original seven-capability eval design unchanged.
+>
+> **Status update (2026-08-04, score-first redesign -- epic #154):** The chat surface this doc's synthesis/exercise evals assume is removed as the delivery mechanism; marks, a session verdict, and review are the delivery objects being evaluated going forward (#159). The V6 synthesis harness itself survives, but its output contract changes from chat prose to one verdict sentence + consolidated marks + one carry-forward, grounded in MPM evidence (#162). MuQ references below (inference cache, signal ablation) describe the pipeline being retargeted to Transkun AMT -> alignment -> MPM features -> MoonBeam-839M; this eval methodology and the T5 corpus stand and are not being deleted -- the signal sources they exercise are changing under #162, not the eval design itself.
 
 This document defines how to evaluate each of the seven capabilities described in `06-capabilities.md`. For each capability, we describe:
 

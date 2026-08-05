@@ -1,6 +1,8 @@
 # Capabilities
 
 > Status: 2026-08-04 -- Seven core capabilities defined. Quality targets set for beta and north star. This doc owns targets; for current measured state see `docs/apps/07-evaluation.md`.
+>
+> **Status update (2026-08-04, score-first redesign -- epic #154):** The chat surface is removed as the delivery mechanism. Session Synthesis (#4) and Exercise Generation (#5) below still describe the pre-redesign chat/WebSocket delivery and inline artifact cards; under the redesign the delivery objects are marks on the score/timeline, a session verdict, and one carry-forward (post-session review, #159), with exercises launching as "drills" from a mark (#158) instead of a `create_exercise` chat tool call. Chat survives only as passage-scoped ask threads on marks (#161). The MuQ references in capabilities #1/#3/#6 reflect the pipeline being retargeted under #162 (Transkun AMT -> alignment -> MPM features -> MoonBeam-839M); see `docs/apps/02-pipeline.md` and `docs/apps/05-ui-system.md` for the target shape.
 
 CrescendAI's teaching pipeline is built from seven capabilities. Each converts raw audio into progressively richer understanding of what the student played and what they should work on. They compose into a single user-facing experience: the student plays, the system listens, and at session end the teacher gives one cohesive, specific, actionable response.
 
