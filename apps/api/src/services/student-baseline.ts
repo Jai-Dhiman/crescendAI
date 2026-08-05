@@ -182,9 +182,29 @@ function biasCorrected(
 	return rawEwma / weight;
 }
 
+function isoWeek(timestamp: string): string {
+	const date = new Date(timestamp);
+	const target = new Date(
+		Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+	);
+	const dayNumber = (target.getUTCDay() + 6) % 7;
+	target.setUTCDate(target.getUTCDate() - dayNumber + 3);
+	const firstThursday = new Date(Date.UTC(target.getUTCFullYear(), 0, 4));
+	const week =
+		1 +
+		Math.round(
+			((target.getTime() - firstThursday.getTime()) / 86400000 -
+				3 +
+				((firstThursday.getUTCDay() + 6) % 7)) /
+				7,
+		);
+	return `${target.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
 function foldDimension(
 	prior: DimensionBaselineState,
 	samples: readonly number[],
+	timestamp: string,
 	config: BaselineConfig,
 ): DimensionBaselineState {
 	const alphaShort = alphaFromHalfLife(config.shortHalfLifeSessions);
@@ -278,6 +298,18 @@ function foldDimension(
 		if (consecutiveOutOfBand >= config.firePersistence) lifecycle = "active";
 	}
 
+	let evidenceWeeks = prior.evidenceWeeks;
+	let promoted = prior.promoted;
+	if (lifecycle === "active" && contribution > 0) {
+		const week = isoWeek(timestamp);
+		if (!evidenceWeeks.includes(week)) {
+			evidenceWeeks = [...evidenceWeeks, week];
+		}
+		if (evidenceWeeks.length >= config.promotionDistinctWeeks) {
+			promoted = true;
+		}
+	}
+
 	return {
 		...prior,
 		lifecycle,
@@ -288,6 +320,8 @@ function foldDimension(
 		halfWidth,
 		consecutiveOutOfBand,
 		consecutiveInBand,
+		promoted,
+		evidenceWeeks,
 		initialized: true,
 		updateCount,
 	};
@@ -304,7 +338,12 @@ export function updateBaseline(
 	for (const [dimension, samples] of Object.entries(session.scores)) {
 		if (!samples || samples.length === 0) continue;
 		const dim = dimension as Dimension;
-		dimensions[dim] = foldDimension(dimensions[dim], samples, config);
+		dimensions[dim] = foldDimension(
+			dimensions[dim],
+			samples,
+			session.timestamp,
+			config,
+		);
 	}
 	return { lastSessionTimestamp: session.timestamp, dimensions };
 }
