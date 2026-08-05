@@ -13,6 +13,7 @@
 		"typecheck": "tsc --noEmit",
 		"build:scorehost": "vite build --config vite.config.scorehost.ts",
 		"test:scorehost": "playwright test --config playwright.scorehost.config.ts",
+		"test:a11y": "playwright test --config playwright.a11y.config.ts",
 		"lint": "biome check src/",
 		"lint:fix": "biome check --write src/",
 		"format": "biome format --write src/",
@@ -47,6 +48,7 @@
 		"zustand": "^5.0.11"
 	},
 	"devDependencies": {
+		"@axe-core/playwright": "^4.12.1",
 		"@biomejs/biome": "^2.4.6",
 		"@playwright/test": "^1.60.0",
 		"@tanstack/devtools-vite": "^0.5.3",
