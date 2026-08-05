@@ -67,4 +67,14 @@ describe("explicit failures", () => {
 			}),
 		).toThrow(/non-finite/);
 	});
+
+	it("throws on an unparseable timestamp", () => {
+		const state = initialBaselineState();
+		expect(() =>
+			updateBaseline(state, {
+				timestamp: "not-a-date",
+				scores: { pedaling: CLUSTER },
+			}),
+		).toThrow(/unparseable timestamp/);
+	});
 });

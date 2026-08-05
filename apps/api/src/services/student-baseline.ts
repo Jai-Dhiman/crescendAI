@@ -114,6 +114,12 @@ export function initialBaselineState(): BaselineState {
  * unchanged.
  */
 function validateSession(_state: BaselineState, session: SessionSamples): void {
+	const timestampMs = Date.parse(session.timestamp);
+	if (Number.isNaN(timestampMs)) {
+		throw new Error(
+			`updateBaseline: unparseable timestamp "${session.timestamp}"`,
+		);
+	}
 	for (const [dimension, samples] of Object.entries(session.scores)) {
 		if (!(DIMS_6 as readonly string[]).includes(dimension)) {
 			throw new Error(`updateBaseline: unknown dimension "${dimension}"`);
