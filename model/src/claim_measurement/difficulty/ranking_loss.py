@@ -33,3 +33,13 @@ def pairwise_ranking_loss(scores: torch.Tensor, grades: torch.Tensor) -> torch.T
         return scores.sum() * 0.0
     hi, lo = pairs[:, 0], pairs[:, 1]
     return torch.nn.functional.softplus(-(scores[hi] - scores[lo])).mean()
+
+
+def ordinal_loss(
+    logits: torch.Tensor, grades: torch.Tensor, n_levels: int
+) -> torch.Tensor:
+    """Cumulative-link ordinal loss: n_levels - 1 binary "grade > k" targets
+    per row, BCE-with-logits against `logits` (shape (batch, n_levels - 1))."""
+    thresholds = torch.arange(n_levels - 1, device=grades.device)
+    targets = (grades.unsqueeze(1) > thresholds.unsqueeze(0)).float()
+    return torch.nn.functional.binary_cross_entropy_with_logits(logits, targets)

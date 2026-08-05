@@ -6,6 +6,7 @@ Run: cd model && uv run python -m pytest src/claim_measurement/difficulty/ -q --
 import torch
 
 from claim_measurement.difficulty.ranking_loss import ordered_pairs
+from claim_measurement.difficulty.ranking_loss import ordinal_loss
 from claim_measurement.difficulty.ranking_loss import pairwise_ranking_loss
 
 
@@ -27,3 +28,29 @@ def test_pairwise_ranking_loss_is_lower_for_correctly_ranked_scores():
     reversed_loss = pairwise_ranking_loss(reversed_scores, grades)
 
     assert correct_loss.item() < reversed_loss.item()
+
+
+def test_pairwise_ranking_loss_is_a_finite_zero_for_a_degenerate_batch():
+    # every piece shares one grade -> zero ordered pairs
+    grades = torch.tensor([4, 4, 4])
+    scores = torch.tensor([0.1, 0.2, 0.3], requires_grad=True)
+
+    loss = pairwise_ranking_loss(scores, grades)
+
+    assert loss.item() == 0.0
+    loss.backward()  # must not raise -- the zero is still attached to the graph
+    assert scores.grad is not None
+
+
+def test_ordinal_loss_penalizes_wrong_threshold_predictions():
+    grades = torch.tensor([0, 10])  # 11-level scale: min and max grade
+    n_levels = 11
+    correct_logits = torch.stack([torch.full((n_levels - 1,), -10.0),
+                                   torch.full((n_levels - 1,), 10.0)])
+    wrong_logits = torch.stack([torch.full((n_levels - 1,), 10.0),
+                                 torch.full((n_levels - 1,), -10.0)])
+
+    correct_loss = ordinal_loss(correct_logits, grades, n_levels)
+    wrong_loss = ordinal_loss(wrong_logits, grades, n_levels)
+
+    assert correct_loss.item() < wrong_loss.item()
