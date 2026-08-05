@@ -89,7 +89,7 @@ def test_stage_training_bundle_raises_when_a_referenced_piece_has_no_midi_on_dis
         midi_dir=midi_dir, grades={"a": 3}, repo_snapshot_dir=repo_snapshot_dir
     )
 
-    with pytest.raises(FileNotFoundError, match="a.mid"):
+    with pytest.raises(FileNotFoundError, match="fold plan references"):
         stage_training_bundle(paths, plans, tmp_path / "staging")
 
 
