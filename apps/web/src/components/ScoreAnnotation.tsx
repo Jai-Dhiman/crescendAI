@@ -36,7 +36,7 @@ export function ScoreAnnotation({
 			style={{
 				...style,
 				backgroundColor: color,
-				color: "#fdf8f0",
+				color: "var(--color-on-accent)",
 				opacity: isActive ? 1 : 0.85,
 			}}
 			aria-label={`${label} observation at bars ${barRange[0]}-${barRange[1]}`}
