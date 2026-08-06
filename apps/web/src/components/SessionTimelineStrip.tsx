@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Mark } from "../lib/mark";
+import { MarkDetail } from "./MarkDetail";
 import { MarkGlyph } from "./MarkGlyph";
 
 interface SessionTimelineStripProps {
@@ -34,6 +35,9 @@ export function SessionTimelineStrip({
 						expanded={expandedId === mark.id}
 						onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
 					/>
+					{expandedId === mark.id && (
+						<MarkDetail mark={mark} onClose={() => setExpandedId(null)} />
+					)}
 				</div>
 			))}
 		</div>

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
 	FIXTURE_DURATION_SECONDS,
@@ -37,5 +37,24 @@ describe("SessionTimelineStrip", () => {
 		// m1 is at 64s of 360s = 17.777...%
 		const wrapper = screen.getByLabelText(/Pedaling/).parentElement;
 		expect(wrapper).toHaveStyle({ left: `${(64 / 360) * 100}%` });
+	});
+
+	it("expands and collapses a mark's evidence on tap", () => {
+		render(
+			<SessionTimelineStrip
+				durationSeconds={FIXTURE_DURATION_SECONDS}
+				marks={FIXTURE_MARKS}
+			/>,
+		);
+		const glyph = screen.getByLabelText(/Needs work: Timing, 1:37/);
+
+		expect(screen.queryByText(/the left hand lagged/)).not.toBeInTheDocument();
+
+		fireEvent.click(glyph);
+		expect(screen.getByText(/the left hand lagged/)).toBeInTheDocument();
+		expect(glyph).toHaveAttribute("aria-expanded", "true");
+
+		fireEvent.click(glyph);
+		expect(screen.queryByText(/the left hand lagged/)).not.toBeInTheDocument();
 	});
 });
