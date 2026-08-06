@@ -3055,11 +3055,55 @@ editing them is unreliable. This log is the recovery state.
 | 4 — anchorLabel | A | `TypeError: anchorLabel is not a function` (mark.test.ts:52) | `e45a5806` | see Group A note |
 | 5 — isMarkWorthy + vocabulary | A | `TypeError: isMarkWorthy is not a function` (mark.test.ts:65) | `40bdb1a0` | see Group A note |
 
-**Group A status: all four tasks landed, 6/6 tests green in `src/lib/mark.test.ts`.**
-Cumulative Group A review still outstanding — Tasks 2-5 all edit the same two
-files sequentially, so per-task review would race the next task's edits and
-produce false findings. Review the cumulative diff `bb126408..40bdb1a0` task by
-task instead.
+| 7 — place by measureOn, not index | B | `Failed to resolve import "./mark-placement"` | `f0fd64ea` | pending (review with Tasks 8-9) |
+
+**Group 0 + Group A: COMPLETE and REVIEWED (verdict PASS).**
+**Group B: IN PROGRESS — Task 7 landed; Tasks 8 and 9 remain.**
+
+Group A was reviewed as a cumulative diff rather than per task, because Tasks 2-5
+all edit the same two files sequentially and per-task review would race the next
+task's edits. Group B (Tasks 7-9) has the same property — review
+`f0fd64ea..<task 9 sha>` as one cumulative diff after Task 9 lands.
+
+The Group A review independently PROVED the central design guarantee rather than
+asserting it: a scratch file assigning a raw `{type:"bars",bars:[5,6],atSeconds:1}`
+literal to `MarkAnchor` was rejected with `TS2322: Property '[anchorBrand]' is
+missing`. It also read `apps/api/src/services/student-baseline.ts` and confirmed
+the lifecycle union matches exactly.
+
+Group A review findings, both MINOR, neither fixed (deliberately):
+- `mark.ts` `formatElapsed` has no guard for `atSeconds >= 3600` (renders "60:00",
+  no hour digit) nor for negative/NaN. Unreachable given the product's 60s soft
+  auto-stop, and `atSeconds` originates only from trusted internal candidates.
+  Latent gap, not an active bug.
+- `mark.ts` exports 14 names. Judged cohesive (one Mark domain model) rather than
+  a grab-bag, so still a deep module. Watch it as later issues add taxonomy
+  metadata.
+
+### Verified state at this checkpoint (measured, not assumed)
+
+```
+bunx vitest run src/lib/mark.test.ts            -> 6/6 pass
+bunx vitest run src/lib/mark-placement.test.ts  -> 1/1 pass
+bunx tsc --noEmit | grep -v mark-canvases       -> no output
+bun run lint                                     -> exit 0, 107 warnings, 23 infos, 0 errors
+```
+
+### RECURRING SUBAGENT FAILURE MODE — verify these claims yourself
+
+Three separate sonnet-tier subagents reported Biome **warnings** as **errors**
+and then labelled them "pre-existing":
+- Task 5 claimed "2 pre-existing errors", one in `test-setup.ts`. Wrong: there
+  was 1 error, and `test-setup.ts:32 noUselessConstructor` is a pre-existing
+  WARNING inside the unchanged 107.
+- Task 7 claimed "1 pre-existing error" from an `audioEl!` non-null assertion.
+  Wrong: `noNonNullAssertion` is a WARNING; lint was exit 0 with 0 errors.
+
+Meanwhile the ONE genuine lint regression — the unformatted contract harness —
+was flagged by no agent at all and found only by the controller running the
+command. **The controller must independently re-run any quantitative claim
+(error counts, baselines, "pre-existing") before accepting it.** Running a
+command proves errors are real; it does not prove they are pre-existing.
 
 ### Review findings carried forward
 

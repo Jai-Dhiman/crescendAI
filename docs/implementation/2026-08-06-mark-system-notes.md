@@ -48,3 +48,16 @@ in test-setup.ts. That was WRONG. There was exactly 1 error (the format error
 above), and test-setup.ts:32 noUselessConstructor is a pre-existing WARNING
 within the unchanged 107, last touched by 447aa295. Running a command proves
 errors are real; it does not prove they are pre-existing.
+
+## Task 7 (Group B started)
+`placeMarks` resolves bars via `barNumber -> measureOn -> rect`, never by array or
+DOM index. `BarLocator = Pick<BarIR, "barNumber" | "measureOn">` reuses score-ir's
+real contract rather than restating it. Confirmed `score-ir.ts:14-16` exports
+`BarIR` with both fields.
+The empty `unplaced` array is INTENTIONAL — bare `continue` on unresolved marks is
+the TDD minimum; Tasks 8 and 9 drive the two reporting paths. Do not flag it.
+
+## Reviewer guidance: recurring false "pre-existing lint error" reports
+Three subagents mischaracterised Biome warnings as errors and called them
+pre-existing. Verified baseline is exit 0 / 107 warnings / 23 infos / 0 errors.
+Re-run `bun run lint` yourself before accepting any such claim.
