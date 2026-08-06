@@ -1319,3 +1319,180 @@ interpretation, timbre) remain out by construction. Harness: `render_maestro_bun
 Results: `model/data/results/{dyn_maestro_realaudio_{naive,recalibrated},pedaling_maestro_rate,
 pedaling_maestro_rate_liftscoping,articulation_offset_probe}.json`. All reference recalibrations are measurements
 here, NOT shipped edits to the frozen-router-adjacent measurers — production wiring is an owner decision.
+
+---
+
+## FRONT 10 UPDATE (#101, 2026-08-06): articulation ROUTED and rated (0.950, G-D PASS) — the third verifiable dimension; and the recalibration trap becomes a check (RES-001)
+
+FRONT 9 left three clean-audio threads open: articulation was probe-only, the pedaling scoping
+lift was a recommendation with no decision, and Finding 2 (the one-line recalibration trap) was
+prose. This front closes the first, assembles the evidence for the second, and mechanises the
+third. Nothing here touches the OOD/G-F work — it all runs on the existing 188-bundle MAESTRO set.
+
+### Finding 1 — the FRONT 9 articulation statistic was chord-pathological; the fix is an IOI floor
+
+FRONT 9's probe statistic is `median(note_duration / IOI)` over pairs with IOI > 1ms. On piano
+that denominator is broken: notes inside a **chord** are near-simultaneous, so IOI -> 0 and the
+ratio explodes. Measured on the 188 windows, the unfloored statistic's worst AMT-vs-GT error is
+**13.4 ratio units against a corpus MAD of 0.37** — the noise is 35x the signal at the tail.
+
+Flooring the IOI fixes it. Sweeping the floor (`articulation_tau_calibrate.py`):
+
+| IOI floor | pairs kept | corr(AMT,GT) | GT MAD | statistic error p90 |
+|---:|---:|---:|---:|---:|
+| 0.001s (FRONT 9 probe) | 94.0% | 0.876 | 0.375 | **1.048** |
+| 0.030s | 58.0% | 0.919 | 0.156 | 0.182 |
+| **0.050s (chosen)** | **54.0%** | **0.930** | 0.168 | **0.163** |
+| 0.080s | 45.1% | 0.938 | 0.193 | 0.159 |
+| 0.120s | 25.6% | 0.940 | 0.313 | 0.183 |
+
+**FRONT 9's corr 0.876 is the unfloored number and is superseded by 0.930.** Flooring at 50ms
+cuts the substrate error p90 **6.4x**.
+
+**The selection rule is itself a finding, because the obvious one is wrong.** Maximising
+discriminability-to-noise (`GT MAD / error p90`) picks the *largest* floor — it climbs
+monotonically to 0.12s and beyond — because discarding notes inflates the apparent corpus spread
+while shrinking the measured error. At a 0.12s floor only **25% of note pairs survive** and the
+statistic has silently become "slow melodic notes only", a different construct measured on a
+different population. The shipped rule instead **minimises substrate error subject to a 50%
+note-retention bar**, which lands on 0.05s. 50ms is independently principled: it is the AMT
+onset-match tolerance, below which two piano onsets are not reliably ordered by any transcriber.
+
+### Finding 2 — tau off the offset tail: the analytic bound is useless, the empirical one is the tau
+
+The gate is offset reliability, and Transkun's offset error is median 9.4ms but **p90 89.6ms**.
+Propagating that p90 through a *single* note's ratio gives `0.0896s / median_IOI(0.082s)` =
+**1.31 ratio units** — larger than the entire corpus spread, i.e. an analytic bound that would
+declare the dimension unmeasurable. It is wrong because the window statistic is a **median over
+hundreds of notes**, which absorbs the tail: the measured per-window discrepancy p90 is **0.163**,
+8x smaller. `tau = 0.163` is therefore calibrated off the same offset tail, but propagated
+empirically rather than analytically. Both numbers are recorded in the artifact.
+
+**tau is `locked:false` and, unlike dynamics, has no perceptual cross-check.** The dynamics tau
+(6.5) was set by Youden-J against PercePiano perceived-dynamics labels. No perceptual articulation
+anchor exists, so this tau is purely substrate-derived — it says "a claim must beat what the
+transcriber's own release noise can fake", not "a claim must be perceptually real". That is a
+weaker warrant than the other two dimensions carry, and it is why the dimension ships unlocked.
+
+### Finding 3 — the routed rate is 0.950, G-D PASS, bought with the highest abstention of any dimension
+
+Same oracle design as FRONT 8b/9 (truth = GT MIDI, score = production measurer + frozen router,
+non-circular), same 188 MAESTRO windows, reference recalibrated to this substrate x corpus.
+
+| quantity | value |
+|---|---|
+| **faithfulness rate** | **0.950**, 95% CI [0.900, 0.990] |
+| committed | 100 / 188 (95 SUPPORTED, 5 REFUTED) |
+| **G-D gate** | **PASS** — 100 >= 30 committed AND CI half 0.045 <= 0.05 |
+| by GT class | detached 28✓/2✗, normal 44✓/3✗, legato 23✓/0✗ (all three tested) |
+| abstention | 88 near_threshold (**47%**) |
+| tau_gt sweep (0.10 / 0.163 / 0.25) | 0.84 / 0.95 / 0.83 |
+
+**"Least-clean dimension" turned out to mean high abstention, not a low rate.** Articulation
+commits on only **53%** of windows, against dynamics' 77% (145/188) and pedaling's 61% (115/188).
+The 0.950 is what survives after the dead-band has quarantined the 88 hardest cases — it is a
+rate over a deliberately easy remainder, and the honest one-line summary is *"articulation is
+adjudicable on about half of real-audio windows, and on that half it is right 95% of the time."*
+
+**Two caveats against over-reading the 0.950.** (1) The tau_gt sweep is materially wider than
+dynamics' (0.84–0.95 across the sweep vs 0.862–0.919), and it peaks exactly where the GT deadband
+equals the measurer's tau — the headline is threshold-matched, and 0.83–0.84 is the honest range
+under a differently-placed deadband. (2) This is SUBSTRATE faithfulness (oracle: the claim IS the
+GT label), not teacher faithfulness; no articulation claim-supply probe has been run, so whether
+teachers even *make* falsifiable articulation claims is an open, separate question — FRONT 7a's
+NO_GO on timing is the standing warning that supply cannot be assumed.
+
+### Finding 4 — the reference must be the AMT median, not the GT median (FRONT 8d Cause 1, nearly reborn)
+
+`d = AMT statistic - reference`, so the reference has to live on the AMT scale. Anchoring it to
+the **GT** corpus median (0.8796) instead of the **AMT** one (0.8159) silently adds Transkun's
+systematic release bias to every measurement — the exact shape of FRONT 8d's calibration debt.
+This was caught during this front by measurement, not by review. The measured sensitivity on this
+corpus, sweeping the reference alone:
+
+| reference | rate | committed |
+|---:|---:|---:|
+| **0.8159 (calibrated AMT median)** | **0.950** | 100 |
+| 0.8796 (GT median — the near-miss) | 0.939 | 99 |
+| 1.0 | **0.701** | 137 |
+| 0.6 | **0.438** | 128 |
+
+**FRONT 9 Finding 2 replicates on a third dimension**: dynamics 0.979 -> 0.236, articulation
+0.950 -> 0.438, on one config line, with no error raised anywhere.
+
+### Finding 5 — RES-001: the recalibration trap is now a check, not prose
+
+Per CLAUDE.md ("a gotcha that bites twice becomes a check"), the trap is mechanised.
+`apps/evals/claim_taxonomy/reference_calibration.json` records, per reference constant, the
+(transcriber x corpus) pair it was calibrated on, the measured recalibrations for other pairs, and
+who owns shipping the change. `scripts/standards_check.py:check_reference_calibration` fails in
+three directions: the code literal disagreeing with the recorded value, a reference calibrated on
+a retired substrate, and a measurer reference with no provenance entry at all.
+
+On the live tree it fires on exactly the two known-stale aria-era references and stays silent on
+the freshly calibrated articulation one — the both-directions demonstration the rule needs:
+
+```
+advisory [RES-001] dynamics.py:15   REFERENCE_VELOCITY = 51.5
+    calibrated on 'aria-amt' but the active substrate is 'transkun'.
+advisory [RES-001] pedaling.py:18   REFERENCE_FRACTION = 0.4623
+    calibrated on 'aria-amt' but the active substrate is 'transkun'.
+```
+
+**Status `approved`, deliberately not `enforced`.** Those two are live violations held open on
+purpose: their recalibrated values are measured (64.33 and 0.5798 on transkun/MAESTRO) but
+shipping them changes production verdicts, which is an owner decision, not a lint fix. A
+regression test asserts RES-001 cannot be promoted while they stand.
+
+### The verifiable-set table, updated (real audio, Transkun, reference recalibrated per substrate x corpus)
+
+| dimension | rate | committed / 188 | abstention | G-D | tau warrant |
+|---|---:|---:|---:|:--:|---|
+| **dynamics** | 0.979 CI[0.952, 1.000] | 145 (77%) | 23% | PASS | perceptual (Youden-J), LOCKED |
+| **pedaling** | 1.000 CI[1.000, 1.000] | 115 (61%) | 39% | PASS | provisional, unlocked |
+| **articulation** | **0.950 CI[0.900, 0.990]** | **100 (53%)** | **47%** | **PASS** | substrate-only, unlocked |
+| timing | not run | — | — | — | 30ms inherited, known too tight |
+
+Three dimensions now carry an independent, gate-passing, real-audio faithfulness rate. **G-D is no
+longer two anecdotes.** The ordering dynamics > pedaling > articulation holds on every axis —
+rate, commit fraction, and strength of the tau's warrant — and articulation is last on all three.
+
+### FRONT 7c / 7d feasibility (asked, answered, NOT started)
+
+**7c is feasible and does NOT inherit the #119/#126 matcher block.** FRONT 9's table entry
+"timing — parked on the score-alignment matcher" refers to the real-audio *rate*, not to 7c; the
+FRONT 7b UPDATE 2 consequence list already says so explicitly ("7c G-A runs on RENDERED
+construction-known audio (clean AMT) — unaffected"). Verified at the code level this front:
+`gate1/build_corrupt_bundles.py` renders each corruption, transcribes it, and persists the
+`warp_map` alongside the bundle, so `score_onset` is derivable **analytically from the
+construction-known warp**. No parangonar, no HMM matcher, no #108 dependency. Two design
+constraints an implementer must respect:
+
+1. **Bar/region tier only.** `OnsetDeviationMeasurer` abstains at whole_piece on any
+   `SAME_SET_LSQ_FRAMES` bundle — a least-squares detrend fitted over the same notes has
+   zero-mean residuals by construction, so whole_piece d is degenerate.
+2. **The warps must stay local.** A uniform tempo warp is exactly what the affine detrend removes.
+   The existing `default_sweep` already warps a sub-segment (`[[lo, hi, 1.3]]`), so the harness is
+   correct as-is — but anyone widening it to the whole clip would measure a guaranteed null.
+3. **A warp-map-derived `score_onset` path must be written.** The current `extract_bundle` fills
+   that field from the parangonar match; 7c must bypass it, or it re-imports the dependency it was
+   supposed to escape.
+
+**7d's tau would be substrate-specific, and that is a trap, not a detail.** A tau calibrated on
+7c's rendered audio reflects the clean-AMT floor (bar-mean sigma ~60-100ms), not the real-audio
+one, which FRONT 7b UPDATE 2 measured at **0.85-1.9s and parangonar-match-limited** — an order of
+magnitude apart. Shipping a rendered-audio tau to production is RES-001's failure mode in the
+timing dimension. If 7d runs, its output belongs in `reference_calibration.json` with an explicit
+`calibrated_for`, and the real-audio tau stays blocked on the matcher regardless.
+
+**Judgement, unasked-for but load-bearing: 7c's value is now questionable.** FRONT 7a's claim-supply
+probe returned **NO_GO** for timing — teachers do not make falsifiable onset-deviation claims on the
+generator corpus. 7c would therefore establish construction-known substrate validity for a dimension
+with no measured claim supply and a real-audio tau that is still blocked. It is feasible; it is not
+obviously the next-best use of a session. Recommend the owner sequence it behind the pedaling lift.
+
+Harnesses: `model/src/claim_measurement/dynamics_supply/{articulation_tau_calibrate,
+articulation_independent_rate}.py`, `apps/evals/claim_taxonomy/verifier/measurers/articulation.py`
+(+ 3 test files, 22 tests; claim_taxonomy suite 151 pass, claim_measurement suite 112 pass,
+standards suite 17 pass). Results:
+`model/data/results/{articulation_tau_calibration,articulation_maestro_rate}.json`.
