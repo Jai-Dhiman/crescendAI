@@ -93,10 +93,36 @@ complete an earlier task's implementation — it disarms the next task's test.
 ## Known-red window
 
 Task 1 commits a harness that **fails on purpose** and stays red until Task 19.
-From Task 1 until Task 19, `bun run test` has exactly one failing file:
-`src/components/mark-canvases.contract.test.tsx`. That is the harness doing its
-job. Any *other* failing file is a real regression. Do not skip, `.skip`, or
-delete the harness to get a green run.
+From Task 1 until Task 19, **two** commands are expected to be red, and both
+recover only when Task 19 closes the window:
+
+**1. `bun run test`** has exactly one failing file:
+`src/components/mark-canvases.contract.test.tsx`. Any *other* failing file is a
+real regression (excluding the known `score-worker` perf flake described in
+Prerequisites).
+
+**2. `bunx tsc --noEmit` exits 2**, with all errors confined to that same
+harness file — unresolved imports of `../test-utils/mark-fixtures`,
+`./ScoreMarkLayer`, and `./SessionTimelineStrip`, plus implicit-`any` callback
+parameters that are downstream of those unresolved imports (with `FIXTURE_BARS`
+unresolved, the `(b)` params have nothing to infer from).
+
+This second consequence was discovered during Task 2, not anticipated when the
+plan was written. It matters because most tasks' Step 4 says "confirm
+`bunx tsc --noEmit` exits 0", which is **not achievable** until Task 19.
+
+**How every task from here to Task 18 must check typecheck instead:**
+
+```bash
+bunx tsc --noEmit 2>&1 | grep -v "mark-canvases.contract.test.tsx"
+```
+
+Expect **no output**. Any line that survives that filter is a real error you
+introduced. If errors appear under `../api/...`, the worktree Prerequisites
+regressed — go re-do them rather than reporting the errors as pre-existing.
+
+Do not skip, `.skip`, or delete the harness to get a green run, and do not add
+stubs to satisfy its imports.
 
 ## Task Groups
 
