@@ -3022,3 +3022,25 @@ Both open questions are resolved:
   deleting or skipping the harness.
 
 VERDICT: PROCEED
+
+---
+
+## Build Progress (recovery state)
+
+Authoritative record of which tasks have landed. A resuming session should start
+at the first task NOT listed here. Per-step `- [ ]` checkboxes inside task bodies
+are NOT maintained — they are textually identical across all 20 tasks and bulk
+editing them is unreliable. This log is the recovery state.
+
+| Task | Group | Observed Step-2 failure (proof the test bit) | Commit | Reviews |
+|---|---|---|---|---|
+| 1 — contract harness | 0 | `Failed to resolve import "../test-utils/mark-fixtures"` (vite:import-analysis, 0 tests collected) | `d5076641` | PASS (merged spec+quality: verbatim file, no impl code) |
+| 2 — anchor degrades to timestamp | A | `Failed to resolve import "./mark"` | `bb126408` | pending |
+
+### Review findings carried forward
+
+- Task 1, MINOR, not fixed: `expect(screen.getAllByLabelText(/1:37/)).not.toHaveLength(0)`
+  is redundant — `getAllByLabelText` throws when nothing matches, so the length
+  assertion can never observe zero. The throw is the real assertion, so the test
+  still verifies the behaviour. Left as-is rather than churning a deliberately
+  red harness.
