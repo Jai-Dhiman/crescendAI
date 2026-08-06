@@ -3062,6 +3062,10 @@ editing them is unreliable. This log is the recovery state.
 | 10 — glyph names its mark in words | D1 | `Failed to resolve import "./MarkGlyph"` | `68f5855d` | see Group D note |
 | 11 — lifecycle from props | D1 | `expected element to have style opacity: 0.7` (MarkGlyph.test.tsx:41) | `4b8d02af` | see Group D note |
 | 12 — evidence panel + confidence framing | D2 | `Failed to resolve import "./MarkDetail"` | `18f0bfbd` | see Group D note |
+| 13 — score canvas places + discloses | E1 | `Failed to resolve import "./ScoreMarkLayer"` | `23ca5602` | see Group E note |
+| 14 — tap expands on score canvas | E1 | `Unable to find an element with the text: /pedal held through the bass change/` | `603904e0` | see Group E note |
+| 15 — timeline shows every mark | E2 | `Failed to resolve import "./SessionTimelineStrip"` | `815412c3` | see Group E note |
+| 16 — tap expands on timeline canvas | E2 | `Unable to find an element with the text: /the left hand lagged/` | `15379f27` | see Group E note |
 
 **Group 0 + Group A: COMPLETE and REVIEWED (verdict PASS).**
 **Group B: COMPLETE and REVIEWED (verdict PASS).**
@@ -3138,6 +3142,32 @@ Group A review findings, both MINOR, neither fixed (deliberately):
   a grab-bag, so still a deep module. Watch it as later issues add taxonomy
   metadata.
 
+**Group E (Tasks 13, 14, 15, 16): COMPLETE.**
+
+**THE KNOWN-RED WINDOW IS CLOSED — earlier than this plan predicted.** It was
+written to close at Task 19, but the contract harness only ever needed both
+canvases to exist, so it went green the moment Task 16 landed. Measured at
+`15379f27`: `mark-canvases.contract.test.tsx` 3/3 PASS and **`bunx tsc --noEmit`
+exits 0 UNFILTERED**. Stop filtering tsc output from here on — the `grep -v
+"mark-canvases.contract.test.tsx"` workaround is obsolete, and continuing to use
+it would now hide real errors. Task 19 should verify the gates, not un-red them.
+
+Group E note: the plan's Task 13 `ResizeObserver` stub was copied verbatim from
+the existing `IntersectionObserver` stub, inheriting its
+`constructor(_cb: ResizeObserverCallback) {}`. `noUselessConstructor` is a
+pre-existing WARNING on the old stub's untouched lines, but `pre-commit`'s
+`lint_changed` gate blocks findings on lines a commit CHANGES — so the copy was
+blocking while its original is not. The constructor was dropped (the argument is
+ignored anyway). **Copying an existing pattern does not inherit its grandfathered
+status.**
+
+Group E review finding, MINOR, not fixed: the score canvas discloses
+"3 marks not on this page", but only ONE of those three (m5, bar 88) is actually
+off-page — m4 and m6 are timestamp-anchored and have no page at all. The count
+is honest about "not drawn here"; the wording implies a reason that is wrong for
+two of the three. Worth revisiting when real copy is written; it does not affect
+the never-show-a-wrong-bar guarantee.
+
 ### Verified state at this checkpoint (measured, not assumed)
 
 ```
@@ -3146,6 +3176,15 @@ bunx vitest run src/lib/mark-placement.test.ts  -> 3/3 pass (Group B complete)
 bunx vitest run src/test-utils/mark-fixtures.test.ts -> 1/1 pass
 bunx vitest run src/components/MarkGlyph.test.tsx   -> 2/2 pass
 bunx vitest run src/components/MarkDetail.test.tsx  -> 2/2 pass
+bunx vitest run src/components/ScoreMarkLayer.test.tsx      -> 2/2 pass
+bunx vitest run src/components/SessionTimelineStrip.test.tsx -> 3/3 pass
+bunx vitest run src/components/mark-canvases.contract.test.tsx -> 3/3 PASS (no longer red)
+bunx tsc --noEmit                                -> exit 0, UNFILTERED
+bun run lint                                     -> exit 0, 107 warnings, 23 infos, 0 errors
+bun run test  -> 62/63 files, 237/238 tests pass. The single failure is the
+                 documented load-dependent flake `score-worker.integration.test.ts
+                 "IR walk cost ... under 100ms"` (151ms under full-suite load;
+                 VERIFIED passing in isolation at this same commit). Do not fix.
 bunx tsc --noEmit | grep -v mark-canvases       -> no output
 bun run lint                                     -> exit 0, 107 warnings, 23 infos, 0 errors
 ```
