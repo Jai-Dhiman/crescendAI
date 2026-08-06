@@ -55,10 +55,14 @@ def test_v01_taxonomy_validates_against_schema() -> None:
     jsonschema.validate(instance=taxonomy, schema=schema)
 
 
-def test_three_active_dimensions() -> None:
+def test_four_active_dimensions() -> None:
+    # articulation joined the active set in #101 FRONT 10, released by the
+    # offset_accuracy_validation gate once #128 swapped the transcriber to Transkun
+    # (aria-amt offset F1 ~0.37 could not support the statistic at all).
     taxonomy, _ = _load()
     active = [k for k, v in taxonomy["dimensions"].items() if v["status"] == "active"]
-    assert set(active) == {"timing", "pedaling", "dynamics"}, f"Active dims: {active}"
+    expected = {"timing", "pedaling", "dynamics", "articulation"}
+    assert set(active) == expected, f"Active dims: {active}"
 
 
 def test_signed_d_convention_doc_exists() -> None:

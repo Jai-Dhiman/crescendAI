@@ -90,6 +90,10 @@
       ],
       "properties": {
         "status": { "type": "string", "const": "active" },
+        "gate_id": {
+          "type": "string",
+          "description": "Optional. Names the gate that RELEASED this dimension into 'active', retained after promotion so the ungate stays traceable to its evidence. Articulation carries offset_accuracy_validation (#101 FRONT 9/10)."
+        },
         "reference": { "type": "string" },
         "check": { "type": "string" },
         "tolerance": { "$ref": "#/$defs/provisional_tolerance" },

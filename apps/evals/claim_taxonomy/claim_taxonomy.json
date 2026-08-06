@@ -151,11 +151,21 @@
       "notes": "Mean AMT note-velocity = perceived-loudness proxy, validated vs PercePiano perceived dynamics at partial-rho 0.544 (n=180, #101 G-B), gain-robust and onset-level. Replaces the perceptually-null, gain-bound librosa-RMS std/range statistic (partial-rho ~0.04). Units: MIDI velocity for BOTH location tiers (one tau). minimum_events = AMT notes. whole_piece reference = corpus-median AMT velocity (51.5, controlled-gain piano-render calibration); region reference = within-clip mean velocity. Scope: controlled-gain audio; AMT velocity calibration on heterogeneous real recordings is a separate G-F question."
     },
     "articulation": {
-      "status": "gated_on_measurement",
+      "status": "active",
       "gate_id": "offset_accuracy_validation",
-      "reference": "self_overlap_ratio",
+      "reference": "corpus_median_duration_ioi_ratio@whole_piece / within_clip_median@region",
       "check": "legato_staccato_overlap_ratio",
-      "rationale": "AMT offsets are weaker than onsets (higher quantization error). Gate: offset_accuracy_validation must confirm offset reliability before this dimension is admissible. Region-level only; single-bar articulation claims are too fragile."
+      "tolerance": {
+        "name": "duration_ioi_ratio_deviation",
+        "provisional": 0.163,
+        "unit": "duration_ioi_ratio",
+        "calibration_source": "#101 FRONT 10: NOT LOCKED. tau = the p90 of the per-window |Transkun statistic - ground-truth-MIDI statistic| discrepancy on 188 real MAESTRO-test windows -- i.e. the amount Transkun's 90ms offset p90 tail alone can move the statistic on 90% of windows. Calibrated off the substrate tail, NOT off a perceptual anchor: no perceptual articulation labels exist (PercePiano has no articulation axis usable here), so unlike the dynamics tau this one has NO Youden-J perceptual cross-check and cannot be locked. tau/corpus-MAD = 0.97, so only performances a MAD or more from the corpus median are adjudicable.",
+        "locked": false
+      },
+      "reliability_tier": 2,
+      "measurement": "amt_note_offset_articulation_ratio",
+      "minimum_events": 20,
+      "notes": "Median(note_duration / inter-onset-interval) over notes whose IOI clears a 50ms floor; > 1 legato, < 1 detached. UNGATED by #128's transcriber swap, not by new verifier work: aria-amt offset F1 ~0.37 could not support the statistic at all, Transkun reaches 0.79 (#125 Stage-0) and matches 99.8% of GT notes with offset error median 9.4ms (#101 FRONT 9). The IOI FLOOR is load-bearing and is a FRONT 10 correction to the FRONT 9 probe: unfloored, chord notes are near-simultaneous, IOI -> 0, and the ratio explodes (max measured |AMT - GT| error 13.4 ratio units). Flooring at 50ms raises AMT-vs-GT corr 0.876 -> 0.930 and cuts the statistic error p90 6.4x (1.048 -> 0.163). whole_piece reference = 0.8159 = the Transkun-MAESTRO corpus median of the AMT statistic (NOT the GT median 0.8796: d is computed from the AMT statistic, so a GT anchor would bake Transkun's systematic release bias into every measurement). Recalibrate per (substrate x corpus) -- see RES-001; measured sensitivity on this corpus is rate 0.950 at the calibrated 0.8159, 0.701 at 1.0, 0.438 at 0.6. minimum_events = 20 floored pairs, which is also how 'single-bar articulation claims are too fragile' is enforced mechanically: a single bar seldom carries 20. HONEST STANDING: articulation is the LEAST-CLEAN verifiable dimension -- see the FRONT 10 rate in docs/model/claim-verifier-signed-d-conventions.md. It is 'active' because it is measurable and abstains honestly, NOT because it is as trustworthy as dynamics or pedaling."
     },
     "phrasing": {
       "status": "scoped_out",

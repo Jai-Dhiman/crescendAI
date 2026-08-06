@@ -11,10 +11,15 @@ def _build_registry():
     from claim_taxonomy.verifier.measurers.pedaling import PedalingMeasurer
     from claim_taxonomy.verifier.measurers.dynamics import DynamicsMeasurer
     from claim_taxonomy.verifier.measurers.onset_deviation import OnsetDeviationMeasurer
+    from claim_taxonomy.verifier.measurers.articulation import ArticulationMeasurer
     return {
         "amt_onsets_region_tempo_fit": TimingMeasurer(),
         "amt_sustain_pedal_events": PedalingMeasurer(),
         "amt_note_velocity_estimator": DynamicsMeasurer(),
+        # FRONT 10: offset-derived legato/staccato ratio. Only routable because
+        # #128 swapped the transcriber to Transkun -- aria-amt offsets (F1 ~0.37)
+        # could not support it.
+        "amt_note_offset_articulation_ratio": ArticulationMeasurer(),
         # FRONT 7b: score-relative signed onset deviation (ms). Not yet the shipped
         # timing dimension's measurement -- the taxonomy repoint waits until the offline
         # pipeline emits score-aligned bundles, so timing is never left half-wired.
