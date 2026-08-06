@@ -22,9 +22,57 @@ pwd   # must end in .worktrees/issue-157-mark-system/apps/web
 git rev-parse --abbrev-ref HEAD   # must print issue-157-mark-system
 ```
 
-Dependencies are already installed there (`bun install`, 503 packages). Note
-there is no root `package.json` — a root-level `bun install` fails with
-"Bun could not find a package.json file to install from". Install per app.
+## Prerequisites — do these before Task 1
+
+A fresh worktree does **not** inherit enough to run the verification commands.
+Skipping this makes `bunx tsc --noEmit` report **209 errors** that look exactly
+like pre-existing repo breakage and are not. Three subagents have already been
+caught by a thinner version of this.
+
+```bash
+cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-157-mark-system
+
+# 1. Per-app deps. There is NO root package.json — a root-level `bun install`
+#    fails with "Bun could not find a package.json file to install from".
+(cd apps/web && bun install)
+
+# 2. apps/api deps are ALSO required, even though this issue never edits
+#    apps/api. apps/web/tsconfig.json includes **/*.ts and the web app imports
+#    types from apps/api, so tsc follows those imports into apps/api sources.
+#    skipLibCheck does not skip them — they are .ts, not .d.ts.
+(cd apps/api && bun install)
+
+# 3. The WASM pkg/ dirs are gitignored build artifacts a new worktree does not
+#    get. Copy, do NOT rebuild.
+cp -R /Users/jdhiman/Documents/crescendai/apps/api/src/wasm/piece-identify/pkg \
+      apps/api/src/wasm/piece-identify/
+cp -R /Users/jdhiman/Documents/crescendai/apps/api/src/wasm/score-analysis/pkg \
+      apps/api/src/wasm/score-analysis/
+```
+
+Confirm the clean baseline before writing any code. These numbers were measured
+on this branch at `db843868` and are what "unchanged" means later:
+
+```bash
+cd apps/web
+bunx tsc --noEmit ; echo "exit=$?"     # expect: no output, exit=0
+bun run lint      ; echo "exit=$?"     # expect: exit=0, 107 warnings, 23 infos, 151 files
+bun run test                            # expect: 1 failed | 215 passed (216); see below
+```
+
+**The one baseline failure is real and expected.**
+`src/lib/score-worker.integration.test.ts > IR walk cost (parseScoreIR alone) is
+under 100ms` fails under full-suite load and passes 9/9 when run alone. It is a
+load-dependent perf assertion, unrelated to this issue. Do not fix it, do not
+skip it. The disambiguator is:
+
+```bash
+bunx vitest run src/lib/score-worker.integration.test.ts   # expect: 9 passed
+```
+
+Note this corrects a belief carried in the session handoff that the test "flaked
+once historically and never reproduced" — it reproduces reliably under load on
+this machine.
 
 ## On "one test per task"
 
@@ -63,9 +111,14 @@ Group D (depends on C)         : chain D1: Task 10 -> 11   (MarkGlyph.tsx)
 Group E (depends on D)         : chain E1: Task 13 -> 14   (ScoreMarkLayer.tsx)
                                  chain E2: Task 15 -> 16   (SessionTimelineStrip.tsx)
                                  E1 and E2 run in parallel — different files.
-Group F (sequential, depends E): Task 17 -> 18             (18 needs 17's route live)
+Group F (sequential, depends E): Task 17 -> 20 -> 18       (each needs the prior's route state)
 Group G (depends on F)         : Task 19                   (harness green + full gates)
 ```
+
+Task 20 is numbered last but executes **between** 17 and 18: it was added after
+the challenge review, and renumbering would have invalidated every
+cross-reference in the plan. Group letters and this ordering line are
+authoritative, not the numbers.
 
 **Task numbers are not in dependency order — group letters are.** Tasks 7-9
 (Group B) run before Task 6 (Group C), because `mark-fixtures.ts` imports the
@@ -2088,6 +2141,326 @@ git add src/routes/marks-preview.tsx src/routes/marks-preview.test.tsx src/route
 
 ---
 
+### Task 20: A real Verovio score proves the measureOn chain end to end
+
+**Group:** F (sequential — runs after Task 17, before Task 18)
+
+**Behavior being verified:** Against a **real** Verovio engraving of a real
+piece, a bar-anchored mark renders positioned over that bar's actual measure
+element — proving `BarIR.measureOn` really is the SVG element's `id` at render
+time, not merely by construction in `score-ir.ts`.
+
+**Interface under test:** `/marks-preview` in a real browser
+
+**Why Playwright and not vitest:** this is the one claim jsdom structurally
+cannot check. Rendering a real score needs the Verovio WASM toolkit, a worker,
+and a layout engine; jsdom has none of the three, and its
+`getBoundingClientRect()` returns zeros. A real browser has all three. Every
+other test in this plan uses stand-in `<div id="measure-...">` elements, which
+verify the resolution *logic* against correctly-shaped ids but can never verify
+that Verovio emits those ids.
+
+**Files:**
+- Modify: `src/routes/marks-preview.tsx` (add the real-piece section)
+- Create: `tests/marks.spec.ts`
+- Create: `playwright.marks.config.ts`
+- Modify: `package.json` (add the `test:marks` script)
+
+- [ ] **Step 1: Write the failing test**
+
+Create `playwright.marks.config.ts`:
+
+```ts
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+	testMatch: ["tests/marks.spec.ts"],
+	use: {
+		headless: true,
+		baseURL: "http://localhost:4173",
+	},
+	// Verovio WASM init plus a real score load is slow on a cold preview build.
+	timeout: 120000,
+	webServer: {
+		command: "bun run build && bunx vite preview --port 4173 --strictPort",
+		port: 4173,
+		reuseExistingServer: !process.env.CI,
+		timeout: 180000,
+	},
+});
+```
+
+Create `tests/marks.spec.ts`:
+
+```ts
+import { expect, test } from "@playwright/test";
+
+test("a mark sits over its real measure on a real Verovio engraving", async ({
+	page,
+}) => {
+	await page.goto("/marks-preview");
+
+	const realScore = page.locator("[data-testid='real-score']");
+	// Verovio emits <g class="measure" id="..."> once the toolkit has rendered.
+	const measures = realScore.locator("g.measure");
+	await expect(measures.first()).toBeVisible({ timeout: 90000 });
+
+	// The preview anchors its real-score mark to the FIRST bar the IR reports,
+	// so the element it resolves to must exist and the glyph must be visible.
+	const glyph = realScore.locator("button[aria-expanded]").first();
+	await expect(glyph).toBeVisible();
+
+	// The load-bearing assertion: the glyph's box overlaps the measure element
+	// it claims to mark. A wrong-bar or invented position fails here.
+	const markedId = await glyph.getAttribute("data-measure-on");
+	expect(markedId).toBeTruthy();
+	const target = realScore.locator(`g.measure[id="${markedId}"]`);
+	await expect(target).toHaveCount(1);
+
+	const glyphBox = await glyph.boundingBox();
+	const targetBox = await target.boundingBox();
+	expect(glyphBox).not.toBeNull();
+	expect(targetBox).not.toBeNull();
+	if (!glyphBox || !targetBox) throw new Error("unreachable");
+
+	// Horizontal overlap: the glyph starts within the measure's horizontal span.
+	expect(glyphBox.x).toBeGreaterThanOrEqual(targetBox.x - 1);
+	expect(glyphBox.x).toBeLessThanOrEqual(targetBox.x + targetBox.width);
+	// Vertical: the glyph sits ABOVE the staff, by GLYPH_OFFSET_PX.
+	expect(glyphBox.y).toBeLessThan(targetBox.y);
+
+	// And the degradation constraint holds on a real score too.
+	await expect(realScore).not.toContainText("bars 21");
+});
+```
+
+Add to `package.json` scripts:
+
+```json
+		"test:marks": "playwright test --config playwright.marks.config.ts",
+```
+
+- [ ] **Step 2: Run test — verify it FAILS**
+
+```bash
+bun run test:marks
+```
+
+Expected: FAIL — `expect(locator).toBeVisible()` times out on
+`[data-testid='real-score']`, which does not exist yet. If it fails instead on
+Verovio never rendering `g.measure`, that is a *finding*, not a test bug: it
+would mean the whole `measureOn` premise is wrong. Report it rather than
+working around it.
+
+- [ ] **Step 3: Implement the minimum to make the test pass**
+
+Two changes. First, `MarkGlyph` must expose which measure it was placed against
+so the test can assert overlap rather than mere presence. In
+`src/components/MarkGlyph.tsx`, add an optional prop and forward it:
+
+```tsx
+interface MarkGlyphProps {
+	mark: Mark;
+	expanded: boolean;
+	onToggle: (id: string) => void;
+	style?: CSSProperties;
+	/** The measure element this glyph was placed against, for E2E assertions. */
+	measureOn?: string;
+}
+```
+
+and on the `<button>`:
+
+```tsx
+			data-measure-on={measureOn}
+```
+
+Then in `src/components/ScoreMarkLayer.tsx`, `placeMarks` already knows the
+resolution; pass it through. Change `PlacedMark` in
+`src/lib/mark-placement.ts` to carry it:
+
+```ts
+export interface PlacedMark {
+	readonly mark: Mark;
+	readonly top: number;
+	readonly left: number;
+	readonly measureOn: string;
+}
+```
+
+and in `placeMarks`, the push becomes:
+
+```ts
+		placed.push({
+			mark,
+			top: rect.top - GLYPH_OFFSET_PX,
+			left: rect.left,
+			measureOn,
+		});
+```
+
+(`measureOn` is already in scope and provably non-undefined at that point,
+because `rect` was looked up through it.)
+
+In `ScoreMarkLayer`, forward it:
+
+```tsx
+			{placed.map(({ mark, top, left, measureOn }) => (
+				<div key={mark.id} className="pointer-events-auto absolute" style={{ top, left }}>
+					<MarkGlyph
+						mark={mark}
+						measureOn={measureOn}
+						expanded={expandedId === mark.id}
+						onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
+					/>
+					{expandedId === mark.id && (
+						<MarkDetail mark={mark} onClose={() => setExpandedId(null)} />
+					)}
+				</div>
+			))}
+```
+
+Second, add the real-piece section to `src/routes/marks-preview.tsx`. Add these
+imports:
+
+```tsx
+import { useEffect, useMemo, useRef, useState } from "react";
+import { resolveAnchor, type Mark } from "../lib/mark";
+import type { BarLocator } from "../lib/mark-placement";
+import { scoreRenderer } from "../lib/score-renderer";
+```
+
+and this component, rendered between the synthetic score section and the
+timeline:
+
+```tsx
+const REAL_PIECE_ID = "chopin.ballades.1";
+
+/**
+ * The only place in #157 where marks meet a real Verovio engraving. Everything
+ * else uses stand-in divs, which verify the resolution logic against
+ * correctly-shaped ids but cannot verify that Verovio emits those ids at all.
+ */
+function RealScoreSection() {
+	const containerRef = useRef<HTMLDivElement>(null);
+	const [svg, setSvg] = useState<string | null>(null);
+	const [bars, setBars] = useState<readonly BarLocator[]>([]);
+	const [error, setError] = useState<string | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		async function load() {
+			try {
+				const result = await scoreRenderer.load(REAL_PIECE_ID);
+				if (cancelled) return;
+				if (result === "failed") {
+					setError("Score failed to load");
+					return;
+				}
+				const page = await scoreRenderer.getPage(REAL_PIECE_ID, 1);
+				if (cancelled) return;
+				// Page 1 only: bars on later pages exercise the unplaced path,
+				// which the synthetic section already covers deterministically.
+				setBars(
+					result.ir.bars
+						.filter((b) => b.pageN === 1)
+						.map((b) => ({ barNumber: b.barNumber, measureOn: b.measureOn })),
+				);
+				setSvg(page);
+			} catch (e) {
+				if (!cancelled) setError(String(e));
+			}
+		}
+		load();
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	// Anchor a mark to the first bar the IR actually reports, so this never
+	// depends on a hardcoded bar number surviving a re-engraving.
+	const marks = useMemo<readonly Mark[]>(() => {
+		const first = bars[0];
+		if (!first) return [];
+		return [
+			{
+				id: "real-1",
+				anchor: resolveAnchor({
+					atSeconds: 30,
+					bars: [first.barNumber, first.barNumber],
+					alignmentQuality: 1,
+				}),
+				taxonomy: "needs_work",
+				dimension: "pedaling",
+				evidence: "pedal held through the bass change",
+				lifecycle: "active",
+				confidence: "established",
+			},
+		];
+	}, [bars]);
+
+	// Injected imperatively into a dedicated child node, matching the
+	// established pattern at src/scorehost/score-host.ts:382. Two reasons this
+	// is not React's dangerouslySetInnerHTML: it follows the code already in
+	// the repo, and it keeps the SVG in a sibling of the mark layer so React
+	// never owns or re-reconciles Verovio's DOM.
+	//
+	// Trust boundary: the markup is Verovio's own output, produced by our
+	// worker from copyright-cleared score bytes we fetch. No user-supplied
+	// content reaches this string. That is the same boundary score-host.ts
+	// already accepts.
+	const svgHostRef = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		if (svgHostRef.current && svg) svgHostRef.current.innerHTML = svg;
+	}, [svg]);
+
+	if (error) {
+		return <p className="text-danger">{error}</p>;
+	}
+
+	return (
+		<div
+			data-testid="real-score"
+			ref={containerRef}
+			className="score-container relative mb-12 min-h-64 border border-border-subtle"
+		>
+			<div ref={svgHostRef} />
+			{!svg && <p className="text-ink-tertiary">Loading score...</p>}
+			{svg && <ScoreMarkLayer containerRef={containerRef} bars={bars} marks={marks} />}
+		</div>
+	);
+}
+```
+
+and in `MarksPreview`'s JSX, between the synthetic section and the timeline:
+
+```tsx
+			<h2 className="mb-2 text-label-md text-ink-secondary">
+				Score overlay (real engraving)
+			</h2>
+			<RealScoreSection />
+```
+
+- [ ] **Step 4: Run test — verify it PASSES**
+
+```bash
+bunx vitest run src/lib/mark-placement.test.ts src/components src/routes
+bunx tsc --noEmit
+bun run test:marks
+```
+
+Expected: PASS. The vitest run is included because `PlacedMark` gained a field —
+Tasks 7-9's assertions use `.map((p) => p.mark.id)` and `placed[0].left`, so
+they are unaffected, but confirm rather than assume.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/routes/marks-preview.tsx src/components/MarkGlyph.tsx src/components/ScoreMarkLayer.tsx src/lib/mark-placement.ts tests/marks.spec.ts playwright.marks.config.ts package.json && git commit -m "test(marks): prove the measureOn chain against a real Verovio engraving"
+```
+
+---
+
 ### Task 18: Real-browser axe covers the mark surfaces in both themes
 
 **Group:** F (sequential — depends on Task 17)
@@ -2215,15 +2588,26 @@ bun run lint
 bun run test:a11y
 ```
 
-Expected:
-- `bun run test`: PASS, with **zero** failing files. The known-red window is
-  closed. Note `src/lib/score-worker.integration.test.ts` has a sub-100ms perf
-  assertion that flaked once historically and never reproduced — it is
-  pre-existing and unrelated. If it flakes, re-run it alone to confirm, and do
-  not "fix" it.
-- `bunx tsc --noEmit`: exit 0.
-- `bun run lint`: exit 0, with the repo's pre-existing warnings unchanged
-  (69 at branch point — record the actual count and confirm no new ones).
+Expected, measured against the Prerequisites baseline:
+
+- `bun run test`: **1 failed | N passed**, where the single failure is
+  `src/lib/score-worker.integration.test.ts > IR walk cost (parseScoreIR alone)
+  is under 100ms` — the known load-dependent perf flake, unchanged from the
+  branch-point baseline. The known-red window from Task 1 is closed: the
+  contract harness must now be green. Any failure other than the perf
+  assertion is a real regression. Confirm the flake with:
+
+  ```bash
+  bunx vitest run src/lib/score-worker.integration.test.ts   # expect: 9 passed
+  ```
+
+  Do not "fix" it and do not skip it.
+- `bunx tsc --noEmit`: exit 0, no output. (If this reports errors in
+  `../api/...`, the Prerequisites were skipped — go back and do them rather
+  than reporting the errors as pre-existing.)
+- `bun run lint`: exit 0, with **no new warnings** relative to the branch-point
+  baseline of 107 warnings / 23 infos across 151 files. Compare the delta, not
+  the absolute number — the absolute drifts with unrelated merges.
 - `bun run test:a11y`: PASS, four cases.
 
 Then the **deciding check** — a real-browser click-through, which for this UI
@@ -2566,3 +2950,49 @@ VERDICT: NEEDS_REWORK — (1) the typecheck command needs a Prerequisites sectio
 covering the WASM `pkg/` copy and `apps/api` deps, without which it reports 209
 errors; (2) Task 19's "zero failing files" contradicts a verified 1/216 baseline
 failure; (3) Task 19's "69 warnings" contradicts a verified 107.
+
+---
+
+## Post-Challenge Resolution
+
+The challenge review returned NEEDS_REWORK on three blockers. All three were in
+the plan's description of the environment, not its architecture. Resolved:
+
+1. **Typecheck prerequisites** — added the "Prerequisites — do these before
+   Task 1" section. Verified sequence: fresh worktree reports 5 errors; after
+   copying both WASM `pkg/` dirs, 209; after `bun install` in `apps/api`, 0.
+2. **Test baseline** — Task 19 now expects the one known load-dependent perf
+   failure rather than zero failures, with the isolation re-run as the
+   disambiguator. This corrects the handoff's "never reproduced": it reproduces
+   reliably under full-suite load.
+3. **Lint baseline** — corrected from 69 to the verified 107 warnings / 23
+   infos, and reframed as "no *new* warnings" so the check survives unrelated
+   merges.
+
+Both open questions are resolved:
+
+- **Real Verovio score:** ACCEPTED. Added **Task 20**, which puts a real
+  `chopin.ballades.1` engraving on `/marks-preview` and asserts in Playwright
+  that a mark's box overlaps the actual `g.measure` element it names. This
+  closes the review's largest honesty gap and moves the `BarIR.measureOn`
+  presumption from VALIDATE to a genuinely tested claim. Synthetic stand-ins
+  stay for the vitest tests, because the off-page/unplaced case cannot be
+  constructed deterministically against a real score.
+- **Brand across a JSON round-trip:** RECORDED for #158, no change here.
+  `JSON.parse` yields an unbranded object that is not assignable to
+  `MarkAnchor` — which is the guarantee working, not a bug. The wire format must
+  therefore carry `alignmentQuality` and the client must re-run `resolveAnchor`
+  at the deserialization boundary. A later issue reaching for
+  `as unknown as MarkAnchor` there would silently delete the whole property.
+
+### Residual risks carried into build
+
+- jsdom cannot verify placement coordinates (verified: all rects are zeros).
+  Mitigated by Tasks 7-9 against synthetic non-zero rects, and now by Task 20 in
+  a real browser.
+- `/marks-preview` imports `src/test-utils/`, putting fixtures in the production
+  bundle. Accepted for a preview route that #158/#159/#162 delete.
+- The known-red window spans Tasks 1-18. Documented; do not resolve it by
+  deleting or skipping the harness.
+
+VERDICT: PROCEED
