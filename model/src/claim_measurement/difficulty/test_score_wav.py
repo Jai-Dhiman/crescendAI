@@ -275,6 +275,58 @@ def test_an_empty_transcription_is_a_failure_not_a_zero_vector(tmp_path, capsys)
     assert "no notes" in capsys.readouterr().err
 
 
+def test_main_records_per_item_runtime_and_the_failure_rate(tmp_path, capsys):
+    """Both numbers on stderr are exclusion criteria, not diagnostics: >5% item
+    failures, or exceeding 24 wall-clock hours on one GPU. Neither had ever
+    been measured end to end, so both are emitted on every run."""
+    from claim_measurement.difficulty.score_wav import main
+
+    wavs = [tmp_path / f"p{i}.wav" for i in range(3)]
+    for wav in wavs:
+        wav.write_bytes(b"stub")
+    out, timing = tmp_path / "scores.tsv", tmp_path / "timing.tsv"
+    calls = []
+
+    def scorer(wav_path):
+        calls.append(wav_path)
+        # the second item fails, so the reported rate is a third
+        return (5.0, False) if len(calls) == 2 else (float(len(calls)), True)
+
+    argv = ["--model-dir", str(tmp_path), "--out", str(out),
+            "--timing-out", str(timing)]
+    for wav in wavs:
+        argv += ["--wav", str(wav)]
+
+    assert main(argv, scorer=scorer) == 0
+
+    timing_rows = [line.split("\t") for line in
+                   timing.read_text().strip().split("\n")]
+    assert len(timing_rows) == 3
+    assert [row[2] for row in timing_rows] == ["1", "0", "1"]
+    assert all(float(row[1]) >= 0 for row in timing_rows)
+
+    err = capsys.readouterr().err
+    assert "failures=1" in err and "rate=33.333%" in err
+    assert "in a 24h budget" in err
+
+
+def test_main_writes_a_round_trippable_score_not_a_rounded_one(tmp_path):
+    """The judge reads this file. A score rounded on the way out would make the
+    determinism harness compare agreement-to-6-places rather than bit-identity,
+    and would silently discard precision from the ranking."""
+    from claim_measurement.difficulty.score_wav import main
+
+    wav = tmp_path / "p.wav"
+    wav.write_bytes(b"stub")
+    out = tmp_path / "scores.tsv"
+    value = 2.45252920877485
+
+    main(["--model-dir", str(tmp_path), "--wav", str(wav), "--out", str(out)],
+         scorer=lambda p: (value, True))
+
+    assert float(out.read_text().strip().split("\t")[1]) == value
+
+
 def test_load_scorer_rejects_an_unknown_failure_mode(tmp_path):
     """A typo'd --on-failure must not silently pick a policy. Which of the two
     behaviours is live is the difference between shipping a bug and being

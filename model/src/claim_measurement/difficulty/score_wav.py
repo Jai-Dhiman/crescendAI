@@ -85,6 +85,7 @@ import json
 import math
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -343,6 +344,11 @@ def main(argv=None, scorer=None) -> int:
                          "over stdout: the MoonBeam fork's MusicTokenizer prints "
                          "its entire vocabulary (~96KB) to stdout on construction")
     ap.add_argument(
+        "--timing-out", type=Path, default=None,
+        help="write '<wav_path>\\t<seconds>\\t<ok>' per item here. The 24h/1-GPU "
+             "budget is an exclusion criterion, so it needs measuring rather "
+             "than estimating")
+    ap.add_argument(
         "--on-failure", choices=("raise", "fallback"), default="raise",
         help="raise (default): a failed item aborts the run loudly, which is "
              "what we want while the system is still being built. fallback: "
@@ -376,14 +382,17 @@ def main(argv=None, scorer=None) -> int:
                              args.model_config, on_failure=args.on_failure,
                              device=args.device)
 
-    lines, failures = [], 0
+    lines, timings, failures = [], [], 0
     for wav in wavs:
+        started = time.perf_counter()
         score, ok = scorer(wav)
+        elapsed = time.perf_counter() - started
         failures += not ok
         # repr, not a fixed number of decimals: it is the shortest string that
         # round-trips to the same float, so the determinism harness compares
         # bit-identity rather than agreement to 6 places.
         lines.append(f"{wav}\t{score!r}")
+        timings.append((wav, elapsed, ok))
 
     if args.out is not None:
         args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -391,11 +400,25 @@ def main(argv=None, scorer=None) -> int:
     else:
         print("\n".join(lines))
 
+    if args.timing_out is not None:
+        args.timing_out.parent.mkdir(parents=True, exist_ok=True)
+        args.timing_out.write_text("\n".join(
+            f"{wav}\t{elapsed:.4f}\t{int(ok)}" for wav, elapsed, ok in timings) + "\n")
+
     rate = failures / len(wavs)
-    # Reported on every run because it is the number that decides whether the
-    # submission is ranked at all.
+    # Both numbers are printed on EVERY run because both are exclusion
+    # criteria: >5% item failures, or exceeding 24 wall-clock hours on one GPU.
+    # The per-item seconds exclude the one-time backbone load, which is
+    # amortised across a batch -- so extrapolating them to a test-set size is
+    # only honest for a run that scored many items in one process.
+    seconds = [t for _w, t, _ok in timings]
+    total = sum(seconds)
     print(f"scored={len(wavs)} failures={failures} rate={rate:.3%} "
           f"(MIREX excludes a submission above 5%)", file=sys.stderr)
+    print(f"runtime total={total:.1f}s mean={total / len(wavs):.2f}s/item "
+          f"max={max(seconds):.2f}s "
+          f"-> {24 * 3600 / (total / len(wavs)):.0f} items in a 24h budget "
+          f"at this rate", file=sys.stderr)
     return 0
 
 
