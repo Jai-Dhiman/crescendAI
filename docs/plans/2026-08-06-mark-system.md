@@ -3055,10 +3055,32 @@ editing them is unreliable. This log is the recovery state.
 | 4 — anchorLabel | A | `TypeError: anchorLabel is not a function` (mark.test.ts:52) | `e45a5806` | see Group A note |
 | 5 — isMarkWorthy + vocabulary | A | `TypeError: isMarkWorthy is not a function` (mark.test.ts:65) | `40bdb1a0` | see Group A note |
 
-| 7 — place by measureOn, not index | B | `Failed to resolve import "./mark-placement"` | `f0fd64ea` | pending (review with Tasks 8-9) |
+| 7 — place by measureOn, not index | B | `Failed to resolve import "./mark-placement"` | `f0fd64ea` | see Group B note |
+| 8 — timestamp anchors reported unplaced | B | `expected [] to deeply equal [ 'stamp' ]` (mark-placement.test.ts:65) | `3ec59dab` | see Group B note |
+| 9 — unresolvable bars reported unplaced | B | `expected [] to deeply equal [ 'off-page', 'unknown-bar' ]` (mark-placement.test.ts:85) | `3eb6f63f` | see Group B note |
 
 **Group 0 + Group A: COMPLETE and REVIEWED (verdict PASS).**
-**Group B: IN PROGRESS — Task 7 landed; Tasks 8 and 9 remain.**
+**Group B: COMPLETE and REVIEWED (verdict PASS).**
+
+Group B was reviewed as one cumulative diff (`27516a5b..3eb6f63f`) for the same
+reason as Group A: Tasks 7-9 all edit `mark-placement.ts` sequentially.
+
+The module now conserves marks: every input mark lands in exactly one of
+`placed` or `unplaced`, so nothing can vanish. Both of Task 9's failure modes
+(bar number absent from the locator table, and bar number present but its
+element not rendered on this page) funnel through the same `!rect` branch, so
+one branch covers both.
+
+Group B review findings, both MINOR, neither fixed (deliberately):
+- `placeMarks` resolves only `anchor.bars[0]`. If a two-bar range straddles a
+  page break — bar 5 off-page, bar 6 on-page — the mark goes `unplaced` and
+  routes to the timeline even though half of it is visible. This is the
+  conservative direction (never place against a bar we cannot see) and matches
+  the never-show-a-wrong-bar constraint, so it is deliberate, not an oversight.
+- `top: rect.top - GLYPH_OFFSET_PX` can go negative for a measure within 28px of
+  the container top, which would clip the glyph. Placement is pure geometry and
+  correctly has no opinion about clamping; **Task 13 owns this** — if the score
+  canvas renders `top` unclamped, a first-system mark can be cut off.
 
 Group A was reviewed as a cumulative diff rather than per task, because Tasks 2-5
 all edit the same two files sequentially and per-task review would race the next
@@ -3084,7 +3106,7 @@ Group A review findings, both MINOR, neither fixed (deliberately):
 
 ```
 bunx vitest run src/lib/mark.test.ts            -> 6/6 pass
-bunx vitest run src/lib/mark-placement.test.ts  -> 1/1 pass
+bunx vitest run src/lib/mark-placement.test.ts  -> 3/3 pass (Group B complete)
 bunx tsc --noEmit | grep -v mark-canvases       -> no output
 bun run lint                                     -> exit 0, 107 warnings, 23 infos, 0 errors
 ```
