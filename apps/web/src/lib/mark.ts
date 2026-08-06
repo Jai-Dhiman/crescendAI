@@ -39,8 +39,11 @@ export interface AnchorCandidate {
  * mark, and elapsed time is the one coordinate every mark always has.
  */
 export function resolveAnchor(candidate: AnchorCandidate): MarkAnchor {
-	return {
-		type: "timestamp",
-		atSeconds: candidate.atSeconds,
-	} as unknown as MarkAnchor;
+	const { atSeconds, bars, alignmentQuality } = candidate;
+	// `>=`, not `>`: ALIGNMENT_MIN is the lowest quality still trusted for
+	// bars. The boundary case is pinned by the test above.
+	if (bars && alignmentQuality >= ALIGNMENT_MIN) {
+		return { type: "bars", bars, atSeconds } as unknown as MarkAnchor;
+	}
+	return { type: "timestamp", atSeconds } as unknown as MarkAnchor;
 }
