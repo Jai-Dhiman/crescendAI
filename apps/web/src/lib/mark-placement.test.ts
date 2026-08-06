@@ -37,4 +37,31 @@ describe("placeMarks", () => {
 		expect(placed[0].left).toBe(400);
 		expect(placed[0].top).toBe(200 - GLYPH_OFFSET_PX);
 	});
+
+	it("reports a timestamp-anchored mark as unplaced rather than dropping it", () => {
+		const timestampMark: Mark = {
+			id: "stamp",
+			anchor: resolveAnchor({
+				atSeconds: 97,
+				bars: [5, 6],
+				alignmentQuality: 0.1,
+			}),
+			taxonomy: "needs_work",
+			dimension: "timing",
+			evidence: "e",
+			lifecycle: "active",
+		};
+		const bars: BarLocator[] = [{ barNumber: 5, measureOn: "m-five" }];
+		const rects = new Map<string, MeasureRect>([
+			["m-five", { top: 100, left: 20, width: 50, height: 60 }],
+		]);
+
+		const { placed, unplaced } = placeMarks(bars, rects, [timestampMark]);
+
+		// Bar 5 is right there with a rect — but resolveAnchor threw the bars
+		// away, so there is nothing to place against and nothing to guess from.
+		// The mark must still surface, or it vanishes from the product entirely.
+		expect(placed).toHaveLength(0);
+		expect(unplaced.map((m) => m.id)).toEqual(["stamp"]);
+	});
 });

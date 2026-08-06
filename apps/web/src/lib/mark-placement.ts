@@ -49,7 +49,10 @@ export function placeMarks(
 	const unplaced: Mark[] = [];
 
 	for (const mark of marks) {
-		if (mark.anchor.type !== "bars") continue;
+		if (mark.anchor.type !== "bars") {
+			unplaced.push(mark);
+			continue;
+		}
 		const measureOn = measureOnByBar.get(mark.anchor.bars[0]);
 		const rect = measureOn ? rectsByMeasureOn.get(measureOn) : undefined;
 		if (!rect) continue;
