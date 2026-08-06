@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	type BaselineState,
 	BaselineStateSchema,
+	DEFAULT_BASELINE_CONFIG,
 	initialBaselineState,
 	type SessionSamples,
 	updateBaseline,
@@ -269,6 +270,45 @@ describe("promotion", () => {
 		]);
 		expect(trace[3].dimensions.articulation.lifecycle).toBe("active");
 		expect(trace[3].dimensions.articulation.promoted).toBe(false);
+	});
+});
+
+describe("sparse sessions never measure spread", () => {
+	it("stays quiet when every session supplies too few samples to measure spread", () => {
+		const centres = [
+			[0.6, 0.6],
+			[0.61, 0.61],
+			[0.59, 0.59],
+			[0.62, 0.62],
+			[0.6, 0.6],
+			[0.61, 0.61],
+		];
+		const trace = runSequence(
+			centres.map((scores, i) => ({
+				timestamp: `2026-01-0${i + 1}T00:00:00Z`,
+				scores: { dynamics: scores },
+			})),
+		);
+		for (const s of trace) {
+			expect(s.dimensions.dynamics.lifecycle).toBe("absent");
+			expect(s.dimensions.dynamics.consecutiveOutOfBand).toBeLessThan(
+				DEFAULT_BASELINE_CONFIG.firePersistence,
+			);
+		}
+	});
+
+	it("measures the noise floor from the first session that supplies enough samples", () => {
+		const dense = [0.5, 0.7, 0.5, 0.7, 0.5, 0.7];
+		const trace = runSequence([
+			{ timestamp: "2026-01-01T00:00:00Z", scores: { dynamics: [0.6, 0.6] } },
+			{ timestamp: "2026-01-02T00:00:00Z", scores: { dynamics: [0.61, 0.61] } },
+			{ timestamp: "2026-01-03T00:00:00Z", scores: { dynamics: dense } },
+		]);
+		expect(trace[0].dimensions.dynamics.noiseFloorMeasured).toBe(false);
+		expect(trace[1].dimensions.dynamics.noiseFloorMeasured).toBe(false);
+		expect(trace[2].dimensions.dynamics.noiseFloorMeasured).toBe(true);
+		expect(trace[2].dimensions.dynamics.noiseFloor).toBeGreaterThan(0);
+		expect(trace[2].dimensions.dynamics.noiseFloor).toBeCloseTo(0.1, 5);
 	});
 });
 

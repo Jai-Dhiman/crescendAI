@@ -52,6 +52,7 @@ const DimensionStateSchema = z.object({
 	longSd: z.number(),
 	shortMean: z.number(),
 	noiseFloor: z.number(),
+	noiseFloorMeasured: z.boolean(),
 	halfWidth: z.number(),
 	consecutiveOutOfBand: z.number().int().min(0),
 	consecutiveInBand: z.number().int().min(0),
@@ -93,6 +94,7 @@ export function initialBaselineState(): BaselineState {
 			longSd: 0,
 			shortMean: 0,
 			noiseFloor: 0,
+			noiseFloorMeasured: false,
 			halfWidth: 0,
 			consecutiveOutOfBand: 0,
 			consecutiveInBand: 0,
@@ -211,9 +213,13 @@ function foldDimension(
 	const alphaLong = alphaFromHalfLife(config.longHalfLifeSessions);
 	const sessionCentre = median(samples);
 
+	const measuredThisSession = samples.length >= config.minSamplesForSpread;
+	const mad = measuredThisSession
+		? medianAbsoluteDeviation(samples, sessionCentre)
+		: 0;
+
 	let withinSessionDeviants = 0;
-	if (samples.length >= config.minSamplesForSpread) {
-		const mad = medianAbsoluteDeviation(samples, sessionCentre);
+	if (measuredThisSession) {
 		if (mad > 0) {
 			const threshold = config.deviantSampleMultiple * mad;
 			for (const s of samples) {
@@ -226,16 +232,14 @@ function foldDimension(
 		);
 	}
 
-	const noiseFloorSample =
-		samples.length >= config.minSamplesForSpread
-			? medianAbsoluteDeviation(samples, sessionCentre)
-			: prior.noiseFloor;
-	const noiseFloor = ewma(
-		prior.noiseFloor,
-		noiseFloorSample,
-		alphaShort,
-		prior.initialized,
-	);
+	// Unmeasured stays unmeasured -- it is never blended toward the initial
+	// zero, and the first real measurement seeds the floor outright rather
+	// than being EWMA-blended against a bootstrap 0 (hence `prior.noiseFloorMeasured`,
+	// not `prior.initialized`, as the seed flag below).
+	const noiseFloor = measuredThisSession
+		? ewma(prior.noiseFloor, mad, alphaShort, prior.noiseFloorMeasured)
+		: prior.noiseFloor;
+	const noiseFloorMeasured = prior.noiseFloorMeasured || measuredThisSession;
 
 	const deviation = prior.initialized ? sessionCentre - prior.longMean : 0;
 	const longSd = ewma(
@@ -269,7 +273,8 @@ function foldDimension(
 		effectiveNoiseFloor,
 		config.minBandSdFraction * effectiveLongSd,
 	);
-	const acrossSessionOutOfBand = Math.abs(shortMean - longMean) > halfWidth;
+	const acrossSessionOutOfBand =
+		noiseFloorMeasured && Math.abs(shortMean - longMean) > halfWidth;
 
 	const contribution = withinSessionDeviants + (acrossSessionOutOfBand ? 1 : 0);
 	let consecutiveOutOfBand = prior.consecutiveOutOfBand;
@@ -327,6 +332,7 @@ function foldDimension(
 		longSd,
 		shortMean,
 		noiseFloor,
+		noiseFloorMeasured,
 		halfWidth,
 		consecutiveOutOfBand,
 		consecutiveInBand,
