@@ -1,3 +1,14 @@
+# /// script
+# requires-python = "==3.12.*"
+# dependencies = [
+#     "numpy>=1.24.0", "scipy>=1.10.0", "torch>=2.0.0", "peft==0.11.1",
+#     "scikit-learn",  # lazy in bakeoff_cv; unused on this path, declared anyway
+#     "pretty_midi",  # lazily imported by write_notes_midi -- fatal at CALL time
+#     "mido", "music21", "pandas", "tqdm", "regex", "requests",
+#     "filelock", "pyyaml", "safetensors", "tokenizers==0.19.1",
+#     "huggingface_hub",
+# ]
+# ///
 """#138 Phase 1 Stage 5(b): MoonBeam embeddings for the AUDIO-derived MIDIs.
 
 Reads realaudio_check.py's transcription cache (one `{"notes": [...],
@@ -10,11 +21,21 @@ train-on-test, which is exactly the contamination #135's 0.824 anchor died of.
 Output is the standard per-piece bakeoff_npz contract with pooling key
 "mean_pool", which is what the runbook's Stage 5 gate snippet reads.
 
-    cd model && uv run python -m claim_measurement.difficulty.audio_emb_extract \\
+    cd model/src/claim_measurement/difficulty
+    uv run --no-project --script audio_emb_extract.py \\
         --cache-dir .../audio_midi_cache --out-dir .../audio_emb \\
         --adapter-root .../fold_embeddings --data-root .../model/data \\
         --checkpoint .../moonbeam_839M.pt --repo-root .../moonbeam/repo \\
         --model-config .../repo/src/llama_recipes/configs/model_config.json
+
+Run under the ISOLATED uv env this file's `# /// script` header defines, NOT
+the shared model/.venv -- exactly like moonbeam_extract_script.py, and for the
+same reason: model/.venv carries transformers 5.5.4 and tokenizers 0.22.1,
+while the fork's vendored transformers hard-requires `tokenizers>=0.19,<0.20`
+and dies on import there. peft is pinned to 0.11.1 to match both that ~4.41-era
+fork and the version that WROTE these adapters inside the job container.
+`python -m claim_measurement.difficulty.audio_emb_extract` still works for the
+tests (which inject a fake loader_factory and never touch the fork).
 
 Resumable: a piece whose .npz already exists is skipped and its adapter is
 never loaded, so this long local run survives interruption. All GPU/model work
@@ -33,12 +54,25 @@ from pathlib import Path
 
 import numpy as np
 
-from claim_measurement.difficulty.bakeoff_cv import composer_disjoint_folds
-from claim_measurement.difficulty.bakeoff_npz import (
+# Under `uv run --script` this file runs as a loose script, so the package it
+# imports from is not on sys.path. __file__-anchored, never CWD-relative: the
+# documented invocation cd's into this directory. A no-op under `python -m`.
+_SRC_ROOT = str(Path(__file__).resolve().parents[2])
+if _SRC_ROOT not in sys.path:
+    sys.path.insert(0, _SRC_ROOT)
+
+from claim_measurement.difficulty.bakeoff_cv import (  # noqa: E402
+    composer_disjoint_folds,
+)
+from claim_measurement.difficulty.bakeoff_npz import (  # noqa: E402
     read_embedding_npz,
     write_embedding_npz,
 )
-from claim_measurement.difficulty.train_fold import _extract_full_piece, _real_loader
+from claim_measurement.difficulty.train_fold import (  # noqa: E402
+    _extract_full_piece,
+    _real_loader,
+    _stub_absent_transformers_models,
+)
 
 N_FOLDS, SEED = 5, 2026
 POOLING = "mean_pool"
@@ -82,10 +116,16 @@ def build_fold_embedder(adapter_dir: Path, checkpoint: Path, repo_root: Path,
     configured with lora_dropout=0.05, and torch.no_grad() does NOT disable
     dropout -- without eval mode every extraction would be a different random
     draw, and the gate would be measuring noise."""
-    from peft import PeftModel
-
+    # Order is a contract, not a style choice, and mirrors train_fold.main():
+    # loader_factory puts the fork's PARTIAL vendored transformers on sys.path
+    # FIRST, the stub then supplies the models.bloom that peft/utils/constants
+    # feature-probes for, and only then may peft be imported. Importing peft
+    # first binds whatever transformers is already installed and skips the stub.
     base_model, tokenize, max_len = loader_factory(
         checkpoint, repo_root=repo_root, model_config=model_config)
+    _stub_absent_transformers_models()
+    from peft import PeftModel
+
     peft_model = PeftModel.from_pretrained(base_model, str(adapter_dir))
     peft_model.eval()
     transformer = peft_model.model.model  # inner transformer, LoRA-injected
