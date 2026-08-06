@@ -3059,10 +3059,33 @@ editing them is unreliable. This log is the recovery state.
 | 8 — timestamp anchors reported unplaced | B | `expected [] to deeply equal [ 'stamp' ]` (mark-placement.test.ts:65) | `3ec59dab` | see Group B note |
 | 9 — unresolvable bars reported unplaced | B | `expected [] to deeply equal [ 'off-page', 'unknown-bar' ]` (mark-placement.test.ts:85) | `3eb6f63f` | see Group B note |
 | 6 — fixtures cover the vocabulary | C | `Failed to resolve import "./mark-fixtures"` | `7f628da9` | PASS (verbatim from plan; taxonomy/lifecycle/degradation coverage asserted, not assumed) |
+| 10 — glyph names its mark in words | D1 | `Failed to resolve import "./MarkGlyph"` | `68f5855d` | see Group D note |
+| 11 — lifecycle from props | D1 | `expected element to have style opacity: 0.7` (MarkGlyph.test.tsx:41) | `4b8d02af` | see Group D note |
+| 12 — evidence panel + confidence framing | D2 | `Failed to resolve import "./MarkDetail"` | `18f0bfbd` | see Group D note |
 
 **Group 0 + Group A: COMPLETE and REVIEWED (verdict PASS).**
 **Group B: COMPLETE and REVIEWED (verdict PASS).**
 **Group C (Task 6): COMPLETE and REVIEWED (verdict PASS).**
+**Group D (Tasks 10, 11, 12): COMPLETE.**
+
+**Task 12 is the first task whose plan code was WRONG, in two ways, both caught
+by a gate rather than by reading it. Tasks 14 and 16 inherit deviation 1.**
+
+1. `@testing-library/user-event` IS NOT INSTALLED (`package.json` has
+   `@testing-library/{dom,jest-dom,react}` only). The plan imports it in Tasks
+   12, 14 and 16. **Resolved by using `fireEvent`, not by adding the dependency**
+   — 5 existing test files use `fireEvent` and none use user-event, and these
+   tests only assert click-fires-callback. Tasks 14 and 16 must do the same:
+   replace `await userEvent.click(x)` with `fireEvent.click(x)` and drop the
+   now-pointless `async` from the test signature. Real interaction realism is
+   covered by Tasks 17 and 20 in an actual browser.
+2. The plan put `aria-label` on a roleless `<div>`, which **ARIA ignores** — the
+   panel the plan meant to name would have had NO accessible name. Biome flagged
+   it as a genuine `lint/a11y/useAriaPropsSupportedByRole` ERROR (lint exit 1,
+   in a NEW file, not pre-existing). `role="group"` then tripped
+   `lint/a11y/useSemanticElements`. Shipped as a `<section>`, whose implicit
+   `region` role supports `aria-label`. Only one detail panel is open at a time,
+   so this adds at most one landmark.
 
 **WORKING-DIRECTORY TRAP, hit during Task 6.** Every command in this plan must
 run from `apps/web`. A `cd` to the worktree root for a docs commit left the
@@ -3120,6 +3143,9 @@ Group A review findings, both MINOR, neither fixed (deliberately):
 ```
 bunx vitest run src/lib/mark.test.ts            -> 6/6 pass
 bunx vitest run src/lib/mark-placement.test.ts  -> 3/3 pass (Group B complete)
+bunx vitest run src/test-utils/mark-fixtures.test.ts -> 1/1 pass
+bunx vitest run src/components/MarkGlyph.test.tsx   -> 2/2 pass
+bunx vitest run src/components/MarkDetail.test.tsx  -> 2/2 pass
 bunx tsc --noEmit | grep -v mark-canvases       -> no output
 bun run lint                                     -> exit 0, 107 warnings, 23 infos, 0 errors
 ```
