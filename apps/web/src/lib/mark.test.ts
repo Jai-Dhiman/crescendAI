@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ALIGNMENT_MIN, resolveAnchor } from "./mark";
+import { ALIGNMENT_MIN, anchorLabel, resolveAnchor } from "./mark";
 
 describe("resolveAnchor", () => {
 	it("discards bars when alignment quality is below the threshold", () => {
@@ -32,5 +32,30 @@ describe("resolveAnchor", () => {
 
 		expect(anchor.type).toBe("timestamp");
 		expect(anchor.atSeconds).toBe(12);
+	});
+});
+
+describe("anchorLabel", () => {
+	it("names a range, a single bar, and a timestamp in the student's words", () => {
+		const range = resolveAnchor({
+			atSeconds: 64,
+			bars: [5, 6],
+			alignmentQuality: 1,
+		});
+		const single = resolveAnchor({
+			atSeconds: 151,
+			bars: [12, 12],
+			alignmentQuality: 1,
+		});
+		const stamp = resolveAnchor({ atSeconds: 97, alignmentQuality: 1 });
+
+		expect(anchorLabel(range)).toBe("bars 5-6");
+		expect(anchorLabel(single)).toBe("bar 12");
+		expect(anchorLabel(stamp)).toBe("1:37");
+	});
+
+	it("zero-pads seconds under ten", () => {
+		const stamp = resolveAnchor({ atSeconds: 305, alignmentQuality: 0 });
+		expect(anchorLabel(stamp)).toBe("5:05");
 	});
 });

@@ -47,3 +47,18 @@ export function resolveAnchor(candidate: AnchorCandidate): MarkAnchor {
 	}
 	return { type: "timestamp", atSeconds } as unknown as MarkAnchor;
 }
+
+function formatElapsed(totalSeconds: number): string {
+	const minutes = Math.floor(totalSeconds / 60);
+	const seconds = Math.floor(totalSeconds % 60);
+	return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+/** The one place an anchor becomes words. Both canvases call it. */
+export function anchorLabel(anchor: MarkAnchor): string {
+	if (anchor.type === "bars") {
+		const [start, end] = anchor.bars;
+		return start === end ? `bar ${start}` : `bars ${start}-${end}`;
+	}
+	return formatElapsed(anchor.atSeconds);
+}
