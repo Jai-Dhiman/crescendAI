@@ -19,6 +19,9 @@ export interface PlacedMark {
 	readonly mark: Mark;
 	readonly top: number;
 	readonly left: number;
+	/** The measure element this mark resolved to. Lets an E2E test assert the
+	 * glyph overlaps the bar it names, rather than merely that it rendered. */
+	readonly measureOn: string;
 }
 
 export interface Placement {
@@ -57,11 +60,18 @@ export function placeMarks(
 		const rect = measureOn ? rectsByMeasureOn.get(measureOn) : undefined;
 		// No fallback coordinate. Inventing a position is the defect this
 		// module exists to eliminate — see ScorePanel.tsx:371.
-		if (!rect) {
+		// `rect` is only ever set when `measureOn` was, but testing both is what
+		// narrows measureOn to string for the PlacedMark below.
+		if (!measureOn || !rect) {
 			unplaced.push(mark);
 			continue;
 		}
-		placed.push({ mark, top: rect.top - GLYPH_OFFSET_PX, left: rect.left });
+		placed.push({
+			mark,
+			top: rect.top - GLYPH_OFFSET_PX,
+			left: rect.left,
+			measureOn,
+		});
 	}
 
 	return { placed, unplaced };

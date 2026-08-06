@@ -6,8 +6,10 @@ describe("marks preview route", () => {
 	it("mounts both canvases against the same fixture marks", () => {
 		render(<MarksPreview />);
 
+		// Anchored: Task 20 adds a second "Score overlay (real engraving)"
+		// heading, and this assertion is about the synthetic section.
 		expect(
-			screen.getByRole("heading", { name: /score overlay/i }),
+			screen.getByRole("heading", { name: /^score overlay$/i }),
 		).toBeInTheDocument();
 		expect(
 			screen.getByRole("heading", { name: /session timeline/i }),

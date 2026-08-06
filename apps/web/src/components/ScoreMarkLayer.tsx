@@ -65,7 +65,7 @@ export function ScoreMarkLayer({
 
 	return (
 		<div className="pointer-events-none absolute inset-0">
-			{placed.map(({ mark, top, left }) => (
+			{placed.map(({ mark, top, left, measureOn }) => (
 				<div
 					key={mark.id}
 					className="pointer-events-auto absolute"
@@ -73,6 +73,7 @@ export function ScoreMarkLayer({
 				>
 					<MarkGlyph
 						mark={mark}
+						measureOn={measureOn}
 						expanded={expandedId === mark.id}
 						onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
 					/>

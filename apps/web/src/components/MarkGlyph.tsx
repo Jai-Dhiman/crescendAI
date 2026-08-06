@@ -14,6 +14,8 @@ interface MarkGlyphProps {
 	expanded: boolean;
 	onToggle: (id: string) => void;
 	style?: CSSProperties;
+	/** The measure element this glyph was placed against, for E2E assertions. */
+	measureOn?: string;
 }
 
 /**
@@ -25,7 +27,13 @@ interface MarkGlyphProps {
  * are muted mid-tones that would fail a 4.5:1 text gate, and the dimension is
  * carried in text regardless.
  */
-export function MarkGlyph({ mark, expanded, onToggle, style }: MarkGlyphProps) {
+export function MarkGlyph({
+	mark,
+	expanded,
+	onToggle,
+	style,
+	measureOn,
+}: MarkGlyphProps) {
 	const location = anchorLabel(mark.anchor);
 	const dimension = DIMENSION_LABELS[mark.dimension];
 	const label = `${TAXONOMY_LABEL[mark.taxonomy]}: ${dimension}, ${location}`;
@@ -35,6 +43,7 @@ export function MarkGlyph({ mark, expanded, onToggle, style }: MarkGlyphProps) {
 			type="button"
 			aria-expanded={expanded}
 			aria-label={label}
+			data-measure-on={measureOn}
 			onClick={() => onToggle(mark.id)}
 			className="flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface-raised px-2 py-0.5 text-label-sm text-ink-primary"
 			// A lookup, never a computation. Lifecycle is server state; the
