@@ -350,6 +350,23 @@ oversight:
   passes, scope and build the matched features37 arm as a follow-up task
   before treating gate (ii)'s features37 comparison as fully honest.
 
+**DONE 2026-08-06.** Gate (i) passed, so this arm was built as
+`matched_features37.py` and measured:
+
+```bash
+cd model && uv run python -m claim_measurement.difficulty.matched_features37 \
+    --data-root /Users/jdhiman/Documents/crescendai/model/data \
+    --fold-emb-dir /Users/jdhiman/Documents/crescendai/model/data/results/phase1_lora/fold_embeddings \
+    --fold-plans ~/phase1-lora-bundle/fold_plans.json
+```
+
+Refitting features37 on the LoRA's own pools (~4,000 rows instead of ~720)
+moves it from 0.8038 to **0.8068** — `+0.0032 CI95[-0.0027,+0.0096] noise`.
+The fine-tune's margin therefore survives supervision matching at
+**+0.0325 CI95[+0.0201,+0.0455] SIG**. The supervision objection is answered,
+not merely acknowledged; see the decision log entry in
+`track-a-difficulty-prediction.md` for the caveats.
+
 ## If both gates pass
 
 Report the measured deltas (not the FLOP-derived estimates) in
