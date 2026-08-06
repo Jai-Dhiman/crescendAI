@@ -55,7 +55,12 @@ export function placeMarks(
 		}
 		const measureOn = measureOnByBar.get(mark.anchor.bars[0]);
 		const rect = measureOn ? rectsByMeasureOn.get(measureOn) : undefined;
-		if (!rect) continue;
+		// No fallback coordinate. Inventing a position is the defect this
+		// module exists to eliminate — see ScorePanel.tsx:371.
+		if (!rect) {
+			unplaced.push(mark);
+			continue;
+		}
 		placed.push({ mark, top: rect.top - GLYPH_OFFSET_PX, left: rect.left });
 	}
 

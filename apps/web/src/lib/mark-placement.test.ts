@@ -64,4 +64,24 @@ describe("placeMarks", () => {
 		expect(placed).toHaveLength(0);
 		expect(unplaced.map((m) => m.id)).toEqual(["stamp"]);
 	});
+
+	it("reports a bar that is not on the rendered page as unplaced", () => {
+		const bars: BarLocator[] = [
+			{ barNumber: 5, measureOn: "m-five" },
+			{ barNumber: 88, measureOn: "m-eighty-eight" },
+		];
+		// Bar 88's element is not in the DOM — it is on another page.
+		const rects = new Map<string, MeasureRect>([
+			["m-five", { top: 100, left: 20, width: 50, height: 60 }],
+		]);
+
+		const { placed, unplaced } = placeMarks(bars, rects, [
+			markAtBars("on-page", [5, 6]),
+			markAtBars("off-page", [88, 89]),
+			markAtBars("unknown-bar", [999, 999]),
+		]);
+
+		expect(placed.map((p) => p.mark.id)).toEqual(["on-page"]);
+		expect(unplaced.map((m) => m.id)).toEqual(["off-page", "unknown-bar"]);
+	});
 });
