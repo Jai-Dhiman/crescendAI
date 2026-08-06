@@ -1,120 +1,113 @@
 # Track A (Task 1) — Music Performance Difficulty Prediction
 
-**Status:** PIPELINE BUILT AND MEASURED; feature frontier closed, encoder chosen (MoonBeam-839M), Phase 1 fine-tune pending · **Issue:** [#104](https://github.com/Jai-Dhiman/crescendAI/issues/104) · **Updated:** 2026-08-03 · **Deadline:** 2026-10-01
-
-> The spec below (task, datasets, I/O contract) is current. The **"Provisional approach" section is SUPERSEDED** — the shipped pipeline is not frozen MuQ + the A1-Max head. See "Measured state" for what actually runs and what it scores.
+**Status:** PHASE 1 MEASURED — fine-tuned MoonBeam-839M clears every bar; **now in the SUBMISSION phase** (no container exists yet) · **Issue:** [#104](https://github.com/Jai-Dhiman/crescendAI/issues/104) · **Updated:** 2026-08-06 · **Deadline:** 2026-10-01
 
 ## Measured state (read this before proposing work)
 
-**Shipped pipeline:** audio → **Transkun** transcription → **37 hand-crafted symbolic features** (`candidate_features`, onset/pitch/velocity only) → **LightGBM regression** head. Not MuQ, not the ordinal head.
+**Pipeline:** audio → **Transkun** transcription → **MoonBeam-839M** (LoRA fine-tuned, top 5 of 15 layers) → mean-pool → **RidgeCV** difficulty scalar. The older 37-hand-feature + LightGBM pipeline is now the *baseline*, not the system.
 
-**Measurement convention — composer-disjoint 5-fold CV Kendall tau-c.** A random split lets a model memorize "Czerny pieces are grade 4" and score well without learning difficulty, so folds are `GroupKFold` over composer (1,066 composers across 5,798 pieces). Absolute tau-c also moves with the grade mix and the subset, so **compare gaps under identical folds, never levels across harnesses**.
+**Measurement convention — composer-disjoint 5-fold CV Kendall tau-c.** A random split lets a model memorize "Czerny pieces are grade 4" and score well without learning difficulty, so folds group by composer. Absolute tau-c also moves with the grade mix and the subset, so **compare gaps under identical folds, never levels across harnesses**.
 
-**⚠️ The 0.824 "deployed-on-transkun" figure is CONTAMINATED — do not use it as a target.** In `stage2_refit_curve.py` the "deployed" head is fit on *all* PSyllabus records and then scored on a subset of those same records, i.e. train-on-test. No honestly cross-validated number can beat it. The valid anchor is the 37-feature arm measured under the same folds as whatever it is being compared to.
+**Best measured arms (seed 2026, n=900, identical folds — `ft_eval.py` / `matched_features37.py`):**
 
-**Honest anchor (2026-08-01, #137, 5,798 Transkun MIDIs):**
+| arm | tau-c | vs the arm above |
+|---|---|---|
+| 37 hand features, RidgeCV, eval-only (~720 train rows) | 0.8038 | — |
+| 37 hand features, RidgeCV, **supervision-matched** (~4,000 train rows) | 0.8068 | +0.0032 `noise` |
+| MoonBeam-839M **frozen**, mean-pool + RidgeCV | 0.8281 | +0.0213 |
+| **MoonBeam-839M LoRA fine-tuned** | **0.8395** | **+0.0113 SIG** vs frozen |
 
-| Arm | mean-fold tau-c | pooled OOF | vs anchor |
-|---|---|---|---|
-| 37 base features, regression | **0.7929 ± 0.0159** | 0.7966 | — (anchor) |
-| 37 base + 32 Transkun-unlocked | 0.7988 ± 0.0160 | 0.8031 | **+0.0064** CI [+0.0038, +0.0090] SIG |
-| 32 Transkun-unlocked only | 0.7576 ± 0.0202 | 0.7619 | −0.0347 |
-| 37 base, rank-transformed target | 0.7920 ± 0.0162 | 0.7968 | +0.0002 (tie) |
+The two claims to report: **+0.0325 CI95[+0.0201,+0.0455] vs the supervision-matched hand-feature baseline**, and **+0.0113 CI95[+0.0035,+0.0191] vs frozen MoonBeam** (winning 5 of 5 folds independently). Both survive paired bootstrap. Full-corpus composer-disjoint anchors under the *other* protocol (`tk_ablation.py`, LightGBM + GroupKFold, n=5,798): 37 features 0.7929, +32 Transkun-unlocked features 0.7988. **Those levels are not comparable to the 0.80–0.84 figures above** — different model class, different folds, different n.
 
-**These 0.79xx levels are `tk_ablation.py`'s protocol (LightGBM + GroupKFold, n=5,798) and are NOT the #138 Phase 1 bar.** The same 37 features scored through `bakeoff_cv.py`'s folds (RidgeCV, n=900) give **0.8048** — that is what a fine-tuned encoder must clear. See the 2026-08-03 decision-log entries.
+**⚠️ The 0.824 "deployed-on-transkun" figure is CONTAMINATED (train-on-test in `stage2_refit_curve.py`) — never use it as a target.**
 
-Regenerate with `--stage extract --workers 10` (~8 min) then `--stage cv --boot 2000` (~2 min). The extractor SHA is recorded in the feature cache and `--stage cv` refuses to run against a stale one, so an edited feature can never be scored through old values.
+**Published SOTA on this dataset (researched 2026-08-06):** Ramoneda, Lee, Jeong, Valero-Mas & Serra, *"Can Audio Reveal Music Performance Difficulty? Insights from the Piano Syllabus Dataset"*, IEEE TASLP 2025 ([arXiv 2403.03947](https://arxiv.org/html/2403.03947)) — written by the task captain, same dataset, same metric.
 
-**The feature wall is real and the frontier is close to exhausted.** #137 tested the last untested feature premise — that every prior null was measured on offset-blind features — and the new offset/pedal family delivered a significant but negligible **+0.0058**. It takes only **8.6% of LightGBM gain** while `pitch_lz_complexity` alone takes **66.9%**. Hand-crafted symbolic features have hit their limit; the remaining unrefuted lever is an end-to-end encoder fine-tune (#138), whose backbone is now settled: **MoonBeam-839M**, chosen 2026-08-03 over Aria by a confound-free frozen bake-off (see the decision log).
+| their system | tau-c |
+|---|---|
+| CQT only | 0.74 |
+| Piano roll only | 0.77 |
+| Piano roll + multi-task era classification | 0.78 |
+| **Multimodal early fusion (CQT + piano roll)** | **0.78** |
 
-**Transcriber constraint worth remembering: Transkun's pedal head is BINARY.** It emits CC64 as only 0 and 127, alternating. Pedal *depth* features (depth mean, value entropy, half-pedal fraction) are constant across the entire corpus and are therefore not expressible from this transcriber — recovering them needs a different model, not a different feature. Pedal *timing* (change rate, on-fraction, segment length) does survive and is the strongest single contribution of the new family.
+Protocol: 5-fold CV, 60/20/20, **random split — not composer-disjoint**, all 7,901 recordings. **Our numbers are nominally above 0.78, but the comparison is not clean** (different subset, different grade mix, different fold construction) and per this doc's own convention levels do not transfer across harnesses. Treat "we beat SOTA" as unproven; "we are in the same league" is well supported. Two structural reads that *do* transfer: their symbolic-only arm (0.77) is beaten by their multimodal arm (0.78), so an audio branch is worth ~+0.01 in their hands; and multi-task era classification bought them the same ~+0.01.
 
-## Why we committed to this track (thesis-aligned)
-The task is **difficulty scoring of solo-piano audio** — the same modality, encoder, and ordinal-ranking machinery CrescendAI already runs. Our assets map directly:
-- **MuQ (frozen, on piano)** — our production audio encoder is *already* solo-piano-oriented; here that's an advantage, not a liability.
-- **Ordinal ranking head** — our deployed A1-Max head already trains BCE-pairwise + **ListMLE** ranking + CCC regression on frozen MuQ embeddings (`model/src/model_improvement/audio_encoders.py`). The task's metric is **Kendall Tau-c** (ordinal agreement) — a near-exact match to what we already optimize.
-- **PercePiano + T2/T5 ordinal data** — we already curate piano ordinal/skill data.
-- **Piece-ID / score library (#21, #96)** — score-side difficulty signal if a score/audio hybrid helps.
+**The hand-crafted feature frontier is CLOSED.** #137 tested the last untested premise — that every prior null was measured on offset-blind features — and the new offset/pedal family delivered a significant but negligible +0.0064, taking 8.6% of model gain while `pitch_lz_complexity` alone takes 66.9%. **Transkun's pedal head is BINARY** (CC64 only 0/127), so pedal *depth* is not expressible from this transcriber at all; pedal *timing* survives and is the new family's strongest contribution.
 
-## Task spec (from the MIREX task page)
-- **Goal:** predict a **single real-valued difficulty score per solo-piano recording** (ordinal pedagogical scale, hidden granularity). Each test piece has ≥2 recordings (one human performance + one synthesized rendering), scored independently, aggregated per piece.
-- **Input:** **WAV, 44.1 kHz, mono or stereo** (path to a WAV file).
-- **Output:** a real-valued difficulty score per recording (treated as an ordering).
-- **Metric:** **Kendall's Tau-c** (official ranking). Dev-time supplementary: MSE, Accuracy±1, balanced accuracy, Spearman ρ.
-- **Submission:** **Docker container** with standardized inference interface; input = WAV path, output = single score. Must finish the full test set in **24h on one GPU**.
-- **Rules:** train on any data (public/proprietary/internal); **no held-out eval repertoire** used directly/indirectly for training.
-- **Timeline:** opens Jul 1, closes **Oct 1**, results Oct 15, 2026.
-- **Captains:** Pedro Ramoneda (Songscription) pedro@songscription.ai · Huan Zhang (Clefer) huan@clefer.com.
+## The competition contract (fetched verbatim from the task page 2026-08-06)
 
-## Named datasets
+This section is the contract. Every clause below has a consequence for how we build, and three of them are not satisfied by anything currently in the repo.
+
+- **Goal:** one real-valued difficulty score per solo-piano recording. Ordinal scale, hidden granularity.
+- **Input:** a path to a **WAV** file (44.1 kHz). **Output:** a single real-valued score.
+- **Official metric:** **Kendall's tau-c**. Dev-time supplementary: MSE, Accuracy±1, balanced accuracy, Spearman ρ.
+- **Submission:** *"packaged as a Docker container with a standardised inference interface — input is a path to a WAV file; output is a single real-valued difficulty score."* No reference implementation, starter kit, or baseline container is provided.
+- **Runtime:** *"the full test set must be processed within a 24-hour wall-clock budget on a single GPU."* Test-set size is unpublished.
+- **⚠️ Failure policy:** submissions *"exceeding the 24-hour budget or failing on >5% of items are excluded from ranking."* **Inside the container this inverts our usual rule.** `model/CLAUDE.md` mandates loud failures over silent fallbacks, which is right for research and fatal here: an uncaught exception on 6% of items costs the entire submission. The container must attempt the real path, and on failure emit a defensible score (corpus median) **while logging loudly** — loud *and* non-fatal.
+- **Training data:** *"Participants are welcome to train their systems on any dataset, including publicly available corpora, proprietary collections, or internally curated material"* — provided *"no part of the held-out evaluation repertoire is used directly or indirectly for training."*
+- **⚠️ Contamination control:** *"To minimize contamination risks, a list of forbidden test pieces **and composers** will be published."* A *composer* blacklist can retroactively invalidate a trained adapter, because each was trained on a pool that may include a now-forbidden composer. **Watch for this list; retraining after it publishes is a scheduled dependency, not a contingency.**
+- **The test set is unreachable:** *"fully private and curated specifically for this task by expert pedagogues… the repertoire is selected from sources outside existing public piano difficulty datasets, including contemporary works."* We cannot test on it, and the question of whether we are *allowed* to is moot.
+- **⚠️ Half the test audio is synthetic:** *"each test piece is represented by at least two recordings — one human performance and one synthesized score rendering from a fixed soundfont — scored independently."* Our pipeline's first step is transcription and it has only ever been fed real recordings. This is the single largest unmeasured risk we carry.
+- **Disclosure:** all datasets, sources, and preprocessing must be declared in the technical report; new for 2026, so must training-data size, model size, and compute.
+- **Dates:** opens Jul 1 2026 · closes **Oct 1 2026** · results **Oct 15 2026**. Captains: Pedro Ramoneda (pedro@songscription.ai), Huan Zhang (huan.zhang@qmul.ac.uk).
+
+### How our current testing differs from theirs
+
+Recorded because the gap is larger than it looks, and none of it is cosmetic.
+
+| | MIREX | Us, today |
+|---|---|---|
+| Model | one frozen system | **5 per-fold LoRA adapters + 5 per-fold ridge heads** — no single deployable model exists |
+| Interface | `WAV path → float`, in Docker | research harness reading a pre-transcribed MIDI cache; **no `predict(wav)` anywhere in the repo** |
+| Test set | fixed, private, new repertoire | 5-fold CV *inside* PSyllabus |
+| Audio per piece | 1 human + 1 fixed-soundfont synthesis | 1 YouTube recording; the manifest has 7,901 keys / 7,901 recordings, **max 1 each** |
+| Failure policy | >5% ⇒ excluded | raise loudly |
+| Runtime | 24h / 1 GPU, whole test set | never measured end to end |
+
+**A hidden gift in row 1:** the per-fold composer exclusions exist only to keep *our CV* honest. The MIREX test set is disjoint from PSyllabus by construction, so the final submission may train on **all 5,798 transcribed pieces** — versus 3,815 for fold 0. That is the largest free lever available, and it falls out of work that has to happen anyway. Validate the *recipe* on folds; apply it once to all data; never report a number measured on the all-data model as a result.
+
+## Named datasets and what we actually hold
+
 | Dataset | What | Size / labels | Link |
 |---|---|---|---|
-| **PSyllabus** (Ramoneda 2025) | audio recordings, classical piano | 7,901 recordings, 11-level pedagogical grades, 13 grading systems | zenodo.org/records/14794592 |
-| **CIPI** (Ramoneda 2024) | MusicXML piano pieces | 652 scores, 9-level Henle | zenodo.org/records/8037327 |
-| **Mikrokosmos-difficulty** (Ramoneda 2022) | piano difficulty | (Bartók Mikrokosmos) | github.com/PRamoneda/Mikrokosmos-difficulty |
+| **PSyllabus** (Ramoneda 2025) | audio recordings, classical piano | 7,901 recordings, 11-level grades, 18 grading systems | zenodo.org/records/14794592 |
+| **CIPI** (Ramoneda 2024) | MusicXML piano scores | 652 scores, 9-level Henle | zenodo.org/records/8037327 |
+| **Mikrokosmos-difficulty** (Ramoneda 2022) | piano difficulty | Bartók Mikrokosmos | github.com/PRamoneda/Mikrokosmos-difficulty |
 
-Note: **PSyllabus is audio** (matches the task's audio input) — the primary training set. CIPI is score-based (MusicXML) — useful only if we go audio+score hybrid or transcribe.
+**On disk:** 5,798 Transkun MIDIs of 7,901 PSyllabus pieces (73%) and 1,233 WAVs. The ~2,100 gap is **yt-dlp bot detection, not unavailable videos** — the refetch run saw zero failures in its first 626 attempts, then 191 consecutive. Recovering it is a data-expansion lever, not a dead end. The missing audio is **not in R2**; do not search there again.
 
-## Provisional approach — SUPERSEDED 2026-08-01 (kept for decision history)
+**Corpus composition (measured 2026-08-06 from `new_clean_data.json`'s `period` field):**
 
-> What follows was the 2026-07-03 plan. It was **not** what shipped: the pipeline went symbolic
-> (Transkun → hand-crafted features → LightGBM), not frozen-MuQ → A1-Max head. The MuQ probe is
-> one of the nulls recorded in the decision log. See "Measured state" above for current reality.
+| period | all 7,901 | our 5,798 transcribed |
+|---|---|---|
+| Romantic | 28.5% | 29.9% |
+| C20 | 27.4% | 25.9% |
+| Modern | 25.4% | 25.6% |
+| Baroque | 9.8% | 9.5% |
+| Classical | 7.8% | 7.8% |
 
-- **Spine:** frozen MuQ (piano) embeddings → our existing ordinal-ranking head, retargeted to a single difficulty scalar, trained on **PSyllabus audio**, optimized for Kendall Tau-c ordering. This is almost entirely reuse of the A1-Max stack.
-- **Baseline to beat:** Ramoneda et al.'s own published difficulty models (audio + symbolic). *Research needed — find their reported Tau/accuracy.*
-- **Edge hypothesis:** our piano-specialized frozen encoder + ordinal head may be genuinely competitive here. This is the transferable-asset story worth testing.
+**This materially de-risks the "contemporary works" clause: 51.5% of what we train on is already C20 + Modern (2,983 pieces).** The test set's contemporary repertoire is not an out-of-distribution surprise. `period` also unlocks two things for free: the auxiliary era-classification task that bought the captains ~+0.01, and a genuine repertoire-shift gate (hold out all 1,484 Modern pieces, measure the drop) — the first test we would have of the shift that actually matters. The `syllabus` field (18 distinct systems) supports the same treatment for grading-system shift.
 
-## Research checklist
-- [ ] Fetch/read the PSyllabus, CIPI, Mikrokosmos papers (Ramoneda et al.) — exact schemas, label semantics, licenses, train/test protocol.
-- [ ] Find the **published SOTA** difficulty-prediction numbers (Tau-c / Acc±1) and architectures — what's the bar?
-- [ ] Confirm the reference Docker template / inference wrapper once released; nail the exact I/O contract.
-- [ ] Determine whether audio-only (PSyllabus) or audio+score hybrid is stronger; does transcription help or hurt?
-- [ ] Map our A1-Max head → single-scalar difficulty regression/ranking; what changes?
-- [ ] Licenses of PSyllabus/CIPI (commercial-use fork question).
-- [ ] The "human vs synthesized rendering" aggregation — does it bias toward performance-quality vs score-difficulty? (This is subtle: the task says *difficulty*, but a human *performance* encodes execution quality too.)
-- [ ] Open questions for the captains (Ramoneda/Zhang).
+## Open levers (nothing here is refuted; ordered by expected gain ÷ cost)
 
-## Must-confirm / open questions
-1. Reference Docker template details (not yet released as of research date).
-2. Whether difficulty is meant as **score difficulty** (composition) or **performance difficulty** (execution) — the two-recordings-per-piece design suggests they want a piece-level score robust to performer, i.e. score difficulty. Confirm.
-3. PSyllabus/CIPI licenses.
+1. **Train the final model on all 5,798 pieces** instead of a fold's ~3,900. Required for submission anyway; ~$2 of A100.
+2. **Sweep the input window length.** The one explicitly-recorded unexplored lever, inherited from the dropped Track B: *feature window granularity, not head architecture, was the lever* — mean-pooling three 10s windows beat a single 30s chunk by +3.1pp, retroactively exposing an apparent "frozen wall" as a `CHUNK_SECONDS=30` under-resolution artifact. Pooling *operator* did not matter; window *length* did. Our fine-tune trains on single random 1024-token windows and evaluates on full-piece mean-pool, and that mismatch has never been swept. CPU-only, free.
+3. **Ensemble the 5 existing adapters** at inference. Free; also yields a variance estimate.
+4. **Auxiliary multi-task on `period`.** The captains got 0.77 → 0.78 from exactly this; the labels are already on disk.
+5. **Scale the LoRA** — beyond the top 5 layers, larger rank, more epochs, or a full fine-tune. Unknown payoff, ~$10–50, trivially parallel.
+6. **Add an audio branch (multimodal).** Worth ~+0.01 in the captains' hands, and worth more than that as a *hedge*: if the synthesized-audio measurement shows transcription degrading, a path that bypasses Transkun stops being a marginal gain and becomes the fix. Decide after that measurement, not before.
+7. **Recover the ~2,100 missing recordings** (5,798 → up to 7,901, +36% data).
+8. **Retry a rank-native objective.** #137's lambdarank arm scored −0.139 but used **one query group per fold**, and NDCG is top-heavy while tau-c scores the whole list — a formulation bug, not a verdict. Multi-scale / per-section aggregation of the #137 features is also untried.
+9. **CIPI / Mikrokosmos transfer.** 652 scores on a 9-level Henle scale vs PSyllabus's 11-level; the ordinal-scale alignment is its own research problem for ~650 examples. Lowest priority.
 
-## Stage 2 — Transkun difficulty-head re-fit (#135, closed — final verdict MARGINAL, see the 2026-07-31 decision-log entry)
+## Still open (was the "research checklist"; answered items removed)
 
-**Why:** aria-amt was replaced repo-wide by Transkun (#128). Swapping the transcriber *alone* is tau-c-neutral because the deployed LightGBM head was trained on **clean** score note-counts and overfit the transcriber's biases. The fix is to **re-fit the head on Transkun-transcribed features**. The Stage-2 learning-curve gate confirmed this is worth it:
+- **Docker interface specifics** — no reference template or starter kit exists. Ask the captains rather than guessing, and re-check the task page for a released container.
+- **How per-recording scores are aggregated per piece**, and whether tau-c is computed over pieces or recordings. Not stated on the task page. Affects whether human/synth disagreement hurts us.
+- **PSyllabus / CIPI licenses** for commercial use (a CrescendAI question, not a MIREX one).
+- **Score difficulty vs performance difficulty.** The two-recordings-per-piece design implies they want a piece-level score robust to performer, i.e. score difficulty. Worth confirming with the captains.
 
-| eval N | arm B (transkun-trained) | deployed 7.9k-clean on transkun | B − A (matched-N) | verdict |
-|---|---|---|---|---|
-| 39 | — | — | +0.035 CI[−0.058,+0.129] | underpowered (looked dead) |
-| 161 | — | 0.812 | +0.043 CI[+0.007,+0.081] | marginally significant |
-| **604** | **0.807** | **0.804** | **+0.050 CI[+0.029,+0.071]** | **STRONG green** |
-
-At n=604 a head trained on just 604 Transkun pieces already matches the deployed head trained on all 7,899 clean pieces (reading Transkun), and is still climbing → the full re-fit should beat deployed by ~**+0.04–0.05 tau-c** (full task).
-
-**Harness:** `model/src/claim_measurement/transcription_bench/stage2_refit_curve.py` (stages: `prep` | `transcribe` | `pipeline` | `curve`). Data lands in `model/data/results/amt_gap_curve/` (gitignored). Imports the #104 difficulty feature code by absolute path (the `.worktrees/issue-104-mirex-difficulty` worktree must exist).
-
-### Runbook (full 7.9k transcription)
-
-Run the pipeline (per piece: download → Transkun → drop wav; disk-safe, resumable, skips pieces that already have a MIDI). It auto-resumes on any non-zero exit and `caffeinate` blocks system sleep — **lid open, on AC**:
-
-```
-caffeinate -is bash -c 'until uv run --script /Users/jdhiman/Documents/crescendai/.worktrees/issue-135-transkun-refit/model/src/claim_measurement/transcription_bench/stage2_refit_curve.py --stage pipeline --all --workers 4; do echo "[$(date)] stopped; resuming in 15s"; sleep 15; done'
-```
-
-Watch progress in a second terminal (climbs toward ~7,100–7,300; ~8.5% of pieces are unavailable on YouTube):
-
-```
-watch -n 30 'ls /Users/jdhiman/Documents/crescendai/model/data/results/amt_gap_curve/transkun_mid/*.mid | wc -l; df -h /Users/jdhiman/Documents/crescendai | tail -1'
-```
-
-When the count plateaus, re-run the gate curve at full N:
-
-```
-uv run --script /Users/jdhiman/Documents/crescendai/.worktrees/issue-135-transkun-refit/model/src/claim_measurement/transcription_bench/stage2_refit_curve.py --stage curve
-```
-
-**Still to build** (after the data lands): the retrain+eval stage — extract the 37 difficulty features from all Transkun MIDIs, retrain the LightGBM head (`DEPLOYED_PARAMS`) on Transkun features, CV-eval vs the clean-trained deployed head; if it wins, that head is the MIREX Track A submission.
+*Answered and removed:* published SOTA (0.78, above); whether audio-only or transcribe-first is stronger (transcribe-first is what we measured and it beats their symbolic arm); the A1-Max/MuQ head mapping (moot — MuQ was ripped by #162 and the frozen-MuQ probe is one of the recorded nulls).
 
 ## Decision log (append-only)
 - **2026-07-03** — Track A spec captured from MIREX task page; assets mapped (strong fit). Deep research NOT yet done — next session should run the Research checklist before /brainstorm. Provisional lean: this is the higher-value track (real asset transfer vs Track B's no-moat).
@@ -227,3 +220,13 @@ uv run --script /Users/jdhiman/Documents/crescendai/.worktrees/issue-135-transku
   - *Structural guards, since the failure modes here are silent rather than loud:* folds are always DERIVED from `composer_disjoint_folds(composers, 5, 2026)` and the plans file is only allowed to CONFIRM them (`check_fold_identity`) — reading fold membership from disk would let a stale plans file score fold f's test pieces through the adapter that trained on them. `check_eval_cache_agrees` asserts the cache's 37 columns equal the eval `.npz` rows on all 900 shared pieces, because a column-order drift would not crash, it would predict through permuted coefficients. An unmapped pool seg_id raises rather than shrinking the pool. Verified by mutation: dropping val from the pool, and training on eval rows instead of the pool, each fail the suite.
   - *Incidental finding:* the eval set has **900 distinct composers for 900 pieces** — `composer_stratified_sample` takes its `len(composers) > target_n` branch and draws one piece per composer. Composer-disjointness is therefore **vacuous within the eval set** (the CV is effectively a random 5-way split there); it remains load-bearing for the ~4,000-piece pool, where option D excludes each test fold's composers. This does not affect any measured number, but "composer-disjoint CV" should not be claimed as evidence of composer generalization at the eval level in the paper.
 - **Standing implication** — with hand-crafted symbolic features exhausted, **#138 Phase 1 (LoRA fine-tune of MoonBeam-839M, pairwise ranking + ordinal aux) is the remaining unrefuted lever** before the 2026-10-01 deadline.
+- **2026-08-06 (#104) — RESEARCH PHASE CLOSES, SUBMISSION PHASE OPENS. The competition contract was read verbatim for the first time, and it moved the risk ranking.** Until now this doc summarised the task page loosely; the "Competition contract" section above is the fetched text. Four clauses were either absent or understated in every prior version, and each has a build consequence:
+  - **`>5% item failures ⇒ excluded from ranking.`** Inverts `model/CLAUDE.md`'s loud-failure rule *inside the container only*. Never propagate that inversion back into the research harness.
+  - **A forbidden *composer* list will be published.** Our five adapters were trained on pools that may include those composers, so a retrain is a scheduled dependency of the submission, not a contingency plan.
+  - **Half the test audio is a fixed-soundfont synthesis.** Our transcription-first pipeline has only ever seen real recordings. This is now the top-ranked risk and it is cheaply testable — `fluidsynth` is already installed locally.
+  - **The test repertoire is fully private, and includes contemporary works.** Testing on it is impossible, not merely disallowed.
+  - **DE-RISKED, and this corrects an earlier assessment.** "Contemporary works" was ranked alongside synthesized audio as a major shift risk. Measuring `new_clean_data.json`'s `period` field refutes that: **51.5% of the 5,798 transcribed pieces are already C20 + Modern (2,983 pieces)**. Contemporary repertoire is in-distribution for us. Synthesized audio remains the real risk; contemporary repertoire is a gate to build, not a hazard to fear.
+  - **Two free levers surfaced from the same field.** `period` (5 classes) supplies the auxiliary era-classification task the captains got 0.77 → 0.78 from, and a real repertoire-shift gate (hold out all 1,484 Modern pieces). `syllabus` (18 systems) supports the same for grading-system shift. Neither had been noticed before.
+  - **Published SOTA established at last** (the research checklist's oldest unchecked item, open since 2026-07-03): **tau-c 0.78**, Ramoneda et al. IEEE TASLP 2025, multimodal early fusion, random 60/20/20 5-fold. Our 0.8395 is nominally above it but measured on a different subset under a different fold construction, so **"we beat SOTA" is unproven and must not be claimed**; "same league" is well supported. Their symbolic-only arm reads 0.77.
+  - **The gap that matters is not tau-c.** There is no `predict(wav) → float` anywhere in the repo, no container, no runtime measurement, and no single deployable model — only five per-fold adapters plus five per-fold ridge heads, which is a measurement apparatus, not a system. Risk is concentrated in engineering and in the synthesized-audio question, not in the score.
+  - *Docs pruned in the same commit:* the superseded frozen-MuQ + A1-Max "provisional approach" (dead twice — the MuQ probe is a recorded null and #162 ripped MuQ outright) and the closed #135 Stage-2 re-fit runbook (~35 lines of operator instructions for a completed, superseded process). The Phase 1 runbook was **pruned rather than deleted**: Stages 0–3.5 are the live retraining procedure the submission depends on, so only the completed gate stages went. The Track B post-mortem in `README.md` was compressed to its one transferable finding, which is now promoted to open lever #2 where it can actually be acted on.
