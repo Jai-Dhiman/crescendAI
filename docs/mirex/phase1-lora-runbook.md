@@ -140,8 +140,13 @@ Abort criteria (design spec's Open Questions):
 - **The device line says `cpu`, or `s/step` implies CPU speed** — kill the job
   immediately. This is checkable in minute one, before real money is spent.
 - **Val ranking tau is flat or diverging** across the printed `epoch N:
-  val_ranking_tau=...` lines — stop, the objective/LR is not working, do not
-  spend money on folds 1-4.
+  val_ranking_tau=...` lines — **this criterion misfired on the real pilot and
+  is advisory only.** Fold 0 printed 0.8261 → 0.8196 → 0.8226 (flat) and still
+  produced a gate-passing encoder: that tau measures the *discarded* head on a
+  *single random window* per piece, not the mean-pooled embeddings the gate
+  scores. If it looks flat, do not stop — download the fold's
+  `emb_fold0.npz` and run the gate protocol on that one fold (free, ~10 s).
+  A single fold is underpowered (n=180) but will catch a catastrophe.
 - **Peak memory does not fit `a100-large` at `--micro-batch 8`** — drop to
   `--micro-batch 4` and retry the pilot before scaling to the remaining folds
   (do not switch GPU flavor first).
