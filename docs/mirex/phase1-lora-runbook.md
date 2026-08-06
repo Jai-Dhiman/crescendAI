@@ -225,9 +225,15 @@ cd /Users/jdhiman/Documents/crescendai/model && uv run python -m \
 **5c. Extract audio embeddings through each piece's OWN fold adapter**
 (resumable; loads each fold's adapter at most once):
 
+Run this one under its OWN isolated uv env, not `model/.venv`: the fork's
+vendored transformers hard-requires `tokenizers>=0.19,<0.20`, and the shared
+venv has transformers 5.5.4 / tokenizers 0.22.1, so `python -m` dies on import
+before it ever reaches the model. `peft` is pinned to 0.11.1 in the script
+header — the same version that WROTE these adapters inside the job container.
+
 ```bash
-cd /Users/jdhiman/Documents/crescendai/model && uv run python -m \
-    claim_measurement.difficulty.audio_emb_extract \
+cd /Users/jdhiman/Documents/crescendai/model/src/claim_measurement/difficulty && \
+uv run --no-project --script audio_emb_extract.py \
     --cache-dir /Users/jdhiman/Documents/crescendai/model/data/results/phase1_lora/audio_midi_cache \
     --out-dir /Users/jdhiman/Documents/crescendai/model/data/results/phase1_lora/audio_emb \
     --adapter-root /Users/jdhiman/Documents/crescendai/model/data/results/phase1_lora/fold_embeddings \
