@@ -382,28 +382,38 @@ def main(argv=None, scorer=None) -> int:
                              args.model_config, on_failure=args.on_failure,
                              device=args.device)
 
-    lines, timings, failures = [], [], 0
-    for wav in wavs:
-        started = time.perf_counter()
-        score, ok = scorer(wav)
-        elapsed = time.perf_counter() - started
-        failures += not ok
-        # repr, not a fixed number of decimals: it is the shortest string that
-        # round-trips to the same float, so the determinism harness compares
-        # bit-identity rather than agreement to 6 places.
-        lines.append(f"{wav}\t{score!r}")
-        timings.append((wav, elapsed, ok))
-
+    # Written and flushed PER ITEM, not accumulated and dumped at the end.
+    # score_wav_or_fallback catches exceptions, but nothing in Python catches an
+    # OOM kill -- and a 40-minute recording through Transkun is enough to earn
+    # one. Buffering meant a single hard kill 23 hours into a 24-hour run
+    # discarded every score already computed. Now it costs only the item in
+    # flight, and a killed run can be resumed from what is on disk.
+    out_fh = timing_fh = None
     if args.out is not None:
         args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text("\n".join(lines) + "\n")
-    else:
-        print("\n".join(lines))
-
+        out_fh = args.out.open("w")
     if args.timing_out is not None:
         args.timing_out.parent.mkdir(parents=True, exist_ok=True)
-        args.timing_out.write_text("\n".join(
-            f"{wav}\t{elapsed:.4f}\t{int(ok)}" for wav, elapsed, ok in timings) + "\n")
+        timing_fh = args.timing_out.open("w")
+
+    seconds, failures = [], 0
+    try:
+        for wav in wavs:
+            started = time.perf_counter()
+            score, ok = scorer(wav)
+            elapsed = time.perf_counter() - started
+            failures += not ok
+            seconds.append(elapsed)
+            # repr, not a fixed number of decimals: it is the shortest string
+            # that round-trips to the same float, so the determinism harness
+            # compares bit-identity rather than agreement to 6 places.
+            print(f"{wav}\t{score!r}", file=out_fh or sys.stdout, flush=True)
+            if timing_fh is not None:
+                print(f"{wav}\t{elapsed:.4f}\t{int(ok)}", file=timing_fh, flush=True)
+    finally:
+        for handle in (out_fh, timing_fh):
+            if handle is not None:
+                handle.close()
 
     rate = failures / len(wavs)
     # Both numbers are printed on EVERY run because both are exclusion
@@ -411,7 +421,6 @@ def main(argv=None, scorer=None) -> int:
     # The per-item seconds exclude the one-time backbone load, which is
     # amortised across a batch -- so extrapolating them to a test-set size is
     # only honest for a run that scored many items in one process.
-    seconds = [t for _w, t, _ok in timings]
     total = sum(seconds)
     print(f"scored={len(wavs)} failures={failures} rate={rate:.3%} "
           f"(MIREX excludes a submission above 5%)", file=sys.stderr)
