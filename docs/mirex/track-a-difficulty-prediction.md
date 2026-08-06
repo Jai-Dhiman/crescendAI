@@ -189,4 +189,19 @@ uv run --script /Users/jdhiman/Documents/crescendai/.worktrees/issue-135-transku
   - **Second bug in the same function: peft was imported BEFORE the fork reached `sys.path`.** `build_fold_embedder` ran `from peft import PeftModel` above its `loader_factory(...)` call, so peft bound whatever transformers was already installed and `_stub_absent_transformers_models()` never ran. Correct order is loader → stub → peft, as in `train_fold.main()`; it is now asserted on the source, because the order *is* the contract.
   - **Lazy imports need declaring too.** A header guard that walks only module-scope imports would have passed this file while it still died mid-run: `pretty_midi` (in `write_notes_midi`) and `sklearn` (lazy in `bakeoff_cv`) are both function-scope. The guard added here walks *every* import in the local chain, and caught both immediately.
   - *Verified for real, not just green:* run in the isolated env against two already-transcribed pieces, it wrote `(1920,)` finite `mean_pool` embeddings with norms 35.05 / 37.11 — against the symbolic arm's 35.9 mean, so the adapter is applied and the pooling matches.
+- **2026-08-06 (#149) — GATE (ii) is numerically PASS but SCIENTIFICALLY VACUOUS. It cannot test audio provenance on this corpus, and that is a design flaw, not a run failure.** Stage 5 completed end to end: 709/709 WAVs transcribed, 709/709 audio embeddings extracted through each piece's own fold adapter (`ok=709 skipped=0 failed=0`).
+
+  | quantity | value |
+  | --- | --- |
+  | n | 709 |
+  | audio tau-c | 0.8390 |
+  | symbolic tau-c | 0.8387 |
+  | features37 tau-c | 0.8122 |
+  | **delta vs features37 (THE GATE)** | **+0.0268 CI95[+0.0116, +0.0414] p=0.0005 PASS** |
+  | delta vs symbolic (item b) | +0.0003 CI95[−0.0010, +0.0020] p=0.35 |
+
+  - **Why item (b)'s zero carries no information: the two arms are the SAME MIDI.** Stage 5e drift, stored Transkun MIDIs vs the Stage 5b re-transcriptions: **708 of 709 pieces have `onset_f1 == 1.000`**, median `note_count_delta` = 0, mean f1 0.999. Transkun is deterministic and both arms transcribe the same WAVs, so re-running it reproduced the stored files. `delta_vs_symbolic ≈ 0` says "the same input gives the same answer", not "audio provenance is harmless". The single outlier is `Melartin_E_Sonatina` (f1 0.009, stored ref 131 notes vs fresh 502) — a **truncated stored transcription**, not audio variance.
+  - **The deeper reason: there is no clean-MIDI arm in this corpus to contrast against.** Every eval-piece embedding in this whole phase — `emb_fold{F}.npz`, frozen `moonbeam`, features37 — is computed from `transkun_mid`, which is itself Transkun output from YouTube audio (#125). **Phase 1's headline is therefore ALREADY a real-audio result**, and gate (ii) as specified is a 709-piece subset replication of gate (i), not an independent second gate. It is worth reporting as a robustness check across a different subset and nothing more.
+  - **A genuine audio-provenance test needs a second, INDEPENDENT transcription path** — a different AMT model, or different recorded performances of the same works. aria-amt was deleted repo-wide by #128, and no second performance set exists for PSyllabus. Do not re-run gate (ii) expecting a different answer; re-scope it or drop it.
+  - *What survives for the paper:* gate (i)'s +0.0357 vs features37 and +0.0113 vs frozen at n=900, plus the n=709 subset replication. The +0.0357 still awaits the deferred matched-features37 arm (ridge refit on the same ~3,800 pieces) before it is a clean claim; **+0.0113 vs frozen needs nothing further** and is the defensible headline.
 - **Standing implication** — with hand-crafted symbolic features exhausted, **#138 Phase 1 (LoRA fine-tune of MoonBeam-839M, pairwise ranking + ordinal aux) is the remaining unrefuted lever** before the 2026-10-01 deadline.
