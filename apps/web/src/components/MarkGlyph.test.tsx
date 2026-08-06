@@ -24,4 +24,38 @@ describe("MarkGlyph", () => {
 		expect(button).toHaveTextContent("Pedaling");
 		expect(button).toHaveAttribute("aria-expanded", "false");
 	});
+
+	it("takes lifecycle strength from the server-supplied value, not from the mark's content", () => {
+		// A `strong` mark that is `improving` is not derivable from anything on
+		// the client: taxonomy says the student played well, lifecycle says the
+		// baseline is still moving. If the component recomputed lifecycle from
+		// mark content, this combination could not survive a render.
+		const undeducible: Mark = {
+			...mark,
+			taxonomy: "strong",
+			lifecycle: "improving",
+		};
+		const { rerender } = render(
+			<MarkGlyph mark={undeducible} expanded={false} onToggle={vi.fn()} />,
+		);
+		expect(screen.getByRole("button")).toHaveStyle({ opacity: "0.7" });
+
+		rerender(
+			<MarkGlyph
+				mark={{ ...undeducible, lifecycle: "resolved" }}
+				expanded={false}
+				onToggle={vi.fn()}
+			/>,
+		);
+		expect(screen.getByRole("button")).toHaveStyle({ opacity: "0.4" });
+
+		rerender(
+			<MarkGlyph
+				mark={{ ...undeducible, lifecycle: "active" }}
+				expanded={false}
+				onToggle={vi.fn()}
+			/>,
+		);
+		expect(screen.getByRole("button")).toHaveStyle({ opacity: "1" });
+	});
 });

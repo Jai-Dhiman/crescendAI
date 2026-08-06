@@ -1,7 +1,12 @@
 import type { CSSProperties } from "react";
 import { DIMENSION_COLOR_VAR } from "../lib/dimension-colors";
 import type { Mark } from "../lib/mark";
-import { anchorLabel, TAXONOMY_GLYPH, TAXONOMY_LABEL } from "../lib/mark";
+import {
+	anchorLabel,
+	LIFECYCLE_OPACITY,
+	TAXONOMY_GLYPH,
+	TAXONOMY_LABEL,
+} from "../lib/mark";
 import { DIMENSION_LABELS } from "../lib/mock-session";
 
 interface MarkGlyphProps {
@@ -32,7 +37,9 @@ export function MarkGlyph({ mark, expanded, onToggle, style }: MarkGlyphProps) {
 			aria-label={label}
 			onClick={() => onToggle(mark.id)}
 			className="flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface-raised px-2 py-0.5 text-label-sm text-ink-primary"
-			style={style}
+			// A lookup, never a computation. Lifecycle is server state; the
+			// client is forbidden from deriving or transitioning it.
+			style={{ ...style, opacity: LIFECYCLE_OPACITY[mark.lifecycle] }}
 		>
 			<span
 				aria-hidden="true"
