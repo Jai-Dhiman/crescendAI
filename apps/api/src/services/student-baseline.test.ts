@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ValidationError } from "../lib/errors";
 import {
+	type BaselineConfig,
 	type BaselineState,
 	BaselineStateSchema,
 	DEFAULT_BASELINE_CONFIG,
@@ -9,11 +10,14 @@ import {
 	updateBaseline,
 } from "./student-baseline";
 
-function runSequence(sessions: SessionSamples[]): BaselineState[] {
+function runSequence(
+	sessions: SessionSamples[],
+	config: BaselineConfig = DEFAULT_BASELINE_CONFIG,
+): BaselineState[] {
 	const trace: BaselineState[] = [];
 	let state = initialBaselineState();
 	for (const session of sessions) {
-		state = updateBaseline(state, session);
+		state = updateBaseline(state, session, config);
 		trace.push(state);
 	}
 	return trace;
@@ -200,20 +204,65 @@ describe("combined within-session and across-session evidence", () => {
 	});
 
 	it("fires in strictly fewer sessions than across-session evidence alone", () => {
-		const combined = runSequence([
-			{ timestamp: "2026-01-01T00:00:00Z", scores: { dynamics: CLUSTER } },
-			{ timestamp: "2026-01-02T00:00:00Z", scores: { dynamics: CLUSTER } },
-			{ timestamp: "2026-01-03T00:00:00Z", scores: { dynamics: shiftedNoisy } },
-			{ timestamp: "2026-01-04T00:00:00Z", scores: { dynamics: shiftedNoisy } },
-		]);
-		const acrossOnly = runSequence([
-			{ timestamp: "2026-01-01T00:00:00Z", scores: { dynamics: CLUSTER } },
-			{ timestamp: "2026-01-02T00:00:00Z", scores: { dynamics: CLUSTER } },
-			{ timestamp: "2026-01-03T00:00:00Z", scores: { dynamics: shiftedClean } },
-			{ timestamp: "2026-01-04T00:00:00Z", scores: { dynamics: shiftedClean } },
-			{ timestamp: "2026-01-05T00:00:00Z", scores: { dynamics: shiftedClean } },
-			{ timestamp: "2026-01-06T00:00:00Z", scores: { dynamics: shiftedClean } },
-		]);
+		// DEFAULT_BASELINE_CONFIG's firePersistence (3) equals
+		// maxWithinSessionContribution (3), so within-session evidence alone
+		// already reaches the fire threshold in a single fold under the default
+		// config -- a session-count comparison under that config would be
+		// confounded (see "fires immediately from >=3 deviant samples in the
+		// first sitting" above, which demonstrates the single-fold fire on its
+		// own). Raising firePersistence to 5, strictly above the 3-per-fold
+		// within-session cap, makes within-session evidence alone structurally
+		// incapable of firing in one fold: hand-verified, a cold-start fold of
+		// shiftedNoisy alone under this config yields consecutiveOutOfBand === 3,
+		// short of the threshold. Any speed-up observed under this config must
+		// therefore come from the across-session term adding to the
+		// within-session term -- i.e. from summation, not mere co-occurrence.
+		const config: BaselineConfig = {
+			...DEFAULT_BASELINE_CONFIG,
+			firePersistence: 5,
+		};
+		const combined = runSequence(
+			[
+				{ timestamp: "2026-01-01T00:00:00Z", scores: { dynamics: CLUSTER } },
+				{ timestamp: "2026-01-02T00:00:00Z", scores: { dynamics: CLUSTER } },
+				{
+					timestamp: "2026-01-03T00:00:00Z",
+					scores: { dynamics: shiftedNoisy },
+				},
+				{
+					timestamp: "2026-01-04T00:00:00Z",
+					scores: { dynamics: shiftedNoisy },
+				},
+			],
+			config,
+		);
+		const acrossOnly = runSequence(
+			[
+				{ timestamp: "2026-01-01T00:00:00Z", scores: { dynamics: CLUSTER } },
+				{ timestamp: "2026-01-02T00:00:00Z", scores: { dynamics: CLUSTER } },
+				{
+					timestamp: "2026-01-03T00:00:00Z",
+					scores: { dynamics: shiftedClean },
+				},
+				{
+					timestamp: "2026-01-04T00:00:00Z",
+					scores: { dynamics: shiftedClean },
+				},
+				{
+					timestamp: "2026-01-05T00:00:00Z",
+					scores: { dynamics: shiftedClean },
+				},
+				{
+					timestamp: "2026-01-06T00:00:00Z",
+					scores: { dynamics: shiftedClean },
+				},
+				{
+					timestamp: "2026-01-07T00:00:00Z",
+					scores: { dynamics: shiftedClean },
+				},
+			],
+			config,
+		);
 		const combinedFireSession = combined.findIndex(
 			(s) => s.dimensions.dynamics.lifecycle === "active",
 		);
@@ -222,9 +271,11 @@ describe("combined within-session and across-session evidence", () => {
 		);
 		expect(combinedFireSession).toBeGreaterThanOrEqual(0);
 		expect(acrossOnlyFireSession).toBeGreaterThanOrEqual(0);
-		// Same shift magnitude, same starting history -- the only difference is
-		// whether within-session evidence contributes. Fewer sessions to fire
-		// proves the two sources sum rather than merely co-occur.
+		// Same shift magnitude, same starting history, same config -- the only
+		// difference is whether within-session evidence contributes. Because
+		// within-session evidence alone cannot fire in one fold under this
+		// config, the combined arm firing sooner isolates summation rather than
+		// merely showing co-occurrence.
 		expect(combinedFireSession).toBeLessThan(acrossOnlyFireSession);
 	});
 });
