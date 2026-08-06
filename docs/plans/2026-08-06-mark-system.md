@@ -2270,3 +2270,299 @@ Then run `/review` on the branch. Gate on `VERDICT: READY` before `/ship`.
 - `ScorePanel.tsx` / `ScoreAnnotation.tsx` still contain the index-based bar
   lookup. They are deleted by #164; this plan adds the replacement alongside
   and removes nothing.
+
+---
+
+## Challenge Review
+
+Reviewed 2026-08-06. Every finding below marked 9/10 or 10/10 was verified by
+running a command in this worktree, not by reasoning about likelihood — per the
+#163 lesson that a P0 survived four gates because everyone argued about whether
+an input could occur instead of constructing it.
+
+### CEO Pass
+
+**Premise.** Not re-litigated; the design is approved (#154 brainstorm
+2026-08-04). The plan matches the spec's goal exactly and does not drift into
+#158/#159/#162/#164 territory. The one scope addition beyond the spec's
+"no route wiring" line is `/marks-preview`, which the user explicitly chose
+this session as the a11y and click-through mount.
+
+**Existing coverage.** `ScorePanel.tsx:347-375` + `ScoreAnnotation.tsx` already
+do a version of this. The plan correctly reuses the *technique* and rejects the
+*components*, and correctly identifies that `ScorePanel`'s bar lookup is broken.
+`score-ir.ts` already supplies `BarIR{barNumber, measureOn, pageN}`, and the
+plan consumes it rather than inventing a parallel mapping — this is the single
+best decision in the plan.
+
+**Scope.** 13 new files, 19 tasks. Above the 8-file complexity smell threshold.
+Checked whether it can be smaller: `MarkDetail` could fold into `MarkGlyph`, and
+`mark-placement.ts` could live inside `ScoreMarkLayer`. Both were rejected for
+good reasons stated in the spec (shared by two canvases; jsdom has no layout
+engine). The count is earned, not padded.
+
+**Minimum viable version.** Groups A-C alone (Tasks 2-9) give the vocabulary and
+the placement function — the entire correctness bet — with no UI. If time
+collapsed, that is what to keep. The plan already marks it
+`[SHIPS INDEPENDENTLY]`.
+
+**12-month alignment.**
+
+```
+CURRENT STATE                    THIS PLAN                  12-MONTH IDEAL
+marks exist only as chat-era  →  one vocabulary, two    →   every surface renders
+observation badges welded to     canvases, fixture-fed,     server-produced marks
+AppChat, with an index-based     wrong-bar defect made      through one component;
+bar bug and no timeline canvas   unrepresentable            no chat shell remains
+```
+
+Moves toward the ideal. The one debt it creates is `/marks-preview` importing
+`src/test-utils/`, which puts fixtures in the production bundle — already flagged
+in Task 17 and deleted with the route.
+
+### Engineering Pass
+
+#### [BLOCKER] (confidence: 10/10) — the plan's typecheck command fails with 209 errors in a fresh worktree
+
+`bunx tsc --noEmit` from `apps/web` does **not** check only `apps/web`.
+`apps/web/tsconfig.json` sets `"include": ["**/*.ts", "**/*.tsx"]` and the app
+imports types from `apps/api`, so tsc follows those imports into `apps/api`
+sources. `skipLibCheck` does not skip them — they are `.ts`, not `.d.ts`.
+
+Verified in this worktree, in order:
+
+1. Fresh worktree, `apps/web` deps only: **5 errors**, including the two
+   `TS2307` on `wasm-bridge.ts:196-197` the handoff warned about. The gitignored
+   `pkg/` dirs are not inherited by a new worktree.
+2. After `cp -R` of both `pkg/` dirs from the primary checkout: **209 errors** —
+   the WASM errors cleared and exposed a second layer, every `apps/api`
+   dependency unresolvable because `apps/api` had no `node_modules`.
+3. After `bun install` in `apps/api`: **0 errors, exit 0.**
+
+This is exactly the failure mode that already burned three subagents, who each
+ran the command, saw errors, and called them pre-existing. Running a command
+proves errors are real; it does not prove they are pre-existing.
+
+**Required change:** add a Prerequisites section to the plan, before Task 1,
+with all three setup steps and the expected clean baseline.
+
+#### [BLOCKER] (confidence: 9/10) — Task 19's "zero failing files" is unachievable as written
+
+Verified: `bun run test` on the untouched branch is **1 failed | 215 passed
+(216 tests), 1 failed | 54 passed (55 files)**. The failure is
+`src/lib/score-worker.integration.test.ts > IR walk cost (parseScoreIR alone) is
+under 100ms`.
+
+Run in isolation, that same file is **9 passed / 9**, in 26s.
+
+So the flake is real and load-dependent, and it **does** reproduce — which
+corrects the standing belief (carried in the session handoff and repeated in
+Task 19) that it "flaked once historically and never reproduced." A build agent
+told to expect zero failures will either chase a phantom regression or declare
+the plan failed.
+
+**Required change:** state the true baseline in Task 19 and make the isolation
+re-run the disambiguator, not an optional afterthought.
+
+#### [BLOCKER] (confidence: 9/10) — the lint baseline number in Task 19 is wrong
+
+Task 19 says "the repo's pre-existing warnings unchanged (69 at branch point)."
+Verified actual `apps/web` baseline: **exit 0, 107 warnings, 23 infos, 151 files
+checked.** The 69 figure belongs to a different scope (it appears in session
+memory for `apps/api`) and was transplanted. An agent asked to confirm 69 will
+conclude it introduced 38 warnings.
+
+**Required change:** correct to 107 warnings / 23 infos, and phrase the check as
+"no *new* warnings" rather than an absolute count, since the absolute number
+drifts with unrelated merges.
+
+#### [RISK] (confidence: 9/10) — jsdom proves which marks render, never where
+
+Verified by probe: every `getBoundingClientRect()` in jsdom returns
+`{top:0,left:0,width:0,height:0}`. A probe replicating `ScoreMarkLayer`'s effect
+resolved 2 of 3 measure elements, all with zero rects, rendered the two
+resolvable marks, omitted the third, and produced the correct "1 not on this
+page" disclosure.
+
+So Task 13's test genuinely verifies **which** marks render and that the
+disclosure count is right — the behaviourally important half. It cannot verify
+coordinates at all. The arithmetic *is* covered, by Tasks 7-9 against synthetic
+non-zero rects. The genuinely untested surface is the four-line coordinate
+translation inside the effect (`r.top - base.top`).
+
+This validates the spec's claim that `placeMarks`' purity buys real testability
+rather than relocating untested code: what got relocated into the untestable
+adapter is 4 lines, not the policy. **Watch:** click-through step 6 (resize) is
+the only check on those 4 lines. Do not drop it under time pressure.
+
+#### [RISK] (confidence: 8/10) — no automated test ever renders a real Verovio SVG
+
+Every measure element in this plan — in the contract harness, in Task 13, and in
+`/marks-preview` itself — is a stand-in `<div id="measure-...">`. The plan
+therefore proves the resolution chain works against ids *shaped like*
+`BarIR.measureOn`, not that Verovio and `score-ir` actually put those ids in the
+DOM at render time.
+
+The supporting evidence is strong but indirect: `score-ir.ts:185` builds
+`measureByMeasureOn` from the timemap, `extractMeasureNoteMap` (`:150`) collects
+measure ids from the SVG by `class="...measure..."`, and `:242` writes
+`measureOn: measureId` — so the two are equal by construction. Strong is not the
+same as observed.
+
+**Fallback:** the click-through in Task 19 is currently against stand-in divs
+too, so nothing in the plan closes this. See the QUESTION below.
+
+#### [RISK] (confidence: 6/10) — the known-red window spans 18 tasks
+
+Task 1 commits a deliberately failing harness with `--no-verify` and it stays red
+until Task 19. Per session memory, `pre-push` blocks on
+`check-api`/`lint-api`/`check-web`/`lint-web` but tests are opt-in, so this
+should not block anything mechanically. The real cost is that an interrupted
+session leaves a branch that reads as broken. The plan's "Known-red window"
+section mitigates this and should stay prominent. Acceptable — the alternative
+(landing the harness last) would mean the headline success criterion is written
+after the code that satisfies it, which is worse.
+
+#### Module Depth Audit
+
+| Module | Interface | Hidden | Verdict |
+|---|---|---|---|
+| `lib/mark.ts` | 3 fns, 6 types, 4 const tables (~13 names) | brand, threshold, `m:ss` formatting, plural rule, universality of `atSeconds` | **DEEP** — but the widest interface in the plan; watch const-table sprawl as later issues add taxonomy metadata |
+| `lib/mark-placement.ts` | 1 fn, 4 types, 1 const | the whole `barNumber -> measureOn -> rect` chain, the no-fallback policy, page filtering as emergent behaviour | **DEEP** |
+| `components/MarkGlyph.tsx` | 1 component, 4 props | glyph selection, tint lookup, lifecycle opacity, accessible-name composition | **MEDIUM**, justified — it is the mechanism by which "one vocabulary" is enforceable |
+| `components/MarkDetail.tsx` | 1 component, 2 props | confidence framing, anchor labelling | **MEDIUM** |
+| `components/ScoreMarkLayer.tsx` | 1 component, 3 props | DOM lookup, coordinate translation, resize re-measure, disclosure | **SHALLOW by design**, justified in the spec — the substance was deliberately pushed into `mark-placement.ts` so it could be tested |
+| `components/SessionTimelineStrip.tsx` | 1 component, 2 props | time→percent positioning, completeness guarantee | **MEDIUM** |
+
+No shallow-module smell beyond the one that is deliberate and argued.
+
+#### Test Philosophy Audit
+
+Every test in the plan exercises a public interface: exported functions, or
+rendered DOM through accessible names and visible text. No test mocks an
+internal collaborator (`vi.fn()` appears only as a *prop* — a callback the
+component's contract requires, not a stubbed collaborator). No test asserts on
+internal state. No test calls a private method. No shape-only tests.
+
+Task 11 deserves specific credit: rendering a `strong` mark with lifecycle
+`improving` is a combination no client-side rule could derive, which is a real
+test of "lifecycle comes from server state" rather than a restatement of it.
+
+#### Vertical Slice Audit
+
+Checked every task for fail-first honesty after the plan's own self-review pass:
+
+- Task 2 → 3: Task 2's `resolveAnchor` always degrades, so Task 3's bars case
+  genuinely fails first. **Sound.**
+- Task 7 → 8 → 9: Task 7 `continue`s past unplaceable marks without recording
+  them, so both reporting paths genuinely fail first. **Sound.**
+- Task 10 → 11: Task 10 renders no opacity, so Task 11 genuinely fails first.
+  **Sound.**
+
+On the question of whether deliberately-incomplete intermediates are a trap for
+a build agent that "helpfully" completes them: they are, and the plan already
+names the trap explicitly in its "On one test per task" section. That is the
+right mitigation — the alternative (writing complete implementations early) makes
+three tests pass on arrival and prove nothing. Keep the warning prominent.
+
+Tasks 3, 4, 12, and 15 each contain two sibling `it` blocks driving one
+implementation change. This is within the spirit of one-slice-per-task and the
+plan documents it. Not flagged.
+
+#### Test Coverage
+
+```
+[+] src/lib/mark.ts
+    ├── resolveAnchor()
+    │   ├── [TESTED] ★★★ below threshold, at threshold, no bars — Tasks 2, 3
+    │   └── [GAP]        alignmentQuality NaN / negative / >1 — no test
+    ├── anchorLabel()
+    │   ├── [TESTED] ★★★ range, single bar, timestamp, zero-pad — Task 4
+    │   └── [GAP]        atSeconds >= 3600 renders "60:00" not "1:00:00"
+    └── isMarkWorthy()
+        └── [TESTED] ★★  all four lifecycle values — Task 5
+
+[+] src/lib/mark-placement.ts
+    └── placeMarks()
+        ├── [TESTED] ★★★ resolves by measureOn not index — Task 7
+        ├── [TESTED] ★★★ timestamp anchor reported — Task 8
+        ├── [TESTED] ★★★ off-page and unknown bar reported — Task 9
+        └── [GAP]        duplicate barNumber in locator table (Map keeps last)
+
+[+] src/components/ScoreMarkLayer.tsx
+    ├── [TESTED] ★★  which marks render + disclosure count — Task 13
+    ├── [TESTED] ★★  tap to expand/collapse — Task 14
+    └── [GAP]        coordinate translation (untestable in jsdom — see RISK)
+
+[+] src/components/SessionTimelineStrip.tsx
+    ├── [TESTED] ★★★ completeness + timestamp label + position — Task 15
+    ├── [TESTED] ★★  tap to expand/collapse — Task 16
+    └── [GAP]        durationSeconds = 0 (guarded by `span`, not asserted)
+```
+
+The three GAPs are all low-severity: none is on an auth, payment, or data-mutation
+path, and the plan's own product constraint (60s soft auto-stop) makes the
+one-hour label gap unreachable in practice. Recording them, not blocking on them.
+
+#### Failure Modes
+
+No async operations, no I/O, no persistence, no user input reaching SQL, shell,
+or an LLM prompt. This slice is pure rendering over fixture data, so the usual
+failure-mode surface is genuinely absent rather than overlooked.
+
+The one silent-failure candidate is real and correctly handled: a mark that
+cannot be placed is **reported**, not dropped. Tasks 8 and 9 exist precisely to
+convert two silent `continue`s into visible `unplaced` entries, and Task 13
+asserts the count reaches the screen. Zero silent failures.
+
+`ResizeObserver` disconnect on unmount is present. No transaction boundaries to
+consider.
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| Discriminated-union narrowing survives intersection with a brand | **SAFE** | Verified: scratch file typechecked clean, including both `@ts-expect-error` assertions |
+| A raw literal cannot forge a `MarkAnchor` | **SAFE** | Verified: `@ts-expect-error` on the forged literal held |
+| `as unknown as MarkAnchor` is required (plain `as` insufficient) | **SAFE** | Verified in the same scratch file; confined to two lines |
+| `BarIR.measureOn` equals the SVG measure element's `id` | **VALIDATE** | True by construction at `score-ir.ts:242`, but never observed against real Verovio output — see RISK |
+| jsdom returns zero rects, so placement still "succeeds" | **SAFE** | Verified by probe: 2 rects resolved, all zeros, marks rendered |
+| `containerRef.current` is populated in a child's `useEffect` | **SAFE** | Verified by probe: the null-guard branch never logged |
+| `toHaveStyle({left: "17.777...%"})` matches | **SAFE** | Verified by probe |
+| `noUnusedLocals` makes an unused type import an error, not a warning | **SAFE** | Confirmed in `apps/web/tsconfig.json`; justifies moving the `Dimension` import to Task 5 |
+| `bun run lint` baseline is 69 warnings | **RISKY** | False — verified 107 warnings / 23 infos |
+| `bun run test` baseline is fully green | **RISKY** | False — verified 1/216 failing under load, passes in isolation |
+| A fresh worktree can run `bunx tsc --noEmit` after `bun install` in `apps/web` | **RISKY** | False — needs `apps/api` deps and the WASM `pkg/` copy as well |
+| `/app`-free top-level routes render in a preview build without auth | **VALIDATE** | `routes/app.tsx:12` gates only `/app`; `/marks-preview` is top-level, but not yet observed serving 200 |
+
+### Open Questions raised by this review
+
+- **Q: Should `/marks-preview` render a real Verovio score instead of stand-in
+  divs?** Default: keep stand-ins for the automated tests (they make the
+  off-page case constructible, which a real score does not), but add a
+  real-piece section to the route via `scoreRenderer.load()` + `getIR()` so the
+  Task 19 click-through observes marks landing on actual engraving. Without
+  this, nothing in #157 ever proves the feature works on a real score.
+- **Q: How does the brand survive a JSON round-trip when #158 adds a backend?**
+  `JSON.parse` yields an unbranded object that is not assignable to
+  `MarkAnchor`, which is correct and desirable. The boundary must therefore
+  transmit `alignmentQuality` and re-run `resolveAnchor` client-side rather than
+  casting past the brand. Recording it now so a later issue does not reach for
+  `as unknown as MarkAnchor` at the deserialization boundary and quietly delete
+  the guarantee.
+
+### Summary
+
+[BLOCKER] count: 3 — all in the verification preamble, all verified by running
+commands, all mechanically fixable without touching the architecture.
+[RISK] count: 3
+[QUESTION] count: 2
+
+The architecture, module decomposition, test philosophy, and vertical-slice
+discipline all hold up. Every blocker is about the plan describing an
+environment and a baseline that do not match this worktree.
+
+VERDICT: NEEDS_REWORK — (1) the typecheck command needs a Prerequisites section
+covering the WASM `pkg/` copy and `apps/api` deps, without which it reports 209
+errors; (2) Task 19's "zero failing files" contradicts a verified 1/216 baseline
+failure; (3) Task 19's "69 warnings" contradicts a verified 107.
