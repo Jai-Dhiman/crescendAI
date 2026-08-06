@@ -113,7 +113,11 @@ function RealScoreSection() {
 			className="score-container relative mb-12 min-h-64 border border-border-subtle"
 		>
 			<div ref={svgHostRef} />
-			{!svg && <p className="text-ink-tertiary">Loading score...</p>}
+			{!svg && (
+				<p className="inline-block rounded bg-surface-raised px-2 py-0.5 text-ink-tertiary">
+					Loading score...
+				</p>
+			)}
 			{svg && (
 				<ScoreMarkLayer containerRef={containerRef} bars={bars} marks={marks} />
 			)}

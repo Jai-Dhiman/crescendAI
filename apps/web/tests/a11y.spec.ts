@@ -11,11 +11,19 @@ import { expect, test } from "@playwright/test";
 const THEME_CASES = [
 	{ theme: "light", path: "/privacy" },
 	{ theme: "dark", path: "/signin" },
+	// #157: the mark canvases. A top-level route, so it renders in a preview
+	// build without auth. axe's color-contrast rule needs real layout and
+	// silently SKIPS in jsdom, so this is the only place mark contrast is
+	// actually verified — never assert it from vitest.
+	{ theme: "light", path: "/marks-preview" },
+	{ theme: "dark", path: "/marks-preview" },
 ] as const;
 
 test.describe("color contrast", () => {
 	for (const { theme, path } of THEME_CASES) {
-		test(`app shell has no color-contrast violations (${theme})`, async ({
+		// Title carries the path as well as the theme: #157 added a second
+		// light case and a second dark case, and a theme-only title collides.
+		test(`app shell has no color-contrast violations (${theme}, ${path})`, async ({
 			page,
 		}) => {
 			await page.goto(path);
@@ -36,6 +44,15 @@ test.describe("color contrast", () => {
 				.withRules(["color-contrast"])
 				.exclude("[data-axe-exempt]")
 				.analyze();
+
+			// A bare toEqual([]) prints hundreds of lines of serialised nodes and
+			// no selectors, which is unreadable and hides WHICH element failed.
+			// Summarise the targets first so a failure names its elements.
+			for (const v of results.violations) {
+				for (const node of v.nodes) {
+					console.log(`[${theme} ${path}] ${v.id} :: ${node.target.join(" ")}`);
+				}
+			}
 
 			expect(results.violations).toEqual([]);
 		});

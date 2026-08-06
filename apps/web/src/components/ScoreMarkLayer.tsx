@@ -83,7 +83,11 @@ export function ScoreMarkLayer({
 				</div>
 			))}
 			{unplaced.length > 0 && (
-				<p className="pointer-events-auto absolute bottom-0 left-0 text-label-sm text-ink-tertiary">
+				// Carries its own surface for the same reason MarkGlyph does: this
+				// sits over the Verovio engraving, and the score paper is white in
+				// BOTH themes, so dark-theme ink on it fails 4.5:1. Real-browser
+				// axe caught this; the token pair itself is fine on a real surface.
+				<p className="pointer-events-auto absolute bottom-0 left-0 rounded bg-surface-raised px-2 py-0.5 text-label-sm text-ink-tertiary">
 					{unplaced.length === 1
 						? "1 mark not on this page"
 						: `${unplaced.length} marks not on this page`}

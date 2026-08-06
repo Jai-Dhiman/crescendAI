@@ -35,10 +35,20 @@ describe("MarkGlyph", () => {
 			taxonomy: "strong",
 			lifecycle: "improving",
 		};
+		// The fade lands on the DOT, never on the button: fading the button fades
+		// the mark's text too, and at `resolved` (0.4) no text colour can reach
+		// 4.5:1 — pure black tops out at 2.82:1. Real-browser axe caught this;
+		// jsdom cannot, because it skips the color-contrast rule entirely.
+		const dot = () => screen.getByTestId("mark-lifecycle-dot");
+
 		const { rerender } = render(
 			<MarkGlyph mark={undeducible} expanded={false} onToggle={vi.fn()} />,
 		);
-		expect(screen.getByRole("button")).toHaveStyle({ opacity: "0.7" });
+		expect(screen.getByRole("button")).toHaveAttribute(
+			"data-lifecycle",
+			"improving",
+		);
+		expect(dot()).toHaveStyle({ opacity: "0.7" });
 
 		rerender(
 			<MarkGlyph
@@ -47,7 +57,11 @@ describe("MarkGlyph", () => {
 				onToggle={vi.fn()}
 			/>,
 		);
-		expect(screen.getByRole("button")).toHaveStyle({ opacity: "0.4" });
+		expect(screen.getByRole("button")).toHaveAttribute(
+			"data-lifecycle",
+			"resolved",
+		);
+		expect(dot()).toHaveStyle({ opacity: "0.4" });
 
 		rerender(
 			<MarkGlyph
@@ -56,6 +70,23 @@ describe("MarkGlyph", () => {
 				onToggle={vi.fn()}
 			/>,
 		);
-		expect(screen.getByRole("button")).toHaveStyle({ opacity: "1" });
+		expect(screen.getByRole("button")).toHaveAttribute(
+			"data-lifecycle",
+			"active",
+		);
+		expect(dot()).toHaveStyle({ opacity: "1" });
+	});
+
+	it("never fades the mark's text, whatever the lifecycle", () => {
+		// The regression guard for the above: a future change that moves the
+		// fade back onto the button would put resolved marks at 1.74:1.
+		render(
+			<MarkGlyph
+				mark={{ ...mark, lifecycle: "resolved" }}
+				expanded={false}
+				onToggle={vi.fn()}
+			/>,
+		);
+		expect(screen.getByRole("button")).not.toHaveStyle({ opacity: "0.4" });
 	});
 });

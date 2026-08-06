@@ -48,12 +48,23 @@ export function MarkGlyph({
 			className="flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface-raised px-2 py-0.5 text-label-sm text-ink-primary"
 			// A lookup, never a computation. Lifecycle is server state; the
 			// client is forbidden from deriving or transitioning it.
-			style={{ ...style, opacity: LIFECYCLE_OPACITY[mark.lifecycle] }}
+			//
+			// The lifecycle fade lands on the DOT below, never on this button:
+			// fading the button fades the text with it, and at the `resolved`
+			// step (0.4) no text colour can reach WCAG 1.4.3's 4.5:1 — pure
+			// black tops out at 2.82:1. Verified by real-browser axe, which is
+			// the only place this is checkable; jsdom skips color-contrast.
+			data-lifecycle={mark.lifecycle}
+			style={style}
 		>
 			<span
 				aria-hidden="true"
+				data-testid="mark-lifecycle-dot"
 				className="h-1.5 w-1.5 rounded-full"
-				style={{ backgroundColor: DIMENSION_COLOR_VAR[mark.dimension] }}
+				style={{
+					backgroundColor: DIMENSION_COLOR_VAR[mark.dimension],
+					opacity: LIFECYCLE_OPACITY[mark.lifecycle],
+				}}
 			/>
 			<span aria-hidden="true">{TAXONOMY_GLYPH[mark.taxonomy]}</span>
 			<span>{dimension}</span>
