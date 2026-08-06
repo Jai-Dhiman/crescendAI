@@ -7,6 +7,50 @@ import { expect, test } from "@playwright/test";
 // the point of this test; running a real API is not.
 const PIECE_ID = "chopin-nocturne-op9-no2";
 
+test("no timeline mark covers another, so every mark stays tappable", async ({
+	page,
+}) => {
+	await page.goto("/marks-preview");
+
+	const boxes = await page.evaluate(() =>
+		[...document.querySelectorAll("button[aria-expanded]")]
+			.filter((b) => !b.hasAttribute("data-measure-on"))
+			.map((b) => {
+				const r = b.getBoundingClientRect();
+				return {
+					label: b.getAttribute("aria-label"),
+					l: r.left,
+					r: r.right,
+					t: r.top,
+				};
+			}),
+	);
+	expect(boxes.length).toBeGreaterThan(1);
+
+	const collisions: string[] = [];
+	for (let i = 0; i < boxes.length; i++) {
+		for (let j = i + 1; j < boxes.length; j++) {
+			const a = boxes[i];
+			const b = boxes[j];
+			if (a.t === b.t && a.l < b.r && b.l < a.r) {
+				collisions.push(`${a.label} <-> ${b.label}`);
+			}
+		}
+	}
+	// Positioning marks purely by elapsed time put four pairs on top of each
+	// other, and a covered mark cannot be clicked at all — the click lands on
+	// whichever sibling is on top. jsdom cannot see this: fireEvent dispatches
+	// straight at the node and never hit-tests.
+	expect(collisions).toEqual([]);
+
+	// The real proof: Playwright refuses to click an intercepted element, so
+	// this line is what actually failed before lane packing existed.
+	await page
+		.locator("button[aria-expanded]:not([data-measure-on])")
+		.first()
+		.click();
+});
+
 test("a mark sits over its real measure on a real Verovio engraving", async ({
 	page,
 }) => {

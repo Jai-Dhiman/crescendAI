@@ -3066,6 +3066,10 @@ editing them is unreliable. This log is the recovery state.
 | 14 — tap expands on score canvas | E1 | `Unable to find an element with the text: /pedal held through the bass change/` | `603904e0` | see Group E note |
 | 15 — timeline shows every mark | E2 | `Failed to resolve import "./SessionTimelineStrip"` | `815412c3` | see Group E note |
 | 16 — tap expands on timeline canvas | E2 | `Unable to find an element with the text: /the left hand lagged/` | `15379f27` | see Group E note |
+| 17 — /marks-preview route | F | `Failed to resolve import "./marks-preview"` | `58fe8b9b` | see Group F note |
+| 20 — real Verovio measureOn gate | F | `toBeVisible()` timed out on `[data-testid='real-score']` | `80510d7c` | see Group F note |
+| 18 — real-browser axe, both themes | F | 269 light + 339 dark color-contrast violations | `d99bfe31` | see Group F note |
+| 19 — harness green, all gates pass | G | timeline overlap made a mark unclickable (see below) | (this commit) | see Group G note |
 
 **Group 0 + Group A: COMPLETE and REVIEWED (verdict PASS).**
 **Group B: COMPLETE and REVIEWED (verdict PASS).**
@@ -3168,6 +3172,74 @@ is honest about "not drawn here"; the wording implies a reason that is wrong for
 two of the three. Worth revisiting when real copy is written; it does not affect
 the never-show-a-wrong-bar guarantee.
 
+**Group F (Tasks 17, 20, 18): COMPLETE.** **Group G (Task 19): COMPLETE.**
+**ALL 20 TASKS LANDED.**
+
+**Task 20's data path did not work as planned, for two reasons found by running
+it.** (a) The piece id `chopin.ballades.1` does not exist — real ids are file
+stems, `public/scores/chopin-{nocturne-op9-no2,ballade-op23-no1}.mxl`. (b)
+`scoreRenderer.load()` reaches the network through `api.scores.getData()` ->
+`/api/scores/:id/data`, and a `vite preview` build serves NO API; un-intercepted
+it calls **production** (`https://api.crescend.ai`) and is CORS-blocked.
+Resolved with `page.route()` fulfilling from the statically-served `.mxl`, the
+pattern already in `src/scorehost/score-host.playwright.ts:186`. Switched to the
+Nocturne: a third the size, and this gate cares that the chain survives a real
+engraving, not a long one.
+
+**Task 20 earned its place — it caught a bug nothing else could.** The glyph was
+landing 7px above the staff instead of `GLYPH_OFFSET_PX` (28), i.e. overlapping
+it. Cause: React runs CHILD effects before PARENT effects, so `ScoreMarkLayer`
+measured the container before the parent effect injected the SVG. It only looked
+right because injecting resized the container and the real `ResizeObserver`
+happened to fire a re-measure. Fixed by injecting before `setSvg`. The test now
+asserts the ACTUAL gap (24 < gap < 30), because the plan's `glyphBox.y <
+targetBox.y` was satisfied at 7px and could not see the defect.
+Proof the chain is real: the resolved id is `markedId=ne206v` — Verovio's own
+generated id, nothing like our synthetic `measure-0000000000000005` fixtures.
+
+**Task 18 found a genuine WCAG conflict in Task 11's approved design.**
+`LIFECYCLE_OPACITY` faded the whole button, so mark TEXT blended too:
+5.22:1 at `active`, **2.88:1 at `improving`, 1.74:1 at `resolved`**. The tokens
+are innocent — `ink-tertiary` unblended is 5.22:1. And `resolved` is unfixable
+by recolouring: at 0.4 opacity **pure black tops out at 2.82:1**, so no colour
+reaches 4.5:1. USER DECISION 2026-08-06: fade the DOT, never the text; the
+lifecycle is carried by `data-lifecycle` on the button. Task 11's test was
+updated to assert those observables — its intent (lifecycle is server state,
+never recomputed) is unchanged. A second test now guards the button against
+regaining opacity. Also: the unplaced disclosure and the loading line needed
+their own `bg-surface-raised`, because both sit over the Verovio engraving and
+**the score paper is white in BOTH themes**.
+
+**Task 19's click-through found a P1 that every unit test missed.** Timeline
+marks are positioned purely by elapsed time, so they COLLIDED: measured at
+1024px, all six shared `top: 557` and four pairs overlapped by up to 84px. A
+covered mark is not merely ugly — it is **unclickable**, because the click lands
+on whichever sibling is on top. Playwright surfaced it by refusing to click an
+intercepted element. **jsdom structurally cannot catch this, and the switch from
+`userEvent` to `fireEvent` guaranteed it would not**: `fireEvent` dispatches
+straight at the node and never hit-tests. Fixed with lane packing —
+`src/lib/timeline-lanes.ts` (pure, takes measured widths, for the same reason
+`mark-placement.ts` does) plus a measuring `useLayoutEffect` in the strip.
+Re-measured after the fix: 2 lanes, ZERO overlaps, and the previously
+unclickable mark expands and collapses. A real-browser regression test now
+asserts no collisions AND performs the click that used to fail.
+
+**Click-through, all 6 checklist items, BOTH themes, verified in a real browser
+at 1024px and re-verified at 760px:** pedaling appears on both canvases (2
+glyphs, identical wording); expand/collapse works on the score canvas and on the
+timeline; the timing mark reads `1:37` with NO bar number anywhere on the page
+though bars [21,22] were supplied; the score canvas discloses "3 marks not on
+this page" and the articulation mark (bar 88) is absent there and present on the
+timeline; after resize all three score marks stay within 2px of their measure's
+left edge at a 27px gap, and the timeline re-packs to 2 lanes with 0 overlaps.
+
+Known non-defect: browsing `/marks-preview` WITHOUT the test's route
+interception shows the real-score section's error state, because the score fetch
+is CORS-blocked against production. The synthetic section and timeline are
+unaffected. The error branch replaces the whole `data-testid="real-score"`
+container, so a load failure looks like a missing section — acceptable for a
+preview surface #158/#159/#162 delete, worth knowing when debugging.
+
 ### Verified state at this checkpoint (measured, not assumed)
 
 ```
@@ -3185,6 +3257,18 @@ bun run test  -> 62/63 files, 237/238 tests pass. The single failure is the
                  documented load-dependent flake `score-worker.integration.test.ts
                  "IR walk cost ... under 100ms"` (151ms under full-suite load;
                  VERIFIED passing in isolation at this same commit). Do not fix.
+
+FINAL STATE, all 20 tasks landed (measured from apps/web):
+bun run test        -> 65/65 files, 243/243 tests PASS (the perf flake did not
+                       fire this run; it is load-dependent, not fixed)
+bunx tsc --noEmit   -> exit 0
+bun run lint        -> exit 0, 107 warnings / 23 infos / 0 errors across 170
+                       files. IDENTICAL to the 107/23 branch-point baseline:
+                       19 new files, zero new warnings.
+bun run test:a11y   -> 4/4 PASS (both themes x /marks-preview, plus the two
+                       pre-existing shell cases)
+bun run test:marks  -> 2/2 PASS (real Verovio measureOn chain; timeline
+                       no-collision + the click that used to fail)
 bunx tsc --noEmit | grep -v mark-canvases       -> no output
 bun run lint                                     -> exit 0, 107 warnings, 23 infos, 0 errors
 ```
