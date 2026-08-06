@@ -78,11 +78,13 @@ pytestmark = [
 ]
 
 
-def _run(wav: Path, out: Path) -> subprocess.CompletedProcess:
+def _run(wav: Path, out: Path, on_failure: str = "raise"
+         ) -> subprocess.CompletedProcess:
     """Invoke score_wav.py exactly as the container will."""
     return subprocess.run(
         ["uv", "run", "--no-project", "--script", "score_wav.py",
          "--model-dir", str(_MODEL_DIR), "--wav", str(wav), "--out", str(out),
+         "--on-failure", on_failure,
          "--checkpoint", str(_CHECKPOINT), "--repo-root", str(_REPO_ROOT),
          "--model-config", str(_MODEL_CONFIG)],
         cwd=_DIFFICULTY_DIR, capture_output=True, text=True, timeout=_TIMEOUT_S)
@@ -141,16 +143,32 @@ def test_the_same_wav_scores_identically_in_a_fresh_process(tmp_path):
         f"stochastic (dropout left live, or a random window)")
 
 
-def test_a_wav_that_cannot_be_transcribed_falls_back_instead_of_crashing(tmp_path):
-    """The contract excludes any submission failing on >5% of items, so the
-    container must survive a corrupt or non-audio file. This is the inversion
-    of model/CLAUDE.md's loud-failure rule, and it is confined to the
-    container: the fallback is emitted AND logged."""
+def _broken_wav(tmp_path: Path) -> Path:
     broken = tmp_path / "not_audio.wav"
     broken.write_bytes(b"RIFF\x00\x00\x00\x00WAVEthis is not audio")
+    return broken
+
+
+def test_by_default_a_bad_wav_fails_the_run_loudly(tmp_path):
+    """The default is `--on-failure raise` while the system is still being
+    built: a fallback here would turn a real bug into a plausible-looking
+    median score, and we would ship the bug. This is model/CLAUDE.md's
+    loud-failure rule holding until the deadline forces the inversion."""
+    result = _run(_broken_wav(tmp_path), tmp_path / "scores.tsv")
+
+    assert result.returncode != 0, "the default must NOT swallow a failure"
+    assert "SCORE_FAILURE" not in result.stderr, (
+        "raise mode must not also emit the fallback log line")
+
+
+def test_the_submission_day_flag_falls_back_instead_of_crashing(tmp_path):
+    """The contract excludes any submission failing on >5% of items, so the
+    container must be ABLE to survive a corrupt or non-audio file. Covered now
+    so that flipping the flag at the deadline is a one-word change with a
+    passing test behind it, not a leap."""
     out = tmp_path / "scores.tsv"
 
-    result = _run(broken, out)
+    result = _run(_broken_wav(tmp_path), out, on_failure="fallback")
 
     assert result.returncode == 0, "a bad item must not fail the whole run"
     assert "SCORE_FAILURE" in result.stderr, "the fallback must be LOUD"

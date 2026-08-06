@@ -108,14 +108,23 @@ def fold_of_seg_ids(seg_ids: list, composers: np.ndarray, n_folds: int,
 
 
 def build_fold_embedder(adapter_dir: Path, checkpoint: Path, repo_root: Path,
-                         model_config: Path, loader_factory=_real_loader):
+                         model_config: Path, loader_factory=_real_loader,
+                         device=None):
     """A `embed(midi_path) -> np.ndarray` closure over the base MoonBeam
     backbone with one fold's LoRA adapter applied.
 
     The `.eval()` below is load-bearing and must not be removed: LoRA is
     configured with lora_dropout=0.05, and torch.no_grad() does NOT disable
     dropout -- without eval mode every extraction would be a different random
-    draw, and the gate would be measuring noise."""
+    draw, and the gate would be measuring noise.
+
+    `device=None` keeps everything on CPU, which is what every #149 measurement
+    ran on and therefore the default. The MIREX container passes "cuda": the
+    contract gives 24 wall-clock hours on one GPU for the whole test set, and
+    an 839M forward pass per piece on CPU does not fit that for a large test
+    set. Moving the model is the ONLY difference -- the arithmetic is the same,
+    but bitwise GPU/CPU agreement is not guaranteed, so a score produced on one
+    should not be compared against a score produced on the other."""
     # Order is a contract, not a style choice, and mirrors train_fold.main():
     # loader_factory puts the fork's PARTIAL vendored transformers on sys.path
     # FIRST, the stub then supplies the models.bloom that peft/utils/constants
@@ -128,10 +137,13 @@ def build_fold_embedder(adapter_dir: Path, checkpoint: Path, repo_root: Path,
 
     peft_model = PeftModel.from_pretrained(base_model, str(adapter_dir))
     peft_model.eval()
+    if device is not None:
+        peft_model.to(device)
     transformer = peft_model.model.model  # inner transformer, LoRA-injected
 
     def embed(midi_path: Path) -> np.ndarray:
-        return _extract_full_piece(transformer, tokenize(Path(midi_path)), max_len)
+        return _extract_full_piece(transformer, tokenize(Path(midi_path)),
+                                    max_len, device=device)
 
     return embed
 

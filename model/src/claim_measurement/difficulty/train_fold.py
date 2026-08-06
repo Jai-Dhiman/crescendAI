@@ -373,6 +373,14 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader,
         help="JSON list of {seg_id, grade, composer_id} for all 900 eval pieces, "
              "in the SAME seg_id-sorted order ft_eval.py reads from "
              "emb/features37/; defaults to eval_manifest.json inside the bundle")
+    ap.add_argument(
+        "--eval-manifest-name", default="eval_manifest.json",
+        help="which manifest inside the bundle --eval-manifest defaults to. "
+             "The #166 submission run passes head_manifest.json, so embeddings "
+             "are extracted for all ~5,798 pool pieces and its ridge head is "
+             "fit on those rather than on the 900 eval pieces. The bundle path "
+             "inside a job container is unknowable at submit time, which is why "
+             "this is a name and not a path")
     ap.add_argument("--midi-dir", type=Path, default=None,
                     help="defaults to midi/ inside the bundle")
     ap.add_argument("--out-dir", type=Path, required=True)
@@ -462,7 +470,7 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader,
     pool_grades_path = _bundle_default(
         args.pool_grades, bundle_dir, "grades.json", "--pool-grades")
     eval_manifest_path = _bundle_default(
-        args.eval_manifest, bundle_dir, "eval_manifest.json", "--eval-manifest")
+        args.eval_manifest, bundle_dir, args.eval_manifest_name, "--eval-manifest")
     midi_dir = _bundle_default(args.midi_dir, bundle_dir, "midi", "--midi-dir")
     repo_root = _bundle_default(
         args.repo_root, bundle_dir, "moonbeam_repo", "--repo-root")

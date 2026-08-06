@@ -35,16 +35,22 @@ its own env, so the head travels as four numpy arrays and inference is
 reproduces the sklearn pipeline it was fit from -- otherwise every tau-c we
 measured would describe a system other than the one submitted.
 
-## The failure policy is INVERTED here, and only here
+## The failure policy, and why the default is still LOUD
 
 `model/CLAUDE.md` mandates loud failure over silent fallback. The contract says
-submissions *"failing on >5% of items are excluded from ranking"*, so inside
-this container an uncaught exception on one bad WAV can cost the entire
-submission. `score_wav` still raises -- it is the honest primitive, and the
-research harness may use it. `score_wav_or_fallback` is the container's entry
-point: it attempts the real path, and on failure emits the corpus median while
-logging `SCORE_FAILURE` to stderr. Loud *and* non-fatal. **Do not propagate
-`score_wav_or_fallback` back into the research harness.**
+submissions *"failing on >5% of items are excluded from ranking"*, so on
+submission day an uncaught exception on one bad WAV can cost everything.
+
+Both behaviours exist, and **`--on-failure raise` is the default**: while we are
+still building, a fallback would convert real bugs into plausible-looking median
+scores, and we would ship the bug. `--on-failure fallback` is the submission-day
+setting -- flip it when the deadline is close and the failure modes are known.
+The integration suite exercises both, so the flip is covered, not a leap.
+
+`score_wav` raises and is the honest primitive the research harness may use.
+`score_wav_or_fallback` emits the corpus median and logs `SCORE_FAILURE` to
+stderr -- loud *and* non-fatal. **Do not propagate `score_wav_or_fallback` back
+into the research harness.**
 
 ## Environment
 
@@ -250,8 +256,14 @@ def score_wav_or_fallback(wav_path, transcribe, embed, head: RidgeHead,
 
 
 def load_scorer(model_dir: Path, checkpoint: Path, repo_root: Path,
-                model_config: Path, transcribe=None):
+                model_config: Path, transcribe=None, on_failure: str = "raise",
+                device=None):
     """Build the real `score(wav_path) -> (score, ok)` from a model directory.
+
+    `on_failure="raise"` (the default) propagates the exception: while the
+    system is still being built, a fallback turns a real bug into a
+    plausible-looking median score and we ship the bug. `"fallback"` is the
+    submission-day setting the >5% clause requires.
 
     The 839M backbone and the LoRA adapter are loaded ONCE and closed over --
     reloading per item would dominate the 24h budget. `build_fold_embedder` is
@@ -260,10 +272,13 @@ def load_scorer(model_dir: Path, checkpoint: Path, repo_root: Path,
     the model stubs) and the `.eval()` that keeps `lora_dropout=0.05` from
     making every score a fresh random draw.
     """
+    if on_failure not in ("raise", "fallback"):
+        raise ValueError(
+            f"on_failure must be 'raise' or 'fallback', got {on_failure!r}")
     model_dir = Path(model_dir)
     head = read_ridge_head(model_dir / HEAD_FILENAME)
     embed = build_fold_embedder(model_dir / ADAPTER_SUBDIR, checkpoint,
-                                repo_root, model_config)
+                                repo_root, model_config, device=device)
     if transcribe is None:
         from claim_measurement.difficulty.realaudio_check import (
             _import_transcribe_wav,
@@ -272,6 +287,8 @@ def load_scorer(model_dir: Path, checkpoint: Path, repo_root: Path,
         transcribe = _import_transcribe_wav()
 
     def score(wav_path) -> tuple[float, bool]:
+        if on_failure == "raise":
+            return score_wav(wav_path, transcribe, embed, head), True
         return score_wav_or_fallback(wav_path, transcribe, embed, head)
 
     return score
@@ -325,6 +342,18 @@ def main(argv=None, scorer=None) -> int:
                     help="write '<wav_path>\\t<score>' lines here. Prefer this "
                          "over stdout: the MoonBeam fork's MusicTokenizer prints "
                          "its entire vocabulary (~96KB) to stdout on construction")
+    ap.add_argument(
+        "--on-failure", choices=("raise", "fallback"), default="raise",
+        help="raise (default): a failed item aborts the run loudly, which is "
+             "what we want while the system is still being built. fallback: "
+             "emit the corpus median and log SCORE_FAILURE -- the submission-day "
+             "setting the contract's >5%% exclusion clause requires")
+    ap.add_argument(
+        "--device", default=None,
+        help="torch device for the MoonBeam forward pass, e.g. cuda. Default "
+             "None = CPU, which is what every #149 measurement ran on. The "
+             "container passes cuda: 24h for the whole test set on one GPU does "
+             "not fit an 839M CPU forward pass per piece")
     ap.add_argument("--checkpoint", type=Path, default=None)
     ap.add_argument("--repo-root", type=Path, default=None)
     ap.add_argument("--model-config", type=Path, default=None)
@@ -344,7 +373,8 @@ def main(argv=None, scorer=None) -> int:
             if value is None:
                 ap.error(f"{flag} is required when the real backbone is used")
         scorer = load_scorer(args.model_dir, args.checkpoint, args.repo_root,
-                             args.model_config)
+                             args.model_config, on_failure=args.on_failure,
+                             device=args.device)
 
     lines, failures = [], 0
     for wav in wavs:

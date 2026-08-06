@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from claim_measurement.difficulty.bakeoff_sampling import ManifestEntry
 from claim_measurement.difficulty.fold_plan import FoldPlan
 from claim_measurement.difficulty.push_train_dataset import (
     BundleSources,
@@ -336,3 +337,100 @@ def test_stage_training_bundle_excludes_git_history_and_pycache_from_the_snapsho
     assert report.repo_snapshot_files == 2
     assert sorted(p.name for p in repo_out.rglob("*") if p.is_file()) == [
         "README.md", "model_config.json"]
+
+
+# --------------------------------------------------------------------------
+# #166: the submission plan and head_manifest.json ride in the SAME bundle as
+# the 5 CV plans, so one upload serves both the fold jobs and the all-data job.
+# --------------------------------------------------------------------------
+
+
+def test_head_manifest_covers_every_pool_piece_in_seg_id_order():
+    """The submission model's ridge head is fit on these rows. Missing pieces
+    would silently shrink the head's training set, which is the one thing this
+    manifest exists to prevent."""
+    from claim_measurement.difficulty.push_train_dataset import build_head_manifest
+
+    pool = [ManifestEntry(seg_id=f"p{i:03d}", key=f"k{i}", grade=i % 11,
+                          composer=f"composer_{i % 7}") for i in range(40)]
+
+    manifest = build_head_manifest(pool)
+
+    assert len(manifest) == 40
+    assert [m["seg_id"] for m in manifest] == sorted(e.seg_id for e in pool)
+    assert {m["grade"] for m in manifest} == {e.grade for e in pool}
+
+
+def test_head_manifest_composer_ids_are_stable_and_group_by_composer():
+    """Bookkeeping only -- nothing fits a fold on these, because the submission
+    model has no folds. Still asserted so two pieces by one composer cannot end
+    up with different ids in the emitted npz."""
+    from claim_measurement.difficulty.push_train_dataset import build_head_manifest
+
+    pool = [ManifestEntry(seg_id=f"p{i:03d}", key=f"k{i}", grade=1,
+                          composer=f"composer_{i % 3}") for i in range(9)]
+
+    manifest = build_head_manifest(pool)
+
+    by_seg = {m["seg_id"]: m["composer_id"] for m in manifest}
+    composer_of = {e.seg_id: e.composer for e in pool}
+    groups = {}
+    for seg_id, cid in by_seg.items():
+        groups.setdefault(composer_of[seg_id], set()).add(cid)
+    assert all(len(ids) == 1 for ids in groups.values())
+    assert build_head_manifest(pool) == manifest  # deterministic
+
+
+def test_staging_refuses_a_head_manifest_piece_with_no_midi(tmp_path):
+    """A head-manifest piece whose MIDI was never staged could never be
+    embedded inside the job container, so the head would quietly be fit on
+    fewer rows than the report claims."""
+    from claim_measurement.difficulty.push_train_dataset import (
+        BundleSources,
+        stage_training_bundle,
+    )
+
+    midi_dir = tmp_path / "midi"
+    midi_dir.mkdir()
+    for seg_id in ("a", "b"):
+        (midi_dir / f"{seg_id}.mid").write_bytes(b"MThd")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "x.py").write_text("")
+    plans = [FoldPlan(fold=0, test_seg_ids=(), train_seg_ids=("a", "b"),
+                      val_seg_ids=())]
+    sources = BundleSources(
+        midi_dir=midi_dir, grades={"a": 1, "b": 2}, repo_snapshot_dir=repo,
+        eval_manifest=[],
+        head_manifest=[{"seg_id": "a", "grade": 1, "composer_id": 0},
+                       {"seg_id": "ghost", "grade": 3, "composer_id": 1}])
+
+    with pytest.raises(ValueError, match="no staged MIDI"):
+        stage_training_bundle(sources, plans, tmp_path / "staging")
+
+
+def test_a_bundle_without_a_head_manifest_does_not_write_the_file(tmp_path):
+    """The #149 fold jobs read a bundle with no head_manifest.json; staging one
+    unconditionally would change the bundle those jobs are pinned to."""
+    from claim_measurement.difficulty.push_train_dataset import (
+        BundleSources,
+        stage_training_bundle,
+    )
+
+    midi_dir = tmp_path / "midi"
+    midi_dir.mkdir()
+    (midi_dir / "a.mid").write_bytes(b"MThd")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "x.py").write_text("")
+    sources = BundleSources(
+        midi_dir=midi_dir, grades={"a": 1}, repo_snapshot_dir=repo,
+        eval_manifest=[])
+
+    staging = tmp_path / "staging"
+    report = stage_training_bundle(
+        sources, [FoldPlan(fold=0, test_seg_ids=(), train_seg_ids=("a",),
+                           val_seg_ids=())], staging)
+
+    assert not (staging / "head_manifest.json").exists()
+    assert report.n_head_pieces == 0

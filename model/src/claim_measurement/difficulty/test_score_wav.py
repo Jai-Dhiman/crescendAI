@@ -275,6 +275,17 @@ def test_an_empty_transcription_is_a_failure_not_a_zero_vector(tmp_path, capsys)
     assert "no notes" in capsys.readouterr().err
 
 
+def test_load_scorer_rejects_an_unknown_failure_mode(tmp_path):
+    """A typo'd --on-failure must not silently pick a policy. Which of the two
+    behaviours is live is the difference between shipping a bug and being
+    excluded from ranking, so it is not a value to guess at."""
+    from claim_measurement.difficulty.score_wav import load_scorer
+
+    with pytest.raises(ValueError, match="on_failure"):
+        load_scorer(tmp_path, checkpoint=None, repo_root=None,
+                    model_config=None, on_failure="fallbcak")
+
+
 # --------------------------------------------------------------------------
 # The isolated env, which is where three of this phase's launches died.
 # --------------------------------------------------------------------------

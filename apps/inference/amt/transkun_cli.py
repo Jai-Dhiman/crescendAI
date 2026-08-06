@@ -63,8 +63,15 @@ def _run_transkun(in_wav: Path, out_mid: Path) -> None:
     # in setuptools. uv's isolated env does not include it unless a dep pulls it in, so without
     # this the CLI dies with ModuleNotFoundError: No module named 'pkg_resources' (intermittent,
     # depending on uv-cache resolution). Pinning it explicitly makes the env deterministic.
+    #
+    # The <81 bound is NOT cosmetic (#166): setuptools REMOVED
+    # pkg_resources in 81, so an unpinned `--with setuptools` resolves to
+    # a version without it on any machine with a cold uv cache, and
+    # Transkun dies exactly as it did before this arg existed. Found when
+    # the MIREX container build -- a guaranteed-cold cache -- hit it; a
+    # warm local cache still holding 80.9.0 hides it completely.
     cmd = [
-        "uv", "run", "--no-project", "--with", "transkun", "--with", "setuptools",
+        "uv", "run", "--no-project", "--with", "transkun", "--with", "setuptools<81",
         "--python", "3.11",
         "transkun", str(in_wav), str(out_mid), "--device", "cpu",
     ]
