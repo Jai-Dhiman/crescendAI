@@ -1,9 +1,32 @@
-# #138 Phase 1 LoRA Fine-Tune Runbook
+# MoonBeam-839M LoRA training runbook
 
-Operator sequence for the MoonBeam-839M LoRA fine-tune gate (#149). Every step
-below that spends money or touches a GPU is **human-lit**: the operator runs it,
-reads the printed numbers, and decides whether to continue. Nothing in this
-repo launches an HF Job automatically.
+Operator sequence for training a MoonBeam-839M LoRA difficulty model on HF Jobs.
+Every step below that spends money or touches a GPU is **human-lit**: the
+operator runs it, reads the printed numbers, and decides whether to continue.
+Nothing in this repo launches an HF Job automatically.
+
+**Scope note (2026-08-06).** This began as the #149 Phase 1 gate runbook. Both
+gates are now measured and recorded in
+[track-a-difficulty-prediction.md](./track-a-difficulty-prediction.md)'s
+decision log, so the completed gate stages have been pruned. What remains —
+Stages 0 to 3.5 — is the **live retraining procedure**, and the submission
+depends on it: the final model must be retrained on all compliant pieces, and
+again if the forbidden-composer list touches our pools.
+
+Evaluate any retrained set of adapters with the same gate protocol that measured
+Phase 1 (free, CPU, ~1 min):
+
+```bash
+cd /Users/jdhiman/Documents/crescendai/model && uv run python -m \
+    claim_measurement.difficulty.ft_eval \
+    --data-root /Users/jdhiman/Documents/crescendai/model/data \
+    --fold-emb-dir <fold_embeddings dir>
+```
+
+Reference values at seed 2026, n=900: `features37` 0.8038, `moonbeam_ft_mean`
+0.8395, delta +0.0357 `SIG`. `matched_features37.py` adds the
+supervision-matched baseline (0.8068) and the honest delta (+0.0325 `SIG`). A
+`noise` verdict on a retrain is a real finding, not a bug to work around.
 
 ## Stage 0 — one-time setup (already covered by moonbeam_extract_script.py)
 
@@ -183,199 +206,3 @@ for f in 0 1 2 3 4; do
         /Users/jdhiman/Documents/crescendai/model/data/results/phase1_lora/fold_embeddings/fold$f
 done
 ```
-
-## Stage 4 — gate (i): encoder-as-feature-extractor (local, CPU, free)
-
-```bash
-cd /Users/jdhiman/Documents/crescendai/model && uv run python -m \
-    claim_measurement.difficulty.ft_eval \
-    --data-root /Users/jdhiman/Documents/crescendai/model/data \
-    --fold-emb-dir /Users/jdhiman/Documents/crescendai/model/data/results/phase1_lora/fold_embeddings
-```
-Expected output: `moonbeam_ft_mean|ridge - features37|ridge: +0.0XXX
-CI95[+a,+b] P(diff<=0)=p SIG|noise`. **The gate passes only if `a > 0`
-(`SIG`).** If `noise`, STOP — do not proceed to the real-audio gate or report
-an end-to-end number; the fine-tune did not clear 0.8048.
-
-## Stage 5 — gate (ii): real-audio second gate (local, resumable)
-
-**5a. Build the WAV manifest** (709 of the 900 eval pieces have a local WAV;
-pieces without one are omitted, never faked):
-
-```bash
-cd /Users/jdhiman/Documents/crescendai/model && uv run python -m \
-    claim_measurement.difficulty.realaudio_check \
-    --write-wav-manifest /Users/jdhiman/Documents/crescendai/model/data/results/phase1_lora/audio_wav_manifest.json \
-    --wav-dir /Users/jdhiman/Documents/crescendai/model/data/results/amt_gap_curve/wav \
-    --data-root /Users/jdhiman/Documents/crescendai/model/data
-```
-Expected: `wrote 709 of 900 eval pieces with a WAV ...`. The seg_ids come from
-`emb/features37/`, so the manifest is in the same canonical order everything
-else in this phase is.
-
-**5b. Transcribe** (resumable — safe to interrupt and re-run):
-
-```bash
-cd /Users/jdhiman/Documents/crescendai/model && uv run python -m \
-    claim_measurement.difficulty.realaudio_check \
-    --wav-manifest /Users/jdhiman/Documents/crescendai/model/data/results/phase1_lora/audio_wav_manifest.json \
-    --out-dir /Users/jdhiman/Documents/crescendai/model/data/results/phase1_lora/audio_midi_cache
-```
-
-**5c. Extract audio embeddings through each piece's OWN fold adapter**
-(resumable; loads each fold's adapter at most once):
-
-Run this one under its OWN isolated uv env, not `model/.venv`: the fork's
-vendored transformers hard-requires `tokenizers>=0.19,<0.20`, and the shared
-venv has transformers 5.5.4 / tokenizers 0.22.1, so `python -m` dies on import
-before it ever reaches the model. `peft` is pinned to 0.11.1 in the script
-header — the same version that WROTE these adapters inside the job container.
-
-```bash
-cd /Users/jdhiman/Documents/crescendai/model/src/claim_measurement/difficulty && \
-uv run --no-project --script audio_emb_extract.py \
-    --cache-dir /Users/jdhiman/Documents/crescendai/model/data/results/phase1_lora/audio_midi_cache \
-    --out-dir /Users/jdhiman/Documents/crescendai/model/data/results/phase1_lora/audio_emb \
-    --adapter-root /Users/jdhiman/Documents/crescendai/model/data/results/phase1_lora/fold_embeddings \
-    --data-root /Users/jdhiman/Documents/crescendai/model/data \
-    --checkpoint /Users/jdhiman/Documents/crescendai/model/data/weights/moonbeam/moonbeam_839M.pt \
-    --repo-root /Users/jdhiman/Documents/crescendai/model/data/weights/moonbeam/repo \
-    --model-config /Users/jdhiman/Documents/crescendai/model/data/weights/moonbeam/repo/src/llama_recipes/configs/model_config.json
-```
-
-The fold each piece belongs to comes from `bakeoff_cv.composer_disjoint_folds`
-at the same `(5, 2026)` every other stage uses — imported, not reimplemented,
-because "the same folds" only holds if it is literally the same function.
-Scoring a piece through an adapter trained on it would be train-on-test.
-Extraction runs in `eval()` mode (LoRA dropout would otherwise make the
-embeddings stochastic) and chunks the piece to `max_len` and mean-pools over
-all tokens, matching `moonbeam_extract_script.py`, so the arm stays paired
-against frozen 0.8257. Output is one `.npz` per piece with pooling key
-`"mean_pool"` — exactly what the gate snippet below reads.
-
-**5d. The gate.** Audio vs. features37 on the SAME subset, scored through the
-SAME composer-disjoint folds/seed, plus the matched symbolic comparison that
-makes it interpretable:
-
-```python
-from pathlib import Path
-from claim_measurement.difficulty.bakeoff_npz import read_embedding_npz
-from claim_measurement.difficulty.ft_eval import _load_features37
-from claim_measurement.difficulty.train_fold import read_fold_embeddings
-from claim_measurement.difficulty.realaudio_check import score_audio_subset
-from claim_measurement.difficulty.bakeoff_paths import resolve_paths
-
-root = Path("/Users/jdhiman/Documents/crescendai/model/data")
-phase1 = root / "results" / "phase1_lora"
-emb_root = resolve_paths(root).emb_root
-Xf, y, composers, seg_ids = _load_features37(emb_root)
-emb_by_fold = {
-    f: read_fold_embeddings(phase1 / f"fold_embeddings/fold{f}/emb_fold{f}.npz")["embeddings"]
-    for f in range(5)}
-audio_embeddings = {p.stem: read_embedding_npz(p).embeddings["mean_pool"]
-                    for p in sorted((phase1 / "audio_emb").glob("*.npz"))}
-
-result = score_audio_subset(emb_by_fold, audio_embeddings, Xf, y, composers, seg_ids,
-                            n_folds=5, seed=2026)
-print(result)
-```
-Run it from `/Users/jdhiman/Documents/crescendai/model` under `uv run python`,
-so `claim_measurement` resolves.
-
-Expected: `audio_tau_c`, `symbolic_tau_c`, and `features37_tau_c` all reported.
-`delta_vs_features37`/`ci_lo_vs_features37`/`ci_hi_vs_features37` are **THE
-GATE** (item (a) of the design spec's "Real-audio second gate": tau-c on the
-audio subset, paired-bootstrapped against features37 on the same pieces).
-**The gate passes only if `ci_lo_vs_features37 > 0`** on this n=709(-ish)
-subset (half-width ≈ ±0.017 per the design spec, enough to resolve the
-+0.024 margin). `delta_vs_symbolic`/`ci_lo_vs_symbolic`/`ci_hi_vs_symbolic`
-are item (b) — context, not the gate — showing whether any audio-vs-symbolic
-gap is attributable to audio provenance rather than the subset being
-easier or harder.
-
-**5e. MIDI drift** (item (b)'s companion check), against the stored Transkun
-MIDIs, to confirm any audio-vs-symbolic gap is attributable to audio
-provenance and not to transcription failure on this subset specifically. The
-reference notes come from parsing the stored Transkun MIDI directly (the same
-note-dict shape `psyllabus.notes_from_midi_bytes` returns —
-`{pitch, onset, offset, velocity}`); the candidate notes come straight out of
-the 5b cache (each file is `{"notes": [...], "pedals": [...]}`, written by
-`_write_cache_atomic`):
-
-```python
-import json
-import statistics
-from pathlib import Path
-from claim_measurement.difficulty.psyllabus import notes_from_midi_bytes
-from claim_measurement.difficulty.realaudio_check import midi_drift
-
-transkun_mid_dir = Path("/Users/jdhiman/Documents/crescendai/model/data/results/amt_gap_curve/transkun_mid")
-audio_midi_cache = Path("/Users/jdhiman/Documents/crescendai/model/data/results/phase1_lora/audio_midi_cache")
-ONSET_TOLERANCE = 0.05  # seconds; matches the test fixture's tolerance
-
-deltas, f1s = [], []
-for cache_path in sorted(audio_midi_cache.glob("*.json")):
-    seg_id = cache_path.stem
-    reference_notes = notes_from_midi_bytes(
-        (transkun_mid_dir / f"{seg_id}.mid").read_bytes())
-    candidate_notes = json.loads(cache_path.read_text())["notes"]
-    drift = midi_drift(reference_notes, candidate_notes, ONSET_TOLERANCE)
-    deltas.append(drift["note_count_delta"])
-    f1s.append(drift["onset_f1"])
-
-print(f"n={len(deltas)} mean note_count_delta={statistics.mean(deltas):+.1f} "
-      f"mean onset_f1={statistics.mean(f1s):.3f}")
-```
-This is a genuine audio-provenance perturbation only if drift is measured
-rather than assumed — report the aggregated `note_count_delta`/`onset_f1`
-alongside the two tau-c deltas above, not as a separate afterthought.
-
-## Deferred to after gate (i)
-
-The design spec's gate (ii) discussion notes that features37's ridge in
-Stage 4 is fit on ~720 train-fold pieces while the LoRA fine-tune trains on
-~3,800 — so beating 0.8048 that way partly measures more supervision, not a
-better encoder. The design spec's fix is: "if (i) passes, a matched
-features37 arm refit on the same ~3,800 pieces makes (ii) honest."
-
-No task in this plan builds that matched arm. That is deliberate, not an
-oversight:
-
-- it is conditional on gate (i) passing — there is no reason to build it if
-  the fine-tune never clears Stage 4;
-- it cannot be correctly specified before gate (i) produces numbers (which
-  ~3,800-piece pool, which fold structure, and what to compare it against
-  all depend on what Stage 4 actually measured);
-- it is therefore explicitly out of scope for Phase 1's build. If gate (i)
-  passes, scope and build the matched features37 arm as a follow-up task
-  before treating gate (ii)'s features37 comparison as fully honest.
-
-**DONE 2026-08-06.** Gate (i) passed, so this arm was built as
-`matched_features37.py` and measured:
-
-```bash
-cd model && uv run python -m claim_measurement.difficulty.matched_features37 \
-    --data-root /Users/jdhiman/Documents/crescendai/model/data \
-    --fold-emb-dir /Users/jdhiman/Documents/crescendai/model/data/results/phase1_lora/fold_embeddings \
-    --fold-plans ~/phase1-lora-bundle/fold_plans.json
-```
-
-Refitting features37 on the LoRA's own pools (~4,000 rows instead of ~720)
-moves it from 0.8038 to **0.8068** — `+0.0032 CI95[-0.0027,+0.0096] noise`.
-The fine-tune's margin therefore survives supervision matching at
-**+0.0325 CI95[+0.0201,+0.0455] SIG**. The supervision objection is answered,
-not merely acknowledged; see the decision log entry in
-`track-a-difficulty-prediction.md` for the caveats.
-
-## If both gates pass
-
-Report the measured deltas (not the FLOP-derived estimates) in
-`docs/mirex/track-a-difficulty-prediction.md`'s decision log, per the design
-spec's File Changes table. That edit is out of this plan's scope (it happens
-at ship time, once real numbers exist).
-
-## If either gate fails
-
-Report the negative result plainly. A `noise` verdict on gate (i) or a
-`ci_lo_vs_features37 <= 0` on gate (ii) is a real finding — #137's own history
-is seven converging nulls; an eighth is not a failure of this plan, it is data.
