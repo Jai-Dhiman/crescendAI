@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ValidationError } from "../lib/errors";
 import {
 	type BaselineState,
 	BaselineStateSchema,
@@ -56,11 +57,23 @@ describe("explicit failures", () => {
 				timestamp: "2026-01-01T00:00:00Z",
 				scores: { not_a_dimension: CLUSTER } as never,
 			}),
+		).toThrow(ValidationError);
+		expect(() =>
+			updateBaseline(state, {
+				timestamp: "2026-01-01T00:00:00Z",
+				scores: { not_a_dimension: CLUSTER } as never,
+			}),
 		).toThrow(/unknown dimension/);
 	});
 
 	it("throws on a non-finite score", () => {
 		const state = initialBaselineState();
+		expect(() =>
+			updateBaseline(state, {
+				timestamp: "2026-01-01T00:00:00Z",
+				scores: { pedaling: [0.5, Number.NaN, 0.5] },
+			}),
+		).toThrow(ValidationError);
 		expect(() =>
 			updateBaseline(state, {
 				timestamp: "2026-01-01T00:00:00Z",
@@ -76,6 +89,12 @@ describe("explicit failures", () => {
 				timestamp: "not-a-date",
 				scores: { pedaling: CLUSTER },
 			}),
+		).toThrow(ValidationError);
+		expect(() =>
+			updateBaseline(state, {
+				timestamp: "not-a-date",
+				scores: { pedaling: CLUSTER },
+			}),
 		).toThrow(/unparseable timestamp/);
 	});
 
@@ -84,6 +103,12 @@ describe("explicit failures", () => {
 			timestamp: "2026-01-05T00:00:00Z",
 			scores: { pedaling: CLUSTER },
 		});
+		expect(() =>
+			updateBaseline(state, {
+				timestamp: "2026-01-01T00:00:00Z",
+				scores: { pedaling: CLUSTER },
+			}),
+		).toThrow(ValidationError);
 		expect(() =>
 			updateBaseline(state, {
 				timestamp: "2026-01-01T00:00:00Z",

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DIMS_6, type Dimension } from "../lib/dims";
+import { ValidationError } from "../lib/errors";
 
 // ---------------------------------------------------------------------------
 // student-baseline — the single gate deciding whether a deviation in a
@@ -111,25 +112,27 @@ export function initialBaselineState(): BaselineState {
 function validateSession(state: BaselineState, session: SessionSamples): void {
 	const timestampMs = Date.parse(session.timestamp);
 	if (Number.isNaN(timestampMs)) {
-		throw new Error(
+		throw new ValidationError(
 			`updateBaseline: unparseable timestamp "${session.timestamp}"`,
 		);
 	}
 	if (state.lastSessionTimestamp !== null) {
 		const lastMs = Date.parse(state.lastSessionTimestamp);
 		if (timestampMs < lastMs) {
-			throw new Error(
+			throw new ValidationError(
 				`updateBaseline: session timestamp ${session.timestamp} precedes last folded session ${state.lastSessionTimestamp}`,
 			);
 		}
 	}
 	for (const [dimension, samples] of Object.entries(session.scores)) {
 		if (!(DIMS_6 as readonly string[]).includes(dimension)) {
-			throw new Error(`updateBaseline: unknown dimension "${dimension}"`);
+			throw new ValidationError(
+				`updateBaseline: unknown dimension "${dimension}"`,
+			);
 		}
 		for (const score of samples ?? []) {
 			if (!Number.isFinite(score)) {
-				throw new Error(
+				throw new ValidationError(
 					`updateBaseline: non-finite score ${score} for dimension "${dimension}"`,
 				);
 			}
