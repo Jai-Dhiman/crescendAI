@@ -3058,9 +3058,22 @@ editing them is unreliable. This log is the recovery state.
 | 7 — place by measureOn, not index | B | `Failed to resolve import "./mark-placement"` | `f0fd64ea` | see Group B note |
 | 8 — timestamp anchors reported unplaced | B | `expected [] to deeply equal [ 'stamp' ]` (mark-placement.test.ts:65) | `3ec59dab` | see Group B note |
 | 9 — unresolvable bars reported unplaced | B | `expected [] to deeply equal [ 'off-page', 'unknown-bar' ]` (mark-placement.test.ts:85) | `3eb6f63f` | see Group B note |
+| 6 — fixtures cover the vocabulary | C | `Failed to resolve import "./mark-fixtures"` | `7f628da9` | PASS (verbatim from plan; taxonomy/lifecycle/degradation coverage asserted, not assumed) |
 
 **Group 0 + Group A: COMPLETE and REVIEWED (verdict PASS).**
 **Group B: COMPLETE and REVIEWED (verdict PASS).**
+**Group C (Task 6): COMPLETE and REVIEWED (verdict PASS).**
+
+**WORKING-DIRECTORY TRAP, hit during Task 6.** Every command in this plan must
+run from `apps/web`. A `cd` to the worktree root for a docs commit left the
+shell there, and the next `bunx vitest` run silently *passed* from the root: with
+no root `package.json` to resolve from, `bunx` downloaded a DIFFERENT vitest
+(v4.1.10 vs the project's v4.0.18), ran outside the project's vitest config, and
+left a phantom root `node_modules/.vite`. The tell was `bunx tsc --noEmit`
+printing its HELP TEXT instead of nothing — there is no tsconfig at the root.
+Both TDD steps were re-run from `apps/web` and the phantom directory removed.
+**A green test proves nothing until you have confirmed which directory produced
+it; check the `RUN v… <path>` line vitest prints.**
 
 Group B was reviewed as one cumulative diff (`27516a5b..3eb6f63f`) for the same
 reason as Group A: Tasks 7-9 all edit `mark-placement.ts` sequentially.
