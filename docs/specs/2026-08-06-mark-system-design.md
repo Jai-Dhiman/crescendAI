@@ -109,12 +109,32 @@ placement math would be untestable inside a component — but it is also the rig
 decomposition: the arithmetic and the fallback policy are the substance, and DOM
 reading is three lines of adapter in `ScoreMarkLayer`.
 
+Bar identity comes from the score IR, which already exists and is authoritative.
+`score-ir.ts` builds `BarIR = { barNumber, measureOn, pageN, ... }` from
+Verovio's **timemap**, and `measureOn` is the `id` attribute of the measure
+`<g>` in the rendered SVG (`score-ir.ts:242`, keyed through the
+`measureByMeasureOn` lookup at `:185`). So the resolution chain is:
+
+```
+mark.anchor.bars[0]  ->  BarIR.barNumber  ->  BarIR.measureOn  ->  getElementById  ->  rect
+```
+
+This is the precise correction to the prior art. `ScorePanel`'s defect is not
+"used an index" in the abstract — Verovio's timemap ordering *is* the bar
+ordering. The defect is that it indexed into **DOM order on the currently
+rendered page**, and the DOM holds only one page's measures while bar numbers
+span the whole piece. Every bar past page 1 therefore resolved to the wrong
+element or to the invented fallback.
+
 Two rules make the wrong-bar defect unrepresentable:
 
-1. Measures are matched by their **`data-n` bar number**, never by array index.
-2. A bar-anchored mark whose measure is not present returns in `unplaced`. There
-   is no invented-position branch. `placeMarks` cannot return a coordinate it
-   did not derive from a real measure rect.
+1. Bars are matched through `BarIR.measureOn`, never by position in any array
+   or in the DOM. `placeMarks` never sees an index.
+2. A bar-anchored mark whose measure has no rect returns in `unplaced`. There is
+   no invented-position branch; `placeMarks` cannot return a coordinate it did
+   not derive from a real measure rect. Page filtering falls out of this for
+   free: a bar on another page has no rect, so it degrades to the timeline
+   rather than being drawn somewhere false.
 
 ### Unplaced marks fall back to the timeline, and the gap is disclosed
 
@@ -198,10 +218,12 @@ widening #156's harness as a side effect.
 
 ### `src/lib/mark-placement.ts` — bar→pixel mapping
 
-- **Interface:** `MeasureRect`, `PlacedMark`, `Placement`, `placeMarks()`.
-- **Hides:** matching by `data-n` rather than index, the glyph vertical offset,
-  the policy that unresolvable and timestamp-anchored marks go to `unplaced`,
-  and the absence of any fallback coordinate.
+- **Interface:** `MeasureRect`, `PlacedMark`, `Placement`, `placeMarks(bars,
+  rectsByMeasureOn, marks)`.
+- **Hides:** the `barNumber -> measureOn -> rect` resolution chain, the glyph
+  vertical offset, the policy that unresolvable and timestamp-anchored marks go
+  to `unplaced`, page filtering as an emergent property, and the absence of any
+  fallback coordinate.
 - **Depth:** DEEP — one function; behind it sits the entire wrong-bar defence.
 - **Tested through:** `placeMarks()` return value against synthetic rects.
 
@@ -227,10 +249,10 @@ widening #156's harness as a side effect.
 
 ### `src/components/ScoreMarkLayer.tsx` — Canvas A
 
-- **Interface:** `<ScoreMarkLayer containerRef marks />`.
-- **Hides:** DOM measurement of `.measure[data-n]` elements, container-relative
-  coordinate translation, re-measurement on resize, the unplaced-count
-  disclosure.
+- **Interface:** `<ScoreMarkLayer containerRef bars marks />`.
+- **Hides:** DOM lookup of measure elements by `measureOn` id,
+  container-relative coordinate translation, re-measurement on resize, the
+  unplaced-count disclosure.
 - **Depth:** SHALLOW **by design** — it is the DOM adapter. Its shallowness is
   the point: all substance was pushed into `mark-placement.ts` so it could be
   tested. Justified.
@@ -255,7 +277,12 @@ widening #156's harness as a side effect.
   `cd apps/web && bun run test && bunx tsc --noEmit && bun run lint && bun run test:a11y`
 - **Harness (Task Group 0):** a cross-canvas contract test,
   `src/components/mark-canvases.contract.test.tsx`, that renders one fixture
-  array through both canvases and asserts their accessible-name sets are equal.
+  array through both canvases and asserts (a) Canvas B renders **every** mark,
+  and (b) every mark Canvas A does render carries an accessible name
+  **identical** to that mark's name on Canvas B. The two name sets are
+  deliberately *not* equal — Canvas A is the lossy view by design, so asserting
+  set equality would encode the opposite of the intended behaviour. Containment
+  plus per-mark identity is the correct contract.
   It fails before either canvas exists (module-not-found), and it is the single
   test that encodes the issue's headline success criterion. It is written first
   and re-run after every subsequent group.
