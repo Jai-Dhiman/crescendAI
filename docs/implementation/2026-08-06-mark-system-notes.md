@@ -23,3 +23,28 @@ The plan originally documented only the test-suite consequence, and most tasks'
 Step 4 asked for `tsc` exit 0 — unachievable until Task 19. Plan updated: tasks
 now filter with `bunx tsc --noEmit 2>&1 | grep -v "mark-canvases.contract.test.tsx"`
 and expect no surviving output.
+
+## Tasks 3-5 (Group A complete)
+Task 3 drove the bars branch; observed failure `expected 'timestamp' to be 'bars'`
+confirms Task 2's deliberate incompleteness worked as designed.
+Task 4 (anchorLabel) and Task 5 (isMarkWorthy + vocabulary tables) both failed
+first with `TypeError: X is not a function` rather than an import error — Vite
+resolves a missing named export to `undefined` at runtime instead of erroring at
+import time. Same proof, different message than the plan predicted.
+Task 5 also ran `biome format --write` on mark.test.ts (import line exceeded
+Biome's line width). Formatting only, tests re-run green before commit.
+
+## Defect found by the controller after Task 5 (fixed)
+Task 1's `--no-verify` bypassed the Biome formatter as well as the hook, leaving
+`bun run lint` at exit 1 with a `format` error on the contract harness. Since
+`lint-web` is a pre-push blocking gate, this broke a gate for reasons unrelated
+to the intentional-red semantics. Fixed by formatting the harness; lint returned
+to the exact baseline (exit 0, 107 warnings, 23 infos) and the harness stayed red
+with the correct module-resolution error. Plan's Task 1 now includes the format
+step.
+
+NOTE for reviewers: a Task 5 subagent reported "2 pre-existing lint errors", one
+in test-setup.ts. That was WRONG. There was exactly 1 error (the format error
+above), and test-setup.ts:32 noUselessConstructor is a pre-existing WARNING
+within the unchanged 107, last touched by 447aa295. Running a command proves
+errors are real; it does not prove they are pre-existing.

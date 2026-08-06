@@ -304,6 +304,21 @@ git add src/components/mark-canvases.contract.test.tsx && git commit -m "test(ma
 mechanical checks and this commit is intentionally red. Say so in the message,
 per `CLAUDE.md`.
 
+**Then immediately format the file and amend.** Bypassing pre-commit also
+bypasses the Biome formatter, which leaves `bun run lint` at **exit 1** with a
+`format` error on this file. `lint-web` is a pre-push blocking gate in this
+repo, so an unformatted harness breaks a gate for reasons that have nothing to
+do with the intentional-red test semantics. This was missed on the first build
+pass and caught by the controller after Task 5:
+
+```bash
+bunx biome format --write src/components/mark-canvases.contract.test.tsx
+git add src/components/mark-canvases.contract.test.tsx && git commit --amend --no-edit --no-verify
+```
+
+Confirm `bun run lint` returns to exit 0 with the baseline 107 warnings / 23
+infos, and that the harness is still red with a module-resolution error.
+
 ---
 
 ### Task 2: Anchor degrades to timestamp when alignment is poor
@@ -3035,7 +3050,16 @@ editing them is unreliable. This log is the recovery state.
 | Task | Group | Observed Step-2 failure (proof the test bit) | Commit | Reviews |
 |---|---|---|---|---|
 | 1 — contract harness | 0 | `Failed to resolve import "../test-utils/mark-fixtures"` (vite:import-analysis, 0 tests collected) | `d5076641` | PASS (merged spec+quality: verbatim file, no impl code) |
-| 2 — anchor degrades to timestamp | A | `Failed to resolve import "./mark"` | `bb126408` | pending |
+| 2 — anchor degrades to timestamp | A | `Failed to resolve import "./mark"` | `bb126408` | see Group A note |
+| 3 — bars kept above threshold | A | `AssertionError: expected 'timestamp' to be 'bars'` (mark.test.ts:24) | `bf868f9a` | see Group A note |
+| 4 — anchorLabel | A | `TypeError: anchorLabel is not a function` (mark.test.ts:52) | `e45a5806` | see Group A note |
+| 5 — isMarkWorthy + vocabulary | A | `TypeError: isMarkWorthy is not a function` (mark.test.ts:65) | `40bdb1a0` | see Group A note |
+
+**Group A status: all four tasks landed, 6/6 tests green in `src/lib/mark.test.ts`.**
+Cumulative Group A review still outstanding — Tasks 2-5 all edit the same two
+files sequentially, so per-task review would race the next task's edits and
+produce false findings. Review the cumulative diff `bb126408..40bdb1a0` task by
+task instead.
 
 ### Review findings carried forward
 

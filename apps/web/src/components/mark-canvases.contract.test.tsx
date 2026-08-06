@@ -23,7 +23,11 @@ function renderScoreCanvas() {
 			{ON_PAGE.map((b) => (
 				<div key={b.measureOn} id={b.measureOn} />
 			))}
-			<ScoreMarkLayer containerRef={ref} bars={FIXTURE_BARS} marks={FIXTURE_MARKS} />
+			<ScoreMarkLayer
+				containerRef={ref}
+				bars={FIXTURE_BARS}
+				marks={FIXTURE_MARKS}
+			/>
 		</div>,
 	);
 }
