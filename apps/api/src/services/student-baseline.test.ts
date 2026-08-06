@@ -177,6 +177,58 @@ describe("across-session evidence", () => {
 	});
 });
 
+describe("combined within-session and across-session evidence", () => {
+	// Shifted centre (0.79/0.81 vs the baseline's 0.49/0.51) AND internally
+	// noisy: 3 points at 0.3 are far enough from this session's own centre to
+	// trip the within-session MAD threshold too, so a single fold produces
+	// both a nonzero `withinSessionDeviants` and `acrossSessionOutOfBand`.
+	const shiftedNoisy = [0.79, 0.81, 0.79, 0.81, 0.79, 0.81, 0.3, 0.3, 0.3];
+	const shiftedClean = [0.79, 0.81, 0.79, 0.81, 0.79, 0.81];
+
+	it("sums within-session and across-session contribution in the same fold", () => {
+		const trace = runSequence([
+			{ timestamp: "2026-01-01T00:00:00Z", scores: { dynamics: CLUSTER } },
+			{ timestamp: "2026-01-02T00:00:00Z", scores: { dynamics: CLUSTER } },
+			{ timestamp: "2026-01-03T00:00:00Z", scores: { dynamics: shiftedNoisy } },
+		]);
+		// Hand-verified for this exact fixture: contribution = 3 within-session
+		// deviants (capped at MAX_WITHIN_SESSION_CONTRIBUTION) + 1 across-session
+		// = 4, taking consecutiveOutOfBand from 0 straight to 4 in one fold --
+		// only possible if both sources fired in the same fold.
+		expect(trace[2].dimensions.dynamics.consecutiveOutOfBand).toBe(4);
+		expect(trace[2].dimensions.dynamics.lifecycle).toBe("active");
+	});
+
+	it("fires in strictly fewer sessions than across-session evidence alone", () => {
+		const combined = runSequence([
+			{ timestamp: "2026-01-01T00:00:00Z", scores: { dynamics: CLUSTER } },
+			{ timestamp: "2026-01-02T00:00:00Z", scores: { dynamics: CLUSTER } },
+			{ timestamp: "2026-01-03T00:00:00Z", scores: { dynamics: shiftedNoisy } },
+			{ timestamp: "2026-01-04T00:00:00Z", scores: { dynamics: shiftedNoisy } },
+		]);
+		const acrossOnly = runSequence([
+			{ timestamp: "2026-01-01T00:00:00Z", scores: { dynamics: CLUSTER } },
+			{ timestamp: "2026-01-02T00:00:00Z", scores: { dynamics: CLUSTER } },
+			{ timestamp: "2026-01-03T00:00:00Z", scores: { dynamics: shiftedClean } },
+			{ timestamp: "2026-01-04T00:00:00Z", scores: { dynamics: shiftedClean } },
+			{ timestamp: "2026-01-05T00:00:00Z", scores: { dynamics: shiftedClean } },
+			{ timestamp: "2026-01-06T00:00:00Z", scores: { dynamics: shiftedClean } },
+		]);
+		const combinedFireSession = combined.findIndex(
+			(s) => s.dimensions.dynamics.lifecycle === "active",
+		);
+		const acrossOnlyFireSession = acrossOnly.findIndex(
+			(s) => s.dimensions.dynamics.lifecycle === "active",
+		);
+		expect(combinedFireSession).toBeGreaterThanOrEqual(0);
+		expect(acrossOnlyFireSession).toBeGreaterThanOrEqual(0);
+		// Same shift magnitude, same starting history -- the only difference is
+		// whether within-session evidence contributes. Fewer sessions to fire
+		// proves the two sources sum rather than merely co-occur.
+		expect(combinedFireSession).toBeLessThan(acrossOnlyFireSession);
+	});
+});
+
 describe("band width", () => {
 	it("narrows the band monotonically under consistent evidence", () => {
 		// Same call shape every session -- no session-count branch anywhere in
