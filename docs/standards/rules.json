@@ -34,6 +34,18 @@
       "status": "approved",
       "check": "cwd_relative_defaults"
     },
+    "RES-001": {
+      "level": "MUST",
+      "text": "Every whole_piece reference constant in a claim-verifier measurer MUST record the (transcriber x corpus) pair it was calibrated on in apps/evals/claim_taxonomy/reference_calibration.json, and that transcriber MUST be the active transcription substrate. A stale reference does not fail loudly: the signed d stays computable and the router stays confident while the faithfulness rate silently collapses (#101 FRONT 9 measured dynamics 0.979 -> 0.236 on one stale line; FRONT 10 measured articulation 0.950 -> 0.438).",
+      "source": "docs/model/claim-verifier-signed-d-conventions.md#front-9-finding-2",
+      "scope": [
+        "apps/evals/claim_taxonomy/verifier/measurers/**",
+        "apps/evals/claim_taxonomy/reference_calibration.json"
+      ],
+      "status": "approved",
+      "check": "reference_calibration",
+      "promotion_note": "Advisory, NOT enforced: dynamics REFERENCE_VELOCITY (aria-amt, 51.5) and pedaling REFERENCE_FRACTION (aria-amt, 0.4623) are live violations left standing on purpose. Their recalibrated values are measured (64.33 and 0.5798 on transkun/MAESTRO) but shipping them changes production verdicts, which is an owner decision. Promote to enforced once those two land."
+    },
     "TS-WRK-001": {
       "level": "MUST",
       "text": "Worker code MUST read configuration from c.env or the fetch handler env, never process.env.",

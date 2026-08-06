@@ -1,0 +1,42 @@
+{
+  "note": "Calibration provenance for every whole_piece reference constant in the verifier's measurers. Each reference is a corpus-median anchor measured on ONE (transcriber x corpus) pair. Swapping either silently invalidates it -- the signed d stays computable, the verdicts stay confident, and the faithfulness rate collapses with no error anywhere. #101 FRONT 9 Finding 2 measured that collapse at 0.979 -> 0.236 for dynamics on a single stale line; FRONT 10 replicated it for articulation at 0.950 -> 0.438. RES-001 checks this file against the measurer source, so recalibrating means editing BOTH and the check fails until they agree.",
+  "active_substrate": "transkun",
+  "active_substrate_source": "#128 adopted Transkun repo-wide behind the frozen /transcribe contract, replacing aria-amt.",
+  "constants": {
+    "REFERENCE_VELOCITY": {
+      "module": "apps/evals/claim_taxonomy/verifier/measurers/dynamics.py",
+      "value": 51.5,
+      "unit": "midi_velocity",
+      "calibrated_for": { "substrate": "aria-amt", "corpus": "percepiano-fluidsynth" },
+      "status": "STALE -- calibrated on the retired aria-amt substrate, not on the active one",
+      "measured_recalibrations": {
+        "transkun/percepiano-fluidsynth": 65.66,
+        "transkun/maestro-realaudio": 64.33
+      },
+      "evidence": "docs/model/claim-verifier-signed-d-conventions.md FRONT 8d + FRONT 9 Finding 2. Naive swap (reference left at 51.5) crashes the dynamics rate to 0.413 on fluidsynth and 0.236 on MAESTRO real audio; recalibrating recovers 0.784 and 0.979 respectively.",
+      "shipping_decision": "OWNER. Changing this line changes production verdicts, so FRONT 8d/9 recorded the recalibrations as MEASUREMENTS and deliberately did not ship them."
+    },
+    "REFERENCE_FRACTION": {
+      "module": "apps/evals/claim_taxonomy/verifier/measurers/pedaling.py",
+      "value": 0.4623,
+      "unit": "time_on_fraction",
+      "calibrated_for": { "substrate": "aria-amt", "corpus": "percepiano-fluidsynth" },
+      "status": "STALE -- calibrated on the retired aria-amt substrate, not on the active one",
+      "measured_recalibrations": {
+        "transkun/maestro-realaudio": 0.5798
+      },
+      "evidence": "docs/model/claim-verifier-signed-d-conventions.md FRONT 9 Finding 2 and Finding 3. GT median on the same corpus is 0.5745.",
+      "shipping_decision": "OWNER. Same reason as REFERENCE_VELOCITY."
+    },
+    "REFERENCE_RATIO": {
+      "module": "apps/evals/claim_taxonomy/verifier/measurers/articulation.py",
+      "value": 0.8159,
+      "unit": "duration_ioi_ratio",
+      "calibrated_for": { "substrate": "transkun", "corpus": "maestro-realaudio" },
+      "status": "CURRENT -- calibrated on the active substrate",
+      "measured_recalibrations": {},
+      "evidence": "docs/model/claim-verifier-signed-d-conventions.md FRONT 10. This is the AMT corpus median, NOT the GT median 0.8796: d is computed from the AMT statistic, so a GT anchor would add Transkun's systematic release bias to every measurement. Measured sensitivity on the same corpus: rate 0.950 at 0.8159, 0.701 at 1.0, 0.438 at 0.6.",
+      "shipping_decision": "SHIPPED -- the dimension was ungated in the same front, so there is no legacy verdict stream to change."
+    }
+  }
+}

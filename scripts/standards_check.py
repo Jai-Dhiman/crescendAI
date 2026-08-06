@@ -208,6 +208,95 @@ def check_cwd_relative_defaults(files: list[Path], rules: dict) -> list[Finding]
     return findings
 
 
+REFERENCE_MANIFEST_PATH = (
+    REPO_ROOT / "apps" / "evals" / "claim_taxonomy" / "reference_calibration.json"
+)
+MEASURERS_DIR = (
+    REPO_ROOT / "apps" / "evals" / "claim_taxonomy" / "verifier" / "measurers"
+)
+# `NAME = 12.34` at module level. Only float literals: a reference is a corpus median.
+REFERENCE_ASSIGN_RE = re.compile(
+    r"^(REFERENCE_[A-Z_]+)\s*=\s*(-?\d+(?:\.\d+)?)\s*(?:#.*)?$"
+)
+
+
+def _reference_literals(module_path: Path) -> dict[str, tuple[float, int]]:
+    """Every module-level REFERENCE_* float in a measurer, with its line number."""
+    found = {}
+    for i, line in enumerate(read_lines(module_path), 1):
+        m = REFERENCE_ASSIGN_RE.match(line)
+        if m:
+            found[m.group(1)] = (float(m.group(2)), i)
+    return found
+
+
+def check_reference_calibration(_files: list[Path], rules: dict) -> list[Finding]:
+    """A whole_piece reference must be calibrated on the ACTIVE transcription substrate.
+
+    A reference is a corpus-median anchor measured on one (transcriber x corpus) pair.
+    Swap
+    either and nothing breaks loudly: d stays computable, the router stays confident,
+    and the
+    faithfulness rate silently collapses. #101 FRONT 9 measured 0.979 -> 0.236 for
+    dynamics on
+    one stale line; FRONT 10 replicated it at 0.950 -> 0.438 for articulation. This
+    check makes
+    that failure mechanical in three directions:
+
+      1. the literal in the measurer matches the value recorded in the manifest,
+      2. the manifest's calibrated_for.substrate is the active substrate,
+      3. no REFERENCE_* constant exists in a measurer without a manifest entry.
+    """
+    rule = rules["RES-001"]
+    rid, level = "RES-001", rule["level"]
+    rel_manifest = REFERENCE_MANIFEST_PATH.relative_to(REPO_ROOT).as_posix()
+    if not REFERENCE_MANIFEST_PATH.is_file():
+        return [Finding(rid, level, rel_manifest, 0, "(missing)",
+                        "the reference calibration manifest is missing; every measurer "
+                        "reference is unrecorded.")]
+
+    manifest = json.loads(REFERENCE_MANIFEST_PATH.read_text(encoding="utf-8"))
+    active = manifest["active_substrate"]
+    constants = manifest["constants"]
+    findings = []
+
+    for name, entry in constants.items():
+        module = REPO_ROOT / entry["module"]
+        if not module.is_file():
+            findings.append(Finding(rid, level, entry["module"], 0, name,
+                                    f"{name} names a module that does not exist."))
+            continue
+        literals = _reference_literals(module)
+        if name not in literals:
+            findings.append(Finding(rid, level, entry["module"], 0, name,
+                                    f"{name} is recorded in {rel_manifest} but is not "
+                                    f"assigned a float literal in the module."))
+            continue
+        value, line = literals[name]
+        if value != entry["value"]:
+            findings.append(Finding(
+                rid, level, entry["module"], line, f"{name} = {value}",
+                f"the code says {value} but {rel_manifest} records {entry['value']}. "
+                "Recalibrating means editing both, so the provenance cannot drift."))
+        calibrated = entry["calibrated_for"]["substrate"]
+        if calibrated != active:
+            findings.append(Finding(
+                rid, level, entry["module"], line, f"{name} = {value}",
+                f"calibrated on '{calibrated}' but the active substrate is '{active}'. "
+                "A stale reference does not fail loudly -- it silently collapses the "
+                "faithfulness rate (#101 FRONT 9: dynamics 0.979 -> 0.236)."))
+
+    for module in sorted(MEASURERS_DIR.glob("*.py")):
+        rel = module.relative_to(REPO_ROOT).as_posix()
+        for name, (value, line) in _reference_literals(module).items():
+            if name not in constants:
+                findings.append(Finding(
+                    rid, level, rel, line, f"{name} = {value}",
+                    f"{name} is a substrate-calibrated reference with no entry in "
+                    f"{rel_manifest}; its calibration provenance is unrecorded."))
+    return findings
+
+
 SLUG_RE = re.compile(r"\[(TS-[A-Z]+-\d{3})\]")
 
 
@@ -248,6 +337,7 @@ CHECKS = {
     "uv_run_isolation": check_uv_run_isolation,
     "cwd_relative_defaults": check_cwd_relative_defaults,
     "rules_index_sync": check_rules_index_sync,
+    "reference_calibration": check_reference_calibration,
 }
 
 

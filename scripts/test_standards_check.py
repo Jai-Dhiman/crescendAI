@@ -9,6 +9,7 @@ is not. Without the negative case a check that flags everything would pass.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -22,6 +23,7 @@ RULES = {
     "OPS-001": {"level": "MUST"},
     "OPS-002": {"level": "MUST"},
     "PY-001": {"level": "MUST"},
+    "RES-001": {"level": "MUST"},
 }
 
 
@@ -110,6 +112,109 @@ def test_file_anchored_cli_default_is_clean(tmp_repo_file):
         ')\n',
     )
     assert sc.check_cwd_relative_defaults([f], RULES) == []
+
+
+@pytest.fixture
+def reference_setup(tmp_path, monkeypatch):
+    """Point RES-001 at a throwaway manifest + measurers dir.
+
+    `substrate` is what the reference was calibrated on; `value` is what the manifest
+    records;
+    `code_value` is the literal actually in the module. Defaults are the clean,
+    consistent case.
+    """
+
+    def make(
+        *, substrate="transkun", value=0.8159, code_value=None, extra_module_line=""
+    ):
+        measurers = tmp_path / "measurers"
+        measurers.mkdir(exist_ok=True)
+        module = measurers / "articulation.py"
+        module.write_text(
+            f"REFERENCE_RATIO = {value if code_value is None else code_value}\n"
+            f"{extra_module_line}",
+            encoding="utf-8",
+        )
+        manifest = tmp_path / "reference_calibration.json"
+        manifest.write_text(
+            json.dumps({
+                "active_substrate": "transkun",
+                "constants": {
+                    "REFERENCE_RATIO": {
+                        "module": module.relative_to(sc.REPO_ROOT).as_posix()
+                        if module.is_relative_to(sc.REPO_ROOT)
+                        else str(module),
+                        "value": value,
+                        "calibrated_for": {"substrate": substrate, "corpus": "maestro"},
+                    }
+                },
+            }),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(sc, "REFERENCE_MANIFEST_PATH", manifest)
+        monkeypatch.setattr(sc, "MEASURERS_DIR", measurers)
+        monkeypatch.setattr(sc, "REPO_ROOT", tmp_path.parent)
+        # the manifest stores module paths relative to REPO_ROOT
+        data = json.loads(manifest.read_text())
+        data["constants"]["REFERENCE_RATIO"]["module"] = module.relative_to(
+            tmp_path.parent
+        ).as_posix()
+        manifest.write_text(json.dumps(data), encoding="utf-8")
+        return manifest
+
+    return make
+
+
+def test_reference_calibrated_on_the_active_substrate_is_clean(reference_setup):
+    reference_setup(substrate="transkun")
+    assert sc.check_reference_calibration([], RULES) == []
+
+
+def test_reference_calibrated_on_a_retired_substrate_is_flagged(reference_setup):
+    """The FRONT 9 trap: aria-era reference, Transkun substrate, no loud failure."""
+    reference_setup(substrate="aria-amt")
+    findings = sc.check_reference_calibration([], RULES)
+    assert len(findings) == 1
+    assert findings[0].rule_id == "RES-001"
+    assert "aria-amt" in findings[0].why and "transkun" in findings[0].why
+
+
+def test_code_value_drifting_from_the_recorded_value_is_flagged(reference_setup):
+    """Recalibrating in code without recording it is the same failure one step earlier.
+    """
+    reference_setup(value=0.8159, code_value=64.33)
+    findings = sc.check_reference_calibration([], RULES)
+    assert len(findings) == 1
+    assert "64.33" in findings[0].why and "0.8159" in findings[0].why
+
+
+def test_an_unrecorded_reference_constant_is_flagged(reference_setup):
+    """A new measurer reference with no provenance entry at all."""
+    reference_setup(extra_module_line="REFERENCE_BRIGHTNESS = 12.5\n")
+    findings = sc.check_reference_calibration([], RULES)
+    assert len(findings) == 1
+    assert "REFERENCE_BRIGHTNESS" in findings[0].excerpt
+
+
+def test_live_manifest_matches_the_live_measurers():
+    """The shipped manifest must describe the shipped code. The two aria-era references
+    are
+    known violations held at `approved`; anything else means the manifest has gone
+    stale."""
+    rules = json.loads(sc.RULES_PATH.read_text(encoding="utf-8"))["rules"]
+    findings = sc.check_reference_calibration([], rules)
+    assert {f.excerpt.split(" =")[0] for f in findings} == {
+        "REFERENCE_VELOCITY",
+        "REFERENCE_FRACTION",
+    }
+    assert all("calibrated on 'aria-amt'" in f.why for f in findings)
+
+
+def test_res_001_is_not_enforced_while_the_aria_references_stand():
+    """Promotion-ramp guard: RES-001 must not block while known violations are live."""
+    rules = json.loads(sc.RULES_PATH.read_text(encoding="utf-8"))["rules"]
+    if sc.check_reference_calibration([], rules):
+        assert rules["RES-001"]["status"] != "enforced"
 
 
 def test_rules_index_and_style_guide_do_not_drift():
