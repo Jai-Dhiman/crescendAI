@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import { describe, expect, it } from "vitest";
 import { FIXTURE_BARS, FIXTURE_MARKS } from "../test-utils/mark-fixtures";
@@ -41,5 +41,25 @@ describe("ScoreMarkLayer", () => {
 
 		expect(screen.queryByLabelText(/Articulation/)).not.toBeInTheDocument();
 		expect(screen.getByText("3 marks not on this page")).toBeInTheDocument();
+	});
+
+	it("expands and collapses a mark's evidence on tap", () => {
+		renderLayer();
+		const glyph = screen.getByLabelText(/Needs work: Pedaling, bars 5-6/);
+
+		expect(
+			screen.queryByText(/pedal held through the bass change/),
+		).not.toBeInTheDocument();
+
+		fireEvent.click(glyph);
+		expect(
+			screen.getByText(/pedal held through the bass change/),
+		).toBeInTheDocument();
+		expect(glyph).toHaveAttribute("aria-expanded", "true");
+
+		fireEvent.click(glyph);
+		expect(
+			screen.queryByText(/pedal held through the bass change/),
+		).not.toBeInTheDocument();
 	});
 });

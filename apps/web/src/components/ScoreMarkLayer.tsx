@@ -2,6 +2,7 @@ import { type RefObject, useEffect, useState } from "react";
 import type { Mark } from "../lib/mark";
 import type { BarLocator, MeasureRect } from "../lib/mark-placement";
 import { placeMarks } from "../lib/mark-placement";
+import { MarkDetail } from "./MarkDetail";
 import { MarkGlyph } from "./MarkGlyph";
 
 interface ScoreMarkLayerProps {
@@ -75,6 +76,9 @@ export function ScoreMarkLayer({
 						expanded={expandedId === mark.id}
 						onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
 					/>
+					{expandedId === mark.id && (
+						<MarkDetail mark={mark} onClose={() => setExpandedId(null)} />
+					)}
 				</div>
 			))}
 			{unplaced.length > 0 && (
