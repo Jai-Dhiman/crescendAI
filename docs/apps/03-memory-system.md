@@ -35,10 +35,32 @@ interpretation), over MoonBeam scores and MPM features:
 - **Symmetric retirement**: persistently back inside the band retires the
   flag. This single mechanism drives the mark lifecycle
   (`active -> improving -> resolved`) and the piece page's fading marks.
-- **Cold start** (sessions 1-3): cohort priors from self-reported level,
-  feedback framed as exploratory; real gating from ~session 5-8 once the
-  noise floor is measurable. The cold-start path IS the
-  baseline-unavailable fallback path — one code path.
+- **No cohort priors, no self-reported level.** No calibration data for
+  per-level score distributions exists in this repo; a per-level constant
+  would be invented and would silently shape a student's first week. The
+  reference is always the student's own data — within-session on session 1,
+  increasingly across-session as history accumulates. There is no
+  session-count branch anywhere in the code; absence of history is expressed
+  as a **wide band**, never as a null and never as an `if`. Band half-width
+  is `max(noiseFloor, 0.2 × SD)`, where `noiseFloor` is an EWMA of the
+  student's own within-session spread — measurable from a single sitting,
+  which is what removes the need for priors.
+- **Gating is live from session 1**, via repeated within-session evidence
+  (≥3 deviant samples in one sitting): a first session that says nothing
+  reads as broken. The noise floor, however, can only be measured from a
+  session supplying at least 3 samples for a dimension; until it has been
+  measured at least once, across-session firing is suppressed entirely — the
+  system falls silent rather than guessing. This guards a real false-positive
+  bug caught in review: sparse sessions were collapsing the band and marking
+  students who played well.
+- **Accepted trade-off:** the motor-learning argument for a later gate
+  (early/concurrent feedback can harm retention) still favours holding off
+  a few sessions; session-1 flags rest on a thinner spread estimate. The
+  mitigation is a per-dimension `confidence` field (`exploratory` |
+  `provisional` | `established`, derived purely from accumulated update
+  count) that lets the teacher frame early marks as exploratory prose.
+  Confidence never gates firing — that property is enforced by tests in
+  both directions.
 
 Design mechanics and tuning live in #163. The state clock answers: "Where
 does this student stand, and is this deviation signal or noise?"
