@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ALIGNMENT_MIN, anchorLabel, resolveAnchor } from "./mark";
+import {
+	ALIGNMENT_MIN,
+	anchorLabel,
+	isMarkWorthy,
+	resolveAnchor,
+} from "./mark";
 
 describe("resolveAnchor", () => {
 	it("discards bars when alignment quality is below the threshold", () => {
@@ -57,5 +62,14 @@ describe("anchorLabel", () => {
 	it("zero-pads seconds under ten", () => {
 		const stamp = resolveAnchor({ atSeconds: 305, alignmentQuality: 0 });
 		expect(anchorLabel(stamp)).toBe("5:05");
+	});
+});
+
+describe("isMarkWorthy", () => {
+	it("is false only for absent", () => {
+		expect(isMarkWorthy("absent")).toBe(false);
+		expect(isMarkWorthy("active")).toBe(true);
+		expect(isMarkWorthy("improving")).toBe(true);
+		expect(isMarkWorthy("resolved")).toBe(true);
 	});
 });

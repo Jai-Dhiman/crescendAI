@@ -1,3 +1,5 @@
+import type { Dimension } from "./mock-session";
+
 /**
  * The brand is not exported. `resolveAnchor` is therefore the only function in
  * the codebase that can produce a MarkAnchor: no object literal written
@@ -62,3 +64,54 @@ export function anchorLabel(anchor: MarkAnchor): string {
 	}
 	return formatElapsed(anchor.atSeconds);
 }
+
+export type MarkTaxonomy = "needs_work" | "missed_opportunity" | "strong";
+
+/** The three mark-worthy values of #163's Lifecycle. `absent` produces no mark. */
+export type MarkLifecycle = "active" | "improving" | "resolved";
+
+/** Mirrors #163's Lifecycle at apps/api/src/services/student-baseline.ts. */
+export type BaselineLifecycle = "absent" | MarkLifecycle;
+
+/** Display hint only. Never gates rendering, placement, or visibility. */
+export type MarkConfidence = "exploratory" | "provisional" | "established";
+
+export interface Mark {
+	readonly id: string;
+	readonly anchor: MarkAnchor;
+	readonly taxonomy: MarkTaxonomy;
+	readonly dimension: Dimension;
+	readonly evidence: string;
+	readonly lifecycle: MarkLifecycle;
+	readonly confidence?: MarkConfidence;
+}
+
+/**
+ * The single derivation of mark-worthiness. #157 deliberately has no
+ * `markWorthy` field: two copies of one fact drift.
+ */
+export function isMarkWorthy(lifecycle: BaselineLifecycle): boolean {
+	return lifecycle !== "absent";
+}
+
+export const TAXONOMY_GLYPH: Readonly<Record<MarkTaxonomy, string>> = {
+	needs_work: "◉",
+	missed_opportunity: "○",
+	strong: "★",
+};
+
+export const TAXONOMY_LABEL: Readonly<Record<MarkTaxonomy, string>> = {
+	needs_work: "Needs work",
+	missed_opportunity: "Missed opportunity",
+	strong: "Strong",
+};
+
+/**
+ * Lifecycle -> visual strength. A lookup, never a computation: the client is
+ * forbidden from deriving or transitioning lifecycle, which is server state.
+ */
+export const LIFECYCLE_OPACITY: Readonly<Record<MarkLifecycle, number>> = {
+	active: 1,
+	improving: 0.7,
+	resolved: 0.4,
+};
