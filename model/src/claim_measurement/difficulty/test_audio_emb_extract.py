@@ -182,3 +182,71 @@ def test_build_fold_embedder_extraction_is_byte_identical_across_repeated_calls(
     assert first.shape == (4,)
     np.testing.assert_array_equal(first, second)
     np.testing.assert_array_equal(first, third)
+
+
+def test_peft_is_imported_only_after_the_loader_puts_the_fork_on_sys_path():
+    """Ordering contract, asserted on the source because the order IS the
+    contract: loader_factory installs the fork's PARTIAL vendored transformers
+    on sys.path, _stub_absent_transformers_models then supplies the
+    models.bloom that peft/utils/constants feature-probes for, and only then
+    may peft be imported. The original code imported peft FIRST, which binds
+    whatever transformers is already installed and skips the stub entirely.
+    """
+    from pathlib import Path
+
+    from claim_measurement.difficulty import audio_emb_extract
+
+    src = Path(audio_emb_extract.__file__).read_text()
+    loader_call = src.index("    base_model, tokenize, max_len = loader_factory(")
+    stub_call = src.index("    _stub_absent_transformers_models()\n")
+    peft_import = src.index("    from peft import PeftModel")
+    assert loader_call < stub_call < peft_import, (
+        "build_fold_embedder must call loader_factory, then the stub, then "
+        "import peft -- in that order")
+
+
+def test_script_header_declares_every_dep_this_module_and_its_imports_need():
+    """`uv run --script` builds an isolated env from this file's `# /// script`
+    header ALONE. A module-scope import anywhere in the local import chain that
+    the header does not declare fails at startup; a LAZY import that it does not
+    declare fails later, mid-run, after real work. That is how the first pilot
+    job died (scipy, via bakeoff_cv's `from scipy import stats`).
+    """
+    import ast
+    import re
+    import sys
+    from pathlib import Path
+
+    from claim_measurement.difficulty import audio_emb_extract
+
+    path = Path(audio_emb_extract.__file__).resolve()
+    module_dir = path.parent
+    block = re.search(r"# /// script\n(.*?)# ///", path.read_text(), re.DOTALL).group(1)
+    declared = {re.split(r"[<>=!\[]", d)[0].strip().lower().replace("-", "_")
+                for d in re.findall(r'"([^"]+)"', block)}
+    # distribution name -> importable top-level module, where they differ
+    declared |= {"sklearn" if d == "scikit_learn" else d for d in declared}
+
+    # This file plus every local module it imports at module scope.
+    chain = ["audio_emb_extract.py", "bakeoff_cv.py", "bakeoff_npz.py",
+             "train_fold.py"]
+    for filename in chain:
+        tree = ast.parse((module_dir / filename).read_text())
+        # Lazy imports count too: pretty_midi and peft are function-scope here
+        # and are still fatal when the function runs inside the isolated env.
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                roots = [a.name.split(".")[0] for a in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                roots = [node.module.split(".")[0]]
+            else:
+                continue
+            for root in roots:
+                if (root in ("__future__", "claim_measurement", "transformers",
+                             "bakeoff_cv", "ranking_loss", "trackio")
+                        or root in sys.stdlib_module_names):
+                    continue  # local, vendored-by-the-fork, or bundle-supplied
+                assert root in declared, (
+                    f"{filename} imports {root!r}, but audio_emb_extract.py's "
+                    f"`# /// script` header does not declare it. The isolated "
+                    f"env would die on it. Declared: {sorted(declared)}")
