@@ -233,8 +233,12 @@ def main(argv=None) -> int:
             rows.append(row)
             fh.write(json.dumps(row) + "\n")
             fh.flush()
+            # Full repr, not %.4f. The job's --out-dir dies with the container,
+            # so stdout is the only surviving record, and 4 decimals cannot
+            # support the bit-identical determinism claim this issue rests on:
+            # two runs agreeing to 4dp is evidence, not proof.
             print(f"{item['seconds']:8.1f}s audio -> {elapsed:8.1f}s  "
-                  f"ok={ok}  score={score:.4f}", flush=True)
+                  f"ok={ok}  score={score!r}", flush=True)
 
     # A one-item smoke run (--limit 1) is a legitimate way to spend the least
     # possible GPU time proving the plumbing works. Exiting non-zero on it
