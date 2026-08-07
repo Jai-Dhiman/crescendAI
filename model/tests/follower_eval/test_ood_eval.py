@@ -21,7 +21,7 @@ def _arm(take, level, med, w1, n=100):
         level=level,
         n_beats_eval=n,
         median_abs_err_beats=med,
-        p90_abs_err_beats=med * 2,
+        p90_abs_err_beats=None if med is None else med * 2,
         within_1beat_frac=w1,
     )
 
@@ -65,6 +65,50 @@ def test_table_uses_only_takes_present_in_every_level():
     midi = next(r for r in table["rows"] if r["level"] == "midi")
     # 0.500 would have dragged the midi baseline up if 'b' had been kept
     assert midi["median_abs_err_beats"] == pytest.approx(0.001)
+
+
+def test_a_take_present_but_null_at_one_level_cannot_unpair_the_means():
+    """Presence is not a value. A metric is None whenever a window evaluated
+    zero beats, which is a plausible phone-channel outcome -- so a take can be
+    recorded on every arm and still have nothing to contribute at one of them.
+
+    Averaging each level over whatever it happened to have non-None compares
+    DIFFERENT sets of takes, and can invert the sign: here 'b' follows on clean
+    and yields nothing on phone, so its large clean error stays in the baseline
+    while its absent phone error leaves the other mean, and the degraded channel
+    reads BETTER than the clean one."""
+    results = [
+        _arm("a", "clean", 0.10, 0.90),
+        _arm("b", "clean", 0.90, 0.10),
+        _arm("a", "phone", 0.20, 0.80),
+        _arm("b", "phone", None, None, n=0),  # present, but no evaluable beat
+    ]
+    table = ood_eval.paired_table(results, baseline_level="clean")
+    phone = next(r for r in table["rows"] if r["level"] == "phone")
+
+    # Both means must rest on take 'a' alone -- the only take with a value at
+    # every level -- so the phone channel reads WORSE, which it is.
+    assert table["n_takes_dropped_null_median"] == 1
+    assert phone["n_takes_median"] == 1
+    assert phone["delta_median_beats"] == pytest.approx(0.10)
+    assert phone["delta_within_1beat_pp"] == pytest.approx(-10.0)
+
+
+def test_a_level_with_no_usable_take_reports_none_rather_than_crashing():
+    """The report must still print. A formatter that raises tells you less than
+    one that shows the gap."""
+    results = [
+        _arm("a", "clean", 0.10, 0.90),
+        _arm("a", "phone", None, None, n=0),
+    ]
+    table = ood_eval.paired_table(results, baseline_level="clean")
+    assert table["n_takes_dropped_null_median"] == 1
+    for row in table["rows"]:
+        assert row["median_abs_err_beats"] is None
+        assert row["delta_median_beats"] is None
+    rendered = ood_eval._format({"factor": "channel", "table": table,
+                                 "metric_core": "x", "failures": []})
+    assert "--" in rendered
 
 
 def test_deltas_are_measured_against_the_named_baseline():

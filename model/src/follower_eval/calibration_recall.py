@@ -233,31 +233,32 @@ def _match(score_na: np.ndarray, perf_na: np.ndarray) -> list[dict]:
     return list(pa.AutomaticNoteMatcher()(score_na, perf_na))
 
 
-def parangonar_matched_score_ids(
+def parangonar_matched_ids(
     score_na: np.ndarray, perf_na: np.ndarray, match=_match
-) -> set[str]:
-    """Score ids parangonar paired with some performance note.
+) -> tuple[set[str], set[str]]:
+    """(matched score ids, matched performance ids) from ONE parangonar call.
 
-    A set, not a count: parangonar can emit the same score id twice, and
-    counting entries would then report recall above 1.0 on a duplicate.
+    One call, not one per side: ``extract_cli`` guards this library with a
+    timeout because it can blow up combinatorially on real transcriptions, and
+    matching twice for two views of the same result would double both the
+    runtime and that exposure on a gate a human is waiting on.
+
+    Sets, not counts: parangonar can emit the same score id twice, and counting
+    entries would then report recall above 1.0 on a duplicate.
     """
-    known = {str(s["id"]) for s in score_na}
-    return {
-        str(e.get("score_id"))
-        for e in match(score_na, perf_na)
-        if e.get("label") == "match" and str(e.get("score_id")) in known
-    }
-
-
-def parangonar_matched_perf_ids(
-    score_na: np.ndarray, perf_na: np.ndarray, match=_match
-) -> set[str]:
-    known = {str(p["id"]) for p in perf_na}
-    return {
-        str(e.get("performance_id"))
-        for e in match(score_na, perf_na)
-        if e.get("label") == "match" and str(e.get("performance_id")) in known
-    }
+    known_s = {str(s["id"]) for s in score_na}
+    known_p = {str(p["id"]) for p in perf_na}
+    matched_s: set[str] = set()
+    matched_p: set[str] = set()
+    for e in match(score_na, perf_na):
+        if e.get("label") != "match":
+            continue
+        s_id, p_id = str(e.get("score_id")), str(e.get("performance_id"))
+        if s_id in known_s:
+            matched_s.add(s_id)
+        if p_id in known_p:
+            matched_p.add(p_id)
+    return matched_s, matched_p
 
 
 # --- arm 2: timing-free -----------------------------------------------------
@@ -306,7 +307,8 @@ def matcher_floor(score_notes: list[dict], match=_match) -> float:
     """
     score_na = _note_array(score_notes, "s")
     perf_na = _note_array(score_notes, "p")
-    return len(parangonar_matched_score_ids(score_na, perf_na, match)) / len(score_na)
+    matched, _ = parangonar_matched_ids(score_na, perf_na, match)
+    return len(matched) / len(score_na)
 
 
 # --- one take ---------------------------------------------------------------
@@ -328,15 +330,21 @@ def to_transcriber_wav(src: Path, dst: Path) -> Path:
     return dst
 
 
-def reference_channel_path(manifest_path: Path) -> Path:
-    """The reference channel's audio, and a refusal if the manifest is not a
-    calibration take.
+@dataclass(frozen=True)
+class CalibrationTake:
+    """One validated calibration manifest, read once."""
 
-    The gate charges performer omissions to Transkun (see the module docstring),
-    which is only conservative on a take played straight. On a practice take --
-    deliberate wrong notes, restarts, repeats -- the same arithmetic would fail
-    the gate on the performance and cancel Phase 2 for a reason that has nothing
-    to do with the channel.
+    take_id: str
+    ref_wav: Path
+    score_midi: Path
+
+
+def load_calibration_take(manifest_path: Path) -> CalibrationTake:
+    """Validate and resolve one calibration manifest in a single read.
+
+    Every refusal below is a refusal to score, not a value to fall back on --
+    the same precedent take_capture set when it declined to substitute the
+    reference channel for a missing one.
     """
     body = load_manifest(manifest_path)
     behavior = body.get("behavior")
@@ -352,14 +360,28 @@ def reference_channel_path(manifest_path: Path) -> Path:
             f"{manifest_path}: no 'score_midi'. G-OOD-0 is recall against a "
             f"KNOWN score; without one there is nothing to be recalled."
         )
-    return body["channels"][body["reference_channel"]]
+    return CalibrationTake(
+        take_id=body["take_id"],
+        ref_wav=body["channels"][body["reference_channel"]],
+        score_midi=manifest_path.parent / body["score_midi"],
+    )
+
+
+def reference_channel_path(manifest_path: Path) -> Path:
+    """The reference channel's audio, and a refusal if the manifest is not a
+    calibration take.
+
+    The gate charges performer omissions to Transkun (see the module docstring),
+    which is only conservative on a take played straight. On a practice take --
+    deliberate wrong notes, restarts, repeats -- the same arithmetic would fail
+    the gate on the performance and cancel Phase 2 for a reason that has nothing
+    to do with the channel.
+    """
+    return load_calibration_take(manifest_path).ref_wav
 
 
 def score_midi_path(manifest_path: Path) -> Path:
-    body = load_manifest(manifest_path)
-    if "score_midi" not in body:
-        raise CalibrationRecallError(f"{manifest_path}: no 'score_midi'")
-    return manifest_path.parent / body["score_midi"]
+    return load_calibration_take(manifest_path).score_midi
 
 
 def score_take(
@@ -387,8 +409,7 @@ def score_take(
     score_na = _note_array(score_notes, "s")
     perf_na = _note_array(notes, "p")
 
-    matched_score = parangonar_matched_score_ids(score_na, perf_na)
-    matched_perf = parangonar_matched_perf_ids(score_na, perf_na)
+    matched_score, matched_perf = parangonar_matched_ids(score_na, perf_na)
     n_seq = sequence_matched(
         [int(p) for p in score_na["pitch"]], [int(p) for p in perf_na["pitch"]]
     )
@@ -464,19 +485,24 @@ def run(manifest_paths: list[Path], transcribe_wav) -> dict:
 
     takes: list[TakeRecall] = []
     floors: dict[str, float] = {}
+    # The floor is a full parangonar run over the score; several takes of one
+    # piece share it, so it is computed once per score rather than once per take.
+    notes_by_score: dict[Path, list[dict]] = {}
     for mp in manifest_paths:
         try:
-            ref = reference_channel_path(mp)
-            smidi = score_midi_path(mp)
-            score_notes = load_score_notes(smidi)
-            floors[smidi.name] = round(matcher_floor(score_notes), 4)
+            spec = load_calibration_take(mp)
+            if spec.score_midi not in notes_by_score:
+                notes_by_score[spec.score_midi] = load_score_notes(spec.score_midi)
+                floors[spec.score_midi.name] = round(
+                    matcher_floor(notes_by_score[spec.score_midi]), 4
+                )
             takes.append(
                 score_take(
-                    take_id=load_manifest(mp)["take_id"],
-                    ref_wav=ref,
-                    score_notes=score_notes,
+                    take_id=spec.take_id,
+                    ref_wav=spec.ref_wav,
+                    score_notes=notes_by_score[spec.score_midi],
                     transcribe_wav=transcribe_wav,
-                    score_midi_name=smidi.name,
+                    score_midi_name=spec.score_midi.name,
                 )
             )
         except TakeCaptureError as exc:

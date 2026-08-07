@@ -5,10 +5,13 @@
   "baseline_level": "midi",
   "n_takes_paired": 55,
   "n_takes_dropped_unpaired": 0,
+  "n_takes_dropped_null_median": 0,
+  "n_takes_dropped_null_within_1beat": 0,
   "rows": [
    {
     "level": "audio",
-    "n_takes": 55,
+    "n_takes_median": 55,
+    "n_takes_within_1beat": 55,
     "median_abs_err_beats": 0.0064,
     "within_1beat_frac": 0.9488,
     "delta_median_beats": 0.0039,
@@ -16,7 +19,8 @@
    },
    {
     "level": "midi",
-    "n_takes": 55,
+    "n_takes_median": 55,
+    "n_takes_within_1beat": 55,
     "median_abs_err_beats": 0.0025,
     "within_1beat_frac": 0.9505,
     "delta_median_beats": 0.0,

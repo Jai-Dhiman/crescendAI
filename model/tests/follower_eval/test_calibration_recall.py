@@ -115,10 +115,25 @@ def test_duplicate_score_matches_cannot_push_recall_above_one():
     than distinct score ids would report recall > 1.0 and read as a pass."""
     score = cr._note_array(_notes([60, 62]), "s")
     perf = cr._note_array(_notes([60, 60]), "p")
-    matched = cr.parangonar_matched_score_ids(
-        score, perf, _matcher([(0, 0), (0, 1)])
-    )
+    matched, _ = cr.parangonar_matched_ids(score, perf, _matcher([(0, 0), (0, 1)]))
     assert matched == {"s0"}
+
+
+def test_both_id_sets_come_from_a_single_matcher_call():
+    """parangonar can blow up combinatorially on real transcriptions
+    (extract_cli guards it with a timeout), so deriving the score-side and
+    perf-side views must not cost two runs of it."""
+    calls = []
+    inner = _matcher([(0, 0)])
+
+    def counting(s, p):
+        calls.append(1)
+        return inner(s, p)
+
+    score = cr._note_array(_notes([60, 62]), "s")
+    perf = cr._note_array(_notes([60, 62]), "p")
+    cr.parangonar_matched_ids(score, perf, counting)
+    assert len(calls) == 1
 
 
 def test_unknown_ids_from_the_matcher_are_ignored():
@@ -128,7 +143,7 @@ def test_unknown_ids_from_the_matcher_are_ignored():
     def match(_s, _p):
         return [{"label": "match", "score_id": "s99", "performance_id": "p0"}]
 
-    assert cr.parangonar_matched_score_ids(score, perf, match) == set()
+    assert cr.parangonar_matched_ids(score, perf, match)[0] == set()
 
 
 def test_non_match_labels_do_not_count():
@@ -141,7 +156,7 @@ def test_non_match_labels_do_not_count():
             {"label": "deletion", "score_id": "s1", "performance_id": "p1"},
         ]
 
-    assert cr.parangonar_matched_score_ids(score, perf, match) == {"s0"}
+    assert cr.parangonar_matched_ids(score, perf, match)[0] == {"s0"}
 
 
 # --- arm 2: timing-free -----------------------------------------------------

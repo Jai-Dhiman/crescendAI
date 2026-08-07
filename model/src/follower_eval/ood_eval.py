@@ -134,25 +134,48 @@ def paired_table(results: list[ArmResult], baseline_level: str) -> dict:
         )
     takes = sorted(common)
 
-    def _mean(level: str, field: str) -> float | None:
-        vals = [
-            getattr(by_level[level][t], field)
+    def _usable(field: str) -> list[str]:
+        """Takes carrying a non-None value for ``field`` at EVERY level.
+
+        Being present at every level is not enough: a metric is None whenever a
+        window evaluated zero beats (``asap_eval._summarize``), which is a
+        plausible phone-channel outcome and therefore exactly what this module
+        exists to measure. Averaging each level over whatever it happened to
+        have non-None would compare different sets of takes and unpair the
+        subtraction -- the confound the take abstraction exists to remove. It
+        can also flip the sign: a take that follows on the clean channel and
+        yields nothing on the phone channel leaves its (large) clean error in
+        the baseline mean and its absent phone error out of the other, making
+        the degraded channel read BETTER.
+        """
+        return [
+            t
             for t in takes
-            if getattr(by_level[level][t], field) is not None
+            if all(getattr(by_level[lv][t], field) is not None for lv in by_level)
         ]
+
+    def _mean(level: str, field: str, subset: list[str]) -> float | None:
+        vals = [getattr(by_level[level][t], field) for t in subset]
         return round(sum(vals) / len(vals), 4) if vals else None
 
-    base_med = _mean(baseline_level, "median_abs_err_beats")
-    base_w1 = _mean(baseline_level, "within_1beat_frac")
+    med_takes = _usable("median_abs_err_beats")
+    w1_takes = _usable("within_1beat_frac")
+
+    base_med = _mean(baseline_level, "median_abs_err_beats", med_takes)
+    base_w1 = _mean(baseline_level, "within_1beat_frac", w1_takes)
 
     rows = []
     for level in sorted(by_level):
-        med = _mean(level, "median_abs_err_beats")
-        w1 = _mean(level, "within_1beat_frac")
+        med = _mean(level, "median_abs_err_beats", med_takes)
+        w1 = _mean(level, "within_1beat_frac", w1_takes)
         rows.append(
             {
                 "level": level,
-                "n_takes": len(takes),
+                # Per FIELD, not per level: every level's mean for a field is
+                # over the same takes, so the row counts are shared by
+                # construction rather than by coincidence.
+                "n_takes_median": len(med_takes),
+                "n_takes_within_1beat": len(w1_takes),
                 "median_abs_err_beats": med,
                 "within_1beat_frac": w1,
                 "delta_median_beats": round(med - base_med, 4)
@@ -167,6 +190,11 @@ def paired_table(results: list[ArmResult], baseline_level: str) -> dict:
         "baseline_level": baseline_level,
         "n_takes_paired": len(takes),
         "n_takes_dropped_unpaired": len({r.take_id for r in results} - common),
+        # Paired takes that still carry no comparable value at some level. Counted
+        # separately from the unpaired drop because they are a different failure:
+        # the take was recorded on every arm and one arm produced nothing.
+        "n_takes_dropped_null_median": len(takes) - len(med_takes),
+        "n_takes_dropped_null_within_1beat": len(takes) - len(w1_takes),
         "rows": rows,
     }
 
@@ -244,6 +272,8 @@ def _format(r: dict) -> str:
         f"metric core: {r['metric_core']}",
         f"paired takes: {t['n_takes_paired']}   "
         f"dropped unpaired: {t['n_takes_dropped_unpaired']}   "
+        f"dropped null (median/within-1): {t['n_takes_dropped_null_median']}/"
+        f"{t['n_takes_dropped_null_within_1beat']}   "
         f"failures: {len(r['failures'])}",
         "",
         f"{'level':<16}{'median beats':>14}{'d median':>11}"
@@ -261,10 +291,20 @@ def _format(r: dict) -> str:
             if row["delta_within_1beat_pp"] is None
             else f"{row['delta_within_1beat_pp']:+.2f}"
         )
-        lines.append(
-            f"{row['level']:<16}{row['median_abs_err_beats']:>14.4f}{dm:>11}"
-            f"{row['within_1beat_frac']:>14.4f}{dp:>8}"
+        # Guarded like the deltas above: these are None whenever no paired take
+        # carries the field, and a report that crashes tells you less than one
+        # that prints the gap.
+        med = (
+            "--"
+            if row["median_abs_err_beats"] is None
+            else f"{row['median_abs_err_beats']:.4f}"
         )
+        w1 = (
+            "--"
+            if row["within_1beat_frac"] is None
+            else f"{row['within_1beat_frac']:.4f}"
+        )
+        lines.append(f"{row['level']:<16}{med:>14}{dm:>11}{w1:>14}{dp:>8}")
     return "\n".join(lines)
 
 
