@@ -438,10 +438,68 @@ fallback would report a clean-channel number as a phone-channel one, which is
 the exact quantity #148 measures. Same precedent as `asap_audio.py` refusing to
 fall back to MIDI.
 
+### G-OOD-0, the blocking gate (`calibration_recall.py`)
+
+Reference-channel Transkun note recall against the known score, bar ≥ 0.95.
+Scored **only** on takes the manifest declares `"behavior": "calibration"`; a
+practice take contains deliberate wrong notes, and scoring the gate there would
+fail it on the performance rather than on the channel.
+
+**A miss has three possible causes and they do not share a remedy:** Transkun
+failed to transcribe a played note (what the gate is for), the performer did not
+play it, or the *matcher* failed to pair a correctly-transcribed note. The third
+is the dangerous one — Phase 2's provenance-B truth is parangonar output, so
+scoring this gate with parangonar alone would let a matcher weakness either
+cancel the session for the wrong reason or pass the gate and then silently
+degrade the truth it qualified. That is the soft form of #101's gate1 mistake.
+
+Recall is therefore reported as **two arms**, and combining them with the single
+0.95 bar — no second threshold is introduced — yields an actionable verdict:
+
+| verdict | condition | what it means |
+|---|---|---|
+| `PASS` | parangonar arm ≥ bar | scored through the matcher Phase 2 will actually use |
+| `FAIL_MATCHER` | parangonar < bar, timing-free ≥ bar | notes are in the transcription; the aligner is losing them. **Mic placement will not help** |
+| `FAIL_CHANNEL` | both < bar | notes are absent from the transcription. This is the failure #148's remedy is written for; Phase 2 stops |
+| `UNINFORMATIVE` | matcher floor < bar | the matcher scores the score against *itself* below the bar, so neither arm carries information. Same precedent as G-OOD-6 |
+
+The **timing-free arm** is the longest common subsequence of the two pitch
+streams. It never consults a clock, so tempo, rubato and drift cost it nothing.
+It is not a proof-grade upper bound — parangonar can emit a non-monotone pair
+LCS forbids — so it localizes a failure rather than replacing the other arm.
+The **matcher floor** runs the score against itself through the identical
+parangonar call, isolating matcher loss with no audio, piano or performer
+involved; it is reported unconditionally.
+
+**Chord ordering is load-bearing, and was measured, not assumed.** Transcribed
+onsets carry ~20 ms of jitter, which desynchronises a chord's notes and makes a
+plain `(onset, pitch)` sort return them in arrival order. Measured, that put the
+timing-free arm at **0.75 on a perfect transcription** — permanently under the
+bar, making `FAIL_MATCHER` unreachable and misattributing every failure to the
+channel. Grouping notes within `CHORD_WINDOW_S = 0.05` and ordering by pitch
+lifts it to 0.9833. On injected drop rates of 0/2/10/30 %, the parangonar arm
+reads 1.0000 / 0.9833 / 0.9167 / 0.7000.
+
+**`FAIL_MATCHER` has not been observed live.** It is pinned by unit test, but
+parangonar held at 0.9969 even on deliberately repetitive material (a scale
+exercise at 1.7× tempo), so no synthetic case triggered it. Treat it as a
+diagnostic that fires if the matcher degrades on real room audio, not as a
+branch validated end to end.
+
+Recall here is a **lower bound** on Transkun's true note recall: a note the
+performer did not play counts as a Transkun miss, and separating the two needs
+the symbolic retrofit #148 deferred. The bias direction is safe — a `PASS` is
+conservative, and only a `FAIL` is ambiguous, which is what the two arms exist
+to disambiguate.
+
+Audio goes in through the same ffmpeg path the 279-clip corpus used (16 kHz
+mono); a different path would introduce a channel difference that is not the one
+being measured. A transcriber returning zero notes **raises** rather than
+reporting a recall of 0.0. No bootstrap interval: a calibration session is a
+handful of takes, and a resampling CI over three of them would be decoration.
+
 ### Not built yet (blocking #148's recording session)
 
-- **G-OOD-0 harness** — reference-channel Transkun recall ≥ 0.95 on calibration
-  takes. BLOCKING; #148 says failure stops Phase 2. No implementation exists.
 - **`take_capture` intake** — rename/convert/completeness-check raw exports.
 - **`rig_hash` enforcement** — `ood_eval.paired_table` does not read it, so
   "a subtraction across two rig hashes fails loudly" is not yet true.
