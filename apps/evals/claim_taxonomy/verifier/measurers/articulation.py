@@ -34,12 +34,10 @@ REFERENCE_RATIO = 0.8159
 #   - per-note (independent): offset noise on single notes, averaging as sigma/sqrt(N)
 #   - correlated FLOOR: Transkun's release model is biased per performance (mean
 #     signed error -0.10 ratio units), so the statistic error does NOT vanish with N.
-SUBSTRATE_RATIO_SIGMA = (
-    0.0926  # ratio units, sd of the signed per-window AMT-vs-GT error
-)
-SUBSTRATE_STATISTIC_FLOOR = (
-    0.0583  # ratio units, p68 (1 sigma) of |AMT - GT| per window
-)
+# ratio units, sd of the signed per-window AMT-vs-GT error
+SUBSTRATE_RATIO_SIGMA = 0.0926
+# ratio units, p68 (1 sigma) of |AMT - GT| per window
+SUBSTRATE_STATISTIC_FLOOR = 0.0583
 
 # A bar seldom carries 20 floored pairs, which is how the taxonomy's "single-bar
 # articulation claims are too fragile" rule is enforced mechanically rather than by

@@ -1429,20 +1429,20 @@ who owns shipping the change. `scripts/standards_check.py:check_reference_calibr
 three directions: the code literal disagreeing with the recorded value, a reference calibrated on
 a retired substrate, and a measurer reference with no provenance entry at all.
 
-On the live tree it fires on exactly the two known-stale aria-era references and stays silent on
-the freshly calibrated articulation one — the both-directions demonstration the rule needs:
+On the live tree it fires on the one remaining stale reference and stays silent on the two
+calibrated ones — the both-directions demonstration the rule needs. It also caught a live defect in
+this very branch (Finding 6): the pedaling lift shipping against a stale `REFERENCE_FRACTION`.
 
 ```
 advisory [RES-001] dynamics.py:15   REFERENCE_VELOCITY = 51.5
     calibrated on 'aria-amt' but the active substrate is 'transkun'.
-advisory [RES-001] pedaling.py:18   REFERENCE_FRACTION = 0.4623
-    calibrated on 'aria-amt' but the active substrate is 'transkun'.
 ```
 
-**Status `approved`, deliberately not `enforced`.** Those two are live violations held open on
-purpose: their recalibrated values are measured (64.33 and 0.5798 on transkun/MAESTRO) but
-shipping them changes production verdicts, which is an owner decision, not a lint fix. A
-regression test asserts RES-001 cannot be promoted while they stand.
+**Status `approved`, deliberately not `enforced`.** `REFERENCE_VELOCITY` is a live violation held
+open on purpose: its recalibrated value is measured (64.33 on transkun/MAESTRO) but shipping it
+changes production dynamics verdicts, which is an owner decision, not a lint fix. A regression test
+asserts RES-001 cannot be promoted while it stands. **Promoting RES-001 to `enforced` is now a
+one-line change away** — ship that reference and the tree is clean against the rule.
 
 ### Finding 6 — the pedaling over-pedal scoping is LIFTED (owner-approved, SHIPPED)
 
@@ -1469,13 +1469,40 @@ Keeping the scoping had its own correctness cost: `substrate_insensitive_directi
 substrate cannot see over-pedaling"*, which is now false, and it suppressed a real detectable class
 of feedback.
 
+**The lift forced `REFERENCE_FRACTION` to ship with it — they are ONE change.** This was caught in
+review, not in design, and it is the sharpest instance of the RES-001 trap yet found. Every number
+above comes from `pedaling_independent_rate.py`, which recalibrates the reference to 0.5798 at
+runtime *unconditionally*. Production still held the aria-era **0.4623**. Measured both ways on the
+same 188 windows, with the scoping lifted in both:
+
+| shipped reference | rate | committed | REFUTED | over-pedal |
+|---|---:|---:|---:|---|
+| 0.4623 (aria-era, stale) | **0.815** | 130 | **24** | 35 SUPPORTED |
+| **0.5798 (recalibrated, shipped)** | **1.000** | 126 | **0** | 11 SUPPORTED + 28 abstain |
+
+**The scoping guard had been masking the stale reference in the `+` direction.** While every
+over-pedal claim abstained, a too-low reference could not produce a wrong over-pedal verdict.
+Lifting the guard removed that accidental protection: under the stale reference over-pedal commits
+35 SUPPORTED instead of 11, and under-pedal acquires 18 REFUTED that do not exist at 0.5798. So the
+lift shipped alone would have *degraded* the verifier while its recorded justification claimed the
+opposite. `REFERENCE_FRACTION` is therefore recalibrated to **0.5798** in the same change, and
+RES-001 now flags only `REFERENCE_VELOCITY` (dynamics).
+
+**Generalisable lesson: an abstention guard can hide a calibration bug, and removing the guard
+reveals it.** Before lifting any `substrate_insensitive_polarity`, re-measure the dimension's
+reference — the guard may be the only reason the stale value looked harmless.
+
 **Caveats attached to the shipped edit.** (1) The over-pedal arm rests on only **11** committed
 windows. (2) Pedaling has **0 REFUTED anywhere**, so its 1.000 with a zero-width CI has never been
 stress-tested by a genuine disagreement — the tau_gt sweep (0.973 / 1.000 / 0.831) shows the
 headline is threshold-favourable. (3) MAESTRO is clean, in-distribution Disklavier audio; consumer
 over-pedal detection is untested (G-F2).
 
-### The verifiable-set table, updated (real audio, Transkun, reference recalibrated per substrate x corpus)
+### The verifiable-set table, updated (real audio, Transkun)
+
+Pedaling and articulation now carry their recalibrated references **in the shipped code**, so
+those two rows reproduce with no runtime recalibration. Dynamics' 0.979 still requires the
+unshipped `REFERENCE_VELOCITY=64.33`; on the shipped 51.5 it measures 0.236 (RES-001 flags it).
 
 | dimension | rate | committed / 188 | abstention | G-D | tau warrant |
 |---|---:|---:|---:|:--:|---|

@@ -9,13 +9,23 @@ from claim_taxonomy.verifier.models import UnverifiableError
 from claim_taxonomy.verifier.location_resolver import ResolvedRegion
 from claim_taxonomy.verifier.substrate_error import SubstrateErrorEngine
 
-# Reference pedal usage = corpus-median AMT sustain time-on-fraction over fixed-gain
-# piano-rendered PercePiano (#101 front-3, G-A neutral renders, n=30). The signed
+# Reference pedal usage = corpus-median AMT sustain time-on-fraction, recalibrated to
+# the ACTIVE substrate x corpus: Transkun over real MAESTRO-test audio, n=188 27s
+# windows (#101 FRONT 9 Finding 2 measured it, FRONT 10 shipped it). The signed
 # whole_piece statistic is the performance on-fraction minus this neutral anchor.
-# AMT-derived (NOT MIDI-native): aria-amt inflates low pedal on-fraction (positive
-# floor bias) and compresses the range, so a MIDI-native median would mis-zero the
-# AMT-substrate measurement. locked:false -- front 4 / G-C recalibrate.
-REFERENCE_FRACTION = 0.4623
+# AMT-derived (NOT MIDI-native): the transcriber's own pedal scale is what `d` is
+# computed against, so a MIDI-native median would mis-zero the measurement (GT median
+# on the same corpus is 0.5745, close here only because Transkun tracks GT at 0.9976).
+#
+# WAS 0.4623 (aria-amt over fixed-gain PercePiano renders, #101 front-3, n=30). That
+# value could not simply be left in place once FRONT 10 lifted the over-pedal scoping:
+# the scoping guard had been abstaining every '+' claim, which masked the stale
+# reference in that direction. Lifted-with-0.4623 measures rate 0.815 / 130 committed /
+# 24 REFUTED; lifted-with-0.5798 measures 1.000 / 126 / 0. The lift and this
+# recalibration are one change.
+#
+# locked:false -- recalibrate per substrate AND per corpus. Enforced by RES-001.
+REFERENCE_FRACTION = 0.5798
 
 # CC64 value >= 64 = sustain on (PerfPedalEvent uses 0/127; aria-amt emits clean
 # 0/127 on-off pairs, transcription.py:182-224).

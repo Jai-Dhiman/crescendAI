@@ -6,7 +6,12 @@
   },
   "claim_schema": {
     "type": "object",
-    "required": ["proposition", "dimension", "location", "polarity"],
+    "required": [
+      "proposition",
+      "dimension",
+      "location",
+      "polarity"
+    ],
     "properties": {
       "proposition": {
         "type": "string",
@@ -14,17 +19,34 @@
       },
       "dimension": {
         "type": "string",
-        "enum": ["timing", "pedaling", "dynamics", "articulation", "phrasing", "interpretation", "timbre"],
+        "enum": [
+          "timing",
+          "pedaling",
+          "dynamics",
+          "articulation",
+          "phrasing",
+          "interpretation",
+          "timbre"
+        ],
         "description": "Musical dimension the claim is about."
       },
       "location": {
         "oneOf": [
           {
             "type": "object",
-            "required": ["bar_start", "bar_end"],
+            "required": [
+              "bar_start",
+              "bar_end"
+            ],
             "properties": {
-              "bar_start": { "type": "integer", "minimum": 1 },
-              "bar_end": { "type": "integer", "minimum": 1 }
+              "bar_start": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "bar_end": {
+                "type": "integer",
+                "minimum": 1
+              }
             },
             "additionalProperties": false
           },
@@ -37,21 +59,34 @@
       },
       "polarity": {
         "type": "string",
-        "enum": ["+", "-", "neutral"],
+        "enum": [
+          "+",
+          "-",
+          "neutral"
+        ],
         "description": "+: signed anomaly in the positive direction. -: signed anomaly in the negative direction. neutral: asserts a virtue or absence-of-problem."
       },
       "magnitude": {
         "oneOf": [
           {
             "type": "object",
-            "required": ["value", "unit"],
+            "required": [
+              "value",
+              "unit"
+            ],
             "properties": {
-              "value": { "type": "number" },
-              "unit": { "type": "string" }
+              "value": {
+                "type": "number"
+              },
+              "unit": {
+                "type": "string"
+              }
             },
             "additionalProperties": false
           },
-          { "type": "null" }
+          {
+            "type": "null"
+          }
         ],
         "description": "Optional. When present, tightens the check. When null, falls back to sign+tolerance check."
       }
@@ -63,7 +98,7 @@
     "gate_1_verdict": "BAR_LEVEL_COVERAGE_DEPENDENT",
     "measured_on": "2 real Bach Invention clips (7zVlDxBO5q4, 2cbYFp9kNpg), construction-known corruption sweep {clean, tempo rush 1.3x/1.6x, dropout, noise SNR10}",
     "headline_numbers": {
-      "clean_noise_floor_within_0.5s_over_resolvable": 0.80,
+      "clean_noise_floor_within_0.5s_over_resolvable": 0.8,
       "clean_within_1.5s_over_resolvable": 0.87,
       "tempo_within_1.5s_over_resolvable": 0.63,
       "dropout_within_1.5s_over_resolvable": 0.54,
@@ -131,7 +166,7 @@
       "reliability_tier": 2,
       "measurement": "amt_sustain_pedal_events",
       "minimum_events": 0,
-      "notes": "OVER-PEDAL SCOPING LIFTED (#101 FRONT 10, owner-approved 2026-08-06): whole_piece '+' was marked substrate_insensitive_polarity because ARIA's pedal head saturated at a ~0.55 ceiling (G-A flip+ 7/30 even under maximal full-pedal corruption), making over-pedaling physically unrecoverable from audio. #128 swapped the substrate to Transkun, whose real-audio on-fraction reaches 1.0 and correlates 0.9976 with ground-truth CC64 -- the premise is FALSIFIED, not merely outperformed. The lift is non-destructive by measurement: on the 188 MAESTRO windows the under/normal verdicts are identical scoped vs lifted (under 60 SUPPORTED / 6 abstain, normal 55 / 28), and the only delta is 39 blanket substrate_insensitive_direction abstentions becoming 11 SUPPORTED + 28 near_threshold, with 0 REFUTED. Rate 1.000 both ways; committed 115 -> 126. Keeping the scoping would have asserted 'we cannot see over-pedaling', which is no longer true. CAVEATS: the over-pedal arm is exercised by only 11 committed windows; pedaling has 0 REFUTED anywhere, so its 1.000 has never been stress-tested by a genuine disagreement (tau_gt 0.35 drops it to 0.83); and MAESTRO is clean in-distribution Disklavier audio, so consumer-audio over-pedal detection is untested (G-F2). ORIGINAL FRONT-3 NOTES FOLLOW. Sustain-pedal TIME-on-fraction (fraction of duration CC64 is down). The statistic GATE-2 validated at partial-rho 0.478 was the MIDI-native pedal_frac (gate2_expert_anchor.json); replaces the previously-shipped pedal-BAR-fraction cousin. G-B CORRECTION (#101 front-4): the verifier reads the AMT on-fraction, NOT MIDI, and AMT does NOT inherit 0.478 -- measured directly on the production substrate (rendered audio -> aria-amt, n=180 natural) the halo-controlled partial-rho is only 0.181 [boot 95% CI 0.03-0.33], vs 0.386 for true MIDI on-fraction on the same clips. Root cause: the AMT pedal head recovers true on-fraction at only spearman 0.389 (regression-to-the-middle: +0.19 hallucinated pedal on dry clips, -0.34 on full-pedal clips), whereas the AMT VELOCITY head recovers GT at 0.965 on the same renders -- so it is the weakly-supervised pedal head, not the render. PEDALING IS THEREFORE NOT PERCEPTUALLY VALIDATED on AMT; it is kept 'active' only for COARSE construction-known detection (G-A, below), not graded perceptual claims, pending a better pedal-transcription substrate. Units: time-on-fraction, both tiers. whole_piece reference = 0.4623 (front-3; broad n=180 median 0.514). minimum_events = 0 (deliberate): a dry/zero-pedal performance is an informative signed measurement (d=-reference => '-' under-pedal claim adjudicable), NOT an abstention. Half-pedal/flutter out of scope. DIRECTIONAL SCOPE (front-3 G-A, maximal-corruption n=30): under-pedal '-' construction-known detection PASSES (flip 0.90, shuffle +0.23, ordering 29/30); over-pedal '+' FAILS (AMT saturates ~0.55 ceiling), so whole_piece '+' was marked substrate_insensitive_polarity -> UNVERIFIABLE. [SUPERSEDED by the FRONT 10 lift recorded at the top of this note: that saturation is aria's, not Transkun's.]"
+      "notes": "OVER-PEDAL SCOPING LIFTED (#101 FRONT 10, owner-approved 2026-08-06): whole_piece '+' was marked substrate_insensitive_polarity because ARIA's pedal head saturated at a ~0.55 ceiling (G-A flip+ 7/30 even under maximal full-pedal corruption), making over-pedaling physically unrecoverable from audio. #128 swapped the substrate to Transkun, whose real-audio on-fraction reaches 1.0 and correlates 0.9976 with ground-truth CC64 -- the premise is FALSIFIED, not merely outperformed. The lift is non-destructive by measurement: on the 188 MAESTRO windows the under/normal verdicts are identical scoped vs lifted (under 60 SUPPORTED / 6 abstain, normal 55 / 28), and the only delta is 39 blanket substrate_insensitive_direction abstentions becoming 11 SUPPORTED + 28 near_threshold, with 0 REFUTED. Rate 1.000 both ways; committed 115 -> 126. THE LIFT REQUIRED RECALIBRATING REFERENCE_FRACTION 0.4623 -> 0.5798 IN THE SAME CHANGE (caught in review): those numbers hold only at the recalibrated reference, and the scoping guard had been MASKING the stale aria-era value in the '+' direction. Lifted-with-0.4623 measures 0.815 / 130 committed / 24 REFUTED (over-pedal 35 SUPPORTED, under-pedal 18 REFUTED); lifted-with-0.5798 measures 1.000 / 126 / 0. Before lifting any substrate_insensitive_polarity, re-measure the dimension's reference -- the guard may be the only reason a stale value looks harmless. Keeping the scoping would have asserted 'we cannot see over-pedaling', which is no longer true. CAVEATS: the over-pedal arm is exercised by only 11 committed windows; pedaling has 0 REFUTED anywhere, so its 1.000 has never been stress-tested by a genuine disagreement (tau_gt 0.35 drops it to 0.83); and MAESTRO is clean in-distribution Disklavier audio, so consumer-audio over-pedal detection is untested (G-F2). ORIGINAL FRONT-3 NOTES FOLLOW. Sustain-pedal TIME-on-fraction (fraction of duration CC64 is down). The statistic GATE-2 validated at partial-rho 0.478 was the MIDI-native pedal_frac (gate2_expert_anchor.json); replaces the previously-shipped pedal-BAR-fraction cousin. G-B CORRECTION (#101 front-4): the verifier reads the AMT on-fraction, NOT MIDI, and AMT does NOT inherit 0.478 -- measured directly on the production substrate (rendered audio -> aria-amt, n=180 natural) the halo-controlled partial-rho is only 0.181 [boot 95% CI 0.03-0.33], vs 0.386 for true MIDI on-fraction on the same clips. Root cause: the AMT pedal head recovers true on-fraction at only spearman 0.389 (regression-to-the-middle: +0.19 hallucinated pedal on dry clips, -0.34 on full-pedal clips), whereas the AMT VELOCITY head recovers GT at 0.965 on the same renders -- so it is the weakly-supervised pedal head, not the render. PEDALING IS THEREFORE NOT PERCEPTUALLY VALIDATED on AMT; it is kept 'active' only for COARSE construction-known detection (G-A, below), not graded perceptual claims, pending a better pedal-transcription substrate. Units: time-on-fraction, both tiers. whole_piece reference = 0.4623 (front-3; broad n=180 median 0.514). minimum_events = 0 (deliberate): a dry/zero-pedal performance is an informative signed measurement (d=-reference => '-' under-pedal claim adjudicable), NOT an abstention. Half-pedal/flutter out of scope. DIRECTIONAL SCOPE (front-3 G-A, maximal-corruption n=30): under-pedal '-' construction-known detection PASSES (flip 0.90, shuffle +0.23, ordering 29/30); over-pedal '+' FAILS (AMT saturates ~0.55 ceiling), so whole_piece '+' was marked substrate_insensitive_polarity -> UNVERIFIABLE. [SUPERSEDED by the FRONT 10 lift recorded at the top of this note: that saturation is aria's, not Transkun's.]"
     },
     "dynamics": {
       "status": "active",
@@ -180,7 +215,11 @@
     }
   },
   "verdict_spec": {
-    "labels": ["SUPPORTED", "REFUTED", "UNVERIFIABLE"],
+    "labels": [
+      "SUPPORTED",
+      "REFUTED",
+      "UNVERIFIABLE"
+    ],
     "unverifiable_reason_codes": [
       "out_of_scope_dim",
       "gated_dim",
@@ -194,7 +233,7 @@
     "dispatch_order": [
       "1. If dimension.status == 'scoped_out' -> UNVERIFIABLE(out_of_scope_dim)",
       "2. If dimension.status == 'gated_on_measurement' and gate not validated -> UNVERIFIABLE(gated_dim)",
-      "2b. If claim.polarity == dimension.substrate_insensitive_polarity[location_tier] -> UNVERIFIABLE(substrate_insensitive_direction) [orchestrator, pre-router; e.g. pedaling whole_piece '+' -- AMT pedal saturation, #101 front-3]",
+      "2b. If claim.polarity == dimension.substrate_insensitive_polarity[location_tier] -> UNVERIFIABLE(substrate_insensitive_direction) [orchestrator, pre-router]. The mechanism is live and general, but NO dimension currently declares it: pedaling whole_piece '+' was the only instance (aria pedal saturation, #101 front-3) and was lifted in FRONT 10 once Transkun removed the saturation. Declare it whenever a substrate provably cannot recover a direction at a tier -- such claims must be UNVERIFIABLE, not REFUTED.",
       "3. If location is not resolvable (no score in catalog / piece not identified / span < alignment_uncertainty / bar score-time outside the matched anchor span) -> UNVERIFIABLE(unlocalizable)",
       "4. If measurement substrate raised an error -> UNVERIFIABLE(substrate_failure)",
       "5. If region has fewer than dimension.minimum_events -> UNVERIFIABLE(region_too_short)",

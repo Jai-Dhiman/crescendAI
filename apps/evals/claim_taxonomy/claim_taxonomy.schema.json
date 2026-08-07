@@ -102,7 +102,7 @@
         "minimum_events": { "type": "integer", "minimum": 0 },
         "substrate_insensitive_polarity": {
           "type": "object",
-          "description": "Optional. Maps a location tier ('whole_piece'|'region') to a polarity ('+'|'-') the substrate cannot recover at that tier; the orchestrator returns UNVERIFIABLE(substrate_insensitive_direction) for matching claims instead of letting the router REFUTE them. Pedaling sets whole_piece:'+' because AMT pedal on-fraction saturates, making over-pedaling unrecoverable (#101 front-3).",
+          "description": "Optional. Maps a location tier ('whole_piece'|'region') to a polarity ('+'|'-') the substrate cannot recover at that tier; the orchestrator returns UNVERIFIABLE(substrate_insensitive_direction) for matching claims instead of letting the router REFUTE them. No dimension declares it today: pedaling set whole_piece:'+' while aria-amt's pedal head saturated at ~0.55, and #101 FRONT 10 lifted it after Transkun reached 1.0 (corr 0.9976 vs GT). Declare it only where a substrate PROVABLY cannot see a direction -- it is a statement about the transcriber, not about the music.",
           "properties": {
             "whole_piece": { "type": "string", "enum": ["+", "-"] },
             "region": { "type": "string", "enum": ["+", "-"] }

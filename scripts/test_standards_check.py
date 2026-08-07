@@ -188,6 +188,30 @@ def test_code_value_drifting_from_the_recorded_value_is_flagged(reference_setup)
     assert "64.33" in findings[0].why and "0.8159" in findings[0].why
 
 
+def test_a_wrapped_reference_literal_is_reported_not_skipped(reference_setup):
+    """A formatter can wrap an assignment across lines. The constant must still be SEEN
+    and reported as uncheckable -- silently skipping it is the exact failure mode
+    RES-001 exists to prevent."""
+    manifest = reference_setup()
+    module = manifest.parent / "measurers" / "articulation.py"
+    module.write_text("REFERENCE_RATIO = (\n    0.8159\n)\n", encoding="utf-8")
+    findings = sc.check_reference_calibration([], RULES)
+    assert len(findings) == 1
+    assert "plain float literal" in findings[0].why
+
+
+def test_a_manifest_entry_missing_a_key_is_reported_not_raised(reference_setup):
+    """The manifest is hand-edited. A KeyError escaping the check would abort every
+    pre-push with a traceback instead of naming the problem."""
+    manifest = reference_setup()
+    data = json.loads(manifest.read_text())
+    del data["constants"]["REFERENCE_RATIO"]["calibrated_for"]
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+    findings = sc.check_reference_calibration([], RULES)
+    assert len(findings) == 1
+    assert "calibrated_for" in findings[0].why
+
+
 def test_an_unrecorded_reference_constant_is_flagged(reference_setup):
     """A new measurer reference with no provenance entry at all."""
     reference_setup(extra_module_line="REFERENCE_BRIGHTNESS = 12.5\n")
@@ -197,16 +221,17 @@ def test_an_unrecorded_reference_constant_is_flagged(reference_setup):
 
 
 def test_live_manifest_matches_the_live_measurers():
-    """The shipped manifest must describe the shipped code. The two aria-era references
-    are
-    known violations held at `approved`; anything else means the manifest has gone
-    stale."""
+    """The shipped manifest must describe the shipped code.
+
+    REFERENCE_VELOCITY (dynamics) is the one remaining aria-era violation, held open
+    at `approved` because shipping its recalibration changes production verdicts.
+    REFERENCE_FRACTION was recalibrated in FRONT 10 -- the over-pedal scoping lift
+    made the stale value newly harmful -- so it must NOT appear here. Anything else
+    in this set means the manifest has drifted from the code.
+    """
     rules = json.loads(sc.RULES_PATH.read_text(encoding="utf-8"))["rules"]
     findings = sc.check_reference_calibration([], rules)
-    assert {f.excerpt.split(" =")[0] for f in findings} == {
-        "REFERENCE_VELOCITY",
-        "REFERENCE_FRACTION",
-    }
+    assert {f.excerpt.split(" =")[0] for f in findings} == {"REFERENCE_VELOCITY"}
     assert all("calibrated on 'aria-amt'" in f.why for f in findings)
 
 

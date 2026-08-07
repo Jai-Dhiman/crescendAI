@@ -18,15 +18,15 @@
     },
     "REFERENCE_FRACTION": {
       "module": "apps/evals/claim_taxonomy/verifier/measurers/pedaling.py",
-      "value": 0.4623,
+      "value": 0.5798,
       "unit": "time_on_fraction",
-      "calibrated_for": { "substrate": "aria-amt", "corpus": "percepiano-fluidsynth" },
-      "status": "STALE -- calibrated on the retired aria-amt substrate, not on the active one",
+      "calibrated_for": { "substrate": "transkun", "corpus": "maestro-realaudio" },
+      "status": "CURRENT -- calibrated on the active substrate",
       "measured_recalibrations": {
-        "transkun/maestro-realaudio": 0.5798
+        "aria-amt/percepiano-fluidsynth": 0.4623
       },
-      "evidence": "docs/model/claim-verifier-signed-d-conventions.md FRONT 9 Finding 2 and Finding 3. GT median on the same corpus is 0.5745.",
-      "shipping_decision": "OWNER. Same reason as REFERENCE_VELOCITY."
+      "evidence": "docs/model/claim-verifier-signed-d-conventions.md FRONT 9 Finding 2 and Finding 3, shipped by FRONT 10. GT median on the same corpus is 0.5745; Transkun tracks GT pedal on-fraction at corr 0.9976.",
+      "shipping_decision": "SHIPPED (owner-approved 2026-08-06) as an inseparable part of the FRONT 10 over-pedal scoping lift. The scoping guard had been abstaining every '+' claim, which masked the stale aria reference in that direction; lifting the guard without recalibrating measures 0.815 / 130 committed / 24 REFUTED instead of 1.000 / 126 / 0."
     },
     "REFERENCE_RATIO": {
       "module": "apps/evals/claim_taxonomy/verifier/measurers/articulation.py",

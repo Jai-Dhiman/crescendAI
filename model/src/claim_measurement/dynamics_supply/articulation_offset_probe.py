@@ -18,8 +18,16 @@ Two questions, two measurements:
   2. STATISTIC FIDELITY: per-window articulation ratio = median(note_duration / IOI) over notes.
      Correlate AMT vs GT across windows. High corr => the offset-derived statistic is faithful.
 
-This is a PROBE (unblock decision), not a routed faithfulness rate -- articulation has no measurer
-in the orchestrator registry yet (that wiring is what ungating authorizes).
+This is a PROBE (unblock decision), not a routed faithfulness rate.
+
+SUPERSEDED IN PART by #101 FRONT 10, which did the wiring this probe
+authorized: ArticulationMeasurer is now in the orchestrator registry and
+articulation is `active`. Two numbers below are superseded too -- the
+statistic here is the UNFLOORED duration/IOI ratio, which is
+chord-pathological (IOI -> 0 on near-simultaneous notes); the shipped
+measurer floors IOI at 50ms, moving the AMT-vs-GT correlation 0.876 ->
+0.930. Kept as the historical gate artifact; for current numbers see
+articulation_tau_calibrate.py and FRONT 10 in the conventions doc.
 
 Run:
     python .../articulation_offset_probe.py \

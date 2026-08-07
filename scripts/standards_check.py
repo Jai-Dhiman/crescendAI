@@ -214,19 +214,36 @@ REFERENCE_MANIFEST_PATH = (
 MEASURERS_DIR = (
     REPO_ROOT / "apps" / "evals" / "claim_taxonomy" / "verifier" / "measurers"
 )
-# `NAME = 12.34` at module level. Only float literals: a reference is a corpus median.
-REFERENCE_ASSIGN_RE = re.compile(
+# Two patterns, deliberately. NAME_RE finds every module-level `REFERENCE_* =` binding
+# whatever its right-hand side; VALUE_RE extracts the float when the literal is on that
+# same line. Splitting them matters: a formatter can wrap an assignment across lines
+# (ruff did exactly that to two neighbouring constants in this repo), and a single
+# combined pattern would then silently skip the constant -- a false negative in the one
+# check whose whole purpose is to stop silent failures. With them split, a wrapped
+# constant is still SEEN and reported as unparseable rather than passing unnoticed.
+REFERENCE_NAME_RE = re.compile(r"^(REFERENCE_[A-Z_]+)\s*=")
+REFERENCE_VALUE_RE = re.compile(
     r"^(REFERENCE_[A-Z_]+)\s*=\s*(-?\d+(?:\.\d+)?)\s*(?:#.*)?$"
 )
 
 
-def _reference_literals(module_path: Path) -> dict[str, tuple[float, int]]:
-    """Every module-level REFERENCE_* float in a measurer, with its line number."""
-    found = {}
+def _reference_literals(module_path: Path) -> dict[str, tuple[float | None, int]]:
+    """Every module-level REFERENCE_* binding in a measurer, with its line number.
+
+    The value is None when the binding exists but its literal is not a plain float on
+    the same line (wrapped, computed, or imported) -- the caller reports that rather
+    than pretending the constant is absent.
+    """
+    found: dict[str, tuple[float | None, int]] = {}
     for i, line in enumerate(read_lines(module_path), 1):
-        m = REFERENCE_ASSIGN_RE.match(line)
-        if m:
-            found[m.group(1)] = (float(m.group(2)), i)
+        name_match = REFERENCE_NAME_RE.match(line)
+        if not name_match:
+            continue
+        value_match = REFERENCE_VALUE_RE.match(line)
+        found[name_match.group(1)] = (
+            float(value_match.group(2)) if value_match else None,
+            i,
+        )
     return found
 
 
@@ -234,21 +251,21 @@ def check_reference_calibration(_files: list[Path], rules: dict) -> list[Finding
     """A whole_piece reference must be calibrated on the ACTIVE transcription substrate.
 
     A reference is a corpus-median anchor measured on one (transcriber x corpus) pair.
-    Swap
-    either and nothing breaks loudly: d stays computable, the router stays confident,
-    and the
-    faithfulness rate silently collapses. #101 FRONT 9 measured 0.979 -> 0.236 for
-    dynamics on
-    one stale line; FRONT 10 replicated it at 0.950 -> 0.438 for articulation. This
-    check makes
-    that failure mechanical in three directions:
+    Swap either and nothing breaks loudly: d stays computable, the router stays
+    confident, and only the faithfulness rate silently collapses. #101 FRONT 9 measured
+    dynamics 0.979 -> 0.236 on one stale line; FRONT 10 replicated it at 0.950 -> 0.438
+    for articulation. This check makes that failure mechanical in three directions:
 
       1. the literal in the measurer matches the value recorded in the manifest,
       2. the manifest's calibrated_for.substrate is the active substrate,
       3. no REFERENCE_* constant exists in a measurer without a manifest entry.
+
+    The manifest is hand-edited, so a malformed entry is expected rather than
+    exceptional: it is reported as a finding naming the missing key, never raised. A
+    KeyError escaping here would abort every pre-push with a traceback.
     """
-    rule = rules["RES-001"]
-    rid, level = "RES-001", rule["level"]
+    rid = "RES-001"
+    level = rules[rid]["level"]
     rel_manifest = REFERENCE_MANIFEST_PATH.relative_to(REPO_ROOT).as_posix()
     if not REFERENCE_MANIFEST_PATH.is_file():
         return [Finding(rid, level, rel_manifest, 0, "(missing)",
@@ -256,32 +273,52 @@ def check_reference_calibration(_files: list[Path], rules: dict) -> list[Finding
                         "reference is unrecorded.")]
 
     manifest = json.loads(REFERENCE_MANIFEST_PATH.read_text(encoding="utf-8"))
-    active = manifest["active_substrate"]
-    constants = manifest["constants"]
     findings = []
+    try:
+        active = manifest["active_substrate"]
+        constants = manifest["constants"]
+    except KeyError as e:
+        return [Finding(rid, level, rel_manifest, 0, "(malformed)",
+                        f"the manifest is missing the required key {e}; RES-001 cannot "
+                        "check any reference until it is restored.")]
 
     for name, entry in constants.items():
-        module = REPO_ROOT / entry["module"]
+        try:
+            module_rel = entry["module"]
+            recorded = entry["value"]
+            calibrated = entry["calibrated_for"]["substrate"]
+        except (KeyError, TypeError) as e:
+            findings.append(Finding(
+                rid, level, rel_manifest, 0, name,
+                f"the {name} entry is missing the required key {e}; its calibration "
+                "provenance cannot be checked."))
+            continue
+
+        module = REPO_ROOT / module_rel
         if not module.is_file():
-            findings.append(Finding(rid, level, entry["module"], 0, name,
+            findings.append(Finding(rid, level, module_rel, 0, name,
                                     f"{name} names a module that does not exist."))
             continue
         literals = _reference_literals(module)
         if name not in literals:
-            findings.append(Finding(rid, level, entry["module"], 0, name,
+            findings.append(Finding(rid, level, module_rel, 0, name,
                                     f"{name} is recorded in {rel_manifest} but is not "
-                                    f"assigned a float literal in the module."))
+                                    "assigned in the module."))
             continue
         value, line = literals[name]
-        if value != entry["value"]:
+        if value is None:
             findings.append(Finding(
-                rid, level, entry["module"], line, f"{name} = {value}",
-                f"the code says {value} but {rel_manifest} records {entry['value']}. "
+                rid, level, module_rel, line, name,
+                f"{name} is assigned something other than a plain float literal on one "
+                "line, so its value cannot be checked against the manifest."))
+        elif value != recorded:
+            findings.append(Finding(
+                rid, level, module_rel, line, f"{name} = {value}",
+                f"the code says {value} but {rel_manifest} records {recorded}. "
                 "Recalibrating means editing both, so the provenance cannot drift."))
-        calibrated = entry["calibrated_for"]["substrate"]
         if calibrated != active:
             findings.append(Finding(
-                rid, level, entry["module"], line, f"{name} = {value}",
+                rid, level, module_rel, line, f"{name} = {value}",
                 f"calibrated on '{calibrated}' but the active substrate is '{active}'. "
                 "A stale reference does not fail loudly -- it silently collapses the "
                 "faithfulness rate (#101 FRONT 9: dynamics 0.979 -> 0.236)."))
