@@ -107,3 +107,71 @@ def test_transcribe_pcm_on_real_sample_returns_notes_with_velocity():
     assert all(set(n) == {"pitch", "onset", "offset", "velocity"} for n in notes)
     assert all(isinstance(n["velocity"], int) and n["velocity"] > 0 for n in notes)
     assert all(isinstance(p["value"], int) and p["value"] in (0, 127) for p in pedals)
+
+
+# --------------------------------------------------------------------------
+# Device plumbing (#166): transcription owns the per-second term of the MIREX
+# 24h budget, and the subprocess boundary means the caller's torch device
+# reaches Transkun only if it is threaded explicitly.
+# --------------------------------------------------------------------------
+
+
+def _capture_argv(monkeypatch):
+    """Run _run_transkun against a fake subprocess and return the argv it built."""
+    seen = {}
+
+    class _Proc:
+        returncode = 0
+        stderr = b""
+
+    def _fake_run(cmd, **kwargs):
+        seen["cmd"] = cmd
+        # _run_transkun asserts the MIDI exists after a clean exit.
+        Path(cmd[-3]).write_bytes(b"")
+        return _Proc()
+
+    monkeypatch.setattr(transkun_cli.subprocess, "run", _fake_run)
+    return seen
+
+
+def test_device_defaults_to_cpu(tmp_path, monkeypatch):
+    """Every non-MIREX caller must keep the previous behavior byte for byte."""
+    seen = _capture_argv(monkeypatch)
+    out_mid = tmp_path / "o.mid"
+    (tmp_path / "in.wav").write_bytes(b"")
+
+    transkun_cli._run_transkun(tmp_path / "in.wav", out_mid)
+
+    cmd = seen["cmd"]
+    assert cmd[cmd.index("--device") + 1] == "cpu"
+
+
+def test_device_argument_reaches_the_transkun_subprocess(tmp_path, monkeypatch):
+    seen = _capture_argv(monkeypatch)
+    out_mid = tmp_path / "o.mid"
+    (tmp_path / "in.wav").write_bytes(b"")
+
+    transkun_cli._run_transkun(tmp_path / "in.wav", out_mid, device="cuda")
+
+    cmd = seen["cmd"]
+    assert cmd[cmd.index("--device") + 1] == "cuda"
+
+
+def test_transcribe_wav_forwards_device(tmp_path, monkeypatch):
+    """The public entry point, not just the private helper -- what score_wav calls."""
+    midi_path = tmp_path / "src.mid"
+    _write_midi(midi_path, notes=[(60, 0.0, 1.0, 80)], pedal_ccs=[])
+    wav = tmp_path / "in.wav"
+    wav.write_bytes(b"")
+    seen = {}
+
+    def _fake_run_transkun(in_wav, out_mid, device=transkun_cli.DEFAULT_DEVICE):
+        seen["device"] = device
+        Path(out_mid).write_bytes(midi_path.read_bytes())
+
+    monkeypatch.setattr(transkun_cli, "_run_transkun", _fake_run_transkun)
+
+    notes, _ = transkun_cli.transcribe_wav(wav, device="cuda")
+
+    assert seen["device"] == "cuda"
+    assert len(notes) == 1

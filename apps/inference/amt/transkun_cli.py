@@ -57,8 +57,19 @@ def midi_to_notes_and_pedals(
     return notes, pedals
 
 
-def _run_transkun(in_wav: Path, out_mid: Path) -> None:
-    """Shell out to Transkun in an isolated env. Raise TranskunError on any failure."""
+DEFAULT_DEVICE = "cpu"
+
+
+def _run_transkun(in_wav: Path, out_mid: Path, device: str = DEFAULT_DEVICE) -> None:
+    """Shell out to Transkun in an isolated env. Raise TranskunError on any failure.
+
+    `device` is a torch device string handed to Transkun's own CLI. It defaults
+    to cpu, which is the only safe default: this module is shared by ~15 call
+    sites, most of them on developer machines with no CUDA. The MIREX container
+    passes "cuda" explicitly -- transcription owns the ~0.55x-realtime term that
+    dominates the 24h budget, and the subprocess boundary means the caller's
+    torch device does not reach here on its own (#166).
+    """
     # setuptools is required: transkun's transcribe.py does `import pkg_resources`, which lives
     # in setuptools. uv's isolated env does not include it unless a dep pulls it in, so without
     # this the CLI dies with ModuleNotFoundError: No module named 'pkg_resources' (intermittent,
@@ -73,7 +84,7 @@ def _run_transkun(in_wav: Path, out_mid: Path) -> None:
     cmd = [
         "uv", "run", "--no-project", "--with", "transkun", "--with", "setuptools<81",
         "--python", "3.11",
-        "transkun", str(in_wav), str(out_mid), "--device", "cpu",
+        "transkun", str(in_wav), str(out_mid), "--device", device,
     ]
     try:
         proc = subprocess.run(
@@ -94,6 +105,7 @@ def _run_transkun(in_wav: Path, out_mid: Path) -> None:
 
 def transcribe_wav(
     wav_path: str | Path,
+    device: str = DEFAULT_DEVICE,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Transcribe a WAV file to (notes, pedals) via Transkun. Raise TranskunError on failure."""
     wav_path = Path(wav_path)
@@ -101,12 +113,13 @@ def transcribe_wav(
         raise TranskunError(f"input WAV does not exist: {wav_path}")
     with tempfile.TemporaryDirectory() as td:
         out_mid = Path(td) / "out.mid"
-        _run_transkun(wav_path, out_mid)
+        _run_transkun(wav_path, out_mid, device=device)
         return midi_to_notes_and_pedals(out_mid)
 
 
 def transcribe_pcm(
     pcm_16k: np.ndarray,
+    device: str = DEFAULT_DEVICE,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Transcribe a 16kHz mono float32 PCM array to (notes, pedals) via Transkun."""
     pcm = np.ascontiguousarray(np.asarray(pcm_16k, dtype=np.float32))
@@ -115,4 +128,4 @@ def transcribe_pcm(
     with tempfile.TemporaryDirectory() as td:
         in_wav = Path(td) / "in.wav"
         sf.write(str(in_wav), pcm, SAMPLE_RATE, format="WAV", subtype="FLOAT")
-        return transcribe_wav(in_wav)
+        return transcribe_wav(in_wav, device=device)

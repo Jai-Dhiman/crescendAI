@@ -81,6 +81,7 @@ not a result.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import math
 import sys
@@ -285,7 +286,13 @@ def load_scorer(model_dir: Path, checkpoint: Path, repo_root: Path,
             _import_transcribe_wav,
         )
 
-        transcribe = _import_transcribe_wav()
+        # The same device drives BOTH halves. transkun_cli shells out to an
+        # isolated env, so `device` reaches it only if bound here; left unbound,
+        # transcription stays on CPU no matter what --device says, and it owns
+        # the ~0.55x-realtime term that dominates the 24h budget (#166).
+        transcribe_wav = _import_transcribe_wav()
+        transcribe = (transcribe_wav if device is None
+                      else functools.partial(transcribe_wav, device=device))
 
     def score(wav_path) -> tuple[float, bool]:
         if on_failure == "raise":
@@ -356,7 +363,10 @@ def main(argv=None, scorer=None) -> int:
              "setting the contract's >5%% exclusion clause requires")
     ap.add_argument(
         "--device", default=None,
-        help="torch device for the MoonBeam forward pass, e.g. cuda. Default "
+        help="torch device for BOTH Transkun and the MoonBeam forward pass, "
+             "e.g. cuda. Transkun owns the per-second-of-audio term of the "
+             "runtime budget, so leaving it on cpu costs far more than the "
+             "backbone does. Default "
              "None = CPU, which is what every #149 measurement ran on. The "
              "container passes cuda: 24h for the whole test set on one GPU does "
              "not fit an 839M CPU forward pass per piece")

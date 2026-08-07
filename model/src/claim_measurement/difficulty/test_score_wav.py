@@ -338,6 +338,40 @@ def test_load_scorer_rejects_an_unknown_failure_mode(tmp_path):
                     model_config=None, on_failure="fallbcak")
 
 
+def test_load_scorer_binds_the_device_onto_the_transcriber(tmp_path, monkeypatch):
+    """--device must reach Transkun, not only the MoonBeam forward pass.
+
+    transkun_cli shells out to an isolated env, so a device set on the caller's
+    torch does not cross the subprocess boundary. Transcription owns the
+    ~0.55x-realtime term of the 24h budget while the 839M backbone is 0.19s a
+    piece, so an unbound device is the difference between the runtime clause
+    fitting and not (#166).
+    """
+    from claim_measurement.difficulty import realaudio_check
+    from claim_measurement.difficulty import score_wav as sw
+
+    seen = {}
+
+    def _fake_transcribe_wav(wav_path, device=None):
+        seen["device"] = device
+        return _NOTES, []
+
+    x, y = _training_data(dim=4)
+    head = fit_ridge_head(x, y, fallback_score=float(np.median(y)))
+    monkeypatch.setattr(sw, "read_ridge_head", lambda p: head)
+    monkeypatch.setattr(sw, "build_fold_embedder",
+                        lambda *a, **k: (lambda notes: np.zeros(4)))
+    monkeypatch.setattr(realaudio_check, "_import_transcribe_wav",
+                        lambda: _fake_transcribe_wav)
+
+    scorer = sw.load_scorer(tmp_path, checkpoint=tmp_path, repo_root=tmp_path,
+                            model_config=tmp_path, device="cuda")
+    score, ok = scorer(tmp_path / "any.wav")
+
+    assert ok and isinstance(score, float)
+    assert seen["device"] == "cuda"
+
+
 # --------------------------------------------------------------------------
 # The isolated env, which is where three of this phase's launches died.
 # --------------------------------------------------------------------------
