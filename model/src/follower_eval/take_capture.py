@@ -36,6 +36,17 @@ which is the whole quantity the eval exists to measure. Same precedent as
 ``asap_audio.py`` refusing to fall back to MIDI, and as ``derive_shift``
 refusing to guess an offset it cannot verify.
 
+INTAKE RUNS WHILE THE RIG IS STILL UP
+-------------------------------------
+``sync_take`` already refuses every take it cannot put on one clock. But it is
+normally run at a desk, hours after the session, and by then a channel that
+never recorded, a phone left at 44.1 kHz, or a tail clap that was never struck
+are all unrecoverable. ``intake_session`` runs those same refusals -- plus the
+naming and completeness checks a manifest can be wrong about -- against the raw
+exports minutes after each take, while re-recording still costs one more take
+instead of one more session. It is a scheduling fix, not a second validator:
+the deep check IS ``sync_take``, called per take on the files it just wrote.
+
 SCOPE
 -----
 Sync is trustworthy at beat resolution, not note-onset resolution. Mic distance
@@ -46,7 +57,11 @@ offset claims for this reason.
 
 from __future__ import annotations
 
+import argparse
 import json
+import re
+import shutil
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -231,6 +246,23 @@ def detect_slate(
 # --- cross-correlation ------------------------------------------------------
 
 
+def _sliding_energy(x: np.ndarray, width: int) -> np.ndarray:
+    """Sum of ``x**2`` over every length-``width`` window, as a prefix-sum.
+
+    This is the normalizing denominator of the cross-correlation below, and it
+    is a sliding window sum -- so computing it as ``np.convolve(x**2,
+    ones(width))`` pays a general O(N*width) convolution for something a prefix
+    sum does in O(N). Measured on this machine at the sizes intake actually
+    sees (120 s search band, 1 s template): 4.7 s at 8 kHz, 14.4 s at 16 kHz,
+    and **105 s at the 48 kHz the rig records at** -- roughly 100x the FFT
+    correlation it normalizes. At 3 slates and 3 phone channels that is ~16
+    minutes per take, which would put intake's answer hours after the rig came
+    down, i.e. after the point where re-recording is still possible.
+    """
+    c = np.cumsum(x.astype(np.float64) ** 2)
+    return np.concatenate(([c[width - 1]], c[width:] - c[:-width]))
+
+
 def estimate_offset(
     ref: np.ndarray,
     chan: np.ndarray,
@@ -274,9 +306,7 @@ def estimate_offset(
     from scipy.signal import correlate
 
     corr = correlate(segment, template, mode="valid")
-    denom = np.linalg.norm(template) * np.sqrt(
-        np.convolve(segment**2, np.ones(len(template)), mode="valid")
-    )
+    denom = np.linalg.norm(template) * np.sqrt(_sliding_energy(segment, len(template)))
     with np.errstate(invalid="ignore", divide="ignore"):
         ncorr = np.where(denom > 0, corr / denom, 0.0)
 
@@ -438,3 +468,344 @@ def sync_take(manifest_path: Path) -> Take:
         channels=body["channels"],
         syncs=syncs,
     )
+
+
+# --- intake: raw session exports -> validated takes -------------------------
+
+# A position channel's name carries the POSITION and nothing else. The recording
+# guide's flat filename scheme (``p2_s01_t007__p1_phone.wav``) used ``p2`` for
+# the PHASE and ``p1`` for the POSITION in a single name, which is one reading
+# slip away from attributing a take to the wrong position -- and position is the
+# factor #148 is subtracting on. Positions are named here and only here.
+POSITION_NAME_RE = re.compile(r"^pos[1-9][0-9]*_[a-z0-9]+$")
+
+# take_id and session_id become directory names.
+SAFE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+
+# Head, tail, and at least one mid. Two slates fit a line exactly and cannot
+# test it -- see the module docstring. The third clap cannot be added later.
+MIN_SLATES_PER_TAKE = 3
+
+_TAKE_KEYS = ("take_id", "piece", "behavior", "sources", "mid_search_s")
+
+
+def _materialize_channel(name: str, src: Path, dst: Path) -> bool:
+    """Put one raw export at ``dst`` as a WAV. Returns True if it was converted.
+
+    A WAV source is copied byte-for-byte, so the reference channel reaches sync
+    and the transcriber exactly as the rig wrote it. Anything else -- phone
+    voice memos are m4a -- goes through ffmpeg with **no** ``-ar`` and **no**
+    ``-ac``, so a wrong sample rate SURVIVES intake and is caught by the rate
+    check below. Resampling here would quietly repair the one rig
+    misconfiguration that is still cheap to fix while the rig is up.
+    """
+    if not src.exists():
+        raise TakeCaptureError(
+            f"channel {name!r}: no file at {src}. Every channel the session "
+            f"manifest names must exist before the rig comes down -- a channel "
+            f"first discovered missing at sync time cannot be re-recorded."
+        )
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if src.suffix.lower() == ".wav":
+        shutil.copyfile(src, dst)
+        return False
+    cmd = ["ffmpeg", "-nostdin", "-y", "-i", str(src), "-c:a", "pcm_s24le", str(dst)]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0 or not dst.exists():
+        raise TakeCaptureError(
+            f"channel {name!r}: ffmpeg failed converting {src}: {r.stderr[-400:]}"
+        )
+    return True
+
+
+def _channel_rate(path: Path) -> int:
+    import soundfile as sf
+
+    try:
+        return int(sf.info(str(path)).samplerate)
+    except Exception as exc:
+        raise TakeCaptureError(
+            f"could not read {path}: {type(exc).__name__}: {exc}"
+        ) from exc
+
+
+def load_session_manifest(path: Path) -> dict:
+    """Read and validate a SESSION manifest -- the recorder's notes for a whole
+    sitting, written before intake and pointing at the raw exports:
+
+    {"session_id": "s01",
+     "rig_hash": "sha256:9f2c...",
+     "sample_rate": 48000,
+     "reference_channel": "ref",
+     "channels": ["ref", "pos1_phone", "pos2_ipad", "pos3_laptop"],
+     "takes": [
+       {"take_id": "phase1_t007",
+        "piece": "chopin_op28_no4",
+        "behavior": "calibration",
+        "score_midi": "scores/op28_4.mid",
+        "sources": {"ref": "raw/GB_007_ref.wav",
+                    "pos1_phone": "raw/memo_12.m4a",
+                    "pos2_ipad": "raw/rec-0007.m4a",
+                    "pos3_laptop": "raw/laptop_007.wav"},
+        "mid_search_s": [[80, 110]]}]}
+
+    Every path is relative to the manifest's own directory.
+
+    These are structural refusals: a manifest typo is fixed in a second and the
+    session re-run, so the FIRST one raises rather than being collected. Disk
+    and audio failures, which need someone to walk back to the piano, are
+    collected instead -- see ``intake_session``.
+    """
+    if not path.exists():
+        raise TakeCaptureError(f"session manifest missing: {path}")
+    body = json.loads(path.read_text())
+    for key in (
+        "session_id",
+        "rig_hash",
+        "sample_rate",
+        "reference_channel",
+        "channels",
+        "takes",
+    ):
+        if key not in body:
+            raise TakeCaptureError(f"{path}: session manifest has no {key!r}")
+
+    if not SAFE_ID_RE.match(str(body["session_id"])):
+        raise TakeCaptureError(
+            f"{path}: session_id {body['session_id']!r} is not a safe directory "
+            f"name (letters, digits, '_' and '-')"
+        )
+    if not str(body["rig_hash"]).strip():
+        raise TakeCaptureError(
+            f"{path}: rig_hash is empty. Every take carries the hash of the rig "
+            f"that recorded it; a subtraction across two rigs is not a "
+            f"subtraction across two positions."
+        )
+
+    channels = list(body["channels"])
+    ref_name = body["reference_channel"]
+    if ref_name not in channels:
+        raise TakeCaptureError(
+            f"{path}: reference_channel {ref_name!r} is not in channels {channels}"
+        )
+    for name in channels:
+        if name == ref_name:
+            if not SAFE_ID_RE.match(name):
+                raise TakeCaptureError(
+                    f"{path}: reference channel {name!r} is not a safe name"
+                )
+            continue
+        if not POSITION_NAME_RE.match(name):
+            raise TakeCaptureError(
+                f"{path}: channel {name!r} does not name a position. Positions "
+                f"are 'pos1_phone' / 'pos2_ipad' / 'pos3_laptop' -- a 'p1'-style "
+                f"name collides with the 'p1'/'p2' phase tag and one reading "
+                f"slip attributes a take to the wrong position."
+            )
+
+    seen: set[str] = set()
+    for entry in body["takes"]:
+        for key in _TAKE_KEYS:
+            if key not in entry:
+                raise TakeCaptureError(
+                    f"{path}: take {entry.get('take_id', '?')!r} has no {key!r}"
+                )
+        tid = entry["take_id"]
+        if not SAFE_ID_RE.match(str(tid)):
+            raise TakeCaptureError(
+                f"{path}: take_id {tid!r} is not a safe directory name"
+            )
+        if tid in seen:
+            raise TakeCaptureError(
+                f"{path}: take_id {tid!r} appears twice. Two takes under one id "
+                f"overwrite each other's audio, and the survivor is silent "
+                f"about which performance it was."
+            )
+        seen.add(tid)
+        if sorted(entry["sources"]) != sorted(channels):
+            raise TakeCaptureError(
+                f"{path}: take {tid!r} declares channels "
+                f"{sorted(entry['sources'])}, but the session records "
+                f"{sorted(channels)}. A take short one position is not a take."
+            )
+        if len(entry["mid_search_s"]) < MIN_SLATES_PER_TAKE - 2:
+            raise TakeCaptureError(
+                f"{path}: take {tid!r} declares no mid-slate window. "
+                f"{MIN_SLATES_PER_TAKE} claps per take: head and tail fit the "
+                f"drift line exactly and cannot test it, and the mid clap "
+                f"cannot be added after the session."
+            )
+        if entry["behavior"] == "calibration" and "score_midi" not in entry:
+            raise TakeCaptureError(
+                f"{path}: calibration take {tid!r} has no 'score_midi'. G-OOD-0 "
+                f"is recall against a KNOWN score; calibration_recall refuses to "
+                f"score it without one."
+            )
+    return body
+
+
+def intake_take(entry: dict, session: dict, src_root: Path, dest_root: Path) -> dict:
+    """One raw take -> a take directory ``sync_take`` and ``calibration_recall``
+    can both read, with every channel synced as proof it is usable.
+
+    Writes ``<dest_root>/<take_id>/`` holding one WAV per channel named for its
+    position, the calibration score MIDI if there is one, and ``take.json``.
+    The directory is self-contained so a session folder moves without breaking,
+    the same property ``load_manifest`` already gives.
+
+    Raises:
+        TakeCaptureError: any channel is missing or unreadable, any channel is
+            not at the session's declared sample rate, or the take does not
+            sync -- slates too close, correlation below the floor, implausible
+            drift. Each is unrecoverable once the rig is packed up.
+    """
+    tid = entry["take_id"]
+    ref_name = session["reference_channel"]
+    take_dir = dest_root / tid
+    take_dir.mkdir(parents=True, exist_ok=True)
+
+    channels: dict[str, dict] = {}
+    for name, rel in sorted(entry["sources"].items()):
+        dst = take_dir / f"{name}.wav"
+        converted = _materialize_channel(name, src_root / rel, dst)
+        rate = _channel_rate(dst)
+        if rate != session["sample_rate"]:
+            raise TakeCaptureError(
+                f"{tid}: channel {name!r} is {rate} Hz, not the session's "
+                f"{session['sample_rate']} Hz (from {rel}). Set the rate on the "
+                f"DEVICE and re-record this take -- intake will not resample it "
+                f"into agreement, because that hides a rig setting that is still "
+                f"cheap to fix. iOS voice-memo apps default to 44100."
+            )
+        channels[name] = {
+            "source": str(rel),
+            "sample_rate": rate,
+            "converted": converted,
+        }
+
+    body = {
+        "take_id": tid,
+        "session_id": session["session_id"],
+        "rig_hash": session["rig_hash"],
+        "piece": entry["piece"],
+        "behavior": entry["behavior"],
+        "reference_channel": ref_name,
+        "channels": {name: f"{name}.wav" for name in entry["sources"]},
+        "mid_search_s": entry["mid_search_s"],
+    }
+    for key in ("head_search_s", "tail_search_s"):
+        if key in entry:
+            body[key] = entry[key]
+    if entry["behavior"] == "calibration":
+        score_src = src_root / entry["score_midi"]
+        if not score_src.exists():
+            raise TakeCaptureError(
+                f"{tid}: score MIDI missing at {score_src}. A calibration take "
+                f"without its score cannot be scored against anything."
+            )
+        shutil.copyfile(score_src, take_dir / "score.mid")
+        body["score_midi"] = "score.mid"
+
+    manifest = take_dir / "take.json"
+    manifest.write_text(json.dumps(body, indent=1) + "\n")
+
+    take = sync_take(manifest)
+    return {
+        "take_id": tid,
+        "piece": entry["piece"],
+        "behavior": entry["behavior"],
+        "manifest": str(manifest),
+        "channels": channels,
+        "syncs": {
+            name: {
+                "head_offset_s": s.head_offset_s,
+                "drift_ppm": s.drift_ppm,
+                "head_corr": s.head_corr,
+                "tail_corr": s.tail_corr,
+                # None means linearity is UNTESTED. Reported, never gated on: a
+                # residual bar picked before any real room recording exists
+                # would be invented, not measured.
+                "max_mid_residual_s": s.max_mid_residual_s,
+            }
+            for name, s in take.syncs.items()
+        },
+    }
+
+
+def intake_session(manifest_path: Path, dest_root: Path) -> dict:
+    """Whole session in, validated takes out. Writes ``intake_report.json``.
+
+    Every take is attempted even after one fails, because the operator wants
+    the entire punch-list before walking back to the piano rather than one
+    problem per round trip. The report is written either way, and a session
+    with any failure then RAISES: a partially intaken session is not a session,
+    and a silent failure list is how a missing position becomes a hole in the
+    subtraction weeks later.
+    """
+    session = load_session_manifest(manifest_path)
+    src_root = manifest_path.parent
+    dest_root.mkdir(parents=True, exist_ok=True)
+
+    takes, failures = [], []
+    for entry in session["takes"]:
+        try:
+            takes.append(intake_take(entry, session, src_root, dest_root))
+        except TakeCaptureError as exc:
+            failures.append({"take_id": entry["take_id"], "error": str(exc)})
+
+    report = {
+        "session_id": session["session_id"],
+        "rig_hash": session["rig_hash"],
+        "sample_rate": session["sample_rate"],
+        "reference_channel": session["reference_channel"],
+        "dest_root": str(dest_root),
+        "n_takes_declared": len(session["takes"]),
+        "n_takes_ok": len(takes),
+        "takes": takes,
+        "failures": failures,
+    }
+    report_path = dest_root / "intake_report.json"
+    report_path.write_text(json.dumps(report, indent=1) + "\n")
+
+    if failures:
+        raise TakeCaptureError(
+            f"{len(failures)} of {len(session['takes'])} takes failed intake "
+            f"(report: {report_path}):\n"
+            + "\n".join(f"  {f['take_id']}: {f['error']}" for f in failures)
+        )
+    return report
+
+
+def _format_intake(report: dict) -> str:
+    lines = [
+        f"session {report['session_id']}  rig {report['rig_hash']}",
+        f"{report['n_takes_ok']}/{report['n_takes_declared']} takes intaken "
+        f"at {report['sample_rate']} Hz -> {report['dest_root']}",
+        "",
+    ]
+    for t in report["takes"]:
+        lines.append(f"{t['take_id']}  {t['behavior']}  {t['piece']}")
+        for name, s in sorted(t["syncs"].items()):
+            resid = s["max_mid_residual_s"]
+            resid_s = "UNTESTED" if resid is None else f"{resid * 1e3:.1f} ms"
+            lines.append(
+                f"    {name:<16} offset {s['head_offset_s']:+7.3f}s  "
+                f"drift {s['drift_ppm']:+8.1f} ppm  "
+                f"corr {s['head_corr']:.2f}/{s['tail_corr']:.2f}  "
+                f"mid residual {resid_s}"
+            )
+    return "\n".join(lines)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(
+        description="Intake a raw recording session into validated takes (#148)"
+    )
+    ap.add_argument("--session", type=Path, required=True)
+    ap.add_argument("--dest", type=Path, required=True)
+    args = ap.parse_args()
+    print(_format_intake(intake_session(args.session, args.dest)))
+
+
+if __name__ == "__main__":
+    main()
