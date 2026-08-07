@@ -26,6 +26,12 @@ class BundleSources:
     grades: dict
     repo_snapshot_dir: Path
     eval_manifest: list
+    # #166: {seg_id, grade, composer_id} for EVERY pool piece, staged as
+    # head_manifest.json. The submission model's ridge head is fit on these
+    # ~5,798 rows rather than eval_manifest.json's 900, which is the difference
+    # between a 1920-dim ridge seeing 900 examples and seeing 5,798. None keeps
+    # the bundle byte-shaped as it was for the #149 fold jobs.
+    head_manifest: list | None = None
 
 
 # Junk the fork snapshot carries that must never reach the bundle: .git is the
@@ -33,6 +39,24 @@ class BundleSources:
 # stale bytecode from local runs, which would shadow the .py files they were
 # compiled from if their timestamps happened to line up in the container.
 _REPO_SNAPSHOT_IGNORE = shutil.ignore_patterns(".git", "__pycache__", "*.pyc")
+
+
+def build_head_manifest(pool_entries) -> list[dict]:
+    """{seg_id, grade, composer_id} for every pool piece, in seg_id order.
+
+    Unlike `build_eval_manifest` this cannot read grades out of features37
+    .npz files -- most pool pieces have none, they were never in the 900-piece
+    eval sample. Grades come from the manifest join instead, and composer_id is
+    a positional index into the sorted distinct composers. That id is
+    bookkeeping only: nothing fits a fold on it, because the submission model
+    has no folds. It is NOT comparable to features37's composer_id, and
+    labelling it so here is cheaper than debugging a silent mismatch later.
+    """
+    composers = sorted({e.composer for e in pool_entries})
+    composer_id = {c: i for i, c in enumerate(composers)}
+    return [{"seg_id": e.seg_id, "grade": int(e.grade),
+             "composer_id": composer_id[e.composer]}
+            for e in sorted(pool_entries, key=lambda e: e.seg_id)]
 
 
 def build_eval_manifest(features37_dir: Path) -> list[dict]:
@@ -71,6 +95,7 @@ class BundleReport:
     repo_snapshot_files: int
     code_files: int
     checksum: str
+    n_head_pieces: int = 0
 
 
 def _referenced_seg_ids(plans: list[FoldPlan]) -> list:
@@ -109,6 +134,15 @@ def stage_training_bundle(
         json.dumps([dataclasses.asdict(p) for p in plans]))
     (staging_dir / "eval_manifest.json").write_text(
         json.dumps(list(paths.eval_manifest)))
+    if paths.head_manifest is not None:
+        missing = [p["seg_id"] for p in paths.head_manifest
+                   if p["seg_id"] not in set(seg_ids)]
+        if missing:
+            raise ValueError(
+                f"{len(missing)} piece(s) in the head manifest have no staged MIDI, "
+                f"so their embeddings could never be extracted: {missing[:5]}")
+        (staging_dir / "head_manifest.json").write_text(
+            json.dumps(list(paths.head_manifest)))
 
     repo_out = staging_dir / "moonbeam_repo"
     if repo_out.exists():
@@ -132,7 +166,8 @@ def stage_training_bundle(
     return BundleReport(n_midis=len(seg_ids), n_fold_plans=len(plans),
                          n_eval_pieces=len(paths.eval_manifest),
                          repo_snapshot_files=repo_files, code_files=len(_CODE_FILES),
-                         checksum=hasher.hexdigest())
+                         checksum=hasher.hexdigest(),
+                         n_head_pieces=len(paths.head_manifest or ()))
 
 
 def main(argv=None, uploader=None) -> int:
@@ -162,11 +197,23 @@ def main(argv=None, uploader=None) -> int:
     ap.add_argument("--n-folds", type=int, default=5)
     ap.add_argument("--seed", type=int, default=2026)
     ap.add_argument("--val-frac", type=float, default=0.12)
+    ap.add_argument(
+        "--include-all-data-plan", action="store_true",
+        help="also stage the #166 SUBMISSION plan (fold 99): train on every "
+             "pool piece, hold nothing out, plus head_manifest.json so the "
+             "ridge head can be fit on all of them. The 5 CV plans are staged "
+             "unchanged alongside it, so one bundle serves both")
+    ap.add_argument(
+        "--all-data-val-frac", type=float, default=0.0,
+        help="validation slice for the submission plan. 0 (default) trains on "
+             "everything, which is the entire point of that plan")
     args = ap.parse_args(argv)
 
     from claim_measurement.difficulty.bakeoff_sampling import load_bakeoff_manifest
     from claim_measurement.difficulty.fold_plan import (
+        build_all_data_plan,
         build_fold_plans,
+        check_all_data_plan,
         check_fold_plans,
     )
 
@@ -186,6 +233,18 @@ def main(argv=None, uploader=None) -> int:
             f"fold plan failed independent re-derivation, refusing to stage or "
             f"upload: {violations}")
 
+    head_manifest = None
+    if args.include_all_data_plan:
+        all_data_plan = build_all_data_plan(
+            pool_entries, val_frac=args.all_data_val_frac, seed=args.seed)
+        all_data_violations = check_all_data_plan(all_data_plan, pool_entries)
+        if all_data_violations:
+            raise ValueError(
+                f"the submission plan failed its coverage check, refusing to "
+                f"stage or upload: {all_data_violations}")
+        plans = plans + [all_data_plan]
+        head_manifest = build_head_manifest(pool_entries)
+
     from claim_measurement.difficulty.bakeoff_paths import (
         features37_dir,
         resolve_paths,
@@ -198,12 +257,18 @@ def main(argv=None, uploader=None) -> int:
     grades = {e.seg_id: e.grade for e in pool_entries}
     paths = BundleSources(
         midi_dir=args.midi_dir, grades=grades,
-        repo_snapshot_dir=args.repo_snapshot_dir, eval_manifest=eval_manifest)
+        repo_snapshot_dir=args.repo_snapshot_dir, eval_manifest=eval_manifest,
+        head_manifest=head_manifest)
     report = stage_training_bundle(paths, plans, args.staging_dir)
     print(f"staged {report.n_midis} MIDIs, {report.n_fold_plans} fold plans, "
           f"{report.n_eval_pieces} eval pieces, "
           f"{report.repo_snapshot_files} repo files, {report.code_files} code files, "
           f"checksum {report.checksum}")
+    if report.n_head_pieces:
+        print(f"submission plan (fold 99): "
+              f"{len(plans[-1].train_seg_ids)} train / "
+              f"{len(plans[-1].val_seg_ids)} val pieces, "
+              f"head_manifest.json carries {report.n_head_pieces} pieces")
 
     if uploader is None:
         from huggingface_hub import HfApi

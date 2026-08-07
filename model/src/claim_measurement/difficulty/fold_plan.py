@@ -26,6 +26,12 @@ class FoldPlan:
     val_seg_ids: tuple
 
 
+# The submission plan's `fold` index. Deliberately not 5: that would read as a
+# sixth CV fold, and this plan is the opposite of a fold -- it holds nothing
+# out. train_fold.py selects a plan by `--fold`, so it needs some integer.
+ALL_DATA_FOLD = 99
+
+
 def build_fold_plans(eval_entries, pool_entries, n_folds: int, seed: int,
                       val_frac: float) -> list:
     """eval_entries: the 900-piece eval sample. pool_entries: the full eligible
@@ -51,6 +57,80 @@ def build_fold_plans(eval_entries, pool_entries, n_folds: int, seed: int,
         plans.append(FoldPlan(fold=f, test_seg_ids=test_seg_ids,
                                train_seg_ids=train_seg_ids, val_seg_ids=val_seg_ids))
     return plans
+
+
+def build_all_data_plan(pool_entries, val_frac: float = 0.0,
+                        seed: int = 2026) -> FoldPlan:
+    """The SUBMISSION plan: train on every eligible piece, hold nothing out.
+
+    This is the inverse of `build_fold_plans` and the reason is in #104: the
+    per-fold composer exclusions exist only to keep OUR cross-validation
+    honest, and the MIREX test set is disjoint from PSyllabus by construction.
+    Fold 0 trains on 3,815 pieces; this trains on all ~5,798. That is the
+    largest free lever in the campaign and it falls out of work that has to
+    happen anyway.
+
+    `val_frac` defaults to 0.0 -- carving a validation slice would defeat the
+    entire point by withholding pieces from the model we ship. Nothing depends
+    on it: `train_fold.py` runs a fixed number of epochs with no early stopping,
+    and its per-step `loss` line is the divergence signal. A non-zero value is
+    available for a diagnostic run.
+
+    **A model trained from this plan can never be evaluated.** Every piece we
+    have a label for is in its training set, so any tau-c measured on it is
+    train-on-test -- the exact contamination #135's 0.824 anchor died of.
+    Validate the recipe on folds; deploy it once.
+    """
+    if not 0.0 <= val_frac < 1.0:
+        raise ValueError(f"val_frac must be in [0, 1), got {val_frac}")
+    if not pool_entries:
+        raise ValueError("pool_entries is empty")
+
+    if val_frac == 0.0:
+        train_seg_ids = tuple(sorted(e.seg_id for e in pool_entries))
+        val_seg_ids: tuple = ()
+    else:
+        train_seg_ids, val_seg_ids = _carve_val(pool_entries, val_frac, seed=seed)
+    return FoldPlan(fold=ALL_DATA_FOLD, test_seg_ids=(),
+                     train_seg_ids=train_seg_ids, val_seg_ids=val_seg_ids)
+
+
+def check_all_data_plan(plan: FoldPlan, pool_entries) -> list:
+    """Return every violation of the submission plan's invariants, as
+    human-readable strings. Empty list == clean.
+
+    The load-bearing one is COVERAGE: train + val must be exactly the pool,
+    with nothing dropped and nothing duplicated. "We trained on all 5,798
+    pieces" is a claim that goes in the technical report, so it is asserted
+    here rather than assumed from the absence of an exclusion step.
+    """
+    violations: list = []
+    pool_seg_ids = {e.seg_id for e in pool_entries}
+    train_set = set(plan.train_seg_ids)
+    val_set = set(plan.val_seg_ids)
+
+    if plan.fold != ALL_DATA_FOLD:
+        violations.append(f"fold is {plan.fold}, expected {ALL_DATA_FOLD}")
+    if plan.test_seg_ids:
+        violations.append(
+            f"the submission plan holds {len(plan.test_seg_ids)} pieces out; it "
+            f"must hold nothing out")
+    if train_set & val_set:
+        violations.append("train/val seg_id overlap")
+    if len(train_set) != len(plan.train_seg_ids):
+        violations.append("train_seg_ids contains duplicates")
+
+    covered = train_set | val_set
+    missing = pool_seg_ids - covered
+    extra = covered - pool_seg_ids
+    if missing:
+        violations.append(
+            f"{len(missing)} pool piece(s) are in neither train nor val, so this "
+            f"is not an all-data plan: {sorted(missing)[:5]}")
+    if extra:
+        violations.append(
+            f"{len(extra)} piece(s) are not in the pool: {sorted(extra)[:5]}")
+    return violations
 
 
 def _carve_val(train_pool, val_frac: float, seed: int):
