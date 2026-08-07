@@ -40,7 +40,11 @@ describe("ScoreMarkLayer", () => {
 		).toBeInTheDocument();
 
 		expect(screen.queryByLabelText(/Articulation/)).not.toBeInTheDocument();
-		expect(screen.getByText("3 marks not on this page")).toBeInTheDocument();
+		// Deliberately NOT "not on this page": only m5 is off-page, while m4 and
+		// m6 are timestamp-anchored and have no page at all.
+		expect(
+			screen.getByText("3 marks on the timeline only"),
+		).toBeInTheDocument();
 	});
 
 	it("expands and collapses a mark's evidence on tap", () => {

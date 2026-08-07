@@ -22,6 +22,11 @@ test("no timeline mark covers another, so every mark stays tappable", async ({
 					l: r.left,
 					r: r.right,
 					t: r.top,
+					// Comparing vertical RANGES, not `top` equality. Glyph height
+					// is not guaranteed uniform, so two marks in different lanes
+					// can still overlap — an equality check is blind to exactly
+					// the case lane packing does not already cover.
+					b: r.bottom,
 				};
 			}),
 	);
@@ -32,7 +37,7 @@ test("no timeline mark covers another, so every mark stays tappable", async ({
 		for (let j = i + 1; j < boxes.length; j++) {
 			const a = boxes[i];
 			const b = boxes[j];
-			if (a.t === b.t && a.l < b.r && b.l < a.r) {
+			if (a.t < b.b && b.t < a.b && a.l < b.r && b.l < a.r) {
 				collisions.push(`${a.label} <-> ${b.label}`);
 			}
 		}
@@ -49,6 +54,80 @@ test("no timeline mark covers another, so every mark stays tappable", async ({
 		.locator("button[aria-expanded]:not([data-measure-on])")
 		.first()
 		.click();
+});
+
+// Collision is a RELATIONAL question ("does any mark overlap another?");
+// containment is a different one ("does each mark fit inside its parent?").
+// Pairwise geometry never references the container, so a collision test passes
+// happily while every mark sits outside the box. Both are needed.
+for (const width of [1280, 760, 640]) {
+	test(`every timeline mark stays inside the strip at ${width}px`, async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width, height: 900 });
+		await page.goto("/marks-preview");
+
+		const result = await page.evaluate(() => {
+			const strip = document.querySelector("[data-testid='session-timeline']");
+			if (!strip) throw new Error("timeline strip not found");
+			const s = strip.getBoundingClientRect();
+			const escapees = [...strip.querySelectorAll("button[aria-expanded]")]
+				.map((el) => {
+					const r = el.getBoundingClientRect();
+					return {
+						label: el.getAttribute("aria-label"),
+						overflowRight: Math.round(r.right - s.right),
+						overflowLeft: Math.round(s.left - r.left),
+					};
+				})
+				.filter((m) => m.overflowRight > 0 || m.overflowLeft > 0);
+			return {
+				escapees,
+				scrollW: document.documentElement.scrollWidth,
+				clientW: document.documentElement.clientWidth,
+			};
+		});
+
+		// A mark anchored at 85% of the session ran 36px past the strip's right
+		// edge at every viewport, because `left` is chosen from elapsed time
+		// before the glyph's width is known.
+		expect(result.escapees).toEqual([]);
+		// And an overflowing mark widens the document, so the whole page scrolls
+		// sideways on a narrow viewport.
+		expect(result.scrollW).toBe(result.clientW);
+	});
+}
+
+test("a mark sits at its share of the session duration", async ({ page }) => {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await page.goto("/marks-preview");
+
+	// Moved here from SessionTimelineStrip.test.tsx: position is derived from
+	// the measured strip width, and jsdom reports every width as 0, so only a
+	// real layout engine can produce this fact.
+	const offset = await page.evaluate(() => {
+		const strip = document.querySelector("[data-testid='session-timeline']");
+		if (!strip) throw new Error("timeline strip not found");
+		const s = strip.getBoundingClientRect();
+		const glyph = [...strip.querySelectorAll("button[aria-expanded]")].find(
+			(b) => b.getAttribute("aria-label")?.includes("Pedaling"),
+		);
+		if (!glyph) throw new Error("pedaling mark not found");
+		const r = glyph.getBoundingClientRect();
+		return { left: r.left - s.left, stripWidth: s.width };
+	});
+
+	// Fixture m1 is at 64s of 360s. It sits well clear of the right edge, so
+	// clamping leaves it exactly where elapsed time put it.
+	expect(offset.left).toBeCloseTo((64 / 360) * offset.stripWidth, 0);
+});
+
+test("the preview contributes no second main landmark", async ({ page }) => {
+	await page.goto("/marks-preview");
+	// The layout already provides <main>; a route that adds its own nests two,
+	// which degrades landmark navigation. The axe gate runs color-contrast only
+	// and is structurally unable to see this.
+	expect(await page.locator("main").count()).toBe(1);
 });
 
 test("a mark sits over its real measure on a real Verovio engraving", async ({

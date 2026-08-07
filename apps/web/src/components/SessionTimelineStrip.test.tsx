@@ -26,18 +26,12 @@ describe("SessionTimelineStrip", () => {
 		).toBeInTheDocument();
 	});
 
-	it("positions a mark at its share of the session duration", () => {
-		render(
-			<SessionTimelineStrip
-				durationSeconds={FIXTURE_DURATION_SECONDS}
-				marks={FIXTURE_MARKS}
-			/>,
-		);
-
-		// m1 is at 64s of 360s = 17.777...%
-		const wrapper = screen.getByLabelText(/Pedaling/).parentElement;
-		expect(wrapper).toHaveStyle({ left: `${(64 / 360) * 100}%` });
-	});
+	// "a mark sits at its share of the session duration" USED to be asserted
+	// here, against a `left: 17.77%` string. It has moved to tests/marks.spec.ts.
+	// Position is now derived from the measured strip width so a mark can be
+	// held inside its container, and jsdom reports every width as 0 — so this
+	// file can no longer produce the fact, only a constant. Asserting a style
+	// string that layout never consumed is what let the overflow bug survive.
 
 	it("expands and collapses a mark's evidence on tap", () => {
 		render(

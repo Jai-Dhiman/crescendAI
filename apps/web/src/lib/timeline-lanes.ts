@@ -9,6 +9,30 @@ export interface LaneItem {
 export const LANE_GAP_PX = 8;
 
 /**
+ * Hold a glyph inside the strip that owns it.
+ *
+ * Elapsed time picks a position before the glyph's width is known, so a mark
+ * late in the session runs off the right edge — measured at 36px past a 720px
+ * strip for a mark at 84.7%, which also widened the document and made the whole
+ * page scroll sideways below 768px. Collision packing cannot see this: it
+ * compares marks to each other and never to their container.
+ *
+ * Clamping rather than scaling keeps the mapping from time to position honest
+ * everywhere except the last glyph-width of the strip, where there is no
+ * position that is both truthful and inside the box.
+ */
+export function clampToStrip(
+	left: number,
+	width: number,
+	stripWidth: number,
+): number {
+	// Before the first measurement stripWidth is 0; leaving `left` alone then
+	// avoids slamming every mark to 0 on the frame before layout settles.
+	if (stripWidth <= 0 || width <= 0) return left;
+	return Math.max(0, Math.min(left, stripWidth - width));
+}
+
+/**
  * Pack timeline marks into horizontal lanes so none covers another.
  *
  * Marks positioned purely by elapsed time collide whenever two moments fall

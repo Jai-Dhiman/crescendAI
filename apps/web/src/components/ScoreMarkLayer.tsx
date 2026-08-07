@@ -88,9 +88,13 @@ export function ScoreMarkLayer({
 				// BOTH themes, so dark-theme ink on it fails 4.5:1. Real-browser
 				// axe caught this; the token pair itself is fine on a real surface.
 				<p className="pointer-events-auto absolute bottom-0 left-0 rounded bg-surface-raised px-2 py-0.5 text-label-sm text-ink-tertiary">
+					{/* "not on this page" asserted a reason that is false for most of
+					    these: only a bar-anchored mark on another page is off-page,
+					    while a timestamp-anchored mark has no page at all. The count
+					    was honest; the explanation was not. */}
 					{unplaced.length === 1
-						? "1 mark not on this page"
-						: `${unplaced.length} marks not on this page`}
+						? "1 mark on the timeline only"
+						: `${unplaced.length} marks on the timeline only`}
 				</p>
 			)}
 		</div>

@@ -45,7 +45,12 @@ export function MarkGlyph({
 			aria-label={label}
 			data-measure-on={measureOn}
 			onClick={() => onToggle(mark.id)}
-			className="flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface-raised px-2 py-0.5 text-label-sm text-ink-primary"
+			// whitespace-nowrap keeps every glyph exactly one line tall. The
+			// timeline packs lanes on a fixed 26px pitch and reasons only about
+			// horizontal extent, so a glyph wrapping to two lines would span two
+			// lanes invisibly — the same covered-mark defect lane packing exists
+			// to prevent.
+			className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-border-subtle bg-surface-raised px-2 py-0.5 text-label-sm text-ink-primary"
 			// A lookup, never a computation. Lifecycle is server state; the
 			// client is forbidden from deriving or transitioning it.
 			//

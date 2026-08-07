@@ -140,7 +140,10 @@ export function MarksPreview() {
 	const onPage = FIXTURE_BARS.filter((b) => b.barNumber !== 88);
 
 	return (
-		<main className="mx-auto max-w-3xl px-6 py-12">
+		// A div, not a <main>: __root.tsx already wraps every route in one, and
+		// nesting a second landmark inside it breaks landmark navigation. The
+		// a11y gate cannot catch this — it runs .withRules(["color-contrast"]).
+		<div className="mx-auto max-w-3xl px-6 py-12">
 			<h1 className="mb-8 text-display-sm text-ink-primary">
 				Mark system preview
 			</h1>
@@ -177,6 +180,6 @@ export function MarksPreview() {
 				durationSeconds={FIXTURE_DURATION_SECONDS}
 				marks={FIXTURE_MARKS}
 			/>
-		</main>
+		</div>
 	);
 }
