@@ -706,10 +706,20 @@ def intake_take(entry: dict, session: dict, src_root: Path, dest_root: Path) -> 
         shutil.copyfile(score_src, take_dir / "score.mid")
         body["score_midi"] = "score.mid"
 
-    manifest = take_dir / "take.json"
-    manifest.write_text(json.dumps(body, indent=1) + "\n")
+    # A take that fails to sync must not leave a readable ``take.json`` behind.
+    # calibration_recall is invoked as `--manifest sessions/*/take.json`, so a
+    # manifest sitting in the directory of a REJECTED take would be globbed up
+    # and scored as though it had passed intake -- the "a failure becomes a
+    # pass" mechanism this eval keeps having to design against. The manifest is
+    # therefore written under a pending name and only renamed once the take has
+    # actually synced. The pending file and the audio stay on disk for
+    # diagnosis; only the name a glob matches is withheld.
+    pending = take_dir / "take.json.pending"
+    pending.write_text(json.dumps(body, indent=1) + "\n")
 
-    take = sync_take(manifest)
+    take = sync_take(pending)
+    manifest = take_dir / "take.json"
+    pending.rename(manifest)
     return {
         "take_id": tid,
         "piece": entry["piece"],
@@ -722,7 +732,8 @@ def intake_take(entry: dict, session: dict, src_root: Path, dest_root: Path) -> 
                 "drift_ppm": s.drift_ppm,
                 "head_corr": s.head_corr,
                 "tail_corr": s.tail_corr,
-                # None means linearity is UNTESTED. Reported, never gated on: a
+                # Never None here -- intake requires a mid-slate window, so
+                # linearity is always measured. Reported, never gated on: a
                 # residual bar picked before any real room recording exists
                 # would be invented, not measured.
                 "max_mid_residual_s": s.max_mid_residual_s,
@@ -786,13 +797,11 @@ def _format_intake(report: dict) -> str:
     for t in report["takes"]:
         lines.append(f"{t['take_id']}  {t['behavior']}  {t['piece']}")
         for name, s in sorted(t["syncs"].items()):
-            resid = s["max_mid_residual_s"]
-            resid_s = "UNTESTED" if resid is None else f"{resid * 1e3:.1f} ms"
             lines.append(
                 f"    {name:<16} offset {s['head_offset_s']:+7.3f}s  "
                 f"drift {s['drift_ppm']:+8.1f} ppm  "
                 f"corr {s['head_corr']:.2f}/{s['tail_corr']:.2f}  "
-                f"mid residual {resid_s}"
+                f"mid residual {s['max_mid_residual_s'] * 1e3:.1f} ms"
             )
     return "\n".join(lines)
 

@@ -591,6 +591,31 @@ def test_a_calibration_take_directory_is_readable_by_the_g_ood_0_gate(
     assert take.score_midi.exists()
 
 
+def test_a_take_that_fails_to_sync_leaves_no_globbable_manifest(tmp_path: Path):
+    """calibration_recall is invoked as `--manifest sessions/*/take.json`. A
+    manifest left in a REJECTED take's directory would be globbed up and scored
+    as though it had passed intake -- a failure silently becoming a pass. The
+    pending file and the audio stay for diagnosis; only the matched name is
+    withheld."""
+    ref = make_reference(slates=(HEAD_SLATE_S, MID_SLATE_S, TAIL_SLATE_S))
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    sf.write(str(raw / "t001_ref.wav"), ref.astype(np.float32), SR)
+    # a phone that stopped before the tail clap: syncs to an impossible drift
+    truncated = make_channel(ref, SR, 12.0, 500e-6)[: len(ref)]
+    sf.write(str(raw / f"t001_{POS}.wav"), truncated.astype(np.float32), SR)
+    session = _write_session_manifest(tmp_path, [_take_entry("t001")])
+
+    with pytest.raises(tc.TakeCaptureError, match="physical bound"):
+        tc.intake_session(session, tmp_path / "takes")
+
+    take_dir = tmp_path / "takes" / "t001"
+    assert not (take_dir / "take.json").exists()
+    assert (take_dir / "take.json.pending").exists()
+    assert (take_dir / f"{POS}.wav").exists()
+    assert list((tmp_path / "takes").glob("*/take.json")) == []
+
+
 def test_the_report_lists_every_failed_take_not_only_the_first(tmp_path: Path):
     """One round trip to the piano, not one per problem. A practice take is
     still attempted after a calibration take fails."""
