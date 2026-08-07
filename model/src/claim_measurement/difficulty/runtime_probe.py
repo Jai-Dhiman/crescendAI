@@ -44,6 +44,7 @@ run shortest first.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import shutil
 import sys
@@ -91,6 +92,35 @@ def project_budget(fit: dict, mean_piece_s: float, budget_h: float = 24.0
         "per_item_s": round(per_item, 2),
         "items_in_budget": int(budget_h * 3600 / per_item) if per_item > 0 else 0,
     }
+
+
+def build_transcriber(probe_dir: Path, device: str):
+    """Import transkun_cli out of the probe bundle, with the device bound.
+
+    `load_scorer` would otherwise build its own transcriber via
+    `realaudio_check._import_transcribe_wav`, which locates transkun_cli by
+    walking `Path(__file__).resolve()`'s parents for `apps/inference/amt`. That
+    lookup is correct in a real checkout and in the container, and it CANNOT
+    work against a Hub snapshot: snapshot_download materialises every file as a
+    symlink into `<repo>/blobs/<sha256>`, so `.resolve()` leaves the snapshot
+    tree entirely and the walk searches the blob store. It cost one cancelled
+    GPU job to find, because a locally staged bundle holds real files and the
+    rehearsal therefore could not reproduce it.
+
+    Binding the device here is load-bearing: load_scorer only binds its own
+    `--device` onto a transcriber it built itself, so a caller that supplies
+    one owns that responsibility. An unbound transcriber would leave Transkun
+    on CPU and the probe would measure the thing it exists to rule out.
+    """
+    amt_dir = probe_dir / "code" / "apps" / "inference" / "amt"
+    if not (amt_dir / "transkun_cli.py").exists():
+        raise FileNotFoundError(
+            f"probe bundle has no transcriber at {amt_dir}. Re-stage it with "
+            "push_runtime_probe.py -- without one this job measures nothing.")
+    sys.path.insert(0, str(amt_dir))
+    import transkun_cli  # noqa: PLC0415 -- path must be set first
+
+    return functools.partial(transkun_cli.transcribe_wav, device=device)
 
 
 def assemble_model_dir(adapter_dir: Path, head_dir: Path, dest: Path) -> Path:
@@ -176,6 +206,7 @@ def main(argv=None) -> int:
                       / "model_config.json"),
         on_failure="fallback",
         device=args.device,
+        transcribe=build_transcriber(probe_dir, args.device),
     )
     load_s = time.perf_counter() - load_t0
     print(f"scorer loaded in {load_s:.1f}s on device={args.device}", flush=True)
@@ -205,15 +236,26 @@ def main(argv=None) -> int:
             print(f"{item['seconds']:8.1f}s audio -> {elapsed:8.1f}s  "
                   f"ok={ok}  score={score:.4f}", flush=True)
 
-    fit = fit_runtime(rows)
-    print(f"\nfit: {fit['fixed_s']:.1f}s fixed + "
-          f"{fit['slope_x_realtime']:.3f}x realtime  "
-          f"(n={fit['n']}, max residual {fit['max_abs_residual_s']:.1f}s)")
-    print("\nprojection against the 24h/1-GPU clause:")
-    for mean_s in (60.0, 103.0, 200.0, 400.0):
-        p = project_budget(fit, mean_s)
-        print(f"  mean piece {p['mean_piece_s']:6.0f}s -> "
-              f"{p['per_item_s']:7.1f}s/item -> {p['items_in_budget']:6d} items in 24h")
+    # A one-item smoke run (--limit 1) is a legitimate way to spend the least
+    # possible GPU time proving the plumbing works. Exiting non-zero on it
+    # would flag the job ERROR and hide the fact that scoring succeeded, so
+    # too-few-points is reported rather than raised. fit_runtime still refuses
+    # to draw the line -- one point does not define one.
+    fit = None
+    if sum(1 for r in rows if r["ok"]) >= 2:
+        fit = fit_runtime(rows)
+        print(f"\nfit: {fit['fixed_s']:.1f}s fixed + "
+              f"{fit['slope_x_realtime']:.3f}x realtime  "
+              f"(n={fit['n']}, max residual {fit['max_abs_residual_s']:.1f}s)")
+        print("\nprojection against the 24h/1-GPU clause:")
+        for mean_s in (60.0, 103.0, 200.0, 400.0):
+            p = project_budget(fit, mean_s)
+            print(f"  mean piece {p['mean_piece_s']:6.0f}s -> "
+                  f"{p['per_item_s']:7.1f}s/item -> "
+                  f"{p['items_in_budget']:6d} items in 24h")
+    else:
+        print("\nfewer than 2 successful items: no fit, no projection. "
+              "Per-item times above are the whole result of this run.")
 
     failures = [r for r in rows if not r["ok"]]
     print(f"\nfailure rate: {len(failures)}/{len(rows)} "

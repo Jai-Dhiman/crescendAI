@@ -18,6 +18,7 @@ from claim_measurement.difficulty.push_runtime_probe import (
 )
 from claim_measurement.difficulty.runtime_probe import (
     assemble_model_dir,
+    build_transcriber,
     fit_runtime,
     project_budget,
 )
@@ -102,6 +103,21 @@ def _module_dir():
     from claim_measurement.difficulty import push_runtime_probe
 
     return Path(push_runtime_probe.__file__).resolve().parent
+
+
+def _wav_dir(tmp_path):
+    d = tmp_path / "wav"
+    d.mkdir(exist_ok=True)
+    (d / "a.wav").write_bytes(b"RIFF")
+    return d
+
+
+def _head_dir(tmp_path):
+    d = tmp_path / "head"
+    d.mkdir(exist_ok=True)
+    (d / "ridge_head.npz").write_bytes(b"")
+    (d / "manifest.json").write_text("{}")
+    return d
 
 
 def test_staged_code_is_an_importable_package_tree(tmp_path):
@@ -193,6 +209,30 @@ def test_projection_answers_the_clause_the_contract_actually_states():
 
     assert p["per_item_s"] == pytest.approx(60.0)
     assert p["items_in_budget"] == 1440
+
+
+def test_probe_binds_the_device_onto_the_transcriber_it_supplies(tmp_path):
+    """load_scorer binds --device only onto a transcriber it built itself, so
+    a caller that supplies one owns that. Unbound, Transkun stays on CPU and
+    the probe measures the exact thing it exists to rule out."""
+    staged = tmp_path / "staged"
+    stage_probe_bundle(_wav_dir(tmp_path), _head_dir(tmp_path), _module_dir(),
+                       staged, [{"wav": "a.wav", "seconds": 1.0, "target_s": 1.0}])
+
+    transcribe = build_transcriber(staged, "cuda")
+
+    assert transcribe.keywords["device"] == "cuda"
+    assert transcribe.func.__name__ == "transcribe_wav"
+
+
+def test_probe_refuses_a_bundle_with_no_transcriber(tmp_path):
+    """A GPU job that discovers this at load time has already paid for the
+    container. The failure belongs before the spend, and it is loud."""
+    empty = tmp_path / "no_code"
+    empty.mkdir()
+
+    with pytest.raises(FileNotFoundError, match="no transcriber"):
+        build_transcriber(empty, "cuda")
 
 
 def test_assemble_model_dir_joins_the_two_hub_halves(tmp_path):
