@@ -1,0 +1,1024 @@
+{
+ "metric_core": "follower_eval.asap_eval.follow_window / _beat_errors / _summarize, IMPORTED UNCHANGED. No metric is recomputed in ood_eval.",
+ "factor": "note_source",
+ "table": {
+  "baseline_level": "midi",
+  "n_takes_paired": 55,
+  "n_takes_dropped_unpaired": 0,
+  "n_takes_dropped_null_median": 0,
+  "n_takes_dropped_null_within_1beat": 0,
+  "rows": [
+   {
+    "level": "audio",
+    "n_takes_median": 55,
+    "n_takes_within_1beat": 55,
+    "median_abs_err_beats": 0.0064,
+    "within_1beat_frac": 0.9488,
+    "delta_median_beats": 0.0039,
+    "delta_within_1beat_pp": -0.17
+   },
+   {
+    "level": "midi",
+    "n_takes_median": 55,
+    "n_takes_within_1beat": 55,
+    "median_abs_err_beats": 0.0025,
+    "within_1beat_frac": 0.9505,
+    "delta_median_beats": 0.0,
+    "delta_within_1beat_pp": 0.0
+   }
+  ]
+ },
+ "failures": [],
+ "arms": [
+  {
+   "take_id": "Bach/Fugue/bwv_846/Shi05M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 106,
+   "median_abs_err_beats": 0.002,
+   "p90_abs_err_beats": 0.012,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Bach/Fugue/bwv_846/Shi05M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 106,
+   "median_abs_err_beats": 0.004,
+   "p90_abs_err_beats": 0.014,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Bach/Fugue/bwv_848/Denisova06M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 217,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.017,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Bach/Fugue/bwv_848/Denisova06M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 217,
+   "median_abs_err_beats": 0.005,
+   "p90_abs_err_beats": 0.021,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Bach/Fugue/bwv_848/Lee01M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 217,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.019,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Bach/Fugue/bwv_848/Lee01M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 217,
+   "median_abs_err_beats": 0.003,
+   "p90_abs_err_beats": 0.022,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Bach/Fugue/bwv_848/LeeSH01M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 217,
+   "median_abs_err_beats": 0.001,
+   "p90_abs_err_beats": 0.015,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Bach/Fugue/bwv_848/LeeSH01M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 217,
+   "median_abs_err_beats": 0.002,
+   "p90_abs_err_beats": 0.016,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Bach/Fugue/bwv_858/Zhang01M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 136,
+   "median_abs_err_beats": 0.003,
+   "p90_abs_err_beats": 0.013,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Bach/Fugue/bwv_858/Zhang01M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 136,
+   "median_abs_err_beats": 0.005,
+   "p90_abs_err_beats": 0.017,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Bach/Prelude/bwv_846/Shi05M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 137,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.0,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Bach/Prelude/bwv_846/Shi05M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 137,
+   "median_abs_err_beats": 0.003,
+   "p90_abs_err_beats": 0.008,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Bach/Prelude/bwv_848/Denisova06M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 310,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.032,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Bach/Prelude/bwv_848/Denisova06M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 310,
+   "median_abs_err_beats": 0.012,
+   "p90_abs_err_beats": 0.047,
+   "within_1beat_frac": 0.9968
+  },
+  {
+   "take_id": "Bach/Prelude/bwv_848/Lee01M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 310,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.033,
+   "within_1beat_frac": 0.9871
+  },
+  {
+   "take_id": "Bach/Prelude/bwv_848/Lee01M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 310,
+   "median_abs_err_beats": 0.008,
+   "p90_abs_err_beats": 0.04,
+   "within_1beat_frac": 0.9806
+  },
+  {
+   "take_id": "Bach/Prelude/bwv_848/LeeSH01M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 310,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.028,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Bach/Prelude/bwv_848/LeeSH01M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 310,
+   "median_abs_err_beats": 0.004,
+   "p90_abs_err_beats": 0.028,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Bach/Prelude/bwv_858/Zhang01M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 120,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.007,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Bach/Prelude/bwv_858/Zhang01M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 120,
+   "median_abs_err_beats": 0.004,
+   "p90_abs_err_beats": 0.009,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Balakirev/Islamey/CHEN10M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 1041,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.125,
+   "within_1beat_frac": 0.9962
+  },
+  {
+   "take_id": "Balakirev/Islamey/CHEN10M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 1041,
+   "median_abs_err_beats": 0.008,
+   "p90_abs_err_beats": 0.11,
+   "within_1beat_frac": 0.9981
+  },
+  {
+   "take_id": "Balakirev/Islamey/Na08M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 1041,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.167,
+   "within_1beat_frac": 0.9837
+  },
+  {
+   "take_id": "Balakirev/Islamey/Na08M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 1041,
+   "median_abs_err_beats": 0.007,
+   "p90_abs_err_beats": 0.24,
+   "within_1beat_frac": 0.976
+  },
+  {
+   "take_id": "Balakirev/Islamey/Yi04M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 1041,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.167,
+   "within_1beat_frac": 0.9808
+  },
+  {
+   "take_id": "Balakirev/Islamey/Yi04M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 1041,
+   "median_abs_err_beats": 0.006,
+   "p90_abs_err_beats": 0.186,
+   "within_1beat_frac": 0.9885
+  },
+  {
+   "take_id": "Beethoven/Piano_Sonatas/10-1/Hou02M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 399,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.02,
+   "within_1beat_frac": 0.9875
+  },
+  {
+   "take_id": "Beethoven/Piano_Sonatas/10-1/Hou02M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 399,
+   "median_abs_err_beats": 0.004,
+   "p90_abs_err_beats": 0.024,
+   "within_1beat_frac": 0.985
+  },
+  {
+   "take_id": "Beethoven/Piano_Sonatas/11-1/LiC03M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 794,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.048,
+   "within_1beat_frac": 0.9849
+  },
+  {
+   "take_id": "Beethoven/Piano_Sonatas/11-1/LiC03M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 794,
+   "median_abs_err_beats": 0.004,
+   "p90_abs_err_beats": 0.054,
+   "within_1beat_frac": 0.9786
+  },
+  {
+   "take_id": "Beethoven/Piano_Sonatas/11-1/LiYZ03M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 794,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.038,
+   "within_1beat_frac": 0.9849
+  },
+  {
+   "take_id": "Beethoven/Piano_Sonatas/11-1/LiYZ03M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 794,
+   "median_abs_err_beats": 0.005,
+   "p90_abs_err_beats": 0.238,
+   "within_1beat_frac": 0.9647
+  },
+  {
+   "take_id": "Beethoven/Piano_Sonatas/11-1/MaximovI02M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 794,
+   "median_abs_err_beats": 0.001,
+   "p90_abs_err_beats": 0.248,
+   "within_1beat_frac": 0.9761
+  },
+  {
+   "take_id": "Beethoven/Piano_Sonatas/11-1/MaximovI02M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 794,
+   "median_abs_err_beats": 0.009,
+   "p90_abs_err_beats": 0.347,
+   "within_1beat_frac": 0.9534
+  },
+  {
+   "take_id": "Beethoven/Piano_Sonatas/16-1/BuiJL02M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 648,
+   "median_abs_err_beats": 0.003,
+   "p90_abs_err_beats": 0.5,
+   "within_1beat_frac": 0.9645
+  },
+  {
+   "take_id": "Beethoven/Piano_Sonatas/16-1/BuiJL02M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 648,
+   "median_abs_err_beats": 0.008,
+   "p90_abs_err_beats": 0.728,
+   "within_1beat_frac": 0.9336
+  },
+  {
+   "take_id": "Beethoven/Piano_Sonatas/18-1/Levitsky05M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 757,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 2.0,
+   "within_1beat_frac": 0.8719
+  },
+  {
+   "take_id": "Beethoven/Piano_Sonatas/18-1/Levitsky05M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 757,
+   "median_abs_err_beats": 0.008,
+   "p90_abs_err_beats": 1.0,
+   "within_1beat_frac": 0.8877
+  },
+  {
+   "take_id": "Beethoven/Piano_Sonatas/3-1/Bult-ItoS03M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 1064,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.5,
+   "within_1beat_frac": 0.9521
+  },
+  {
+   "take_id": "Beethoven/Piano_Sonatas/3-1/Bult-ItoS03M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 1064,
+   "median_abs_err_beats": 0.007,
+   "p90_abs_err_beats": 0.5,
+   "within_1beat_frac": 0.9398
+  },
+  {
+   "take_id": "Chopin/Ballades/1/BuiJL04M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 653,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.143,
+   "within_1beat_frac": 0.9877
+  },
+  {
+   "take_id": "Chopin/Ballades/1/BuiJL04M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 653,
+   "median_abs_err_beats": 0.002,
+   "p90_abs_err_beats": 0.157,
+   "within_1beat_frac": 0.9816
+  },
+  {
+   "take_id": "Chopin/Ballades/1/JIA06M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 653,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.142,
+   "within_1beat_frac": 0.9801
+  },
+  {
+   "take_id": "Chopin/Ballades/1/JIA06M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 653,
+   "median_abs_err_beats": 0.005,
+   "p90_abs_err_beats": 0.101,
+   "within_1beat_frac": 0.9816
+  },
+  {
+   "take_id": "Chopin/Ballades/1/KimSuyeon04M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 653,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.078,
+   "within_1beat_frac": 0.9862
+  },
+  {
+   "take_id": "Chopin/Ballades/1/KimSuyeon04M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 653,
+   "median_abs_err_beats": 0.003,
+   "p90_abs_err_beats": 0.085,
+   "within_1beat_frac": 0.9893
+  },
+  {
+   "take_id": "Chopin/Ballades/1/Mo07M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 653,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.085,
+   "within_1beat_frac": 0.9969
+  },
+  {
+   "take_id": "Chopin/Ballades/1/Mo07M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 653,
+   "median_abs_err_beats": 0.002,
+   "p90_abs_err_beats": 0.088,
+   "within_1beat_frac": 0.9969
+  },
+  {
+   "take_id": "Debussy/Images_Book_1/1_Reflets_dans_lEau/Kleisen11M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 373,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.333,
+   "within_1beat_frac": 0.9383
+  },
+  {
+   "take_id": "Debussy/Images_Book_1/1_Reflets_dans_lEau/Kleisen11M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 373,
+   "median_abs_err_beats": 0.008,
+   "p90_abs_err_beats": 0.484,
+   "within_1beat_frac": 0.9303
+  },
+  {
+   "take_id": "Debussy/Images_Book_1/1_Reflets_dans_lEau/ParkJH13M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 373,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.332,
+   "within_1beat_frac": 0.9357
+  },
+  {
+   "take_id": "Debussy/Images_Book_1/1_Reflets_dans_lEau/ParkJH13M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 373,
+   "median_abs_err_beats": 0.006,
+   "p90_abs_err_beats": 0.344,
+   "within_1beat_frac": 0.9303
+  },
+  {
+   "take_id": "Debussy/Pour_le_Piano/1/MunA12M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 487,
+   "median_abs_err_beats": 0.005,
+   "p90_abs_err_beats": 63.013,
+   "within_1beat_frac": 0.8234
+  },
+  {
+   "take_id": "Debussy/Pour_le_Piano/1/MunA12M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 487,
+   "median_abs_err_beats": 0.014,
+   "p90_abs_err_beats": 15.0,
+   "within_1beat_frac": 0.8522
+  },
+  {
+   "take_id": "Glinka/The_Lark/Denisova10M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 311,
+   "median_abs_err_beats": 0.002,
+   "p90_abs_err_beats": 0.5,
+   "within_1beat_frac": 0.9196
+  },
+  {
+   "take_id": "Glinka/The_Lark/Denisova10M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 311,
+   "median_abs_err_beats": 0.005,
+   "p90_abs_err_beats": 0.5,
+   "within_1beat_frac": 0.926
+  },
+  {
+   "take_id": "Glinka/The_Lark/Kleisen07M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 311,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.5,
+   "within_1beat_frac": 0.9357
+  },
+  {
+   "take_id": "Glinka/The_Lark/Kleisen07M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 311,
+   "median_abs_err_beats": 0.005,
+   "p90_abs_err_beats": 0.5,
+   "within_1beat_frac": 0.9196
+  },
+  {
+   "take_id": "Haydn/Keyboard_Sonatas/31-1/Song05M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 259,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.012,
+   "within_1beat_frac": 0.9961
+  },
+  {
+   "take_id": "Haydn/Keyboard_Sonatas/31-1/Song05M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 259,
+   "median_abs_err_beats": 0.003,
+   "p90_abs_err_beats": 0.459,
+   "within_1beat_frac": 0.9189
+  },
+  {
+   "take_id": "Haydn/Keyboard_Sonatas/39-1/Yarden07M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 310,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.272,
+   "within_1beat_frac": 0.9548
+  },
+  {
+   "take_id": "Haydn/Keyboard_Sonatas/39-1/Yarden07M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 310,
+   "median_abs_err_beats": 0.004,
+   "p90_abs_err_beats": 0.363,
+   "within_1beat_frac": 0.9581
+  },
+  {
+   "take_id": "Haydn/Keyboard_Sonatas/39-3/Yarden07M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 483,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.02,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Haydn/Keyboard_Sonatas/39-3/Yarden07M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 483,
+   "median_abs_err_beats": 0.005,
+   "p90_abs_err_beats": 0.025,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Haydn/Keyboard_Sonatas/46-1/WongWY02M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 447,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.164,
+   "within_1beat_frac": 0.9955
+  },
+  {
+   "take_id": "Haydn/Keyboard_Sonatas/46-1/WongWY02M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 447,
+   "median_abs_err_beats": 0.002,
+   "p90_abs_err_beats": 0.184,
+   "within_1beat_frac": 0.9978
+  },
+  {
+   "take_id": "Liszt/Annees_de_pelerinage_2/1_Gondoliera/LeungM08M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 240,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.823,
+   "within_1beat_frac": 0.9333
+  },
+  {
+   "take_id": "Liszt/Annees_de_pelerinage_2/1_Gondoliera/LeungM08M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 240,
+   "median_abs_err_beats": 0.004,
+   "p90_abs_err_beats": 1.0,
+   "within_1beat_frac": 0.9083
+  },
+  {
+   "take_id": "Liszt/Annees_de_pelerinage_2/1_Gondoliera/LeungM12M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 240,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.667,
+   "within_1beat_frac": 0.925
+  },
+  {
+   "take_id": "Liszt/Annees_de_pelerinage_2/1_Gondoliera/LeungM12M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 240,
+   "median_abs_err_beats": 0.004,
+   "p90_abs_err_beats": 0.749,
+   "within_1beat_frac": 0.9292
+  },
+  {
+   "take_id": "Liszt/Ballade_2/GarritsonL04M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 1131,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.286,
+   "within_1beat_frac": 0.9682
+  },
+  {
+   "take_id": "Liszt/Ballade_2/GarritsonL04M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 1131,
+   "median_abs_err_beats": 0.009,
+   "p90_abs_err_beats": 0.33,
+   "within_1beat_frac": 0.9584
+  },
+  {
+   "take_id": "Liszt/Transcendental_Etudes/10/CaoJ03M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 366,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.046,
+   "within_1beat_frac": 0.9945
+  },
+  {
+   "take_id": "Liszt/Transcendental_Etudes/10/CaoJ03M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 366,
+   "median_abs_err_beats": 0.002,
+   "p90_abs_err_beats": 0.062,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Mozart/Fantasie_475/Huangci05M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 682,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.25,
+   "within_1beat_frac": 0.9457
+  },
+  {
+   "take_id": "Mozart/Fantasie_475/Huangci05M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 682,
+   "median_abs_err_beats": 0.003,
+   "p90_abs_err_beats": 0.125,
+   "within_1beat_frac": 0.9692
+  },
+  {
+   "take_id": "Mozart/Piano_Sonatas/12-1/MunA03M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 686,
+   "median_abs_err_beats": 0.008,
+   "p90_abs_err_beats": 395.986,
+   "within_1beat_frac": 0.8294
+  },
+  {
+   "take_id": "Mozart/Piano_Sonatas/12-1/MunA03M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 686,
+   "median_abs_err_beats": 0.018,
+   "p90_abs_err_beats": 395.964,
+   "within_1beat_frac": 0.8251
+  },
+  {
+   "take_id": "Mozart/Piano_Sonatas/12-1/WuuE02M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 686,
+   "median_abs_err_beats": 0.006,
+   "p90_abs_err_beats": 395.995,
+   "within_1beat_frac": 0.8542
+  },
+  {
+   "take_id": "Mozart/Piano_Sonatas/12-1/WuuE02M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 686,
+   "median_abs_err_beats": 0.01,
+   "p90_abs_err_beats": 395.983,
+   "within_1beat_frac": 0.8557
+  },
+  {
+   "take_id": "Mozart/Piano_Sonatas/12-3/MunA05M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 490,
+   "median_abs_err_beats": 0.003,
+   "p90_abs_err_beats": 153.269,
+   "within_1beat_frac": 0.8918
+  },
+  {
+   "take_id": "Mozart/Piano_Sonatas/12-3/MunA05M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 490,
+   "median_abs_err_beats": 0.005,
+   "p90_abs_err_beats": 0.333,
+   "within_1beat_frac": 0.9367
+  },
+  {
+   "take_id": "Mozart/Piano_Sonatas/12-3/WuuE04M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 490,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.021,
+   "within_1beat_frac": 0.9939
+  },
+  {
+   "take_id": "Mozart/Piano_Sonatas/12-3/WuuE04M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 490,
+   "median_abs_err_beats": 0.003,
+   "p90_abs_err_beats": 0.029,
+   "within_1beat_frac": 0.9939
+  },
+  {
+   "take_id": "Rachmaninoff/Preludes_op_23/4/ChenGuang12M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 229,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.021,
+   "within_1beat_frac": 0.9738
+  },
+  {
+   "take_id": "Rachmaninoff/Preludes_op_23/4/ChenGuang12M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 229,
+   "median_abs_err_beats": 0.002,
+   "p90_abs_err_beats": 0.025,
+   "within_1beat_frac": 0.9738
+  },
+  {
+   "take_id": "Rachmaninoff/Preludes_op_23/4/WuuE07M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 229,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.02,
+   "within_1beat_frac": 0.9738
+  },
+  {
+   "take_id": "Rachmaninoff/Preludes_op_23/4/WuuE07M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 229,
+   "median_abs_err_beats": 0.002,
+   "p90_abs_err_beats": 0.017,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Rachmaninoff/Preludes_op_23/6/Nikiforov14M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 169,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.031,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Rachmaninoff/Preludes_op_23/6/Nikiforov14M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 169,
+   "median_abs_err_beats": 0.005,
+   "p90_abs_err_beats": 0.035,
+   "within_1beat_frac": 1.0
+  },
+  {
+   "take_id": "Schubert/Impromptu_op.90_D.899/1/Duepree08M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 813,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.5,
+   "within_1beat_frac": 0.9311
+  },
+  {
+   "take_id": "Schubert/Impromptu_op.90_D.899/1/Duepree08M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 813,
+   "median_abs_err_beats": 0.007,
+   "p90_abs_err_beats": 0.665,
+   "within_1beat_frac": 0.9262
+  },
+  {
+   "take_id": "Schubert/Impromptu_op.90_D.899/1/Jin05M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 813,
+   "median_abs_err_beats": 0.001,
+   "p90_abs_err_beats": 0.559,
+   "within_1beat_frac": 0.9422
+  },
+  {
+   "take_id": "Schubert/Impromptu_op.90_D.899/1/Jin05M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 813,
+   "median_abs_err_beats": 0.007,
+   "p90_abs_err_beats": 0.666,
+   "within_1beat_frac": 0.9299
+  },
+  {
+   "take_id": "Schubert/Impromptu_op.90_D.899/1/Teo06M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 813,
+   "median_abs_err_beats": 0.01,
+   "p90_abs_err_beats": 1.0,
+   "within_1beat_frac": 0.9028
+  },
+  {
+   "take_id": "Schubert/Impromptu_op.90_D.899/1/Teo06M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 813,
+   "median_abs_err_beats": 0.013,
+   "p90_abs_err_beats": 0.898,
+   "within_1beat_frac": 0.9176
+  },
+  {
+   "take_id": "Schubert/Impromptu_op.90_D.899/4_no_repeat/WongWY08M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 823,
+   "median_abs_err_beats": 0.082,
+   "p90_abs_err_beats": 510.0,
+   "within_1beat_frac": 0.633
+  },
+  {
+   "take_id": "Schubert/Impromptu_op.90_D.899/4_no_repeat/WongWY08M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 823,
+   "median_abs_err_beats": 0.036,
+   "p90_abs_err_beats": 510.0,
+   "within_1beat_frac": 0.6646
+  },
+  {
+   "take_id": "Schubert/Piano_Sonatas/664-1/Mo10M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 532,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.028,
+   "within_1beat_frac": 0.9868
+  },
+  {
+   "take_id": "Schubert/Piano_Sonatas/664-1/Mo10M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 532,
+   "median_abs_err_beats": 0.004,
+   "p90_abs_err_beats": 0.036,
+   "within_1beat_frac": 0.9868
+  },
+  {
+   "take_id": "Schumann/Arabeske/Min09M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 496,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 220.611,
+   "within_1beat_frac": 0.75
+  },
+  {
+   "take_id": "Schumann/Arabeske/Min09M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 496,
+   "median_abs_err_beats": 0.006,
+   "p90_abs_err_beats": 161.035,
+   "within_1beat_frac": 0.7641
+  },
+  {
+   "take_id": "Schumann/Arabeske/ParkS15M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 496,
+   "median_abs_err_beats": 0.012,
+   "p90_abs_err_beats": 0.15,
+   "within_1beat_frac": 0.9738
+  },
+  {
+   "take_id": "Schumann/Arabeske/ParkS15M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 496,
+   "median_abs_err_beats": 0.017,
+   "p90_abs_err_beats": 0.5,
+   "within_1beat_frac": 0.9234
+  },
+  {
+   "take_id": "Schumann/Kreisleriana/1/ParkJH04M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 240,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 176.0,
+   "within_1beat_frac": 0.8
+  },
+  {
+   "take_id": "Schumann/Kreisleriana/1/ParkJH04M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 240,
+   "median_abs_err_beats": 0.005,
+   "p90_abs_err_beats": 176.0,
+   "within_1beat_frac": 0.8
+  },
+  {
+   "take_id": "Scriabin/Etudes_op_8/11/Shi08M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 160,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.5,
+   "within_1beat_frac": 0.975
+  },
+  {
+   "take_id": "Scriabin/Etudes_op_8/11/Shi08M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 160,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.331,
+   "within_1beat_frac": 0.9875
+  },
+  {
+   "take_id": "Scriabin/Sonatas/5/FaB05M.mid",
+   "factor": "note_source",
+   "level": "midi",
+   "n_beats_eval": 1003,
+   "median_abs_err_beats": 0.0,
+   "p90_abs_err_beats": 0.333,
+   "within_1beat_frac": 0.9801
+  },
+  {
+   "take_id": "Scriabin/Sonatas/5/FaB05M.mid",
+   "factor": "note_source",
+   "level": "audio",
+   "n_beats_eval": 1003,
+   "median_abs_err_beats": 0.008,
+   "p90_abs_err_beats": 0.333,
+   "within_1beat_frac": 0.9701
+  }
+ ]
+}
