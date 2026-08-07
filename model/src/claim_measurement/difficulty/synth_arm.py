@@ -262,8 +262,12 @@ def main(argv=None) -> int:
     os.environ["TRANSKUN_TIMEOUT_S"] = str(args.timeout_s)
 
     paths = resolve_paths(args.data_root)
+    # paths.labels is <data-root>/raw/psyllabus/new_clean_data.json, so the
+    # data root is three levels up -- derived from the one path resolver rather
+    # than re-anchored, which is what keeps --data-root actually honoured.
+    data_root = paths.labels.parents[2]
     soundfont = args.soundfont or (
-        paths.labels.parents[1] / "weights" / "soundfonts" / "FluidR3_GM.sf2")
+        data_root / "weights" / "soundfonts" / "FluidR3_GM.sf2")
 
     seg_ids = features37_seg_ids(features37_dir(paths.emb_root))
     composers = np.array([
