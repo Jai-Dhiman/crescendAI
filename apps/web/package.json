@@ -14,6 +14,7 @@
 		"build:scorehost": "vite build --config vite.config.scorehost.ts",
 		"test:scorehost": "playwright test --config playwright.scorehost.config.ts",
 		"test:a11y": "playwright test --config playwright.a11y.config.ts",
+		"test:marks": "playwright test --config playwright.marks.config.ts",
 		"lint": "biome check src/",
 		"lint:fix": "biome check --write src/",
 		"format": "biome format --write src/",

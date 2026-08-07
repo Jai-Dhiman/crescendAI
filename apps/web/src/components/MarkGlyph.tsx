@@ -1,0 +1,79 @@
+import type { CSSProperties } from "react";
+import { DIMENSION_COLOR_VAR } from "../lib/dimension-colors";
+import type { Mark } from "../lib/mark";
+import {
+	anchorLabel,
+	LIFECYCLE_OPACITY,
+	TAXONOMY_GLYPH,
+	TAXONOMY_LABEL,
+} from "../lib/mark";
+import { DIMENSION_LABELS } from "../lib/mock-session";
+
+interface MarkGlyphProps {
+	mark: Mark;
+	expanded: boolean;
+	onToggle: (id: string) => void;
+	style?: CSSProperties;
+	/** The measure element this glyph was placed against, for E2E assertions. */
+	measureOn?: string;
+}
+
+/**
+ * The one visual atom both canvases render. If each canvas drew its own chip
+ * the two could diverge silently, and "the same mark renders correctly on both
+ * canvases" would stop being enforceable.
+ *
+ * The dimension tint is a decorative dot, not a background: the --dim-* values
+ * are muted mid-tones that would fail a 4.5:1 text gate, and the dimension is
+ * carried in text regardless.
+ */
+export function MarkGlyph({
+	mark,
+	expanded,
+	onToggle,
+	style,
+	measureOn,
+}: MarkGlyphProps) {
+	const location = anchorLabel(mark.anchor);
+	const dimension = DIMENSION_LABELS[mark.dimension];
+	const label = `${TAXONOMY_LABEL[mark.taxonomy]}: ${dimension}, ${location}`;
+
+	return (
+		<button
+			type="button"
+			aria-expanded={expanded}
+			aria-label={label}
+			data-measure-on={measureOn}
+			onClick={() => onToggle(mark.id)}
+			// whitespace-nowrap keeps every glyph exactly one line tall. The
+			// timeline packs lanes on a fixed 26px pitch and reasons only about
+			// horizontal extent, so a glyph wrapping to two lines would span two
+			// lanes invisibly — the same covered-mark defect lane packing exists
+			// to prevent.
+			className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-border-subtle bg-surface-raised px-2 py-0.5 text-label-sm text-ink-primary"
+			// A lookup, never a computation. Lifecycle is server state; the
+			// client is forbidden from deriving or transitioning it.
+			//
+			// The lifecycle fade lands on the DOT below, never on this button:
+			// fading the button fades the text with it, and at the `resolved`
+			// step (0.4) no text colour can reach WCAG 1.4.3's 4.5:1 — pure
+			// black tops out at 2.82:1. Verified by real-browser axe, which is
+			// the only place this is checkable; jsdom skips color-contrast.
+			data-lifecycle={mark.lifecycle}
+			style={style}
+		>
+			<span
+				aria-hidden="true"
+				data-testid="mark-lifecycle-dot"
+				className="h-1.5 w-1.5 rounded-full"
+				style={{
+					backgroundColor: DIMENSION_COLOR_VAR[mark.dimension],
+					opacity: LIFECYCLE_OPACITY[mark.lifecycle],
+				}}
+			/>
+			<span aria-hidden="true">{TAXONOMY_GLYPH[mark.taxonomy]}</span>
+			<span>{dimension}</span>
+			<span className="text-ink-tertiary">{location}</span>
+		</button>
+	);
+}

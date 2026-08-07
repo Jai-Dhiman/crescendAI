@@ -34,6 +34,20 @@ class MockIntersectionObserver {
 globalThis.IntersectionObserver =
 	MockIntersectionObserver as unknown as typeof IntersectionObserver;
 
+// jsdom does not implement ResizeObserver — stub it globally so components that
+// observe container resize (ScoreMarkLayer re-measures because Verovio reflows
+// on width change) don't throw during render.
+// No constructor: the callback argument is ignored, and declaring one only to
+// type it trips noUselessConstructor. Tests that need to fire the callback
+// override this in their own beforeEach, as with IntersectionObserver above.
+class MockResizeObserver {
+	observe = vi.fn();
+	disconnect = vi.fn();
+	unobserve = vi.fn();
+}
+globalThis.ResizeObserver =
+	MockResizeObserver as unknown as typeof ResizeObserver;
+
 // jsdom does not implement Element.scrollTo — stub it so scroll-aware components
 // (e.g. ChatMessages) don't throw during render in tests.
 Element.prototype.scrollTo =
