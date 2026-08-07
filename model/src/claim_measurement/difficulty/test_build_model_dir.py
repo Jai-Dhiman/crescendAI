@@ -129,3 +129,71 @@ def test_rebuilding_over_an_existing_dir_leaves_no_stale_adapter_files(tmp_path)
     out = build_model_dir(tmp_path / "model", second_src, head, kind="test")
 
     assert not (out / ADAPTER_SUBDIR / "stale_shard.safetensors").exists()
+
+
+# --------------------------------------------------------------------------
+# The SUBMISSION directory: fit on every row, because nothing was held out.
+# --------------------------------------------------------------------------
+
+
+def test_the_submission_directory_fits_the_head_on_every_row(tmp_path):
+    """The fold-99 adapter trained on the whole pool, so there is no row to
+    exclude -- and excluding any would fit the head for a model that does not
+    exist. This is the 900-vs-5798 difference the head_manifest exists for."""
+    from claim_measurement.difficulty.build_model_dir import _build_all_data
+    from claim_measurement.difficulty.fold_plan import ALL_DATA_FOLD
+
+    artifact = tmp_path / "alldata"
+    artifact.mkdir()
+    _seg_ids, grades, _c = _fold_npz(artifact / f"emb_fold{ALL_DATA_FOLD}.npz", n=60)
+    adapter = artifact / ADAPTER_SUBDIR
+    adapter.mkdir()
+    (adapter / "adapter_config.json").write_text("{}")
+    out = tmp_path / "model"
+
+    assert _build_all_data(artifact, out) == 0
+
+    manifest = json.loads((out / MANIFEST_FILENAME).read_text())
+    assert manifest["head_train_rows"] == 60
+    assert manifest["held_out_pieces"] == 0
+    assert manifest["fold"] == ALL_DATA_FOLD
+    assert read_ridge_head(out / HEAD_FILENAME).fallback_score == float(
+        np.median(grades))
+
+
+def test_the_submission_manifest_carries_the_no_tau_c_warning(tmp_path):
+    """Every labelled piece is in this model's training set, so any tau-c
+    measured on it is train-on-test -- the contamination #135's 0.824 anchor
+    died of. The warning travels with the artifact because the artifact is what
+    outlives this conversation."""
+    from claim_measurement.difficulty.build_model_dir import _build_all_data
+    from claim_measurement.difficulty.fold_plan import ALL_DATA_FOLD
+
+    artifact = tmp_path / "alldata"
+    artifact.mkdir()
+    _fold_npz(artifact / f"emb_fold{ALL_DATA_FOLD}.npz")
+    adapter = artifact / ADAPTER_SUBDIR
+    adapter.mkdir()
+    (adapter / "adapter_config.json").write_text("{}")
+
+    _build_all_data(artifact, tmp_path / "model")
+
+    warning = json.loads(
+        (tmp_path / "model" / MANIFEST_FILENAME).read_text())["warning"]
+    assert "train-on-test" in warning
+
+
+def test_a_fold_artifact_dir_passed_to_the_submission_path_is_refused(tmp_path):
+    """--from-all-data against a fold directory would fit the head on a fold
+    adapter's rows and label the result a submission model. The emb filename is
+    what distinguishes them, so it is checked rather than assumed."""
+    import pytest
+
+    from claim_measurement.difficulty.build_model_dir import _build_all_data
+
+    artifact = tmp_path / "fold0"
+    artifact.mkdir()
+    _fold_npz(artifact / "emb_fold0.npz")
+
+    with pytest.raises(FileNotFoundError, match="emb_fold99.npz"):
+        _build_all_data(artifact, tmp_path / "model")

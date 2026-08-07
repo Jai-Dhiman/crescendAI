@@ -35,6 +35,7 @@ from pathlib import Path
 import numpy as np
 
 from claim_measurement.difficulty.bakeoff_cv import composer_disjoint_folds
+from claim_measurement.difficulty.fold_plan import ALL_DATA_FOLD
 from claim_measurement.difficulty.score_wav import (
     ADAPTER_SUBDIR,
     HEAD_FILENAME,
@@ -71,20 +72,69 @@ def build_model_dir(out_dir: Path, adapter_src: Path, head, **provenance) -> Pat
     return out_dir
 
 
+def _build_all_data(artifact_dir: Path, out_dir: Path) -> int:
+    """The submission directory. No exclusions: the fold-99 adapter trained on
+    every pool piece, so the head is fit on every row of emb_fold99.npz.
+
+    Deliberately does NOT touch features37 or composer_disjoint_folds. There is
+    no fold to be consistent with, and reaching for one here would be the first
+    step toward reporting a tau-c off this artifact -- which is train-on-test by
+    construction, since every labelled piece we hold is in its training set.
+    """
+    artifact_dir = Path(artifact_dir)
+    emb_path = artifact_dir / f"emb_fold{ALL_DATA_FOLD}.npz"
+    if not emb_path.exists():
+        raise FileNotFoundError(
+            f"{emb_path} does not exist -- --from-all-data expects the "
+            f"fold-{ALL_DATA_FOLD} training run's output dir")
+
+    head = fit_head_from_fold_embeddings(emb_path, exclude_seg_ids=None)
+    from claim_measurement.difficulty.train_fold import read_fold_embeddings
+
+    n_rows = len(read_fold_embeddings(emb_path)["seg_ids"])
+
+    build_model_dir(
+        out_dir, artifact_dir / ADAPTER_SUBDIR, head,
+        kind="SUBMISSION model -- trained on all pool pieces, nothing held out",
+        fold=ALL_DATA_FOLD,
+        head_train_rows=n_rows,
+        held_out_pieces=0,
+        embedding_dim=head.n_features,
+        fallback_score=head.fallback_score,
+        adapter_source=str(artifact_dir / ADAPTER_SUBDIR),
+        warning="No tau-c may be reported from this directory: every labelled "
+                "piece is in its training set, so any evaluation is "
+                "train-on-test. The recipe was validated on folds; see #104.")
+
+    print(f"wrote {out_dir}: SUBMISSION adapter (fold {ALL_DATA_FOLD}), head fit "
+          f"on {n_rows} rows with no exclusions, dim={head.n_features}, "
+          f"fallback={head.fallback_score}")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--from-fold", type=int, default=None,
                     help="build the scaffold directory from per-fold artifact F")
-    ap.add_argument("--fold-emb-dir", type=Path, required=True)
+    ap.add_argument(
+        "--from-all-data", type=Path, default=None,
+        help="build the SUBMISSION directory from a fold-99 artifact dir "
+             "(adapter/ + emb_fold99.npz from the all-data training run)")
+    ap.add_argument("--fold-emb-dir", type=Path, default=None)
     ap.add_argument("--out-dir", type=Path, required=True)
     ap.add_argument("--data-root", type=Path, default=None)
     ap.add_argument("--features37-dir", type=Path, default=None)
     args = ap.parse_args(argv)
 
-    if args.from_fold is None:
-        ap.error("--from-fold is required (--from-all-data lands with the "
-                 "all-data adapter in scope item 1)")
+    if (args.from_fold is None) == (args.from_all_data is None):
+        ap.error("pass exactly one of --from-fold or --from-all-data")
+
+    if args.from_all_data is not None:
+        return _build_all_data(args.from_all_data, args.out_dir)
+
+    if args.fold_emb_dir is None:
+        ap.error("--fold-emb-dir is required with --from-fold")
 
     from claim_measurement.difficulty.bakeoff_npz import read_embedding_npz
     from claim_measurement.difficulty.bakeoff_paths import (
