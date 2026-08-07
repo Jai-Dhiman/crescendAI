@@ -62,7 +62,7 @@ generations change behind it; the UI never knows which model produced a mark.
 
 ```json
 {
-  "anchor": { "type": "bars", "bars": [5, 6] },
+  "anchor": { "type": "bars", "bars": [5, 6], "atSeconds": 64 },
   "taxonomy": "needs_work",
   "dimension": "pedaling",
   "evidence": "pedal held through the bass change at 5.3; RH-LH blur 3x your usual",
@@ -72,7 +72,12 @@ generations change behind it; the UI never knows which model produced a mark.
 
 - **anchor:** `bars` when score alignment quality permits, else `timestamp`
   (seconds into session). Wrong bar numbers are never shown — anchors degrade
-  to timestamps, which are always true.
+  to timestamps, which are always true. **Every anchor carries `atSeconds`,
+  including the `bars` variant**: elapsed time is the one coordinate every mark
+  always has, and it is what lets the timeline place any mark at all. The type
+  is branded and `resolveAnchor` is its only producer, so "a wrong bar number
+  cannot reach the screen" is a compile-time property rather than a runtime
+  guard a later surface could route around (#157).
 - **taxonomy:** `needs_work` (◉) | `missed_opportunity` (○) | `strong` (★).
   The three-way split distinguishes doing something wrong from failing to
   take an expressive opportunity from playing something well — and leaves
@@ -83,16 +88,40 @@ generations change behind it; the UI never knows which model produced a mark.
   affordance, not the default state.
 - **lifecycle:** `active -> improving -> resolved`, driven by the student
   baseline's symmetric persistence gate (see `03-memory-system.md`). Marks
-  fade on the piece page as passages improve.
+  fade on the piece page as passages improve. **The fade lands on the mark's
+  dimension dot, never on its text**: fading the whole chip fades the label with
+  it, and at the `resolved` step no text colour reaches WCAG 1.4.3's 4.5:1 —
+  pure black tops out at 2.82:1. Caught by real-browser axe, which is the only
+  place contrast is checkable (jsdom skips the rule entirely).
 
 ### Two canvases, one vocabulary
 
-| Canvas | When | Anchor |
+| Canvas | Shows | Anchor |
 |---|---|---|
-| Score overlay (Verovio SVG annotation layer) | Piece known and score in library | bars |
-| Session timeline strip | Pieceless sessions, or shaky alignment | timestamp |
+| Score overlay (Verovio SVG annotation layer) | Only marks it can place on the rendered page — **lossy by design** | bars |
+| Session timeline strip | **Every mark in the session — the complete view** | any |
 
 Every surface renders marks through the same components on either canvas.
+
+The timeline is total, not a fallback for pieceless sessions: because every
+anchor carries `atSeconds`, it can place marks the score overlay cannot,
+including bar-anchored marks on a page that is not currently rendered. The
+score canvas discloses those as a count ("3 marks on the timeline only") rather
+than inventing a position for them — there is deliberately no fallback
+coordinate anywhere in placement.
+
+Two properties of the timeline are load-bearing and were each only provable in
+a real browser (#157):
+
+- **Marks are lane-packed so none covers another.** Marks positioned purely by
+  elapsed time collide whenever two moments fall close together, and a covered
+  mark is not merely ugly — it is unclickable, because the click lands on
+  whichever sibling is on top.
+- **Marks are clamped inside the strip.** Elapsed time picks a position before
+  a glyph's width is known, so a mark late in the session otherwise runs past
+  the right edge and widens the document enough to scroll the whole page
+  sideways. Collision packing cannot see this: it compares marks to each other
+  and never to their container.
 
 ---
 
