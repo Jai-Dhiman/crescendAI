@@ -11,6 +11,7 @@ Returns the exact dict shapes both surfaces already expect:
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -21,7 +22,13 @@ import pretty_midi
 import soundfile as sf
 
 SAMPLE_RATE = 16000
-_TRANSKUN_TIMEOUT_S = 900
+# 900s clears any single piece at the ~0.22x realtime a warm native CPU reads.
+# It does NOT clear a batch sweep: #167 transcribes the 900-piece eval set,
+# whose longest item is 2285s of audio, under parallel workers that push the
+# effective rate toward 1x -- so the tail would time out and vanish from the
+# arm. Overridable rather than raised, because a longer default would also
+# delay the honest failure every other caller wants.
+_TRANSKUN_TIMEOUT_S = int(os.environ.get("TRANSKUN_TIMEOUT_S", "900"))
 
 
 class TranskunError(RuntimeError):
