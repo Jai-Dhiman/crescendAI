@@ -1444,12 +1444,43 @@ purpose: their recalibrated values are measured (64.33 and 0.5798 on transkun/MA
 shipping them changes production verdicts, which is an owner decision, not a lint fix. A
 regression test asserts RES-001 cannot be promoted while they stand.
 
+### Finding 6 — the pedaling over-pedal scoping is LIFTED (owner-approved, SHIPPED)
+
+FRONT 9 Finding 3 recommended this and deliberately left it as an owner decision. Approved and
+shipped 2026-08-06: `substrate_insensitive_polarity={whole_piece:"+"}` is removed from the
+pedaling dimension, so over-pedal claims are adjudicated again.
+
+**The argument is that the premise is falsified, not that the rate is good.** The scoping existed
+for one reason: aria's pedal head saturated at a ~0.55 ceiling, so over-pedaling was *physically
+unrecoverable* from audio (G-A flip+ 7/30 even under maximal full-pedal corruption). Transkun's
+real-audio on-fraction reaches 1.0 and correlates **0.9976** with GT CC64. The condition that
+justified the guard no longer holds.
+
+**The lift is non-destructive by measurement, not by argument.** Scoped vs lifted on the same 188
+windows, the under- and normal-pedal verdicts are *identical* (under 60 SUPPORTED / 6 abstain;
+normal 55 / 28). The entire delta is the 39 over-pedal windows moving out of blanket abstention:
+
+| | rate | committed | over-pedal windows |
+|---|---:|---:|---|
+| scoped (was production) | 1.000 | 115 | 39 -> `substrate_insensitive_direction` |
+| **lifted (now production)** | **1.000** | **126** | 11 SUPPORTED + 28 near_threshold, **0 REFUTED** |
+
+Keeping the scoping had its own correctness cost: `substrate_insensitive_direction` asserts *"this
+substrate cannot see over-pedaling"*, which is now false, and it suppressed a real detectable class
+of feedback.
+
+**Caveats attached to the shipped edit.** (1) The over-pedal arm rests on only **11** committed
+windows. (2) Pedaling has **0 REFUTED anywhere**, so its 1.000 with a zero-width CI has never been
+stress-tested by a genuine disagreement — the tau_gt sweep (0.973 / 1.000 / 0.831) shows the
+headline is threshold-favourable. (3) MAESTRO is clean, in-distribution Disklavier audio; consumer
+over-pedal detection is untested (G-F2).
+
 ### The verifiable-set table, updated (real audio, Transkun, reference recalibrated per substrate x corpus)
 
 | dimension | rate | committed / 188 | abstention | G-D | tau warrant |
 |---|---:|---:|---:|:--:|---|
 | **dynamics** | 0.979 CI[0.952, 1.000] | 145 (77%) | 23% | PASS | perceptual (Youden-J), LOCKED |
-| **pedaling** | 1.000 CI[1.000, 1.000] | 115 (61%) | 39% | PASS | provisional, unlocked |
+| **pedaling** | 1.000 CI[1.000, 1.000] | 126 (67%) | 33% | PASS | provisional, unlocked |
 | **articulation** | **0.950 CI[0.900, 0.990]** | **100 (53%)** | **47%** | **PASS** | substrate-only, unlocked |
 | timing | not run | — | — | — | 30ms inherited, known too tight |
 

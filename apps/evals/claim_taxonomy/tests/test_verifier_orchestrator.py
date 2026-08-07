@@ -99,16 +99,23 @@ def _make_pedal_bundle(spans: list[tuple[float, float]], total_dur: float = 40.0
     }
 
 
-def test_pedaling_whole_piece_over_pedal_is_substrate_insensitive() -> None:
-    """#101 front-3: AMT pedal saturates, so whole_piece '+' (over-pedal) is
-    UNVERIFIABLE(substrate_insensitive_direction), NOT a (wrong) REFUTED."""
+def test_pedaling_whole_piece_over_pedal_is_adjudicated() -> None:
+    """#101 FRONT 10: over-pedal '+' is adjudicated again, NOT blocked by the guard.
+
+    front-3 marked whole_piece '+' substrate_insensitive because ARIA's pedal head
+    saturated at a ~0.55 ceiling, making over-pedaling physically unrecoverable. #128
+    swapped the substrate to Transkun, whose real-audio on-fraction reaches 1.0 and
+    correlates 0.9976 with ground truth, so the premise is falsified and the scoping
+    was lifted. A heavily pedalled performance must now reach a real verdict.
+    """
     taxonomy = _load_taxonomy()
+    assert "substrate_insensitive_polarity" not in taxonomy["dimensions"]["pedaling"]
     bundle = _make_pedal_bundle(spans=[(0.0, 38.0)])  # heavy pedal
     claim = {"claim_text": "over-pedaled throughout", "dimension": "pedaling",
              "location": "whole_piece", "polarity": "+"}
     result = verify(claim, bundle, taxonomy, engine=SubstrateErrorEngine(seed=42))
-    assert result.verdict == "UNVERIFIABLE"
-    assert result.reason_code == "substrate_insensitive_direction"
+    assert result.reason_code != "substrate_insensitive_direction"
+    assert result.verdict == "SUPPORTED"
 
 
 def test_pedaling_whole_piece_under_pedal_dry_is_supported() -> None:
