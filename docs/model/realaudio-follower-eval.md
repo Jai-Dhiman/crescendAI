@@ -267,3 +267,183 @@ PYTHONPATH="$WT/src" .venv/bin/python -m follower_eval.realaudio \
 **`claim_measurement/gate1/` was NOT pruned.** Earlier revisions of this doc grouped it with the #133 cleanup; that was wrong. It is the live GATE 1 localization harness cited by `docs/model/claim-verifier-signed-d-conventions.md` and covered by two active test files.
 
 > Verifying the prune: run the suite from the PRIMARY checkout. `data/` is gitignored, so `__file__`-anchored ASAP paths resolve into a worktree that has no `data/raw/asap-dataset` and those tests fail environmentally. The prune took the worktree run from 33 failed / 113 passed to 5 failed / 98 passed — it removed pre-existing environmental failures and introduced none; the 5 survivors pass 7/7 when run where the data lives.
+
+## Clean-audio baselines beyond score position (#108 / #148, 2026-08-07)
+
+Track A's baseline covers score **position** only. Two quantities #108 lists as
+its remaining scope had no clean-audio baseline at all, so #148's per-factor
+degradation table had nothing to subtract from. Both are now measured on the
+same ASAP performances, with the **same rule: truth is ASAP's human-verified
+beat alignment and never any aligner** — #101's gate1 scored parangonar against
+parangonar, so its residuals measured agreement, not accuracy.
+
+Truth provenance is stated at the strength it has, not more: the beat anchors
+are human-verified by ASAP's authors; the piecewise-linear interpolation between
+anchors and the same-pitch nearest-neighbour assignment rule are **ours and
+unverified**. The correct label is "human-verified beat alignment + deterministic
+assignment rule", never "human-verified note correspondence".
+
+### Per-note correspondence (`follower_eval/note_correspondence.py`)
+
+n=60 ASAP performances, 72,406 performed notes, 0 failures. Cluster bootstrap
+over **performances**, not notes — notes inside one performance share a pianist,
+tempo and score, so a note-level bootstrap over 72k correlated observations
+returns an interval several times too tight.
+
+| metric | value | 95% CI |
+|---|---|---|
+| precision | **0.9807** | 0.9774 – 0.9836 |
+| recall | **0.7705** | 0.7558 – 0.7845 |
+| F1 | **0.8630** | 0.8526 – 0.8727 |
+
+**Reading: the follower is precise but incomplete.** When it pairs a note it is
+right 98% of the time, and it declines to pair ~23% of notes that have a correct
+answer. Position accuracy does not reveal this — a follower can sit at the right
+score time while pairing the wrong notes. For a cursor, recall of 0.77 is fine;
+for wrong-note flagging or per-note timing feedback, **recall is the binding
+constraint**.
+
+Counted, never hidden: 890 notes (1.2%) have no same-pitch score note in
+tolerance (wrong notes, ornaments — not charged to the follower); 1,556 (2.1%)
+have two indistinguishable same-pitch candidates (trills) and are excluded,
+because choosing one manufactures truth. Result: `note_correspondence_baseline.json`.
+
+### Directional onset timing (`follower_eval/onset_direction.py`)
+
+Same 60 performances, 9,647 scored notes, 0 failures.
+
+| | value | 95% CI |
+|---|---|---|
+| **sign accuracy** | **0.8468** | 0.8202 – 0.8729 |
+| null: shuffled | 0.5876 | 0.5689 – 0.6076 |
+| null: majority | 0.7612 | — |
+| median magnitude error | **13.6 ms** | — |
+
+INFORMATIVE: the CI lower bound clears the majority null with margin.
+
+**Direction is measured against a LOCAL reference tempo, and that choice is the
+substance.** Notated tempo was rejected — an amateur at 60% of marked tempo would
+have every note labelled late, encoding tempo choice rather than error. A global
+affine fit was rejected — a genuine ritardando makes a whole closing section read
+late. Only a local reference supports "you rushed *this* note". Truth side uses
+ASAP's per-beat anchors; system side uses the follower's own local fit over its
+matches within ±2 s.
+
+Two readings this metric invites and must not receive:
+
+- **The shuffled null's expectation is not 0.5.** It is `p*q + (1-p)(1-q)` ≈
+  0.59 here, so an arm carrying *zero* per-note information still agrees well
+  above chance. A majority-class null ships alongside it for this reason, and a
+  run beating neither is reported as uninformative rather than as a number.
+- **The deadband is a population statement, not a trim.** It removes 82.5% of
+  matched notes, because ASAP's anchors predict most onsets to within 20 ms and
+  an on-time note has no meaningful direction. The headline describes genuinely
+  displaced notes — the population the early/late call is *for* — and is not a
+  statement about all notes.
+
+Result: `onset_direction_baseline.json`.
+
+### Shared metric core (`follower_eval/ood_eval.py`)
+
+#148's table must be subtractable from Track A's, so `ood_eval` imports
+`asap_eval`'s `follow_window` / `_beat_errors` / `_summarize` and recomputes
+nothing. Two tests pin it: an identity assertion that
+`ood_eval.follow_window is asap_eval.follow_window`, and a source check that no
+metric arithmetic has accreted locally.
+
+Exercised on the one factor ASAP supplies at two levels today, reproducing the
+**exact 55-performance paired set — 55 paired, 0 dropped, 0 failures**:
+
+| level | median beats | Δ median | within-1-beat | Δ pp |
+|---|---|---|---|---|
+| midi | 0.0025 | — | 0.9505 | — |
+| audio | 0.0064 | **+0.0039** | 0.9488 | −0.17 |
+
+**Not a byte-identical reproduction of the Track A row above, and must not be
+presented as one.** Track A's transcription cost is +0.005 beats against +0.0039
+here, the difference being aggregation (mean of per-take medians vs Track A's
+pooled figure). More importantly Track A's within-1-beat 0.9242 → 0.9205
+(−0.37 pp) is a **cold-start** number while this table's within-1-beat row is
+**full-follow** — the two are not comparable. What is reproduced is the paired
+set, the direction, and the magnitude of the transcription cost to within 0.001
+beat. Result: `ood_note_source_table.json`.
+
+### G-OOD-6 behavior statistics are NON-DISCRIMINATING
+
+`follower_eval/behavior_stats.py` defines the six statistics #148's G-OOD-6 was
+written against but never enumerated, and computes median/IQR/n over the
+279-clip corpus (`corpus_behavior_iqr.json`). All six are functions of the
+transcribed note stream alone — reusing this doc's proxy-track metrics
+(coverage, `backward_frac`, confidence) was rejected because those are *follower
+outputs*, so matching on them would show the follower reacts similarly to both
+arms rather than that the playing is similar.
+
+**The corpus denominator is the build manifests (`ok|skip` rows), not a
+directory glob.** `data/evals/realaudio_bundles/` holds 366 bundle files against
+a 279-clip corpus; a glob silently moves every quantile.
+
+| statistic | n | median | IQR |
+|---|---|---|---|
+| `active_duration_s` | 278 | 256.8 | 158.5 – 350.9 |
+| `note_rate_per_min` | 278 | 175.3 | 121.2 – 248.6 |
+| `pause_rate_per_min` | 278 | 0.715 | 0.165 – 1.735 |
+| `longest_pause_s` | 278 | 3.54 | 2.09 – 5.53 |
+| `repeat_event_frac` | 278 | 0.439 | 0.276 – 0.643 |
+| `local_tempo_jitter` | 277 | 0.270 | 0.169 – 0.357 |
+
+**Negative control, and it is a negative result: the 56 ASAP competition
+performances — professional, linear, zero practice behavior — pass G-OOD-6 5 of
+6 against its ≥4 bar**, with AUC 0.42–0.58 on five of the six statistics. The
+cause is structural: "median inside the IQR" asks whether an arm is *typical*,
+and an IQR is the middle 50% of a heterogeneous population, i.e. a wide target.
+This is the failure mode G-OOD-3 pre-registered against ("an invented threshold
+is the mechanism by which a null becomes a pass") surfacing in G-OOD-6 instead.
+
+Owner-approved amendment (2026-08-06): the six statistics and the ≥4/6 bar
+stand, plus a pre-registered clause — **the gate counts as evidence only if the
+ASAP control FAILS the same test**. It passes, so G-OOD-6 is recorded
+NON-DISCRIMINATING: its numbers are descriptive, and a pass must not be quoted
+as evidence of representativeness. Re-run the control with
+`behavior_stats.py --control data/evals/asap_audio_bundles`.
+
+Wrong-note rate is absent and cannot be added — detecting a wrong note requires
+the score, which is truth. G-OOD-6 bounds session shape, stopping, repetition
+and steadiness only.
+
+### Multi-channel take sync (`follower_eval/take_capture.py`)
+
+Validated by **recovery against injected ground truth**, not against its own
+output: synthetic channels are resampled onto a known clock and band-shaped and
+gain-modulated so a correlator needing identical waveforms fails. Over six
+conditions (offset −1.25…12 s, drift −150…500 ppm): offset error ≤ 0.13 ms
+(one sample at 8 kHz, i.e. sample-limited), drift error ≤ 0.3 ppm.
+
+**Two slates define the drift fit but cannot test it** — a line through two
+points fits both exactly, so residual non-linearity is unidentifiable, and phone
+AGC making drift non-constant is precisely the assumption two slates cannot
+check. `sync_channel` therefore accepts optional **mid-take slates**, held out
+of the fit, and reports their residual; `max_mid_residual_s` is `None` without
+one, meaning UNTESTED rather than fine. **Record three claps per take.**
+
+**`MIN_SLATE_CORR` alone is not a sufficient guard.** A channel that stops
+before the tail clap mis-locks onto an unrelated transient at corr 0.512 —
+above the 0.50 floor — giving an offset 47 s from the head offset (genuine
+matches score 0.82–0.85). It is caught instead by a **physical** bound: the
+implied 274,000 ppm drift is three orders of magnitude past any real crystal.
+A physical bound needs no tuning and does not soften on real room audio, where a
+correlation floor tuned on synthetic fixtures would not transfer.
+
+A missing channel raises and never falls back to the reference channel — that
+fallback would report a clean-channel number as a phone-channel one, which is
+the exact quantity #148 measures. Same precedent as `asap_audio.py` refusing to
+fall back to MIDI.
+
+### Not built yet (blocking #148's recording session)
+
+- **G-OOD-0 harness** — reference-channel Transkun recall ≥ 0.95 on calibration
+  takes. BLOCKING; #148 says failure stops Phase 2. No implementation exists.
+- **`take_capture` intake** — rename/convert/completeness-check raw exports.
+- **`rig_hash` enforcement** — `ood_eval.paired_table` does not read it, so
+  "a subtraction across two rig hashes fails loudly" is not yet true.
+- **`align_truth`** — parangonar invocation, human-verification round-trip,
+  G-OOD-1 A-vs-B bookkeeping.
