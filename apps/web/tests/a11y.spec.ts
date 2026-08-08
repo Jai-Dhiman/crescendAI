@@ -11,13 +11,12 @@ import { expect, test } from "@playwright/test";
 const THEME_CASES = [
 	{ theme: "light", path: "/privacy" },
 	{ theme: "dark", path: "/signin" },
-	// #157: the mark canvases. A top-level route, so it renders in a preview
-	// build without auth. axe's color-contrast rule needs real layout and
-	// silently SKIPS in jsdom, so this is the only place mark contrast is
-	// actually verified — never assert it from vitest.
-	{ theme: "light", path: "/marks-preview" },
-	{ theme: "dark", path: "/marks-preview" },
 ] as const;
+// Mark-glyph contrast coverage (formerly the two /marks-preview cases here)
+// now lives in tests/marks.spec.ts. That route's successor, practice-preview,
+// is import.meta.env.DEV-gated and renders nothing under this config's
+// production build (DEV === false), so it has to run under marks.spec.ts's
+// `vite dev` webServer instead.
 
 test.describe("color contrast", () => {
 	for (const { theme, path } of THEME_CASES) {

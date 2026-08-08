@@ -1,16 +1,44 @@
-import { expect, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+import { expect, type Page, test } from "@playwright/test";
+import {
+	FIXTURE_MARKS,
+	PIECELESS_DURATION_SECONDS,
+} from "../src/lib/practice-preview-fixtures";
 
-// The preview build serves no API, but ScoreRenderer fetches score bytes via
+// The dev server serves no API, but ScoreRenderer fetches score bytes via
 // api.scores.getData() -> /api/scores/:pieceId/data. Fulfil that request from
 // the statically-served .mxl instead, which is the pattern already established
 // in src/scorehost/score-host.playwright.ts:186. Rendering a real engraving is
 // the point of this test; running a real API is not.
 const PIECE_ID = "chopin-nocturne-op9-no2";
 
+// SessionTimelineStrip positions every mark with a `left` computed in a
+// useLayoutEffect (measured off real DOM rects), not in the initial render --
+// the initial render has an empty layout Map, so every glyph starts pinned to
+// the strip's own left edge until that effect commits. `page.goto`'s "load"
+// resolves once the SSR HTML has arrived, which is BEFORE that effect has
+// necessarily run (this app hits a pre-existing, app-wide SSR/client
+// hydration mismatch -- reproduces on /signin too, unrelated to marks -- that
+// delays when hydration settles). Reading positions right after goto races
+// that settle and sees the pre-measurement default. Wait for the real signal
+// instead of a fixed sleep: the first glyph's left edge has moved off the
+// strip's own left edge, meaning the layout effect has actually committed.
+async function waitForTimelineMeasured(page: Page) {
+	await page.waitForFunction(() => {
+		const strip = document.querySelector("[data-testid='session-timeline']");
+		const btn = strip?.querySelector("button[aria-expanded]");
+		if (!strip || !btn) return false;
+		return (
+			btn.getBoundingClientRect().left !== strip.getBoundingClientRect().left
+		);
+	});
+}
+
 test("no timeline mark covers another, so every mark stays tappable", async ({
 	page,
 }) => {
-	await page.goto("/marks-preview");
+	await page.goto("/practice-preview");
+	await waitForTimelineMeasured(page);
 
 	const boxes = await page.evaluate(() =>
 		[...document.querySelectorAll("button[aria-expanded]")]
@@ -65,7 +93,7 @@ for (const width of [1280, 760, 640]) {
 		page,
 	}) => {
 		await page.setViewportSize({ width, height: 900 });
-		await page.goto("/marks-preview");
+		await page.goto("/practice-preview");
 
 		const result = await page.evaluate(() => {
 			const strip = document.querySelector("[data-testid='session-timeline']");
@@ -100,7 +128,8 @@ for (const width of [1280, 760, 640]) {
 
 test("a mark sits at its share of the session duration", async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 900 });
-	await page.goto("/marks-preview");
+	await page.goto("/practice-preview");
+	await waitForTimelineMeasured(page);
 
 	// Moved here from SessionTimelineStrip.test.tsx: position is derived from
 	// the measured strip width, and jsdom reports every width as 0, so only a
@@ -117,13 +146,20 @@ test("a mark sits at its share of the session duration", async ({ page }) => {
 		return { left: r.left - s.left, stripWidth: s.width };
 	});
 
-	// Fixture m1 is at 64s of 360s. It sits well clear of the right edge, so
-	// clamping leaves it exactly where elapsed time put it.
-	expect(offset.left).toBeCloseTo((64 / 360) * offset.stripWidth, 0);
+	const pedalingMark = FIXTURE_MARKS.find((m) => m.dimension === "pedaling");
+	if (!pedalingMark) throw new Error("no pedaling fixture mark");
+
+	// The pedaling fixture sits well clear of the right edge, so clamping
+	// leaves it exactly where elapsed time put it.
+	expect(offset.left).toBeCloseTo(
+		(pedalingMark.anchor.atSeconds / PIECELESS_DURATION_SECONDS) *
+			offset.stripWidth,
+		0,
+	);
 });
 
 test("the preview contributes no second main landmark", async ({ page }) => {
-	await page.goto("/marks-preview");
+	await page.goto("/practice-preview");
 	// The layout already provides <main>; a route that adds its own nests two,
 	// which degrades landmark navigation. The axe gate runs color-contrast only
 	// and is structurally unable to see this.
@@ -144,9 +180,14 @@ test("a mark sits over its real measure on a real Verovio engraving", async ({
 		});
 	});
 
-	await page.goto("/marks-preview");
+	await page.goto("/practice-preview");
 
-	const realScore = page.locator("[data-testid='real-score']");
+	// .first(): practice-preview mounts two ScoreStand instances (the
+	// standalone top-third one and PracticeMode's own, both against the same
+	// piece), so this testid matches twice. Scoping to the first keeps every
+	// downstream single-element assertion (toHaveCount(1), boundingBox) valid
+	// without depending on Verovio giving the two renders distinct ids.
+	const realScore = page.locator("[data-testid='score-stand-page']").first();
 	// Verovio emits <g class="measure" id="..."> once the toolkit has rendered.
 	const measures = realScore.locator("g.measure");
 	await expect(measures.first()).toBeVisible({ timeout: 90000 });
@@ -193,3 +234,78 @@ test("a mark sits over its real measure on a real Verovio engraving", async ({
 	// And the degradation constraint holds on a real score too.
 	await expect(realScore).not.toContainText("bars 21");
 });
+
+test("PracticeMode's Stop control never overlaps a sub-surface's own top control", async ({
+	page,
+}) => {
+	await page.goto("/practice-preview");
+
+	const scope = page.locator("[data-testid='practice-mode-preview']");
+	const boxes = await scope.evaluate((root) => {
+		const find = (label: RegExp) =>
+			[...root.querySelectorAll("button")].find((b) =>
+				label.test(b.getAttribute("aria-label") ?? b.textContent ?? ""),
+			);
+		const named: readonly [string, HTMLButtonElement | undefined][] = [
+			["stop", find(/stop recording/i)],
+			["dismiss", find(/dismiss/i)],
+			["metronome", find(/metronome/i)],
+		];
+		return named
+			.filter((entry): entry is [string, HTMLButtonElement] => entry[1] != null)
+			.map(([name, el]) => {
+				const r = el.getBoundingClientRect();
+				return { name, l: r.left, r: r.right, t: r.top, b: r.bottom };
+			});
+	});
+
+	expect(boxes.map((b) => b.name).sort()).toEqual([
+		"dismiss",
+		"metronome",
+		"stop",
+	]);
+
+	const collisions: string[] = [];
+	for (let i = 0; i < boxes.length; i++) {
+		for (let j = i + 1; j < boxes.length; j++) {
+			const a = boxes[i];
+			const b = boxes[j];
+			if (a.t < b.b && b.t < a.b && a.l < b.r && b.l < a.r) {
+				collisions.push(`${a.name} <-> ${b.name}`);
+			}
+		}
+	}
+	expect(collisions).toEqual([]);
+});
+
+// #157 added these two color-contrast cases to tests/a11y.spec.ts against
+// /marks-preview; #158 deletes that route. practice-preview.tsx is
+// import.meta.env.DEV-gated and playwright.a11y.config.ts serves a
+// production build (DEV === false there), so the cases cannot move with
+// the route name alone -- they have to run under a config where DEV is
+// true, which is exactly what this file's webServer now is. This is the
+// only place mark contrast is verified -- never assert it from vitest.
+for (const theme of ["light", "dark"] as const) {
+	test(`practice-preview has no color-contrast violations (${theme})`, async ({
+		page,
+	}) => {
+		await page.goto("/practice-preview");
+		await page.evaluate((t) => {
+			document.documentElement.dataset.theme = t;
+		}, theme);
+
+		const results = await new AxeBuilder({ page })
+			.withRules(["color-contrast"])
+			.exclude("[data-axe-exempt]")
+			.analyze();
+
+		for (const v of results.violations) {
+			for (const node of v.nodes) {
+				console.log(
+					`[${theme} /practice-preview] ${v.id} :: ${node.target.join(" ")}`,
+				);
+			}
+		}
+		expect(results.violations).toEqual([]);
+	});
+}
