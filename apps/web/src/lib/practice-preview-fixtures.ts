@@ -18,7 +18,7 @@ export const PIECELESS_DURATION_SECONDS = 120;
 export const FIXTURE_MARKS: readonly Mark[] = [
 	{
 		id: "fixture-1",
-		anchor: resolveAnchor({ atSeconds: 30, alignmentQuality: 0 }),
+		anchor: /*#__PURE__*/ resolveAnchor({ atSeconds: 30, alignmentQuality: 0 }),
 		taxonomy: "needs_work",
 		dimension: "pedaling",
 		evidence: "pedal held through the bass change",
@@ -26,7 +26,7 @@ export const FIXTURE_MARKS: readonly Mark[] = [
 	},
 	{
 		id: "fixture-2",
-		anchor: resolveAnchor({ atSeconds: 75, alignmentQuality: 0 }),
+		anchor: /*#__PURE__*/ resolveAnchor({ atSeconds: 75, alignmentQuality: 0 }),
 		taxonomy: "strong",
 		dimension: "phrasing",
 		evidence: "the rubato in this phrase was well shaped",
@@ -37,7 +37,10 @@ export const FIXTURE_MARKS: readonly Mark[] = [
 		// strip's right edge specifically because a mark anchored there once
 		// ran 36px past the strip's edge at every viewport (#157 regression).
 		id: "fixture-3",
-		anchor: resolveAnchor({ atSeconds: 102, alignmentQuality: 0 }),
+		anchor: /*#__PURE__*/ resolveAnchor({
+			atSeconds: 102,
+			alignmentQuality: 0,
+		}),
 		taxonomy: "missed_opportunity",
 		dimension: "dynamics",
 		evidence: "the closing diminuendo flattened out early",
