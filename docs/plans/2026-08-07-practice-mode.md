@@ -1451,7 +1451,12 @@ auto-stopped, with resume bringing the prior surface back. A persistent
 showing (including the auto-stopped banner) and calls `onStop` exactly once
 when activated — this is the only way to leave the full-screen surface and
 end the session for real; `SessionEndedBanner`'s resume is a separate,
-non-terminal action (see spec, "Why the auto-stop is UI-only").
+non-terminal action (see spec, "Why the auto-stop is UI-only"). The Stop
+control lives in a dedicated `shrink-0` header row above a `flex-1` content
+region, not an absolute overlay — this jsdom test cannot see geometry, so
+the actual non-overlap of Stop against ScoreStand's Metronome toggle and
+ConfirmPieceChip's Dismiss button is verified in a real browser by Task 14,
+not here.
 
 **Interface under test:** `<PracticeMode userPickedPieceId={string | null}
 confidentGuess={ConfidentGuess | null} marks={readonly Mark[]}
@@ -1639,6 +1644,17 @@ interface PracticeModeProps {
  * of the full-screen surface, and duplicating a stop button into every leaf
  * component would risk one of them (or a future fifth surface) forgetting
  * it.
+ *
+ * It lives in its own `shrink-0` header row, stacked in normal document flow
+ * above a `flex-1` content region -- not an absolute overlay pinned to a
+ * corner. Two of the three sub-surfaces put their own primary control in
+ * that same top-right corner (ScoreStand's Metronome toggle, ConfirmPieceChip's
+ * Dismiss button), so an absolute/z-indexed Stop button would sit in the same
+ * box as one of them and could cover -- and steal clicks from -- whichever is
+ * underneath (loop-3 challenge, blocker 5; the same "covered mark is
+ * unclickable" failure class as #157). Reserving Stop its own row makes the
+ * separation a layout guarantee instead of a stacking-order one: every
+ * sub-surface's own header renders strictly below it, never behind it.
  */
 export function PracticeMode({
 	userPickedPieceId,
@@ -1666,42 +1682,46 @@ export function PracticeMode({
 				: null;
 
 	return (
-		<div className="relative flex h-full flex-col">
-			<button
-				type="button"
-				onClick={onStop}
-				aria-label="Stop recording"
-				className="absolute right-4 top-4 z-20 rounded-full bg-danger px-4 py-2 text-body-sm text-on-accent"
-			>
-				Stop
-			</button>
-			{pause.autoStopped ? (
-				<SessionEndedBanner onResume={pause.resume} />
-			) : (
-				<>
-					{ladderState === "confirm-chip" && confidentGuess && (
-						<ConfirmPieceChip
-							guess={confidentGuess}
-							onDismiss={() => setDismissed(true)}
-						/>
-					)}
-					{pieceId ? (
-						<ScoreStand
-							pieceId={pieceId}
-							marks={marks}
-							elapsedSeconds={elapsedSeconds}
-							isRecording={isRecording}
-						/>
-					) : (
-						<PieceLessMode
-							marks={marks}
-							durationSeconds={Math.max(elapsedSeconds, 1)}
-							elapsedSeconds={elapsedSeconds}
-							isRecording={isRecording}
-						/>
-					)}
-				</>
-			)}
+		<div className="flex h-full flex-col">
+			<div className="flex shrink-0 items-center justify-end border-b border-border-subtle px-4 py-2">
+				<button
+					type="button"
+					onClick={onStop}
+					aria-label="Stop recording"
+					className="rounded-full bg-danger px-4 py-2 text-body-sm text-on-accent"
+				>
+					Stop
+				</button>
+			</div>
+			<div className="flex min-h-0 flex-1 flex-col">
+				{pause.autoStopped ? (
+					<SessionEndedBanner onResume={pause.resume} />
+				) : (
+					<>
+						{ladderState === "confirm-chip" && confidentGuess && (
+							<ConfirmPieceChip
+								guess={confidentGuess}
+								onDismiss={() => setDismissed(true)}
+							/>
+						)}
+						{pieceId ? (
+							<ScoreStand
+								pieceId={pieceId}
+								marks={marks}
+								elapsedSeconds={elapsedSeconds}
+								isRecording={isRecording}
+							/>
+						) : (
+							<PieceLessMode
+								marks={marks}
+								durationSeconds={Math.max(elapsedSeconds, 1)}
+								elapsedSeconds={elapsedSeconds}
+								isRecording={isRecording}
+							/>
+						)}
+					</>
+				)}
+			</div>
 		</div>
 	);
 }
@@ -2178,7 +2198,13 @@ placed on a real Verovio-rendered score sits inside its score container
 and no two timeline marks overlap and become unclickable — the same two
 properties #157's `tests/marks.spec.ts` proved, now against the production
 `ScoreStand`/`PieceLessMode` components instead of bespoke test markup.
-Separately, this task also relocates the two color-contrast checks that
+Additionally (loop-3 challenge, blocker 5), this task mounts `PracticeMode`
+itself — not just its `ScoreStand`/`PieceLessMode` leaves — with a confident
+guess pending, and asserts that no two of its interactive controls overlap:
+the orchestrator's own "Stop recording" button, `ScoreStand`'s Metronome
+toggle, and `ConfirmPieceChip`'s Dismiss button all compete for the top of
+the screen in that state, and jsdom's zero-size layout can't see whether
+they collide. Separately, this task also relocates the two color-contrast checks that
 `tests/a11y.spec.ts` used to run against `/marks-preview`: that route is
 gone (Task 13), and `/practice-preview`'s successor route is deliberately
 `import.meta.env.DEV`-gated, which `playwright.a11y.config.ts`'s
@@ -2332,7 +2358,7 @@ the measureOn chain survives a real engraving without a long load):
 ```tsx
 	return (
 		<div className="h-dvh">
-			<div className="h-1/2 border-b border-border-subtle">
+			<div className="h-1/3 border-b border-border-subtle">
 				<ScoreStand
 					pieceId="chopin-nocturne-op9-no2"
 					marks={SCORE_FIXTURE_MARKS}
@@ -2340,7 +2366,7 @@ the measureOn chain survives a real engraving without a long load):
 					isRecording={false}
 				/>
 			</div>
-			<div className="h-1/2">
+			<div className="h-1/3 border-b border-border-subtle">
 				<PieceLessMode
 					marks={FIXTURE_MARKS}
 					durationSeconds={PIECELESS_DURATION_SECONDS}
@@ -2348,12 +2374,39 @@ the measureOn chain survives a real engraving without a long load):
 					isRecording={false}
 				/>
 			</div>
+			<div className="h-1/3" data-testid="practice-mode-preview">
+				<PracticeMode
+					userPickedPieceId={null}
+					confidentGuess={CONFIRM_CHIP_GUESS}
+					marks={SCORE_FIXTURE_MARKS}
+					elapsedSeconds={30}
+					isPlaying={true}
+					isRecording={true}
+					onStop={() => {}}
+				/>
+			</div>
 		</div>
 	);
 ```
 
-Add the corresponding import (`import { ScoreStand } from
-"../components/ScoreStand";`) and a `SCORE_FIXTURE_MARKS` constant.
+Add the corresponding imports (`import { ScoreStand } from
+"../components/ScoreStand";`, `import { PracticeMode } from
+"../components/PracticeMode";`, and `import type { ConfidentGuess } from
+"../lib/piece-ladder";`), a `SCORE_FIXTURE_MARKS` constant, and a
+`CONFIRM_CHIP_GUESS: ConfidentGuess` constant
+(`{ pieceId: "chopin-nocturne-op9-no2", composer: "Chopin", title:
+"Nocturne Op. 9 No. 2", confidence: 0.92 }`, the same shape already used in
+`PracticeMode.test.tsx`'s `guess` fixture).
+
+The third section exists specifically so the real-browser geometry check
+below (blocker 5) mounts `PracticeMode` itself, with a confident guess
+pending, rather than only its leaf components — with `userPickedPieceId:
+null` and a non-null `confidentGuess`, `resolvePieceLadderState` resolves to
+`"confirm-chip"`, so `ConfirmPieceChip` renders above `ScoreStand` inside
+this section, putting all three of the orchestrator's top-of-screen controls
+(Stop, Metronome toggle, Dismiss) on screen at once — exactly the
+combination #157-class overlap bugs hide in and unit tests (which run in
+jsdom, with zero-size layout) cannot catch.
 
 **This mark must be bar-anchored, not timestamp-only.** The retained "a mark
 sits over its real measure on a real Verovio engraving" test (blocker 3
@@ -2398,19 +2451,80 @@ const SCORE_FIXTURE_MARKS: readonly Mark[] = [
 ];
 ```
 
+Also add one more test to `apps/web/tests/marks.spec.ts` — the blocker-5
+fix — mirroring the existing "no timeline mark covers another" test's
+vertical-range collision math (lines 15-49) against the three named
+top-of-screen controls instead of the timeline's mark glyphs:
+
+```typescript
+// Added to tests/marks.spec.ts
+test("PracticeMode's Stop control never overlaps a sub-surface's own top control", async ({
+	page,
+}) => {
+	await page.goto("/practice-preview");
+
+	// Scoped to the practice-mode-preview section specifically: it is the one
+	// place a confident guess is pending on a known piece, so all three
+	// controls that compete for the top of the screen are on screen at once
+	// (loop-3 challenge, blocker 5) -- the orchestrator's own Stop button,
+	// ScoreStand's Metronome toggle (rendered below it, same corner), and
+	// ConfirmPieceChip's Dismiss button (rendered above ScoreStand, same
+	// corner again).
+	const scope = page.locator("[data-testid='practice-mode-preview']");
+	const boxes = await scope.evaluate((root) => {
+		const find = (label: RegExp) =>
+			[...root.querySelectorAll("button")].find((b) =>
+				label.test(b.getAttribute("aria-label") ?? b.textContent ?? ""),
+			);
+		const named = [
+			["stop", find(/stop recording/i)],
+			["dismiss", find(/dismiss/i)],
+			["metronome", find(/metronome/i)],
+		] as const;
+		return named
+			.filter((entry): entry is [string, Element] => entry[1] != null)
+			.map(([name, el]) => {
+				const r = el.getBoundingClientRect();
+				// Same collision math as the timeline-mark test above: vertical
+				// RANGES, not `top` equality -- Stop, Metronome, and Dismiss are
+				// not the same height, so an equality check would miss exactly
+				// the overlap this test exists to catch.
+				return { name, l: r.left, r: r.right, t: r.top, b: r.bottom };
+			});
+	});
+
+	// All three controls must actually be present and found by name -- a
+	// missing control here would silently pass the collision loop below with
+	// nothing to check.
+	expect(boxes.map((b) => b.name).sort()).toEqual(["dismiss", "metronome", "stop"]);
+
+	const collisions: string[] = [];
+	for (let i = 0; i < boxes.length; i++) {
+		for (let j = i + 1; j < boxes.length; j++) {
+			const a = boxes[i];
+			const b = boxes[j];
+			if (a.t < b.b && b.t < a.b && a.l < b.r && b.l < a.r) {
+				collisions.push(`${a.name} <-> ${b.name}`);
+			}
+		}
+	}
+	expect(collisions).toEqual([]);
+});
+```
+
 - [ ] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx playwright test --config playwright.marks.config.ts && bun run test:a11y
 ```
 Expected: PASS — every test in `tests/marks.spec.ts` (including the two
-ported color-contrast cases), and `test:a11y` green again (2/2: light
-`/privacy`, dark `/signin`).
+ported color-contrast cases and the new `PracticeMode` control-collision
+test), and `test:a11y` green again (2/2: light `/privacy`, dark `/signin`).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/web/tests/marks.spec.ts apps/web/playwright.marks.config.ts apps/web/src/routes/practice-preview.tsx apps/web/tests/a11y.spec.ts && git commit -m "test(practice-mode): port real-browser mark geometry harness to practice-preview; move mark-contrast coverage off the deleted marks-preview route"
+git add apps/web/tests/marks.spec.ts apps/web/playwright.marks.config.ts apps/web/src/routes/practice-preview.tsx apps/web/tests/a11y.spec.ts && git commit -m "test(practice-mode): port real-browser mark geometry harness to practice-preview; move mark-contrast coverage off the deleted marks-preview route; assert PracticeMode's Stop control never overlaps a sub-surface control"
 ```
 
 ---
@@ -2426,7 +2540,8 @@ Expected: `test` green (existing 246 tests plus every new test above);
 baseline (107/23) — a new file introducing a new warning is a regression,
 not "close enough"; `test:a11y` 2/2 (`/privacy`, `/signin` — mark-glyph
 contrast coverage now lives in `test:marks`, per Task 14); `test:marks`
-green against the ported harness, including its two color-contrast cases.
+green against the ported harness, including its two color-contrast cases and
+the `PracticeMode` control-collision test (loop-3 challenge, blocker 5).
 
 Then the manual click-through from the issue's success criterion, performed
 by a human (this is human-lit per `apps/CLAUDE.md` — "manual click-through
@@ -2784,3 +2899,130 @@ mechanical, narrowly-scoped fixes (add/rename one testid; update one
 hardcoded fraction or compute it from the new fixture constants) but must
 land before `test:marks` — a gate this plan is bound not to regress — will
 actually go green.
+
+---
+
+## Challenge Review (re-review, attempt 3, final)
+
+### Verification of the four claimed resolutions
+
+All four were checked against the actual current worktree files, not taken
+on trust from the plan's own summary text.
+
+1. **Missing stop control — RESOLVED, holds.** Read Task 10's `PracticeMode`
+   code directly: it declares a required `onStop: () => void` prop and
+   renders a persistent `aria-label="Stop recording"` button
+   (`absolute right-4 top-4 z-20`) above whichever sub-surface is showing,
+   including `SessionEndedBanner`. Task 12's `handleStopPracticeMode` (calls
+   `practice.stop()` then `handleExitListeningMode()`) is wired to it, and
+   `AppChat.tsx`'s current code (`grep`-verified: line 1070 `onStop={practice.stop}`,
+   `ListeningMode.tsx:321 aria-label="Stop recording"`) confirms the plan's
+   premise about what is being replaced. `PracticeMode.test.tsx`'s fourth
+   test exercises both pre- and post-auto-stop clicks. Holds.
+
+2. **`tests/a11y.spec.ts` hardcoding `/marks-preview` — RESOLVED, holds.**
+   Read the live `tests/a11y.spec.ts` (still has the two `/marks-preview`
+   entries pre-implementation, confirming the plan's stated baseline) and
+   Task 14's Step 1 instructions: it removes those two `THEME_CASES` entries
+   and ports the two color-contrast checks into `tests/marks.spec.ts`, which
+   Task 14 also repoints to a `vite dev` `webServer` (confirmed against the
+   live `playwright.marks.config.ts`, currently `bun run build && vite
+   preview`, matching what Task 14 Step 1 says to change). Holds.
+
+3. **`[data-testid='real-score']` locator — RESOLVED, holds.** Read the live
+   `tests/marks.spec.ts:149` (`page.locator("[data-testid='real-score']")`,
+   confirming the defect exists pre-fix) and Task 9's `ScoreStand` code,
+   which tags its container `data-testid="score-stand-page"` as a child of
+   the same `relative` element that hosts both `svgHostRef` (the injected
+   Verovio SVG) and `ScoreMarkLayer`. Also read `MarkGlyph.tsx` directly and
+   confirmed it renders `aria-expanded`, `aria-label`, and `data-measure-on`
+   on its `<button>` — the exact attributes the retained assertions in
+   `marks.spec.ts` (`button[aria-expanded]`, `.getAttribute("data-measure-on")`)
+   depend on. The locator swap in Task 14 resolves against real DOM shape,
+   not an assumption. Holds.
+
+4. **Hardcoded `64/360` fraction — RESOLVED, holds.** Read Task 13's actual
+   `practice-preview.tsx` code: `PIECELESS_DURATION_SECONDS = 120` and
+   `FIXTURE_MARKS` are exported, with `fixture-1` (pedaling) at
+   `atSeconds: 30` and a third mark (`fixture-3`) at `atSeconds: 102`
+   (85% of 120s) explicitly restoring the near-edge overflow case. Task 14's
+   instructions replace the hardcoded fraction with
+   `(pedalingMark.anchor.atSeconds / PIECELESS_DURATION_SECONDS) *
+   offset.stripWidth`, derived from the imported constants rather than a
+   second hand-typed copy. Also verified `mark-placement.ts`'s `placeMarks`
+   directly: it unconditionally routes any `anchor.type !== "bars"` mark to
+   `unplaced` (line 55-58), and `resolveAnchor` (`mark.ts:43-51`) only
+   produces a `"bars"` anchor when `alignmentQuality >= ALIGNMENT_MIN`
+   (`0.8`) — confirming Task 14's `SCORE_FIXTURE_MARKS` (`bars: [1, 1]`,
+   `alignmentQuality: 1`) is the correct, and necessary, way to get a
+   glyph to render at all, and that `score-ir.ts:243`'s `barNumber: idx + 1`
+   genuinely guarantees bar 1 exists (verified by reading that line
+   directly). Holds.
+
+### New finding from a fresh full read: the persistent Stop control physically collides with existing corner controls
+
+[BLOCKER] (confidence: 7/10) — `PracticeMode`'s "Stop recording" button is
+absolute-positioned at `right-4 top-4 z-20` against the component's own
+`relative` root, pinned to the top-right corner of the full-screen surface
+regardless of which sub-surface is mounted beneath it. Two of the three
+non-banner sub-surfaces already place their own primary control in that same
+corner, in normal document flow:
+
+- `ScoreStand`'s header row (`flex ... justify-between ... px-4 py-2`,
+  first child of the flex column, i.e. flush with the container's top edge)
+  right-aligns its Metronome toggle button. With `px-4`/`py-2` padding and
+  `text-label-sm` text, that button's box occupies roughly the same
+  `~8-28px` vertical band and the same `right-4` horizontal edge as the
+  absolutely-positioned Stop button's `~16-52px` band — the two ranges
+  overlap, and both are flush against the same right edge.
+- `ConfirmPieceChip`'s row (`flex items-center justify-between ... px-4
+  py-2`) right-aligns its "Dismiss" button, rendered as the sibling
+  immediately before `ScoreStand` in `PracticeMode`'s JSX. When a confident
+  guess is pending on a known piece, this banner sits at the very top of the
+  flex column — the same corner the Stop button occupies — so Stop can
+  overlay Dismiss just as it can overlay the Metronome toggle.
+
+Neither collision is caught by any test in the plan: jsdom reports zero
+width/height for every element (the working context's own stated reason
+`ScoreStand.test.tsx` and `PieceLessMode.test.tsx` avoid positional
+assertions), and Task 14's real-browser harness (`practice-preview.tsx`)
+mounts `ScoreStand` and `PieceLessMode` directly — never `PracticeMode`
+itself — so the one control this plan is most insistent on making
+"guaranteed present" (see spec, "Why the auto-stop is UI-only") is never
+geometrically verified against the controls it is stacked on top of. This is
+the same class of defect the working context calls out for #157's overflow
+bug getting past four prior gates: a real, plausible, on-screen overlap that
+only a real-browser layout check can see, and none exists for this
+component. If the collision is real, a student could find the Stop control
+(the only way to end a session) sitting on top of, or blocked by, the
+Metronome toggle or the piece-guess Dismiss button, with an unpredictable
+click target depending on DOM order and exact pixel overlap. Before
+execution: either give the Stop button reserved space in a shared header
+(so it cannot occupy the same box as `ScoreStand`'s Metronome toggle or
+`ConfirmPieceChip`'s Dismiss button), or move one of the colliding controls
+out of the top-right corner, and add a real-browser assertion — mounting
+`PracticeMode` itself, not just its leaf components, in the geometry
+harness — that no two interactive controls overlap, mirroring the existing
+timeline-mark collision check already in `tests/marks.spec.ts`.
+
+### Updated Summary
+
+[BLOCKER] count: 1 (new; all four historical blockers/resolutions confirmed
+holding by direct file reads, not the plan's own prose)
+[RISK] count: 4 (carried over, unaddressed but still genuinely non-blocking:
+`formatElapsed` duplication, `ScoreStand`'s per-page-turn `getPage` refetch,
+manual `routeTree.gen.ts` regeneration, and the Task 14 Playwright-spec
+import of `practice-preview.tsx` for its fixture constants — the plan itself
+flags this needs confirming no browser-only code executes eagerly at module
+scope, which is untested but mechanically easy to fix by moving the two
+constants to a plain `.ts` module if it breaks)
+[QUESTION] count: 0
+
+VERDICT: NEEDS_REWORK — the four blockers from the first two passes are
+genuinely resolved (verified against live code, not summary text), but a
+fresh full read surfaces one new, concrete usability/geometry defect: the
+newly-added persistent "Stop recording" control is absolute-positioned
+directly on top of the same top-right corner `ScoreStand`'s Metronome toggle
+and `ConfirmPieceChip`'s Dismiss button already occupy, and no test —
+jsdom or the real-browser harness — mounts `PracticeMode` as a whole to
+catch it.

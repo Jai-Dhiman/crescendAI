@@ -271,8 +271,12 @@ ladder is correct — only one branch is ever mounted at a time).
   switching between `ScoreStand`, `PieceLessMode`, `ConfirmPieceChip`, and
   `SessionEndedBanner` based on their outputs. This is the orchestrator —
   intentionally the one place that knows all four sub-components exist. It
-  also owns the one persistent "Stop recording" control, rendered above
-  whichever sub-surface (including `SessionEndedBanner`) is showing.
+  also owns the one persistent "Stop recording" control, given a dedicated
+  header row above whichever sub-surface (including `SessionEndedBanner`) is
+  showing — in normal document flow, not an absolute overlay, so it can
+  never stack over (or be stacked under by) a sub-surface's own top-corner
+  control, such as ScoreStand's Metronome toggle or ConfirmPieceChip's
+  Dismiss button.
 - **Tested through:** an integration test that drives `userPickedPieceId` /
   `confidentGuess` / fake-timer silence and asserts which sub-surface is
   showing at each combination, plus an assertion that the stop control calls
