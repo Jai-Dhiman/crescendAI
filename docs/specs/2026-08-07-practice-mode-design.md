@@ -86,6 +86,17 @@ otherwise-unaffected live session; "resume" only dismisses the banner and
 resets the pause clock. This is also why the failure-mode principle ("auto-stop
 is soft, one-tap resume") is easy to honor: there is no teardown to reverse.
 
+Being UI-only and reversible means auto-stop is deliberately *not* an exit —
+so `PracticeMode` also carries an explicit, always-present "Stop recording"
+control, separate from the auto-stop banner and unaffected by which ladder
+state or pause state is showing. It is the only way to actually end a
+session and leave the full-screen surface; `onStop` is threaded down from
+`AppChat`, wired to `practice.stop()` plus the same exit cleanup
+`ListeningMode`'s old `onExit` performed. `PracticeMode` renders the control
+itself (not any of its four sub-surfaces) so it cannot be forgotten by a
+future fifth surface the way it would be if each leaf component were
+responsible for its own copy.
+
 ### Pause tracking is a pure state machine over one boolean
 
 `useAudioActivity` already exposes `isPlaying: boolean`. A new pure function,
@@ -168,6 +179,16 @@ command changes from `bun run build && vite preview` to `vite dev`, keeping
 registers the route. The page is still Chromium-rendered by Playwright either
 way, so the real-layout guarantee the harness exists for is unaffected.
 
+The same DEV-gate means the two mark-glyph color-contrast cases
+`tests/a11y.spec.ts` used to run against `/marks-preview` cannot simply be
+repointed at `/practice-preview` in place: `playwright.a11y.config.ts`
+serves a production build, where the route renders `null` by design, and an
+axe run against an empty page would silently report zero violations. Those
+two cases move to `tests/marks.spec.ts` instead, which already runs under
+`vite dev` for this reason — `tests/a11y.spec.ts` keeps only its original
+two cases (`/privacy`, `/signin`), which are unaffected by anything in this
+plan.
+
 ### `ListeningMode` and `AudioWaveformRing` are deleted outright, not folded in
 
 Their remaining unique behavior — the piece-name inline editor, the notepad
@@ -244,14 +265,18 @@ ladder is correct — only one branch is ever mounted at a time).
 ### `src/components/PracticeMode.tsx`
 - **Interface:** `<PracticeMode userPickedPieceId={string | null}
   confidentGuess={ConfidentGuess | null} marks={readonly Mark[]}
-  elapsedSeconds={number} isPlaying={boolean} isRecording={boolean} />`.
+  elapsedSeconds={number} isPlaying={boolean} isRecording={boolean}
+  onStop={() => void} />`.
 - **Hides:** calling `resolvePieceLadderState` and `usePauseTracker`, and
   switching between `ScoreStand`, `PieceLessMode`, `ConfirmPieceChip`, and
   `SessionEndedBanner` based on their outputs. This is the orchestrator —
-  intentionally the one place that knows all four sub-components exist.
+  intentionally the one place that knows all four sub-components exist. It
+  also owns the one persistent "Stop recording" control, rendered above
+  whichever sub-surface (including `SessionEndedBanner`) is showing.
 - **Tested through:** an integration test that drives `userPickedPieceId` /
   `confidentGuess` / fake-timer silence and asserts which sub-surface is
-  showing at each combination.
+  showing at each combination, plus an assertion that the stop control calls
+  `onStop` both before and after auto-stop.
 
 ### `src/routes/practice-preview.tsx` (dev-only harness, replaces `marks-preview.tsx`)
 - **Interface:** none (a route component, mounted only by the router).
@@ -304,8 +329,9 @@ ladder is correct — only one branch is ever mounted at a time).
 | `apps/web/src/components/PracticeMode.tsx` | Orchestrator: ladder + pause tracker + sub-surfaces | New |
 | `apps/web/src/components/PracticeMode.test.tsx` | Integration test | New |
 | `apps/web/src/routes/practice-preview.tsx` | Dev-only real-browser harness | New |
-| `apps/web/tests/marks.spec.ts` | Point at `/practice-preview`, mount real components | Modify |
+| `apps/web/tests/marks.spec.ts` | Point at `/practice-preview`, mount real components, gain the two ported color-contrast cases | Modify |
 | `apps/web/playwright.marks.config.ts` | `webServer` command -> `vite dev` | Modify |
+| `apps/web/tests/a11y.spec.ts` | Remove the two `/marks-preview` color-contrast cases (route deleted; coverage moves to `tests/marks.spec.ts`) | Modify |
 | `apps/web/src/lib/practice-api.ts` | Add `{ type: "mark"; mark: Mark }` to `PracticeWsEvent` | Modify |
 | `apps/web/src/hooks/usePracticeSession.ts` | Accumulate `marks: Mark[]`, handle `mark` event, expose in return type | Modify |
 | `apps/web/src/hooks/usePracticeSession.test.ts` | Test for the new event (existing file — extend) | Modify |

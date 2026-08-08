@@ -1446,11 +1446,17 @@ git add src/lib/mark.ts src/components/ScoreStand.tsx src/components/ScoreStand.
 silence duration, exactly the right sub-surface is showing: `ScoreStand` for
 a known piece, `PieceLessMode` otherwise, `ConfirmPieceChip` layered on top
 when a guess is pending, and `SessionEndedBanner` replacing everything once
-auto-stopped, with resume bringing the prior surface back.
+auto-stopped, with resume bringing the prior surface back. A persistent
+"Stop recording" control is present regardless of which sub-surface is
+showing (including the auto-stopped banner) and calls `onStop` exactly once
+when activated — this is the only way to leave the full-screen surface and
+end the session for real; `SessionEndedBanner`'s resume is a separate,
+non-terminal action (see spec, "Why the auto-stop is UI-only").
 
 **Interface under test:** `<PracticeMode userPickedPieceId={string | null}
 confidentGuess={ConfidentGuess | null} marks={readonly Mark[]}
-elapsedSeconds={number} isPlaying={boolean} isRecording={boolean} />`
+elapsedSeconds={number} isPlaying={boolean} isRecording={boolean}
+onStop={() => void} />`
 
 **Files:**
 - Create: `src/components/PracticeMode.tsx`
@@ -1507,6 +1513,7 @@ describe("PracticeMode", () => {
 				elapsedSeconds={0}
 				isPlaying={true}
 				isRecording={true}
+				onStop={vi.fn()}
 			/>,
 		);
 		expect(screen.getByTestId("session-timeline")).toBeInTheDocument();
@@ -1522,6 +1529,7 @@ describe("PracticeMode", () => {
 				elapsedSeconds={0}
 				isPlaying={true}
 				isRecording={true}
+				onStop={vi.fn()}
 			/>,
 		);
 		expect(screen.getByText(/Nocturne Op\. 9 No\. 2/)).toBeInTheDocument();
@@ -1541,6 +1549,7 @@ describe("PracticeMode", () => {
 				elapsedSeconds={0}
 				isPlaying={false}
 				isRecording={true}
+				onStop={vi.fn()}
 			/>,
 		);
 
@@ -1551,6 +1560,35 @@ describe("PracticeMode", () => {
 
 		fireEvent.click(screen.getByRole("button", { name: /keep playing/i }));
 		expect(screen.queryByText(/Session ended/i)).not.toBeInTheDocument();
+	});
+
+	it("calls onStop exactly once when the stop control is activated, even after auto-stop", () => {
+		const onStop = vi.fn();
+		render(
+			<PracticeMode
+				userPickedPieceId={null}
+				confidentGuess={null}
+				marks={[]}
+				elapsedSeconds={0}
+				isPlaying={false}
+				isRecording={true}
+				onStop={onStop}
+			/>,
+		);
+
+		// Present before auto-stop...
+		fireEvent.click(screen.getByRole("button", { name: /stop recording/i }));
+		expect(onStop).toHaveBeenCalledTimes(1);
+
+		// ...and still present once the session-ended banner has replaced the
+		// rest of the surface -- stopping for real must not require resuming
+		// first.
+		act(() => {
+			vi.advanceTimersByTime(AUTO_STOP_SILENCE_MS);
+		});
+		expect(screen.getByText(/Session ended/i)).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: /stop recording/i }));
+		expect(onStop).toHaveBeenCalledTimes(2);
 	});
 });
 ```
@@ -1583,6 +1621,9 @@ interface PracticeModeProps {
 	elapsedSeconds: number;
 	isPlaying: boolean;
 	isRecording: boolean;
+	/** Ends the session for real. The only exit from this full-screen surface;
+	 * unlike SessionEndedBanner's resume, this is terminal. */
+	onStop: () => void;
 }
 
 /**
@@ -1591,6 +1632,13 @@ interface PracticeModeProps {
  * ConfirmPieceChip, SessionEndedBanner) takes plain props and touches
  * neither the WS nor the session hook directly -- AppChat is the only place
  * that wires usePracticeSession's live state into these props.
+ *
+ * The stop control is rendered here, not inside ScoreStand/PieceLessMode/
+ * SessionEndedBanner, so it is guaranteed present across every ladder state
+ * and across the auto-stopped banner -- a student must always have a way out
+ * of the full-screen surface, and duplicating a stop button into every leaf
+ * component would risk one of them (or a future fifth surface) forgetting
+ * it.
  */
 export function PracticeMode({
 	userPickedPieceId,
@@ -1599,6 +1647,7 @@ export function PracticeMode({
 	elapsedSeconds,
 	isPlaying,
 	isRecording,
+	onStop,
 }: PracticeModeProps) {
 	const [dismissed, setDismissed] = useState(false);
 	const pause = usePauseTracker(isPlaying);
@@ -1609,10 +1658,6 @@ export function PracticeMode({
 		dismissed,
 	});
 
-	if (pause.autoStopped) {
-		return <SessionEndedBanner onResume={pause.resume} />;
-	}
-
 	const pieceId =
 		ladderState === "user-picked"
 			? userPickedPieceId
@@ -1621,24 +1666,41 @@ export function PracticeMode({
 				: null;
 
 	return (
-		<div className="flex h-full flex-col">
-			{ladderState === "confirm-chip" && confidentGuess && (
-				<ConfirmPieceChip guess={confidentGuess} onDismiss={() => setDismissed(true)} />
-			)}
-			{pieceId ? (
-				<ScoreStand
-					pieceId={pieceId}
-					marks={marks}
-					elapsedSeconds={elapsedSeconds}
-					isRecording={isRecording}
-				/>
+		<div className="relative flex h-full flex-col">
+			<button
+				type="button"
+				onClick={onStop}
+				aria-label="Stop recording"
+				className="absolute right-4 top-4 z-20 rounded-full bg-danger px-4 py-2 text-body-sm text-on-accent"
+			>
+				Stop
+			</button>
+			{pause.autoStopped ? (
+				<SessionEndedBanner onResume={pause.resume} />
 			) : (
-				<PieceLessMode
-					marks={marks}
-					durationSeconds={Math.max(elapsedSeconds, 1)}
-					elapsedSeconds={elapsedSeconds}
-					isRecording={isRecording}
-				/>
+				<>
+					{ladderState === "confirm-chip" && confidentGuess && (
+						<ConfirmPieceChip
+							guess={confidentGuess}
+							onDismiss={() => setDismissed(true)}
+						/>
+					)}
+					{pieceId ? (
+						<ScoreStand
+							pieceId={pieceId}
+							marks={marks}
+							elapsedSeconds={elapsedSeconds}
+							isRecording={isRecording}
+						/>
+					) : (
+						<PieceLessMode
+							marks={marks}
+							durationSeconds={Math.max(elapsedSeconds, 1)}
+							elapsedSeconds={elapsedSeconds}
+							isRecording={isRecording}
+						/>
+					)}
+				</>
 			)}
 		</div>
 	);
@@ -1650,7 +1712,7 @@ export function PracticeMode({
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/components/PracticeMode.test.tsx
 ```
-Expected: PASS (3 tests)
+Expected: PASS (4 tests)
 
 - [ ] **Step 5: Commit**
 
@@ -1752,7 +1814,11 @@ git add src/components/AppChat.tsx src/components/AppChat.greetings.test.tsx && 
 `PracticeMode` (not `ListeningMode`), fed from `usePracticeSession`'s live
 `marks`, `elapsedSeconds`, `isPlaying`, and `state`; `ListeningMode.tsx` and
 `AudioWaveformRing.tsx` are deleted and nothing else in the app imports
-them.
+them. `PracticeMode`'s `onStop` is wired to `practice.stop` plus the same
+exit cleanup `ListeningMode`'s `onExit` used to perform (dismissing the
+full-screen surface, clearing `recordButtonRect`, and navigating to a
+newly-created conversation) — clicking "Stop recording" must actually end
+the session, not just be present.
 
 **Interface under test:** `AppChat` render output while `practice.state ===
 "recording"`
@@ -1767,7 +1833,7 @@ them.
 
 ```typescript
 // src/components/AppChat.practicemode.test.tsx
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import AppChat from "./AppChat";
 
@@ -1775,6 +1841,10 @@ vi.mock("../hooks/useAuth", () => ({
 	authQueryOptions: { queryKey: ["auth"], queryFn: () => null },
 	useAuth: () => ({ data: null, isLoading: false }),
 }));
+
+// Module-scoped so the test can assert on calls after AppChat renders --
+// vi.mock's factory below closes over this same reference.
+const stop = vi.fn();
 
 // Force usePracticeSession into a recording state so AppChat's branch that
 // mounts the full-screen practice surface is reachable without a real mic,
@@ -1798,7 +1868,7 @@ vi.mock("../hooks/usePracticeSession", () => ({
 		practiceMode: null,
 		marks: [],
 		start: vi.fn(),
-		stop: vi.fn(),
+		stop,
 		setPiece: vi.fn(),
 		observationMessages: [],
 		conversationId: null,
@@ -1811,6 +1881,19 @@ describe("AppChat practice mode", () => {
 		render(<AppChat />);
 		expect(screen.getByTestId("session-timeline")).toBeInTheDocument();
 		expect(screen.queryByLabelText(/toggle metronome/i)).not.toBeInTheDocument();
+	});
+
+	it("stopping recording calls practice.stop and exits the practice surface", () => {
+		render(<AppChat />);
+		expect(screen.getByTestId("session-timeline")).toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: /stop recording/i }));
+
+		expect(stop).toHaveBeenCalledTimes(1);
+		// The surface itself unmounts once onStop's exit cleanup runs --
+		// otherwise a student who taps Stop would still be staring at the
+		// full-screen surface with no confirmation anything happened.
+		expect(screen.queryByTestId("session-timeline")).not.toBeInTheDocument();
 	});
 });
 ```
@@ -1847,6 +1930,7 @@ In `src/components/AppChat.tsx`:
 							elapsedSeconds={practice.elapsedSeconds}
 							isPlaying={practice.isPlaying}
 							isRecording={practice.state === "recording"}
+							onStop={handleStopPracticeMode}
 						/>
 					</div>
 				)}
@@ -1861,19 +1945,35 @@ In `src/components/AppChat.tsx`:
    pieceless branch renders) and is exactly the kind of follow-up this plan
    defers rather than silently guessing at — do not invent a piece-picker UI
    here.
-4. Delete `src/components/ListeningMode.tsx` and
+4. Add a small wrapper next to `handleExitListeningMode` (same place in the
+   file) that reproduces what `ListeningMode`'s old "Stop recording" button
+   used to do — call `practice.stop()`, then run the existing exit cleanup:
+
+```tsx
+	function handleStopPracticeMode() {
+		practice.stop();
+		handleExitListeningMode();
+	}
+```
+
+   `handleExitListeningMode` itself is unchanged — it already does the right
+   thing (`setShowListeningMode(false)`, clear `recordButtonRect`, navigate
+   to a newly-created conversation) and does not need `ListeningMode` to
+   exist to keep doing it.
+5. Delete `src/components/ListeningMode.tsx` and
    `src/components/AudioWaveformRing.tsx`.
-5. Remove `handleExitListeningMode` and any other `ListeningMode`-only
-   plumbing (e.g. `pieceContext`/`sessionNotes` state) only if `tsc` reports
-   them unused after the deletion — leave anything still referenced
-   elsewhere alone.
+6. Remove any other `ListeningMode`-only plumbing (e.g. `pieceContext`/
+   `sessionNotes` state) only if `tsc` reports it unused after the
+   deletion — leave anything still referenced elsewhere alone.
+   `handleExitListeningMode` stays; it is now called from
+   `handleStopPracticeMode`.
 
 - [ ] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/components/AppChat.practicemode.test.tsx && bunx tsc --noEmit
 ```
-Expected: PASS (1 test), `tsc` exits 0 (no leftover unused imports/dead
+Expected: PASS (2 tests), `tsc` exits 0 (no leftover unused imports/dead
 refs to `ListeningMode` or `AudioWaveformRing` anywhere).
 
 - [ ] **Step 5: Commit**
@@ -2053,6 +2153,17 @@ placed on a real Verovio-rendered score sits inside its score container
 and no two timeline marks overlap and become unclickable — the same two
 properties #157's `tests/marks.spec.ts` proved, now against the production
 `ScoreStand`/`PieceLessMode` components instead of bespoke test markup.
+Separately, this task also relocates the two color-contrast checks that
+`tests/a11y.spec.ts` used to run against `/marks-preview`: that route is
+gone (Task 13), and `/practice-preview`'s successor route is deliberately
+`import.meta.env.DEV`-gated, which `playwright.a11y.config.ts`'s
+`webServer` (a production `bun run build && vite preview`) would evaluate
+to `false` — visiting `/practice-preview` under that config would render an
+empty page and axe would report zero violations against nothing, not proof
+of anything. `tests/marks.spec.ts` already runs against a `vite dev` server
+(this task switches it to one, see Step 1) where the route renders for
+real, so mark-glyph contrast coverage moves here instead of being silently
+dropped.
 
 **Interface under test:** the rendered DOM of `/practice-preview` in a real
 browser
@@ -2060,6 +2171,7 @@ browser
 **Files:**
 - Modify: `apps/web/tests/marks.spec.ts`
 - Modify: `apps/web/playwright.marks.config.ts`
+- Modify: `apps/web/tests/a11y.spec.ts`
 
 - [ ] **Step 1: Write the failing test (repoint the existing spec)**
 
@@ -2074,7 +2186,50 @@ with `page.goto("/practice-preview")`, and update the file's header comment
 to name the new route instead of the old one. Leave the collision-detection
 and containment assertions themselves untouched — they are testing a
 DOM-structural property (`button[aria-expanded]` geometry), not anything
-specific to the deleted fixtures.
+specific to the deleted fixtures. Then add two new tests to the same file,
+porting the two `/marks-preview` cases out of `tests/a11y.spec.ts`:
+
+```typescript
+// Added to tests/marks.spec.ts
+import AxeBuilder from "@axe-core/playwright";
+
+// #157 added these two color-contrast cases to tests/a11y.spec.ts against
+// /marks-preview; #158 deletes that route. practice-preview.tsx is
+// import.meta.env.DEV-gated and playwright.a11y.config.ts serves a
+// production build (DEV === false there), so the cases cannot move with
+// the route name alone -- they have to run under a config where DEV is
+// true, which is exactly what this file's webServer now is. This is the
+// only place mark contrast is verified -- never assert it from vitest.
+for (const theme of ["light", "dark"] as const) {
+	test(`practice-preview has no color-contrast violations (${theme})`, async ({
+		page,
+	}) => {
+		await page.goto("/practice-preview");
+		await page.evaluate((t) => {
+			document.documentElement.dataset.theme = t;
+		}, theme);
+
+		const results = await new AxeBuilder({ page })
+			.withRules(["color-contrast"])
+			.exclude("[data-axe-exempt]")
+			.analyze();
+
+		for (const v of results.violations) {
+			for (const node of v.nodes) {
+				console.log(`[${theme} /practice-preview] ${v.id} :: ${node.target.join(" ")}`);
+			}
+		}
+		expect(results.violations).toEqual([]);
+	});
+}
+```
+
+In `apps/web/tests/a11y.spec.ts`, remove the two
+`{ theme: ..., path: "/marks-preview" }` entries from `THEME_CASES` (back
+down to the original two: light `/privacy`, dark `/signin`), and update the
+file's header comment to say mark-glyph contrast coverage now lives in
+`tests/marks.spec.ts` (run under `vite dev`, where `/practice-preview`
+actually renders) instead of naming the deleted route.
 
 - [ ] **Step 2: Run test — verify it FAILS**
 
@@ -2085,7 +2240,12 @@ Expected: FAIL — `/practice-preview` currently only mounts `PieceLessMode`
 (Task 13's minimal implementation), so the score-overlay assertions (which
 expect a real engraving with bar-anchored marks, matching #157's original
 two-canvas coverage) find no `score-container` or bar-anchored
-`data-measure-on` buttons.
+`data-measure-on` buttons. The two new color-contrast tests may pass or
+fail independently of that — they only need the pieceless surface, which
+already renders — but run them anyway as part of the same red baseline.
+Also confirm `bun run test:a11y` is red at this point in the branch's
+history (it has been since Task 13 deleted `/marks-preview`); this task's
+`a11y.spec.ts` edit is what turns it green again.
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
 
@@ -2136,14 +2296,16 @@ timestamp-anchored mark on the timeline strip already exercises.
 - [ ] **Step 4: Run test — verify it PASSES**
 
 ```bash
-cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx playwright test --config playwright.marks.config.ts
+cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx playwright test --config playwright.marks.config.ts && bun run test:a11y
 ```
-Expected: PASS (both tests in `tests/marks.spec.ts`)
+Expected: PASS — every test in `tests/marks.spec.ts` (including the two
+ported color-contrast cases), and `test:a11y` green again (2/2: light
+`/privacy`, dark `/signin`).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/web/tests/marks.spec.ts apps/web/playwright.marks.config.ts apps/web/src/routes/practice-preview.tsx && git commit -m "test(practice-mode): port real-browser mark geometry harness to practice-preview"
+git add apps/web/tests/marks.spec.ts apps/web/playwright.marks.config.ts apps/web/src/routes/practice-preview.tsx apps/web/tests/a11y.spec.ts && git commit -m "test(practice-mode): port real-browser mark geometry harness to practice-preview; move mark-contrast coverage off the deleted marks-preview route"
 ```
 
 ---
@@ -2157,8 +2319,9 @@ cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/w
 Expected: `test` green (existing 246 tests plus every new test above);
 `tsc` exit 0; `lint` 0 errors, warnings/infos at or below the accepted
 baseline (107/23) — a new file introducing a new warning is a regression,
-not "close enough"; `test:a11y` 4/4; `test:marks` green against the ported
-harness.
+not "close enough"; `test:a11y` 2/2 (`/privacy`, `/signin` — mark-glyph
+contrast coverage now lives in `test:marks`, per Task 14); `test:marks`
+green against the ported harness, including its two color-contrast cases.
 
 Then the manual click-through from the issue's success criterion, performed
 by a human (this is human-lit per `apps/CLAUDE.md` — "manual click-through
@@ -2176,3 +2339,210 @@ verdicts are human-lit"):
    are a faithful stand-in and documenting that the constant was not
    independently re-verified in real time. Do not commit a temporary
    threshold change.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise Challenge.** The problem is real: `ListeningMode` +
+`AudioWaveformRing` are chat-era artifacts that violate the epic's approved
+"no live following, silent while playing" design, and `/marks-preview`
+genuinely leaks `mark-fixtures.ts` into the production bundle today
+(`src/routes/marks-preview.tsx` is a real `createFileRoute`, not
+dev-gated — confirmed by reading the file). Replacing both in one pass,
+sharing the `ScoreStand`/`PieceLessMode` build across the live app and the
+geometry harness, is the direct path and matches the spec's stated
+"Not in scope" boundaries. No dramatically simpler framing is visible.
+
+**Existing coverage.** The plan correctly reuses `scoreRenderer`,
+`ScoreMarkLayer`, `SessionTimelineStrip`, `useMetronome`, and
+`resolveAnchor`/`Mark` from #157/#163 rather than re-inventing them. Good
+match to CLAUDE.md's "extend existing patterns" rule.
+
+**Scope check.** 14 tasks, ~9 new files plus edits to 3 existing ones — over
+the plan's own 8-file complexity-smell threshold, but the fan-out is mostly
+one-behavior-per-file (pure functions, single-purpose components), which is
+the deep-module norm this codebase already uses (`mark.ts`, `mark-placement.ts`,
+`timeline-lanes.ts` are precedents). Not flagged as bloat on its own.
+
+**12-Month Alignment.**
+```
+CURRENT STATE                    THIS PLAN                        12-MONTH IDEAL
+ListeningMode+                   PracticeMode orchestrator +       Score-first surface with
+AudioWaveformRing,               ScoreStand/PieceLessMode,          real piece-ladder wiring,
+GREETINGS random headline,       marks wired to a WS event          live mark pipeline, and
+marks-preview bundle leak        no server yet emits, dev-gated     session review (#159/#162)
+                                  practice-preview harness           built on this surface
+```
+Moves toward the ideal. The one drift risk: this plan deletes the app's only
+recording-stop UI without replacing it (see BLOCKER below), which is a step
+*backward* on basic usability even while the visual redesign moves forward.
+
+**Alternatives.** The spec documents its one real alternative (`ScorePanel`/
+`ScoreCursor` reuse) and rejects it for a concrete, verified reason
+(`ScoreCursor` drives a live-following cursor, which the design forbids).
+No `[QUESTION]` needed here — this satisfies the bar.
+
+### Engineering Pass
+
+**Architecture / data flow.**
+```
+AppChat (usePracticeSession: marks, elapsedSeconds, isPlaying, state)
+   -> PracticeMode (resolvePieceLadderState, usePauseTracker)
+        -> ScoreStand (scoreRenderer.load/getPage, ScoreMarkLayer)  [known piece]
+        -> PieceLessMode (SessionTimelineStrip)                     [pieceless]
+        -> ConfirmPieceChip (dismiss-only, layered)
+        -> SessionEndedBanner (resume-only, replaces everything)
+```
+Verified against actual code: `PracticeWsEvent`'s existing union shape
+(`src/lib/practice-api.ts:54-112`), `usePracticeSession`'s `handleWsMessage`
+switch (`src/hooks/usePracticeSession.ts:211-346`, no `default` case, so
+adding `case "mark"` is safe and non-breaking), `ScoreRenderer.load`'s
+`{ir, pageSvgs} | "failed"` return shape and `getPage` signature
+(`src/lib/score-renderer.ts:102-162`), and `BarIR`'s `pageN`/`measureOn`
+fields (`src/lib/score-ir.ts`) all match what the plan's code assumes.
+
+**[BLOCKER] (confidence: 9/10)** — Task 12 deletes the app's only
+recording-stop control and does not replace it anywhere in the new
+component tree. Today, `AppChat.tsx:1063-1083` mounts `ListeningMode` with
+`onStop={practice.stop}` and `onExit={handleExitListeningMode}`;
+`ListeningMode.tsx` renders an explicit "Stop recording" button
+(`aria-label="Stop recording"`, `ListeningMode.tsx:315-323`) that calls
+`onStop` then animates out via `onExit`. `practice.stop` is referenced
+exactly once in `AppChat.tsx` (line 1070) — the block Task 12 replaces.
+The plan's replacement JSX mounts `<PracticeMode userPickedPieceId={null}
+confidentGuess={null} marks={...} elapsedSeconds={...} isPlaying={...}
+isRecording={...} />` with no `onStop`/`onExit` prop, and none of
+`PracticeMode`, `ScoreStand`, `PieceLessMode`, `ConfirmPieceChip`, or
+`SessionEndedBanner` (Tasks 6-10) declare such a prop in their interfaces.
+`SessionEndedBanner` (Task 7) only exposes `onResume`, not a "stop for
+real" action, and per the spec ("Why the auto-stop is UI-only") resuming
+never stops the session either. After this plan lands, a student who taps
+record has no UI path to stop recording or leave the full-screen surface —
+not even after the 60s auto-stop banner, which is deliberately non-stopping.
+This is a basic usability regression the plan's own tests never catch,
+because no task's test asserts a stop/exit affordance exists. Before
+execution: add an explicit stop/exit control to `PracticeMode` (or one of
+its sub-surfaces) wired to `practice.stop`, and add a task-level test that
+clicking it actually ends the session — do not ship a full-screen surface
+with no way out.
+
+**[BLOCKER] (confidence: 9/10)** — Task 13 deletes `/marks-preview` but
+never updates `apps/web/tests/a11y.spec.ts`, which hardcodes
+`{ theme: "light", path: "/marks-preview" }` and
+`{ theme: "dark", path: "/marks-preview" }` (`tests/a11y.spec.ts:18-19`) as
+two of its four color-contrast cases, with a comment explaining these are
+"the only place mark contrast is actually verified — never assert it from
+vitest." Neither the plan's File Changes table nor Tasks 13/14 touch this
+file. After Task 13, `bun run test:a11y` navigates to a route that no
+longer exists, so the gate this plan is required to keep green (per the
+binding constraints and the plan's own Final Verification section) breaks.
+This compounds with a second defect even if someone naively repoints the
+path to `/practice-preview`: `playwright.a11y.config.ts`'s `webServer` runs
+`bun run build && vite preview` — a real production build, where
+`import.meta.env.DEV` is `false` — so `PracticePreview` renders `null`
+there by design (per the plan's own Task 13 code and the spec's "does not
+repeat #157's bundle leak" section). An a11y run against `/practice-preview`
+under that config would silently check an empty page and report zero
+violations, which is exactly the "green test, not a working feature"
+failure mode the working context calls out for #157's overflow bug getting
+past four gates. Before execution: add a task step that either (a) updates
+`tests/a11y.spec.ts` to a route/config that actually renders `ScoreStand`/
+`PieceLessMode` under axe (e.g. mounting `practice-preview` via the `vite
+dev`-backed marks config, or adding a production-reachable a11y fixture
+route), or (b) explicitly documents why mark-glyph contrast coverage is
+being dropped and gets that accepted as a deliberate scope cut — not
+silently lost as a side effect of Task 13's file deletions.
+
+**Module Depth Audit.**
+| Module | Interface | Implementation | Verdict |
+|---|---|---|---|
+| `pause-state.ts` | 1 fn, 2 consts | ~15 LOC boundary arithmetic | DEEP |
+| `usePauseTracker.ts` | 1 hook, 4-field return | ref + 2 effects + interval | DEEP |
+| `piece-ladder.ts` | 1 fn, 2 types | 4-line precedence check | DEEP (thin but non-trivial precedence rule, matches spec's own framing) |
+| `ScoreStand.tsx` | 1 component, 4 props | ~140 LOC: load/page effects, clamping, mark-layer wiring | DEEP |
+| `PieceLessMode.tsx` | 1 component, 4 props | ~35 LOC, mostly composition | SHALLOW by design — spec says so explicitly ("intentionally the shallowest module... it has no logic of its own to hide"); acceptable, not a smell here |
+| `ConfirmPieceChip.tsx` / `SessionEndedBanner.tsx` | 1 component each, 2 props | ~15-25 LOC presentational | SHALLOW but each replaces real duplicated markup that would otherwise live inline in `PracticeMode` — acceptable |
+| `PracticeMode.tsx` | 1 component, 6 props | ladder + pause-tracker orchestration, ~50 LOC | DEEP |
+
+No blocking shallow-module findings; `PieceLessMode`/`ConfirmPieceChip`/
+`SessionEndedBanner` are shallow but the spec names this as an intentional
+tradeoff, and CLAUDE.md's "simplicity first" favors small dedicated files
+here over cramming three unrelated concerns into `PracticeMode.tsx`.
+
+**Code quality / edge cases.**
+- `formatElapsed` is duplicated between `mark.ts` (exported per Task 9) and
+  a second private copy inline in `PieceLessMode.tsx` (Task 8). The plan
+  names this explicitly and defers reconciling it, citing "touch only lines
+  required by the task." Acceptable per CLAUDE.md, but it is a real,
+  named DRY violation the plan chose not to fix — RISK, not blocker.
+- **[RISK] (confidence: 6/10)** — `ScoreStand`'s page-turn effect
+  (`scoreRenderer.getPage(pieceId, currentPage)`, Task 9 Step 3) re-fetches
+  every page from the Verovio worker on every Prev/Next click, even though
+  `scoreRenderer.load()` already returned the full `pageSvgs: string[]`
+  array for every page in one call. `marks-preview.tsx`'s
+  `RealScoreSection` only ever loaded page 1, so this redundant-refetch
+  pattern was never exercised at more than one page before. Watch for
+  janky page turns on a slow connection; fallback is trivial (index into
+  the already-fetched `pageSvgs` from `load()` instead of re-calling
+  `getPage`), but as written this is an unnecessary worker round-trip per
+  page turn that the plan's own test won't catch (the test mocks
+  `scoreRenderer.getPage` to resolve instantly).
+- No unhandled catch-alls or swallowed exceptions found in the new code —
+  `scoreRenderer.load` already converts failures to a `"failed"` sentinel
+  handled explicitly by `ScoreStand`.
+
+**Test philosophy / vertical slice / coverage.** Every task is one test,
+written first and shown failing for a concrete reason, then one minimal
+implementation, then one commit — no horizontal slicing found. Tests
+exercise public component/hook interfaces (render + fireEvent/waitFor,
+hook return values), not internals; no test mocks an *internal* collaborator
+of the unit under test (the WS/AudioContext/MediaRecorder fakes in Task 5
+and Task 12 are external-boundary mocks, which is the accepted pattern
+per the constraints). Per the working-context's jsdom-geometry rule: Tasks
+9, 8, and 10 explicitly avoid positional assertions in jsdom and defer
+geometry to Task 14's real-browser harness — this plan does **not** commit
+the #157 regression of asserting layout in jsdom.
+
+**[RISK] (confidence: 5/10)** — Task 13's routeTree.gen.ts regeneration
+step is a manual, easy-to-forget instruction ("run `bun run dev` once and
+stopping it... commit the resulting diff") rather than a verified script
+(`package.json` has no `routes`/`generate` script, confirmed). If skipped,
+`/marks-preview` stays registered and `/practice-preview` never becomes
+reachable, silently breaking Task 14's harness without any test catching it
+until `bun run test:marks` 404s. Fallback: the build agent should run
+`bunx tsr generate` (or the dev-server trick) and diff `routeTree.gen.ts`
+before committing Task 13, and Task 14's own red-test run (`bunx playwright
+test`) will catch a missed regeneration if it happens.
+
+**Failure modes.** The mark-WS-plumbing path fails closed correctly: no
+server emits `mark` today, so `marks` stays `[]` and the screen shows
+nothing — the spec calls this out explicitly as the intended "silence, not
+guessing" behavior, matching the epic's failure-mode principle. Auto-stop
+is UI-only by design and reversible with one tap, matching the approved
+design. The known accepted scope boundary (WS messages injected manually
+via devtools for the click-through, no live pipeline) is verified honestly:
+the plan's own Verification Architecture section states this outright
+rather than dressing it up as an automated pipeline test — no dishonesty
+found there.
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `PracticeWsEvent`'s switch has no `default` case, so adding `mark` is non-breaking | SAFE | Verified by reading `usePracticeSession.ts:211-346` |
+| `scoreRenderer.load` never throws, always resolves `"failed"` on error | SAFE | Verified in `score-renderer.ts:117-128` |
+| No other file imports `ListeningMode`/`AudioWaveformRing` besides `AppChat.tsx` | SAFE | Verified via repo-wide grep |
+| `practice.stop` has a replacement UI path after Task 12 | RISKY | Verified false — no replacement exists (see BLOCKER above) |
+| `tests/a11y.spec.ts` doesn't need updating because Task 13/14 only mention `marks.spec.ts` | RISKY | Verified false — `a11y.spec.ts` hardcodes `/marks-preview` twice (see BLOCKER above) |
+| Vite/Rollup DCE actually drops the `import.meta.env.DEV` branch and its fixture import in production builds | SAFE | Standard, well-documented Vite/Rollup behavior; spec's reasoning is technically sound |
+| `bun run dev` regenerates `routeTree.gen.ts` as a side effect | VALIDATE | Plausible for TanStack Router's Vite plugin but not directly confirmed by reading `vite.config.ts`'s plugin list in this review |
+
+### Summary
+[BLOCKER] count: 2
+[RISK]    count: 3
+[QUESTION] count: 0
+
+VERDICT: NEEDS_REWORK — (1) no replacement for the deleted recording-stop control, (2) `tests/a11y.spec.ts` still points at the deleted `/marks-preview` route and, even if repointed, would silently pass against a blank page under the a11y config's production-build webServer.
