@@ -2071,7 +2071,16 @@ export const Route = createFileRoute("/practice-preview")({
 // module's whole defect was being importable from a production route in the
 // first place -- fixture data now lives only where it is gated out of
 // production builds.
-const FIXTURE_MARKS: readonly Mark[] = [
+//
+// Both constants below are exported (not just the component) because
+// tests/marks.spec.ts's "a mark sits at its share of the session duration"
+// test (loop-2 challenge, blocker 4) needs to compute its expected pixel
+// fraction from these same numbers instead of hardcoding a second, driftable
+// copy of them. Import this module directly from the spec file rather than
+// re-typing the values there.
+export const PIECELESS_DURATION_SECONDS = 120;
+
+export const FIXTURE_MARKS: readonly Mark[] = [
 	{
 		id: "fixture-1",
 		anchor: resolveAnchor({ atSeconds: 30, alignmentQuality: 0 }),
@@ -2087,6 +2096,22 @@ const FIXTURE_MARKS: readonly Mark[] = [
 		dimension: "phrasing",
 		evidence: "the rubato in this phrase was well shaped",
 		lifecycle: "improving",
+	},
+	{
+		// 85% of PIECELESS_DURATION_SECONDS (102s of 120s). #157's deleted
+		// fixture set had a mark at this fraction specifically because a mark
+		// anchored there once ran 36px past the strip's right edge at every
+		// viewport (see tests/marks.spec.ts's "every timeline mark stays inside
+		// the strip" tests) -- a bug a fixture set clustered in the middle of
+		// the timeline cannot exercise. Kept here so that regression guard
+		// still has real near-the-edge input to check, per the loop-2 challenge
+		// re-review's coverage risk.
+		id: "fixture-3",
+		anchor: resolveAnchor({ atSeconds: 102, alignmentQuality: 0 }),
+		taxonomy: "missed_opportunity",
+		dimension: "dynamics",
+		evidence: "the closing diminuendo flattened out early",
+		lifecycle: "active",
 	},
 ];
 
@@ -2110,7 +2135,7 @@ export function PracticePreview() {
 		<div className="h-dvh">
 			<PieceLessMode
 				marks={FIXTURE_MARKS}
-				durationSeconds={120}
+				durationSeconds={PIECELESS_DURATION_SECONDS}
 				elapsedSeconds={90}
 				isRecording={false}
 			/>
@@ -2186,7 +2211,52 @@ with `page.goto("/practice-preview")`, and update the file's header comment
 to name the new route instead of the old one. Leave the collision-detection
 and containment assertions themselves untouched — they are testing a
 DOM-structural property (`button[aria-expanded]` geometry), not anything
-specific to the deleted fixtures. Then add two new tests to the same file,
+specific to the deleted fixtures. Two other assertions in the same file are
+NOT purely structural and do need edits (loop-2 challenge, blockers 3 and 4
+— both confirmed by reading the file and its references directly, not
+assumed):
+
+- **Blocker 3 fix.** The "a mark sits over its real measure on a real
+  Verovio engraving" test (lines 133-195) locates its target via
+  `page.locator("[data-testid='real-score']")` (line 149). That testid was
+  only ever defined on the deleted `marks-preview.tsx`'s `RealScoreSection`
+  wrapper; `ScoreStand` (Task 9) tags its equivalent container
+  `data-testid="score-stand-page"` instead. Change this one locator line to
+  `page.locator("[data-testid='score-stand-page']")`. Do not add a
+  `real-score` testid to `ScoreStand` — that component and its own test
+  (`ScoreStand.test.tsx`, Task 9) already commit to `score-stand-page`, and
+  changing it now would edit an already-landed task's contract for no
+  reason. Re-verified against `ScoreStand`'s actual DOM shape (Task 9's
+  code): the container carrying `data-testid="score-stand-page"` is the
+  same relatively-positioned element that hosts both the injected Verovio
+  SVG (`svgHostRef`, containing `g.measure` elements once rendered) and
+  `ScoreMarkLayer`'s absolutely-positioned glyph buttons as siblings inside
+  it — so the test's subsequent `realScore.locator("g.measure")` and
+  `realScore.locator("button[aria-expanded]")` lookups resolve exactly as
+  they did against the deleted route's `real-score` wrapper. No other line
+  in this test needs to change for this fix.
+
+- **Blocker 4 fix.** The "a mark sits at its share of the session duration"
+  test (lines 101-123) hardcodes `(64 / 360) * offset.stripWidth` with the
+  comment "Fixture m1 is at 64s of 360s" — values from the deleted
+  `mark-fixtures.ts`, not from Task 13's replacement `FIXTURE_MARKS`
+  (`fixture-1`, the pedaling mark, is at 30s of a 120s
+  `PIECELESS_DURATION_SECONDS`). Replace the hardcoded fraction: import
+  `FIXTURE_MARKS` and `PIECELESS_DURATION_SECONDS` from
+  `../src/routes/practice-preview` at the top of `marks.spec.ts`, find the
+  mark whose `dimension` is `"pedaling"` in `FIXTURE_MARKS`, and assert
+  against `(pedalingMark.anchor.atSeconds / PIECELESS_DURATION_SECONDS) *
+  offset.stripWidth` instead of the two hardcoded literals. This makes the
+  test derive its expectation from the same fixture data the route renders,
+  so a future change to `FIXTURE_MARKS` cannot silently decouple the
+  assertion from what it is asserting about, which is the exact defect
+  being fixed here. (Both constants are plain data — a `readonly` array and
+  a `number` — with no browser-only side effects at module-import time, so
+  importing `practice-preview.tsx` from the Node-side Playwright spec is
+  safe; confirm at build time that no import in that module's chain executes
+  a browser API eagerly at module scope before relying on this.)
+
+Then add two new tests to the same file,
 porting the two `/marks-preview` cases out of `tests/a11y.spec.ts`:
 
 ```typescript
@@ -2239,13 +2309,14 @@ cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/w
 Expected: FAIL — `/practice-preview` currently only mounts `PieceLessMode`
 (Task 13's minimal implementation), so the score-overlay assertions (which
 expect a real engraving with bar-anchored marks, matching #157's original
-two-canvas coverage) find no `score-container` or bar-anchored
-`data-measure-on` buttons. The two new color-contrast tests may pass or
-fail independently of that — they only need the pieceless surface, which
-already renders — but run them anyway as part of the same red baseline.
-Also confirm `bun run test:a11y` is red at this point in the branch's
-history (it has been since Task 13 deleted `/marks-preview`); this task's
-`a11y.spec.ts` edit is what turns it green again.
+two-canvas coverage) find no `score-container`, no `[data-testid='score-stand-page']`,
+and no bar-anchored `data-measure-on` buttons. The two new color-contrast
+tests may pass or fail independently of that — they only need the
+pieceless surface, which already renders — but run them anyway as part of
+the same red baseline. Also confirm `bun run test:a11y` is red at this
+point in the branch's history (it has been since Task 13 deleted
+`/marks-preview`); this task's `a11y.spec.ts` edit is what turns it green
+again.
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
 
@@ -2272,7 +2343,7 @@ the measureOn chain survives a real engraving without a long load):
 			<div className="h-1/2">
 				<PieceLessMode
 					marks={FIXTURE_MARKS}
-					durationSeconds={120}
+					durationSeconds={PIECELESS_DURATION_SECONDS}
 					elapsedSeconds={90}
 					isRecording={false}
 				/>
@@ -2282,16 +2353,50 @@ the measureOn chain survives a real engraving without a long load):
 ```
 
 Add the corresponding import (`import { ScoreStand } from
-"../components/ScoreStand";`) and a `SCORE_FIXTURE_MARKS` constant built the
-same way `RealScoreSection` built its single mark before deletion: it cannot
-hardcode a bar number, because `ScoreStand`'s own load effect is what
-resolves real bar numbers from the engraving. Anchor a mark to elapsed time
-alone (`resolveAnchor({ atSeconds: 20, alignmentQuality: 0 })`, a
-timestamp-type anchor) rather than trying to guess a bar number from outside
-the component — a bar-anchored assertion belongs to `ScoreStand.test.tsx`'s
-own future coverage (per Task 9's noted follow-up), not to this harness,
-whose job is proving containment and non-overlap, both of which a
-timestamp-anchored mark on the timeline strip already exercises.
+"../components/ScoreStand";`) and a `SCORE_FIXTURE_MARKS` constant.
+
+**This mark must be bar-anchored, not timestamp-only.** The retained "a mark
+sits over its real measure on a real Verovio engraving" test (blocker 3
+above) asserts a `data-measure-on` attribute on the glyph and matches it
+against a real `g.measure` element — but `mark-placement.ts`'s `placeMarks`
+only ever places marks whose `anchor.type === "bars"`; a `"timestamp"`
+anchor is always routed to `unplaced` and never produces a
+`data-measure-on` glyph inside `ScoreMarkLayer` at all (confirmed by reading
+`placeMarks` in `src/lib/mark-placement.ts`). A purely time-anchored fixture
+mark would leave `ScoreStand` rendering zero placed glyphs, and the
+Verovio-engraving test would then fail at
+`await expect(glyph).toBeVisible()` even after the blocker-3 locator fix
+above — so time-anchoring here is not a safe simplification, it silently
+reintroduces the same failure through a different assertion in the same
+test.
+
+`RealScoreSection` (the deleted route) worked around this by loading the
+real IR locally and anchoring to `bars[0].barNumber` once bars were known —
+`ScoreStand` doesn't expose its loaded bars to a parent, so that exact
+pattern isn't available here without widening Task 9's interface, which is
+out of scope for this fix. Use `bars: [1, 1]` instead: `score-ir.ts` assigns
+`barNumber: idx + 1` when building `ScoreIR.bars` (confirmed by reading
+`src/lib/score-ir.ts:243`), so bar 1 is guaranteed to exist, to be the first
+bar of the piece, and to be on page 1 for any score with at least one
+measure — no dependency on Verovio's rendered measure-numbering or on
+`ScoreStand` having finished loading before the mark is constructed.
+
+```typescript
+const SCORE_FIXTURE_MARKS: readonly Mark[] = [
+	{
+		id: "score-fixture-1",
+		anchor: resolveAnchor({
+			atSeconds: 20,
+			bars: [1, 1],
+			alignmentQuality: 1,
+		}),
+		taxonomy: "needs_work",
+		dimension: "pedaling",
+		evidence: "pedal held through the bass change",
+		lifecycle: "active",
+	},
+];
+```
 
 - [ ] **Step 4: Run test — verify it PASSES**
 
@@ -2546,3 +2651,136 @@ found there.
 [QUESTION] count: 0
 
 VERDICT: NEEDS_REWORK — (1) no replacement for the deleted recording-stop control, (2) `tests/a11y.spec.ts` still points at the deleted `/marks-preview` route and, even if repointed, would silently pass against a blank page under the a11y config's production-build webServer.
+
+---
+
+## Challenge Review (re-review, attempt 2, commit 44dc6198)
+
+### Verification of the two prior blockers
+
+**Blocker 1 (missing stop control) — RESOLVED.** Verified by reading the
+edited tasks against current code: `AppChat.tsx:1070` currently passes
+`onStop={practice.stop}` to `ListeningMode`, and `ListeningMode.tsx:321`
+renders a real `aria-label="Stop recording"` button — confirming the plan's
+premise about what's being removed. Task 10's `PracticeMode` now declares a
+required `onStop: () => void` prop and renders a persistent
+`aria-label="Stop recording"` button (plan lines ~1670-1677) above whichever
+sub-surface is showing, including `SessionEndedBanner`, with a task-level
+test (`PracticeMode.test.tsx`, "calls onStop exactly once ... even after
+auto-stop") asserting it fires both before and after the 60s banner
+replaces the rest of the surface. Task 12 wires `onStop={handleStopPracticeMode}`,
+a new function that calls `practice.stop()` then the existing
+`handleExitListeningMode()`, with its own test
+(`AppChat.practicemode.test.tsx`, "stopping recording calls practice.stop
+and exits the practice surface") asserting the mock `stop` fires and the
+surface unmounts. This holds — there is now a stop/exit affordance present
+in every ladder state and the auto-stopped state, and it is exercised by
+tests at both the component and integration level.
+
+**Blocker 2 (a11y route hardcoding `/marks-preview`) — RESOLVED for its
+originally-scoped complaint, but the underlying test file it moves
+content into has independent, unaddressed defects (see new BLOCKERs
+below).** Verified against the live files: `tests/a11y.spec.ts:18-19`
+today still hardcodes `{ theme: "light"/"dark", path: "/marks-preview" }`,
+and `playwright.a11y.config.ts:11` runs `bun run build && vite preview` — a
+real production build where `import.meta.env.DEV` is `false`, confirming
+both halves of the original defect. Task 14 now removes those two cases
+from `a11y.spec.ts` (back to the original two: `/privacy`, `/signin`) and
+ports the same two color-contrast checks into `tests/marks.spec.ts`, which
+Task 14 also repoints to a `vite dev` webServer (`playwright.marks.config.ts`
+Step 1) so `import.meta.env.DEV` stays `true` and `/practice-preview`
+actually renders. This resolves the specific complaint: `test:a11y` no
+longer points at a deleted route, and the relocated cases don't silently
+pass against a blank page. It is a genuine, verified fix of blocker 2 as
+stated. However, re-reading `tests/marks.spec.ts` in full (not just the two
+lines Task 14 adds) surfaces two new, concrete breaks in that same file —
+see below.
+
+### New findings from a fresh full read of `tests/marks.spec.ts`
+
+[BLOCKER] (confidence: 9/10) — `tests/marks.spec.ts`'s "a mark sits over
+its real measure on a real Verovio engraving" test (lines 133-195) locates
+its target via `page.locator("[data-testid='real-score']")` (line 149).
+That testid is defined only on `src/routes/marks-preview.tsx:111`, inside
+the now-deleted `RealScoreSection` wrapper — confirmed by
+`grep -rn "real-score" src/ tests/` returning exactly those two hits
+(the definition and this one locator). Task 9's `ScoreStand` component
+(the thing Task 14 mounts in its place) tags its container
+`data-testid="score-stand-page"`, not `real-score`, and neither Task 13's
+nor Task 14's text adds a `real-score` testid anywhere in the new
+component tree or updates this locator. Task 14's instruction to "leave the
+collision-detection and containment assertions themselves untouched"
+explicitly preserves this exact line. After Task 14 repoints
+`page.goto("/marks-preview")` to `/practice-preview"`, `realScore` resolves
+to zero elements, so `await expect(measures.first()).toBeVisible({timeout:
+90000})` (line 152) times out — a hard, ~90s-to-discover failure of
+`test:marks`, one of the plan's own required regression gates (binding
+constraints list `bun run test:marks` explicitly). Before execution: add a
+step to Task 13 or Task 14 that either tags `ScoreStand`'s real-score wrapper
+`data-testid="real-score"` (matching the deleted route's contract) or
+updates this locator in `marks.spec.ts` to `[data-testid='score-stand-page']`
+— and re-verify the rest of that test still resolves (`g.measure` lookup,
+`data-measure-on` glyph attribute) against `ScoreStand`'s actual DOM shape.
+
+[BLOCKER] (confidence: 9/10) — `tests/marks.spec.ts`'s "a mark sits at its
+share of the session duration" test (lines 101-123) hardcodes an expected
+position of `(64 / 360) * offset.stripWidth` (line 122), with the comment
+"Fixture m1 is at 64s of 360s." Those numbers come from the deleted
+`src/test-utils/mark-fixtures.ts`, confirmed by reading it directly:
+`FIXTURE_DURATION_SECONDS = 360` and mark `m1`'s anchor is
+`resolveAnchor({ atSeconds: 64, bars: [5, 6], alignmentQuality: 0.95 })`,
+dimension `pedaling`. Task 13's replacement `FIXTURE_MARKS` in
+`practice-preview.tsx` does not reproduce these values — its pedaling mark
+(`fixture-1`) is anchored at `atSeconds: 30`, and Task 14's `PieceLessMode`
+mount keeps `durationSeconds={120}` (from Task 13's original snippet,
+untouched by Task 14's edit). That is a fraction of `30/120 = 0.25`, not
+`64/360 ≈ 0.178` — a ~7.2% absolute difference in `offset.left` as a
+fraction of strip width, well outside `toBeCloseTo`'s default 2-decimal
+tolerance. Task 14's text says to leave this assertion untouched because it
+is "testing a DOM-structural property... not anything specific to the
+deleted fixtures," but this particular assertion IS specific to the deleted
+fixture's numeric values, and Task 13 already replaced those values with
+different ones. This is a real, non-flaky test failure once the route is
+repointed, not a hypothetical. Before execution: update this assertion's
+hardcoded fraction (or find the pedaling glyph and compute the expected
+fraction from whatever constants `practice-preview.tsx` actually defines,
+so the test derives its expectation rather than hardcoding stale numbers)
+as part of Task 13 or Task 14.
+
+[RISK] (confidence: 5/10) — Task 13's `FIXTURE_MARKS` carries over only 2 of
+the deleted `mark-fixtures.ts`'s 6 marks (`m1`-`m6`), dropping the specific
+case documented in `marks.spec.ts`'s own comment: "A mark anchored at 85% of
+the session ran 36px past the strip's right edge at every viewport" (the
+width-overflow regression guard, lines 63-98). With only two marks at 25%
+and 62.5% of a 120s duration, neither is near the 85%-of-duration edge case
+that originally caught this bug. The three `every timeline mark stays
+inside the strip` tests will likely still pass (nothing in the new fixture
+set is obviously positioned to escape), but they exercise materially weaker
+input than before — a real edge-overflow regression could reappear
+undetected. Not a blocker because the test won't fail, but the coverage
+Task 14 claims to preserve ("matching what marks-preview.tsx covered before
+deletion") is narrower than what it replaces. Fallback: add a mark near 85%
+of `durationSeconds` to the practice-preview fixture set specifically to
+keep this regression guard live.
+
+### Updated Summary
+
+[BLOCKER] count: 2 (both new; both prior blockers verified resolved)
+[RISK]    count: 4 (3 carried over from the first pass, unaddressed but
+still non-blocking: `formatElapsed` duplication, `ScoreStand`'s per-page-turn
+`getPage` refetch, manual `routeTree.gen.ts` regeneration; plus 1 new:
+weakened edge-overflow fixture coverage)
+[QUESTION] count: 0
+
+VERDICT: NEEDS_REWORK — both prior blockers are genuinely fixed, but a full
+read of `tests/marks.spec.ts` (not just the lines Task 14 edits) finds two
+concrete, high-confidence breaks in the same required gate (`test:marks`):
+(1) the "real Verovio engraving" test locates `[data-testid='real-score']`,
+a testid that exists only on the route being deleted and is never
+reproduced on `ScoreStand`; (2) the "mark sits at its share of session
+duration" test hardcodes a `64/360` fraction from the deleted fixture data
+that Task 13's replacement fixtures (`30/120`) no longer match. Both are
+mechanical, narrowly-scoped fixes (add/rename one testid; update one
+hardcoded fraction or compute it from the new fixture constants) but must
+land before `test:marks` — a gate this plan is bound not to regress — will
+actually go green.
