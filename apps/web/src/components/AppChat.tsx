@@ -41,61 +41,6 @@ import {
 	FullPageSkeleton,
 } from "./Skeleton";
 
-const GREETINGS = [
-	// Warm / encouraging
-	"Let's make some music.",
-	"Your piano misses you.",
-	"Ready when you are.",
-	"Every session counts.",
-	"Time to play.",
-	"The keys are waiting.",
-	"Pick up where you left off.",
-	"Another day, another phrase.",
-	"Let's hear what you've got.",
-	"Music starts here.",
-	"Let's turn practice into progress.",
-	"Sound check: you're going to be great.",
-	"Your fingers remember more than you think.",
-	"One phrase at a time.",
-	"Make it sing.",
-	"Trust the process.",
-	"Play something beautiful.",
-	"You showed up. That's half the battle.",
-	"Small steps, big music.",
-	"Listen closely. You're getting better.",
-	"The best practice is the one you do.",
-	"Start slow. Finish strong.",
-	"Today's the day it clicks.",
-	"Your sound is yours alone.",
-	"There's music in you.",
-	"Just you and the keys.",
-	"Let the music breathe.",
-	"Feel it before you play it.",
-	"Sit down. Breathe. Begin.",
-	"Progress hides in repetition.",
-	"You're closer than you think.",
-	"The piano doesn't judge. Neither do we.",
-	"This is your time.",
-	"Play like nobody's listening.",
-	"Welcome back.",
-	// Witty / playful
-	"Chopin never had an app this good.",
-	"Scales won't practice themselves.",
-	"Your future self will thank you.",
-	"Beethoven practiced. So should you.",
-	"Plot twist: practice is fun.",
-	"Your neighbors called. They want an encore.",
-	"No metronome judgment here.",
-	"Rubato is not an excuse for wrong notes.",
-	"One more rep. Of that tricky passage.",
-	"Fingers warmed up? Didn't think so.",
-	"Tempo: whatever you can handle.",
-	"The sustain pedal forgives, but it doesn't forget.",
-	"Debussy would be impressed. Probably.",
-	"Somewhere, a metronome is ticking for you.",
-	"Practice makes permanent.",
-];
-
 export default function AppChat() {
 	const { user, isLoading, isAuthenticated, signOut } = useAuth();
 	const navigate = useNavigate();
@@ -699,11 +644,6 @@ export default function AppChat() {
 		setTransientMessages((prev) => [...prev, exerciseMsg]);
 	}, []);
 
-	const greeting = useMemo(
-		() => GREETINGS[Math.floor(Math.random() * GREETINGS.length)],
-		[],
-	);
-
 	const filteredConversations = useMemo(() => {
 		if (!searchOpen || !searchQuery.trim()) return null;
 		const q = searchQuery.toLowerCase();
@@ -1027,9 +967,6 @@ export default function AppChat() {
 							alt=""
 							className="w-20 h-20 opacity-50 mb-6"
 						/>
-						<h1 className="font-display text-display-md text-ink-primary mb-8">
-							{greeting}
-						</h1>
 						<ChatInput
 							onSend={handleSend}
 							onRecord={handleRecord}
