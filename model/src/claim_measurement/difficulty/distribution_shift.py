@@ -69,6 +69,9 @@ DELTAS = (
     (HUMAN_ARM, SOURCE_ARM, "transcription source (a confound, not a result)"),
     (SOURCE_ARM, "expressive", "the synthesis penalty -- #170 can address this"),
     ("expressive", "deadpan", "the score-rendering penalty -- #170 cannot"),
+    (HUMAN_ARM, "expressive",
+     "end to end vs a human recording; BUNDLES the confound above, so it is an "
+     "upper bound on the synthesis penalty, not the penalty"),
     (HUMAN_ARM, "deadpan", "end to end, human recording vs score rendering"),
 )
 
@@ -216,8 +219,9 @@ def main(argv=None) -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data-root", type=Path, default=None)
     ap.add_argument("--fold-emb-dir", type=Path, required=True)
-    ap.add_argument("--arm-npz", type=Path, nargs="*", default=(),
-                    metavar="NAME=PATH",
+    # NOT type=Path: these are NAME=PATH pairs, split below. Declaring Path
+    # here parses cleanly and then dies on .partition at use time.
+    ap.add_argument("--arm-npz", nargs="*", default=(), metavar="NAME=PATH",
                     help="e.g. expressive=/path/expressive.npz")
     ap.add_argument("--out-json", type=Path, default=None)
     args = ap.parse_args(argv)
