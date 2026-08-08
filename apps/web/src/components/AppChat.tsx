@@ -211,7 +211,7 @@ export default function AppChat() {
 			});
 		},
 		onSummary: (_summary, conversationId) => {
-			setShowListeningMode(false);
+			setShowPracticeMode(false);
 
 			const convId = conversationId ?? activeConversationId;
 			if (convId) {
@@ -235,17 +235,17 @@ export default function AppChat() {
 	// mounts idle (false), but a session resumed mid-recording (e.g. this
 	// component remounting while the hook's state is already non-idle) should
 	// show the surface without waiting for a click.
-	const [showListeningMode, setShowListeningMode] = useState(
+	const [showPracticeMode, setShowPracticeMode] = useState(
 		() => practice.state !== "idle",
 	);
 
 	function handleRecord() {
-		setShowListeningMode(true);
+		setShowPracticeMode(true);
 		practice.start(activeConversationId ?? undefined);
 	}
 
-	function handleExitListeningMode() {
-		setShowListeningMode(false);
+	function handleExitPracticeMode() {
+		setShowPracticeMode(false);
 
 		// If the practice session created a new conversation, navigate to it
 		// so the chat view loads persisted observations from D1.
@@ -262,7 +262,7 @@ export default function AppChat() {
 
 	function handleStopPracticeMode() {
 		practice.stop();
-		handleExitListeningMode();
+		handleExitPracticeMode();
 	}
 
 	// Merge practice observation messages into the chat thread during recording
@@ -962,8 +962,8 @@ export default function AppChat() {
 				)}
 			</div>
 
-			{/* Listening mode overlay */}
-			{showListeningMode && (
+			{/* Practice mode overlay */}
+			{showPracticeMode && (
 				<div className="fixed inset-0 z-50 bg-surface-page">
 					<PracticeMode
 						userPickedPieceId={null}
