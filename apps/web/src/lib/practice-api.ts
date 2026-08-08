@@ -1,4 +1,5 @@
 import { API_BASE, WS_BASE } from "./config";
+import type { Mark } from "./mark";
 import type { InlineComponent } from "./types";
 
 export interface PracticeStartResponse {
@@ -83,6 +84,7 @@ export type PracticeWsEvent =
 			method: string;
 	  }
 	| { type: "piece_set"; query: string }
+	| { type: "mark"; mark: Mark }
 	| ModeChangeEvent
 	| { type: "error"; message: string }
 	| {
