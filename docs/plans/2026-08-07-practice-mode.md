@@ -2546,11 +2546,19 @@ the `PracticeMode` control-collision test (loop-3 challenge, blocker 5).
 Then the manual click-through from the issue's success criterion, performed
 by a human (this is human-lit per `apps/CLAUDE.md` — "manual click-through
 verdicts are human-lit"):
-1. Record with a picked piece — score stand shows, Prev/Next page turns
-   work, and (since no backend emits real `mark` events yet — see spec,
-   "Not in scope") a manually-dispatched `mark` WS message via the browser
-   devtools console lands on the right bar and simultaneously appears on the
-   timeline if opened.
+1. With a piece — no piece-picker exists yet: `usePracticeSession`'s
+   `piece_identified` WS handler only `console.log`s free-text `composer`/
+   `title` and never yields a catalog `pieceId`, and Task 12 hardcodes
+   `userPickedPieceId={null}` and `confidentGuess={null}` in `AppChat` with
+   no wiring path anywhere in this plan (see spec, "Not in scope"). The
+   `user-picked` and `confirm-chip` ladder rungs are therefore unreachable
+   from a live Record session until #160 lands the piece-picker. Perform
+   this check against Task 14's dev-only `/practice-preview` harness
+   instead (`bun run dev`, navigate to `/practice-preview`): score stand
+   shows with its fixture mark on the right bar, Prev/Next page turns work,
+   and the `PracticeMode` section (confident guess pending) shows
+   `ConfirmPieceChip` above the score stand with the Stop/Metronome/Dismiss
+   controls not overlapping.
 2. Record pieceless — timeline strip accrues injected marks the same way.
 3. Silence past `AUTO_STOP_SILENCE_MS` — hard to do at 60s in real time
    without a config surface; verify by temporarily lowering
@@ -3026,3 +3034,138 @@ directly on top of the same top-right corner `ScoreStand`'s Metronome toggle
 and `ConfirmPieceChip`'s Dismiss button already occupy, and no test —
 jsdom or the real-browser harness — mounts `PracticeMode` as a whole to
 catch it.
+
+---
+
+## Challenge Review (re-review, attempt 4, final)
+
+No code exists yet in the worktree for any of Tasks 1-14 (`find` for
+`PracticeMode`/`ScoreStand`/`ConfirmPieceChip`/`practice-preview` under
+`apps/web/src` returns nothing; `apps/web/src/routes/marks-preview.tsx` and
+`apps/web/tests/marks.spec.ts` in their pre-#158 form are still the live
+files). This review is therefore of the plan text only, verified for
+internal consistency and against the actual pre-implementation files it
+proposes to touch — not of built code, since none exists yet.
+
+### Verification: does blocker 5's fix hold?
+
+Yes. Read Task 10's current `PracticeMode` code (lines ~1659-1727) and Task
+9's current `ScoreStand` code (lines ~1358-1423) directly, not the plan's own
+summary prose:
+
+- `PracticeMode` no longer has any `absolute`/`z-20` anywhere. Its return is
+  `<div className="flex h-full flex-col">` with the Stop button in a
+  `shrink-0` header row (`flex items-center justify-end border-b ... px-4
+  py-2`) that precedes a sibling `flex min-h-0 flex-1 flex-col` content
+  region holding `ConfirmPieceChip` (when applicable) and then
+  `ScoreStand`/`PieceLessMode`/`SessionEndedBanner`. Grepping the whole plan
+  file for `absolute`/`z-20`/`z-10` confirms the only remaining hits are (a)
+  `ScoreMarkLayer`'s own intentional `absolute inset-0` overlay for mark
+  glyphs (unrelated — a different layer, scoped inside `ScoreStand`'s
+  `relative` container, not competing for the top-right corner) and (b)
+  prose inside the three historical `## Challenge Review` sections
+  describing the *old*, now-replaced code. No live task code still uses
+  absolute positioning for a top-of-screen control.
+- `ScoreStand`'s own header (Metronome toggle) is likewise a normal
+  `shrink-0` flex row, not absolutely positioned, and is a sibling *below*
+  `PracticeMode`'s Stop row and any `ConfirmPieceChip` in the same flex
+  column — so in a real browser these three controls stack vertically by
+  document flow, not by z-index, and cannot occupy the same box.
+- `ConfirmPieceChip` (Task 6, lines 843-875) is a plain `flex` div with no
+  `absolute`/`fixed` class.
+- Task 14 now mounts `PracticeMode` itself in `practice-preview.tsx`'s third
+  section (`data-testid="practice-mode-preview"`, `confidentGuess:
+  CONFIRM_CHIP_GUESS`, `userPickedPieceId: null`), which per
+  `resolvePieceLadderState` resolves to `"confirm-chip"` — the one state
+  that puts all three competing controls (Stop, Dismiss, Metronome) on
+  screen together — and adds a real-browser collision test
+  (`tests/marks.spec.ts`, "PracticeMode's Stop control never overlaps a
+  sub-surface's own top control") using the same vertical-range collision
+  math (not `top` equality) as the file's existing timeline-mark overlap
+  check. This is a genuine real-browser geometry assertion, not jsdom
+  theatre, and it targets exactly the three controls the prior review named.
+
+Blocker 5 is resolved in the plan text, structurally (normal flex flow
+instead of stacking order) rather than just numerically (nudging pixel
+offsets), which is the more durable fix.
+
+### New finding from a fresh full read: the click-through's "record with a
+picked piece" step cannot be performed against the live app as written
+
+[BLOCKER] (confidence: 7/10) — Task 12 wires `AppChat`'s new `PracticeMode`
+mount with `userPickedPieceId={null}` and `confidentGuess={null}` hardcoded,
+and says so explicitly: "Wiring those two inputs for real is out of this
+task's test... do not invent a piece-picker UI here." No other task in this
+plan sets either prop to anything else. Confirmed by reading the actual
+pre-implementation `AppChat.tsx` directly: the only piece-related state it
+holds is `pieceContext` (`{ piece: string; section?: string }`, line 153),
+a free-text LLM extraction (`extractPieceContext`, lines 302-329) used only
+to label the old `ListeningMode`'s piece-name editor — it is not a catalog
+`pieceId` and cannot satisfy `userPickedPieceId: string | null` or
+`ConfidentGuess`'s `{ pieceId, composer, title, confidence }` shape without
+new mapping work this plan does not do. There is also no piece-picker UI
+anywhere in `AppChat` (the spec's own "Not in scope" list confirms: "The
+epic-level 'Home' surface (repertoire cards, add-piece flow)... is not
+redesigned"), and `usePracticeSession.ts`'s `case "piece_identified":`
+handler (line 300) still only `console.log`s — it was never wired to any
+hook-return field a component could consume, before or after this plan.
+
+The practical effect: after this plan lands, tapping "Record" in the actual
+running app can **only** ever reach `PracticeMode`'s pieceless branch. Both
+rungs of the piece ladder above "pieceless" — `user-picked` and
+`confirm-chip` — are live, tested, and correctly implemented in isolation
+(Tasks 2, 6, 9, 10), but structurally unreachable from a real recording
+session, because nothing in this plan or the existing codebase ever sets
+`userPickedPieceId` or `confidentGuess` to a non-null value in `AppChat`.
+
+This collides with the plan's own Final Verification section, which
+instructs the click-through as: "1. Record with a picked piece — score
+stand shows, Prev/Next page turns work..." with no caveat that this must be
+performed against `/practice-preview` (Task 14's dev-only harness, which
+*does* fully wire a confident guess) rather than the live app's Record
+button. A human following that instruction literally — tap Record, expect
+the score stand — will get the pieceless timeline every time, and (per the
+working context) `apps/CLAUDE.md` treats the manual click-through verdict as
+human-lit and load-bearing for this issue's success criterion; an
+unresolved ambiguity in the one document governing that verdict is exactly
+the kind of gap that produces a false "it doesn't work" (or a false-positive
+pass via the wrong route) at the one gate in this plan that no automated
+test protects.
+
+This is not a new engineering problem — the spec's own "Solution" section
+already describes `piece_identified`-driven score display as the intended
+production behavior, and wiring it for real is legitimately out of scope
+for this issue (no piece-catalog resolution work is scheduled here) — but
+the plan currently ships that gap *silently*. Before execution: add one
+sentence to the Final Verification section's step 1 stating explicitly that
+the score-stand-with-a-piece check is performed via `/practice-preview`
+(not the live Record flow), and that real `userPickedPieceId`/
+`confidentGuess` wiring in `AppChat` is deferred to a tracked follow-up —
+matching how the plan already handles the analogous "no backend emits
+`mark` events yet" gap for step 1's mark-injection instruction. This is a
+documentation fix to the plan, not a design or code change.
+
+### Updated Summary
+
+[BLOCKER] count: 1 (new — the click-through instruction gap above; all five
+historical blockers, including loop-3's absolute-positioned Stop control,
+confirmed resolved by direct reads of the plan's current task code)
+[RISK] count: 4 (unchanged, carried from attempt 3: `formatElapsed`
+duplication, `ScoreStand`'s per-page-turn `getPage` refetch, manual
+`routeTree.gen.ts` regeneration, and the Task 14 Playwright-spec import of
+`practice-preview.tsx` for its fixture constants)
+[QUESTION] count: 0
+
+Blocker 5 (the absolute-positioned Stop control from attempt 3) is
+confirmed resolved: Task 10 now renders Stop in its own `shrink-0` header
+row in normal flex flow, no component in the collision set uses `absolute`
+positioning, and Task 14 adds a real-browser collision test that mounts
+`PracticeMode` itself with all three competing controls on screen.
+
+VERDICT: NEEDS_REWORK — one blocker: the Final Verification section's
+manual click-through step 1 ("Record with a picked piece — score stand
+shows...") is not achievable against the live app as written, because Task
+12 hardcodes `userPickedPieceId`/`confidentGuess` to `null` with no wiring
+path anywhere in this plan or the existing codebase; the fix is a one-line
+clarification pointing that check at `/practice-preview` instead, not a
+design or code change.

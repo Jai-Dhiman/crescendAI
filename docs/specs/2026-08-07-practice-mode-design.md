@@ -19,6 +19,16 @@ marks silently and soft-auto-stops after a minute of silence.
   event carries a mark from server to client. This plan adds the client-side
   event contract and UI; wiring the server to actually emit `mark` events is
   out of scope (tracked implicitly by the epic's remaining sub-issues).
+- Wiring the piece ladder to a live Record session. Task 12 hardcodes
+  `userPickedPieceId={null}` and `confidentGuess={null}` in `AppChat`;
+  `usePracticeSession`'s `piece_identified` WS handler only `console.log`s
+  free-text `composer`/`title` and never yields a catalog `pieceId`. The
+  `user-picked` and `confirm-chip` ladder rungs (Tasks 2, 6, 9, 10) are
+  fully implemented and tested but structurally unreachable from a live
+  Record session until #160 ("Home + piece page: repertoire and marks
+  across time") lands the piece-picker; #158's with-piece verification
+  runs against Task 14's `/practice-preview` harness instead (see the
+  plan's Final Verification) and completes for real once #160 lands.
 - Drills, "work on this," passage playback.
 
 ## Problem
