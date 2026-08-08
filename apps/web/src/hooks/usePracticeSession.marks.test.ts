@@ -19,7 +19,11 @@ class FakeAudioContext {
 		return { connect: vi.fn() };
 	}
 	createAnalyser() {
-		return { fftSize: 256 };
+		// getByteFrequencyData is required: useAudioActivity's rAF-driven energy
+		// poll calls it every frame once the analyser is wired up, and that loop
+		// keeps running (and throwing into an unhandled-rejection) past this
+		// test's own assertions if the fake doesn't implement it.
+		return { fftSize: 256, getByteFrequencyData: vi.fn() };
 	}
 	close() {
 		this.state = "closed";
