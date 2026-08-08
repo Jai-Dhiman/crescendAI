@@ -438,6 +438,66 @@ fallback would report a clean-channel number as a phone-channel one, which is
 the exact quantity #148 measures. Same precedent as `asap_audio.py` refusing to
 fall back to MIDI.
 
+### Session intake (`take_capture.intake_session`)
+
+Intake is a **scheduling** fix, not a second validator. `sync_take` already
+refuses every take it cannot put on one clock, but it is normally run at a desk
+hours after the session, and by then a channel that never recorded, a phone left
+at 44.1 kHz, and a tail clap that was never struck are all unrecoverable.
+`intake_session` runs those same refusals against the raw exports minutes after
+each take — the deep check *is* `sync_take`, called per take on the files intake
+just wrote — so a failure costs one more take instead of one more session.
+
+Session manifest in, one self-contained take directory out per take: one WAV per
+channel named for its position, the calibration score MIDI copied in, and a
+`take.json` that `load_manifest` and `calibration_recall.load_calibration_take`
+both read unchanged. `rig_hash`, `piece` and `behavior` are stamped into every
+take from the session manifest.
+
+What intake refuses, and why each is unrecoverable once the rig comes down:
+
+| refusal | why it cannot wait |
+|---|---|
+| a channel the manifest names has no file | discovered at sync time, it cannot be re-recorded |
+| a channel is not at the session's declared rate | iOS voice-memo apps default to 44.1 kHz; intake **will not resample it into agreement**, because that repairs a rig setting that is still cheap to fix |
+| no mid-slate window declared | head+tail fit the drift line exactly and cannot test it; the third clap cannot be added afterwards |
+| a `p1`-style position name | `p2_s01_t007__p1_phone.wav` used `p2` for the PHASE and `p1` for the POSITION — one reading slip from the factor being subtracted on. Positions are `pos1_phone` / `pos2_ipad` / `pos3_laptop` |
+| a take short one position | distinct from a missing file: nothing downstream would have looked for it |
+| a duplicate `take_id` | two takes under one id overwrite each other's audio |
+| a calibration take with no `score_midi` | G-OOD-0 is recall against a KNOWN score |
+| the take does not sync | slates too close, correlation below the floor, implausible drift |
+
+Structural manifest errors raise on the first one — a typo is fixed in a second.
+Disk and audio failures, which need someone to walk back to the piano, are all
+attempted and reported together, then raise: one round trip, not one per
+problem. `intake_report.json` is written either way.
+
+A WAV source is copied byte-for-byte, so the reference channel reaches sync and
+the transcriber exactly as the rig wrote it. Anything else — phone voice memos
+are m4a — goes through ffmpeg with **no `-ar` and no `-ac`**, so a wrong sample
+rate survives the conversion to be caught rather than silently fixed.
+
+**The mid-slate residual is reported, never gated on.** A residual bar chosen
+before any real room recording exists would be invented, not measured.
+
+**Measured cost, because intake is useless if it does not finish while the rig is
+up.** The correlation's normalizing denominator was
+`np.convolve(segment**2, ones(width))` — a sliding window sum computed as a
+general O(N·width) convolution, ~100× the cost of the FFT correlation it
+normalizes: 4.7 s at 8 kHz, 14.4 s at 16 kHz, and **105 s per slate per channel
+at the 48 kHz the rig records at**, i.e. ~16 min/take and ~9.5 h across the 36
+Phase-2 takes. Replaced by a prefix sum (O(N), pinned equal to the convolution
+it replaces by test). A 2-take, 2-position, 200 s session at 48 kHz now intakes
+in **20.6 s end to end**, and the `follower_eval` suite fell from 152 s to 57 s.
+
+**Known constraint, not fixed here:** `estimate_offset` searches ±`MAX_OFFSET_S`
+(60 s), so two claps less than 60 s apart are ambiguous and the correlator can
+lock the head slate onto the mid clap. It fails **loudly** — the implied drift
+blows past the physical bound — but `MIN_SLATE_SPAN_S` is 30 s, so a short
+calibration take can legitimately trip it. Space the claps more than 60 s apart,
+or lower `MAX_OFFSET_S` to the real recorder start skew. Observed live on a
+synthetic 120 s session with claps 57 s apart.
+
 ### G-OOD-0, the blocking gate (`calibration_recall.py`)
 
 Reference-channel Transkun note recall against the known score, bar ≥ 0.95.
@@ -500,8 +560,8 @@ handful of takes, and a resampling CI over three of them would be decoration.
 
 ### Not built yet (blocking #148's recording session)
 
-- **`take_capture` intake** — rename/convert/completeness-check raw exports.
-- **`rig_hash` enforcement** — `ood_eval.paired_table` does not read it, so
-  "a subtraction across two rig hashes fails loudly" is not yet true.
+- **`rig_hash` enforcement** — intake now stamps the hash into every
+  `take.json`, but `ood_eval.paired_table` does not read it, so "a subtraction
+  across two rig hashes fails loudly" is still not true.
 - **`align_truth`** — parangonar invocation, human-verification round-trip,
   G-OOD-1 A-vs-B bookkeeping.

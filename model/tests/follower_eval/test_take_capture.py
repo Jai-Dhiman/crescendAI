@@ -267,6 +267,21 @@ def test_the_correlation_floor_alone_would_have_accepted_that_mis_lock(reference
     assert tc.MIN_SLATE_CORR < corr < 0.6
 
 
+def test_sliding_energy_equals_the_convolution_it_replaces():
+    """The correlation denominator was a general O(N*width) convolution, which
+    at the rig's 48 kHz costs ~105 s per slate per channel -- intake's answer
+    would arrive hours after the rig came down. The prefix sum is O(N); this
+    pins that it computes the SAME quantity, so the speedup did not buy a
+    different correlation."""
+    rng = np.random.default_rng(4)
+    x = rng.standard_normal(20_000)
+    for width in (1, 37, 4096, len(x)):
+        expected = np.convolve(x**2, np.ones(width), mode="valid")
+        got = tc._sliding_energy(x, width)
+        assert got.shape == expected.shape
+        assert np.allclose(got, expected, rtol=1e-9, atol=1e-9)
+
+
 def test_estimate_offset_raises_on_an_untrustworthy_correlation(reference):
     rng = np.random.default_rng(1)
     noise = rng.standard_normal(len(reference)) * 0.5
@@ -353,3 +368,268 @@ def test_sync_take_raises_on_mismatched_sample_rates(tmp_path: Path):
     )
     with pytest.raises(tc.TakeCaptureError, match="disagree on sample rate"):
         tc.sync_take(m)
+
+
+# --- intake -----------------------------------------------------------------
+# Intake exists to move sync's refusals earlier in WALL-CLOCK time: each failure
+# below is unrecoverable once the rig is packed up, so every test here asserts
+# that the refusal happens against the raw exports rather than at sync time.
+
+POS = "pos1_phone"
+MID_WINDOW = [MID_SLATE_S - 10, MID_SLATE_S + 10]
+
+
+def _write_raw_take(root: Path, tid: str, *, rates=None, skip=(), fmt="wav"):
+    ref = make_reference(slates=(HEAD_SLATE_S, MID_SLATE_S, TAIL_SLATE_S))
+    rates = rates or {}
+    raw = root / "raw"
+    raw.mkdir(parents=True, exist_ok=True)
+    for name, x in (("ref", ref), (POS, make_channel(ref, SR, 1.5, 100e-6))):
+        if name in skip:
+            continue
+        suffix = "wav" if name == "ref" else fmt
+        sf.write(
+            str(raw / f"{tid}_{name}.{suffix}"),
+            x.astype(np.float32),
+            rates.get(name, SR),
+        )
+
+
+def _take_entry(tid: str, *, behavior="practice", fmt="wav", **extra) -> dict:
+    entry = {
+        "take_id": tid,
+        "piece": "test_piece",
+        "behavior": behavior,
+        "sources": {
+            "ref": f"raw/{tid}_ref.wav",
+            POS: f"raw/{tid}_{POS}.{fmt}",
+        },
+        "mid_search_s": [MID_WINDOW],
+    }
+    entry.update(extra)
+    return entry
+
+
+def _write_session_manifest(root: Path, entries: list[dict], **overrides) -> Path:
+    body = {
+        "session_id": "s01",
+        "rig_hash": "sha256:abc123",
+        "sample_rate": SR,
+        "reference_channel": "ref",
+        "channels": ["ref", POS],
+        "takes": entries,
+    }
+    body.update(overrides)
+    path = root / "session.json"
+    path.write_text(json.dumps(body))
+    return path
+
+
+def test_intake_writes_a_take_directory_sync_take_can_read(tmp_path: Path):
+    """The contract: manifest in, a self-contained take directory out that the
+    downstream readers consume unchanged."""
+    _write_raw_take(tmp_path, "t001")
+    session = _write_session_manifest(tmp_path, [_take_entry("t001")])
+
+    report = tc.intake_session(session, tmp_path / "takes")
+
+    assert report["n_takes_ok"] == 1
+    body = tc.load_manifest(tmp_path / "takes" / "t001" / "take.json")
+    assert sorted(body["channels"]) == sorted(["ref", POS])
+    assert all(p.exists() for p in body["channels"].values())
+    assert body["rig_hash"] == "sha256:abc123"
+    assert body["piece"] == "test_piece"
+
+
+def test_intake_syncs_each_channel_and_reports_the_held_out_mid_residual(
+    tmp_path: Path,
+):
+    """Intake's deep check IS sync_take -- a take that cannot be put on one
+    clock fails while it can still be re-recorded. The injected drift is
+    100 ppm and the mid slate is held out of the fit, so its residual is a
+    measurement of linearity rather than None (which would mean UNTESTED)."""
+    _write_raw_take(tmp_path, "t001")
+    session = _write_session_manifest(tmp_path, [_take_entry("t001")])
+
+    sync = tc.intake_session(session, tmp_path / "takes")["takes"][0]["syncs"][POS]
+
+    assert abs(sync["drift_ppm"] - 100.0) < 20.0
+    assert sync["max_mid_residual_s"] is not None
+    assert sync["max_mid_residual_s"] < 0.005
+
+
+def test_a_channel_with_no_file_fails_at_intake_not_hours_later_at_sync(
+    tmp_path: Path,
+):
+    _write_raw_take(tmp_path, "t001", skip={POS})
+    session = _write_session_manifest(tmp_path, [_take_entry("t001")])
+
+    with pytest.raises(tc.TakeCaptureError) as exc:
+        tc.intake_session(session, tmp_path / "takes")
+    assert "cannot be re-recorded" in str(exc.value)
+    report = json.loads((tmp_path / "takes" / "intake_report.json").read_text())
+    assert [f["take_id"] for f in report["failures"]] == ["t001"]
+
+
+def test_a_channel_at_the_wrong_rate_is_refused_not_resampled(tmp_path: Path):
+    """iOS voice-memo apps default to 44.1 kHz while the rig runs at 48. sync
+    would catch the disagreement, but only after the session; and resampling it
+    into agreement here would repair the rig setting instead of reporting it."""
+    _write_raw_take(tmp_path, "t001", rates={POS: 44100})
+    session = _write_session_manifest(tmp_path, [_take_entry("t001")])
+
+    with pytest.raises(tc.TakeCaptureError) as exc:
+        tc.intake_session(session, tmp_path / "takes")
+    assert "44100" in str(exc.value)
+    assert "will not resample" in str(exc.value)
+
+
+def test_a_converted_channel_is_not_resampled_into_agreement_either(tmp_path: Path):
+    """The non-WAV branch goes through ffmpeg, which is exactly where an '-ar'
+    would silently fix the rate. A wrong rate must survive the conversion."""
+    _write_raw_take(tmp_path, "t001", rates={POS: 44100}, fmt="flac")
+    session = _write_session_manifest(tmp_path, [_take_entry("t001", fmt="flac")])
+
+    with pytest.raises(tc.TakeCaptureError, match="44100"):
+        tc.intake_session(session, tmp_path / "takes")
+
+
+def test_a_non_wav_export_is_converted_and_still_syncs(tmp_path: Path):
+    _write_raw_take(tmp_path, "t001", fmt="flac")
+    session = _write_session_manifest(tmp_path, [_take_entry("t001", fmt="flac")])
+
+    take = tc.intake_session(session, tmp_path / "takes")["takes"][0]
+
+    assert take["channels"][POS]["converted"] is True
+    assert take["channels"]["ref"]["converted"] is False
+    assert take["channels"][POS]["sample_rate"] == SR
+    assert POS in take["syncs"]
+
+
+def test_a_take_with_only_two_claps_is_refused_while_a_third_can_still_be_added(
+    tmp_path: Path,
+):
+    _write_raw_take(tmp_path, "t001")
+    session = _write_session_manifest(tmp_path, [_take_entry("t001", mid_search_s=[])])
+
+    with pytest.raises(tc.TakeCaptureError, match="cannot be added after"):
+        tc.intake_session(session, tmp_path / "takes")
+
+
+def test_a_p1_style_position_name_is_refused(tmp_path: Path):
+    """'p2_s01_t007__p1_phone.wav' uses p2 for the PHASE and p1 for the
+    POSITION. Position is the factor #148 subtracts on, so the two must not be
+    one reading slip apart."""
+    session = _write_session_manifest(tmp_path, [], channels=["ref", "p1_phone"])
+
+    with pytest.raises(tc.TakeCaptureError, match="does not name a position"):
+        tc.intake_session(session, tmp_path / "takes")
+
+
+def test_a_duplicate_take_id_is_refused_before_it_overwrites_audio(tmp_path: Path):
+    _write_raw_take(tmp_path, "t001")
+    session = _write_session_manifest(
+        tmp_path, [_take_entry("t001"), _take_entry("t001")]
+    )
+
+    with pytest.raises(tc.TakeCaptureError, match="appears twice"):
+        tc.intake_session(session, tmp_path / "takes")
+
+
+def test_a_take_short_one_position_is_refused(tmp_path: Path):
+    """Distinct from a missing FILE: the manifest never named the channel, so
+    nothing downstream would have looked for it."""
+    entry = _take_entry("t001")
+    del entry["sources"][POS]
+    session = _write_session_manifest(tmp_path, [entry])
+
+    with pytest.raises(tc.TakeCaptureError, match="short one position"):
+        tc.intake_session(session, tmp_path / "takes")
+
+
+def test_an_empty_rig_hash_is_refused(tmp_path: Path):
+    session = _write_session_manifest(tmp_path, [], rig_hash="  ")
+
+    with pytest.raises(tc.TakeCaptureError, match="rig_hash is empty"):
+        tc.intake_session(session, tmp_path / "takes")
+
+
+def test_a_calibration_take_without_a_score_is_refused(tmp_path: Path):
+    _write_raw_take(tmp_path, "c001")
+    session = _write_session_manifest(
+        tmp_path, [_take_entry("c001", behavior="calibration")]
+    )
+
+    with pytest.raises(tc.TakeCaptureError, match="no 'score_midi'"):
+        tc.intake_session(session, tmp_path / "takes")
+
+
+def test_a_calibration_take_directory_is_readable_by_the_g_ood_0_gate(
+    tmp_path: Path,
+):
+    """The two manifest keys calibration_recall raises on -- 'behavior' and
+    'score_midi' -- are written by intake, and the score travels with the take
+    so the session folder stays self-contained."""
+    from follower_eval import calibration_recall as cr
+
+    _write_raw_take(tmp_path, "c001")
+    (tmp_path / "scores").mkdir()
+    (tmp_path / "scores" / "op28_4.mid").write_bytes(b"MThd-not-parsed-here")
+    session = _write_session_manifest(
+        tmp_path,
+        [
+            _take_entry(
+                "c001", behavior="calibration", score_midi="scores/op28_4.mid"
+            )
+        ],
+    )
+
+    tc.intake_session(session, tmp_path / "takes")
+
+    take = cr.load_calibration_take(tmp_path / "takes" / "c001" / "take.json")
+    assert take.ref_wav.exists()
+    assert take.score_midi.exists()
+
+
+def test_a_take_that_fails_to_sync_leaves_no_globbable_manifest(tmp_path: Path):
+    """calibration_recall is invoked as `--manifest sessions/*/take.json`. A
+    manifest left in a REJECTED take's directory would be globbed up and scored
+    as though it had passed intake -- a failure silently becoming a pass. The
+    pending file and the audio stay for diagnosis; only the matched name is
+    withheld."""
+    ref = make_reference(slates=(HEAD_SLATE_S, MID_SLATE_S, TAIL_SLATE_S))
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    sf.write(str(raw / "t001_ref.wav"), ref.astype(np.float32), SR)
+    # a phone that stopped before the tail clap: syncs to an impossible drift
+    truncated = make_channel(ref, SR, 12.0, 500e-6)[: len(ref)]
+    sf.write(str(raw / f"t001_{POS}.wav"), truncated.astype(np.float32), SR)
+    session = _write_session_manifest(tmp_path, [_take_entry("t001")])
+
+    with pytest.raises(tc.TakeCaptureError, match="physical bound"):
+        tc.intake_session(session, tmp_path / "takes")
+
+    take_dir = tmp_path / "takes" / "t001"
+    assert not (take_dir / "take.json").exists()
+    assert (take_dir / "take.json.pending").exists()
+    assert (take_dir / f"{POS}.wav").exists()
+    assert list((tmp_path / "takes").glob("*/take.json")) == []
+
+
+def test_the_report_lists_every_failed_take_not_only_the_first(tmp_path: Path):
+    """One round trip to the piano, not one per problem. A practice take is
+    still attempted after a calibration take fails."""
+    _write_raw_take(tmp_path, "t001", skip={POS})
+    _write_raw_take(tmp_path, "t002", skip={POS})
+    _write_raw_take(tmp_path, "t003")
+    session = _write_session_manifest(
+        tmp_path, [_take_entry(t) for t in ("t001", "t002", "t003")]
+    )
+
+    with pytest.raises(tc.TakeCaptureError) as exc:
+        tc.intake_session(session, tmp_path / "takes")
+    assert "t001" in str(exc.value) and "t002" in str(exc.value)
+
+    report = json.loads((tmp_path / "takes" / "intake_report.json").read_text())
+    assert [f["take_id"] for f in report["failures"]] == ["t001", "t002"]
+    assert [t["take_id"] for t in report["takes"]] == ["t003"]
