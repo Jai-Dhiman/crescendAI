@@ -35,6 +35,8 @@ mic -> 15s chunks -> WS -> DO session brain
                                  -> 0..1 mark per pause
 
 pause (>= 20s silence)  <-WS-  mark lands on score / timeline canvas
+                               (#158 UI is live; no backend emits the `mark`
+                                WS event yet — #162 owns the pipeline)
 silence >= 60s          ->     soft auto-stop (one-tap resume, same session)
 
 stop -> V6 synthesis   ->      verdict + consolidated marks + one
@@ -84,6 +86,12 @@ enough to judge it").
 3. No confident match: pieceless session (timestamp anchors, timeline
    canvas). Permanent state, not transitional — the score library is
    copyright-cleared only. Identification enriches, never gates.
+
+Rungs 1 and 2 are implemented and tested (#158) but not yet reachable from a
+live Record session: `AppChat` hardcodes `userPickedPieceId={null}` /
+`confidentGuess={null}`, and `usePracticeSession`'s `piece_identified`
+handler only logs free-text composer/title instead of yielding a catalog
+`pieceId`. #160 owns wiring both.
 
 ### 4. Offline alignment
 

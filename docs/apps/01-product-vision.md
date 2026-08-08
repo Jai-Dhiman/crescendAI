@@ -137,8 +137,8 @@ Three stages, one principle: the system does significant work to produce minimal
 | Audio capture (web) | COMPLETE, carried forward | MediaRecorder + WebSocket streaming (capture transport only) |
 | Transkun AMT + alignment | CARRIED FORWARD | #125 adoption; offline chroma-DTW; open-set piece-ID gate (#26) |
 | MoonBeam scoring + MPM extraction | NOT STARTED | #162 — replaces the retired MuQ HF-endpoint path |
-| Mark system + canvases | NOT STARTED | #157 — the central contract |
-| Practice mode (music stand) | NOT STARTED | #158 |
+| Mark system + canvases | COMPLETE | #157 — the central contract |
+| Practice mode (music stand) | COMPLETE, wiring gaps remain | #158; piece-ladder `user-picked`/`confirm-chip` rungs unreachable from a live Record session until #160 wires `AppChat`/`usePracticeSession`; marks are WS-injected, not pipeline-fed, until #162 |
 | Session review | NOT STARTED | #159 — promotes shipped play_passage machinery |
 | Student baseline (dual EWMA) | NOT STARTED | #163 — supersedes the alpha=0.3 EMA baseline |
 | Session synthesis (V6 harness) | COMPLETE, output contract changing | verdict + marks + carry-forward (#162) |

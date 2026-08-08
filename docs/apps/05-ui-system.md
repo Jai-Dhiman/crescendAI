@@ -153,6 +153,28 @@ Piece resolution ladder:
 During pauses (>= 20s), at most one new mark lands on the canvas. It never
 requires a response and recedes when playing resumes.
 
+**Shipped in #158 (2026-08-07).** Durable state, recorded here because the
+design spec was deleted at merge:
+
+- `ScoreStand`, `PieceLessMode`, the `PracticeMode` orchestrator,
+  `ConfirmPieceChip`, `SessionEndedBanner`, `usePauseTracker`, `pause-state`,
+  and `piece-ladder` all landed. `AppChat` mounts `PracticeMode` in place of
+  the deleted `ListeningMode`/`AudioWaveformRing`, and the random `GREETINGS`
+  headline is gone from the chat landing screen.
+- The `/marks-preview` route is deleted; a dev-only `/practice-preview` route
+  (renders null in production builds) is the harness for the with-piece
+  ladder rungs and the real-browser mark-geometry tests.
+- **Deferred to #160:** the ladder's `user-picked` and `confirm-chip` rungs
+  are implemented and tested but **unreachable from a live Record session**
+  — `AppChat` hardcodes `userPickedPieceId={null}` / `confidentGuess={null}`,
+  and `usePracticeSession`'s `piece_identified` handler only console.logs
+  free-text composer/title rather than yielding a catalog `pieceId`. Until
+  #160 wires both, with-piece verification is only performable against
+  `/practice-preview`.
+- **Deferred to #162:** no backend emits a `mark` WebSocket event yet; marks
+  in practice mode are exercised via manually-injected WS messages, not a
+  live pipeline.
+
 ### 3. Session review
 
 On stop, the practice canvas transitions in place to review state:
