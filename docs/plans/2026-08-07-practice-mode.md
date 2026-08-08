@@ -64,7 +64,7 @@ PauseState`
 - Create: `src/lib/pause-state.ts`
 - Test: `src/lib/pause-state.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // src/lib/pause-state.test.ts
@@ -119,7 +119,7 @@ describe("computePauseState", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/lib/pause-state.test.ts
@@ -127,7 +127,7 @@ cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/w
 Expected: FAIL — `Cannot find module './pause-state'` (the file does not
 exist yet).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```typescript
 // src/lib/pause-state.ts
@@ -175,14 +175,14 @@ export function computePauseState(input: PauseStateInput): PauseState {
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/lib/pause-state.test.ts
 ```
 Expected: PASS (3 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/pause-state.ts src/lib/pause-state.test.ts && git commit -m "feat(practice-mode): pure pause/auto-stop threshold math"
@@ -206,7 +206,7 @@ LadderState`
 - Create: `src/lib/piece-ladder.ts`
 - Test: `src/lib/piece-ladder.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // src/lib/piece-ladder.test.ts
@@ -263,14 +263,14 @@ describe("resolvePieceLadderState", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/lib/piece-ladder.test.ts
 ```
 Expected: FAIL — `Cannot find module './piece-ladder'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```typescript
 // src/lib/piece-ladder.ts
@@ -302,14 +302,14 @@ export function resolvePieceLadderState(input: LadderInput): LadderState {
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/lib/piece-ladder.test.ts
 ```
 Expected: PASS (4 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/piece-ladder.ts src/lib/piece-ladder.test.ts && git commit -m "feat(practice-mode): pure piece-ladder precedence"
@@ -333,7 +333,7 @@ union-type addition to assert against).
 - Modify: `src/lib/practice-api.ts`
 - Test: `src/lib/practice-api.marktype.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // src/lib/practice-api.marktype.test.ts
@@ -366,7 +366,7 @@ describe("PracticeWsEvent mark variant", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/lib/practice-api.marktype.test.ts && bunx tsc --noEmit
@@ -375,7 +375,7 @@ Expected: FAIL — `tsc` reports `Object literal may only specify known
 properties, and 'mark' does not exist in type ... PracticeWsEvent` (the
 union has no `mark` variant yet).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `src/lib/practice-api.ts`, add the import and the union member:
 
@@ -396,14 +396,14 @@ next to the other single-purpose events rather than the multi-field ones):
 	| ModeChangeEvent
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/lib/practice-api.marktype.test.ts && bunx tsc --noEmit
 ```
 Expected: PASS (1 test), `tsc` exits 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/practice-api.ts src/lib/practice-api.marktype.test.ts && git commit -m "feat(practice-mode): add mark WS event to PracticeWsEvent"
@@ -427,7 +427,7 @@ void }`
 - Create: `src/hooks/usePauseTracker.ts`
 - Test: `src/hooks/usePauseTracker.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // src/hooks/usePauseTracker.test.ts
@@ -486,14 +486,14 @@ describe("usePauseTracker", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/hooks/usePauseTracker.test.ts
 ```
 Expected: FAIL — `Cannot find module './usePauseTracker'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```typescript
 // src/hooks/usePauseTracker.ts
@@ -566,14 +566,14 @@ export function usePauseTracker(isPlaying: boolean): UsePauseTrackerReturn {
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/hooks/usePauseTracker.test.ts
 ```
 Expected: PASS (3 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/hooks/usePauseTracker.ts src/hooks/usePauseTracker.test.ts && git commit -m "feat(practice-mode): usePauseTracker live-clock wrapper"
@@ -596,7 +596,7 @@ without touching any other state field.
 - Modify: `src/hooks/usePracticeSession.ts`
 - Test: `src/hooks/usePracticeSession.marks.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // src/hooks/usePracticeSession.marks.test.ts
@@ -718,7 +718,7 @@ describe("usePracticeSession marks", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/hooks/usePracticeSession.marks.test.ts
@@ -726,7 +726,7 @@ cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/w
 Expected: FAIL — `result.current.marks` is `undefined` (`toEqual([mark])`
 fails; the field does not exist on `UsePracticeSessionReturn` yet).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `src/hooks/usePracticeSession.ts`:
 
@@ -774,14 +774,14 @@ ObservationEvent[];`:
 	marks: Mark[];
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/hooks/usePracticeSession.marks.test.ts && bunx tsc --noEmit
 ```
 Expected: PASS (1 test), `tsc` exits 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/hooks/usePracticeSession.ts src/hooks/usePracticeSession.marks.test.ts && git commit -m "feat(practice-mode): usePracticeSession accumulates marks from WS"
@@ -803,7 +803,7 @@ onDismiss={() => void} />`
 - Create: `src/components/ConfirmPieceChip.tsx`
 - Test: `src/components/ConfirmPieceChip.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // src/components/ConfirmPieceChip.test.tsx
@@ -831,14 +831,14 @@ describe("ConfirmPieceChip", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/components/ConfirmPieceChip.test.tsx
 ```
 Expected: FAIL — `Cannot find module './ConfirmPieceChip'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```tsx
 // src/components/ConfirmPieceChip.tsx
@@ -874,14 +874,14 @@ export function ConfirmPieceChip({ guess, onDismiss }: ConfirmPieceChipProps) {
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/components/ConfirmPieceChip.test.tsx
 ```
 Expected: PASS (1 test)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/ConfirmPieceChip.tsx src/components/ConfirmPieceChip.test.tsx && git commit -m "feat(practice-mode): ConfirmPieceChip"
@@ -902,7 +902,7 @@ git add src/components/ConfirmPieceChip.tsx src/components/ConfirmPieceChip.test
 - Create: `src/components/SessionEndedBanner.tsx`
 - Test: `src/components/SessionEndedBanner.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // src/components/SessionEndedBanner.test.tsx
@@ -923,14 +923,14 @@ describe("SessionEndedBanner", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/components/SessionEndedBanner.test.tsx
 ```
 Expected: FAIL — `Cannot find module './SessionEndedBanner'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```tsx
 // src/components/SessionEndedBanner.tsx
@@ -962,14 +962,14 @@ export function SessionEndedBanner({ onResume }: SessionEndedBannerProps) {
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/components/SessionEndedBanner.test.tsx
 ```
 Expected: PASS (1 test)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/SessionEndedBanner.tsx src/components/SessionEndedBanner.test.tsx && git commit -m "feat(practice-mode): SessionEndedBanner"
@@ -992,7 +992,7 @@ durationSeconds={number} elapsedSeconds={number} isRecording={boolean} />`
 - Create: `src/components/PieceLessMode.tsx`
 - Test: `src/components/PieceLessMode.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // src/components/PieceLessMode.test.tsx
@@ -1033,14 +1033,14 @@ describe("PieceLessMode", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/components/PieceLessMode.test.tsx
 ```
 Expected: FAIL — `Cannot find module './PieceLessMode'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```tsx
 // src/components/PieceLessMode.tsx
@@ -1100,14 +1100,14 @@ export function PieceLessMode({
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/components/PieceLessMode.test.tsx
 ```
 Expected: PASS (1 test)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/PieceLessMode.tsx src/components/PieceLessMode.test.tsx && git commit -m "feat(practice-mode): PieceLessMode"
@@ -1143,7 +1143,7 @@ local copy is intentionally left as-is — reconciling it is two extra lines
 and not required by either task's test, and CLAUDE.md's "touch only lines
 required by the task" favors leaving Task 8's file alone once it is merged.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // src/components/ScoreStand.test.tsx
@@ -1244,14 +1244,14 @@ describe("ScoreStand", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/components/ScoreStand.test.tsx
 ```
 Expected: FAIL — `Cannot find module './ScoreStand'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 First, in `src/lib/mark.ts`, change `function formatElapsed` to `export
 function formatElapsed` (one-word change, no other lines in that file move).
@@ -1423,14 +1423,14 @@ export function ScoreStand({
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/components/ScoreStand.test.tsx
 ```
 Expected: PASS (1 test)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/mark.ts src/components/ScoreStand.tsx src/components/ScoreStand.test.tsx && git commit -m "feat(practice-mode): ScoreStand, static paginated score"
@@ -1467,7 +1467,7 @@ onStop={() => void} />`
 - Create: `src/components/PracticeMode.tsx`
 - Test: `src/components/PracticeMode.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // src/components/PracticeMode.test.tsx
@@ -1598,14 +1598,14 @@ describe("PracticeMode", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/components/PracticeMode.test.tsx
 ```
 Expected: FAIL — `Cannot find module './PracticeMode'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```tsx
 // src/components/PracticeMode.tsx
@@ -1727,14 +1727,14 @@ export function PracticeMode({
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/components/PracticeMode.test.tsx
 ```
 Expected: PASS (4 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/PracticeMode.tsx src/components/PracticeMode.test.tsx && git commit -m "feat(practice-mode): PracticeMode orchestrator"
@@ -1757,7 +1757,7 @@ a greeting headline, and the `GREETINGS` array is gone from the module.
 - Modify: `src/components/AppChat.tsx`
 - Test: `src/components/AppChat.greetings.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // src/components/AppChat.greetings.test.tsx
@@ -1790,7 +1790,7 @@ own existing conventions use elsewhere in the codebase (check for a shared
 test-render helper before inventing one) — do not weaken the assertion to
 compensate for a render failure.
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/components/AppChat.greetings.test.tsx
@@ -1800,7 +1800,7 @@ Expected: FAIL — the test finds `"Let's make some music."` (or whichever
 run is flaky across executions because `GREETINGS` is chosen at random.
 Either failure mode confirms the array is still live.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `src/components/AppChat.tsx`, delete the `GREETINGS` array (the block
 starting `const GREETINGS = [` through its closing `];`), delete the
@@ -1808,7 +1808,7 @@ starting `const GREETINGS = [` through its closing `];`), delete the
 from the empty-state JSX, leaving the icon and `ChatInput` as the only
 children of that empty-state container.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/components/AppChat.greetings.test.tsx
@@ -1817,7 +1817,7 @@ Expected: PASS (1 test), and re-running it several times in a row (`bunx
 vitest run src/components/AppChat.greetings.test.tsx --repeat 5` or manual
 repeats) never flips — proving the randomness is gone, not just unlucky.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/AppChat.tsx src/components/AppChat.greetings.test.tsx && git commit -m "feat(practice-mode): remove GREETINGS from AppChat empty state"
@@ -1849,7 +1849,7 @@ the session, not just be present.
 - Delete: `src/components/AudioWaveformRing.tsx`
 - Test: `src/components/AppChat.practicemode.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // src/components/AppChat.practicemode.test.tsx
@@ -1918,7 +1918,7 @@ describe("AppChat practice mode", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/components/AppChat.practicemode.test.tsx
@@ -1927,7 +1927,7 @@ Expected: FAIL — `session-timeline` testid is absent because `AppChat`
 still mounts `ListeningMode` (which renders `AudioWaveformRing`, not the
 timeline strip) whenever `showListeningMode` is true.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `src/components/AppChat.tsx`:
 
@@ -1988,7 +1988,7 @@ In `src/components/AppChat.tsx`:
    `handleExitListeningMode` stays; it is now called from
    `handleStopPracticeMode`.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/components/AppChat.practicemode.test.tsx && bunx tsc --noEmit
@@ -1996,7 +1996,7 @@ cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/w
 Expected: PASS (2 tests), `tsc` exits 0 (no leftover unused imports/dead
 refs to `ListeningMode` or `AudioWaveformRing` anywhere).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A src/components/AppChat.tsx src/components/AppChat.practicemode.test.tsx src/components/ListeningMode.tsx src/components/AudioWaveformRing.tsx && git commit -m "feat(practice-mode): mount PracticeMode in AppChat; delete ListeningMode/AudioWaveformRing"
@@ -2026,7 +2026,7 @@ render output, gated on `import.meta.env.DEV`
 - Create: `src/routes/practice-preview.tsx`
 - Test: `src/routes/practice-preview.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // src/routes/practice-preview.test.tsx
@@ -2063,14 +2063,14 @@ describe("PracticePreview", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/routes/practice-preview.test.tsx
 ```
 Expected: FAIL — `Cannot find module './practice-preview'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Delete `src/routes/marks-preview.tsx`, `src/routes/marks-preview.test.tsx`,
 and `src/test-utils/mark-fixtures.ts`.
@@ -2164,14 +2164,14 @@ export function PracticePreview() {
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx vitest run src/routes/practice-preview.test.tsx
 ```
 Expected: PASS (2 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A src/routes/practice-preview.tsx src/routes/practice-preview.test.tsx src/routes/marks-preview.tsx src/routes/marks-preview.test.tsx src/test-utils/mark-fixtures.ts && git commit -m "feat(practice-mode): replace marks-preview with dev-gated practice-preview harness"
@@ -2224,7 +2224,7 @@ browser
 - Modify: `apps/web/playwright.marks.config.ts`
 - Modify: `apps/web/tests/a11y.spec.ts`
 
-- [ ] **Step 1: Write the failing test (repoint the existing spec)**
+- [x] **Step 1: Write the failing test (repoint the existing spec)**
 
 In `apps/web/playwright.marks.config.ts`, change the `webServer.command`
 from `"bun run build && bunx vite preview --port 4173 --strictPort"` to
@@ -2327,7 +2327,7 @@ file's header comment to say mark-glyph contrast coverage now lives in
 `tests/marks.spec.ts` (run under `vite dev`, where `/practice-preview`
 actually renders) instead of naming the deleted route.
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx playwright test --config playwright.marks.config.ts
@@ -2344,7 +2344,7 @@ point in the branch's history (it has been since Task 13 deleted
 `/marks-preview`); this task's `a11y.spec.ts` edit is what turns it green
 again.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Extend `PracticePreview` in `src/routes/practice-preview.tsx` to also mount
 `ScoreStand` with a real piece and at least one bar-anchored fixture mark,
@@ -2512,7 +2512,7 @@ test("PracticeMode's Stop control never overlaps a sub-surface's own top control
 });
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai/.worktrees/issue-158-practice-mode/apps/web && bunx playwright test --config playwright.marks.config.ts && bun run test:a11y
@@ -2521,7 +2521,7 @@ Expected: PASS — every test in `tests/marks.spec.ts` (including the two
 ported color-contrast cases and the new `PracticeMode` control-collision
 test), and `test:a11y` green again (2/2: light `/privacy`, dark `/signin`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/tests/marks.spec.ts apps/web/playwright.marks.config.ts apps/web/src/routes/practice-preview.tsx apps/web/tests/a11y.spec.ts && git commit -m "test(practice-mode): port real-browser mark geometry harness to practice-preview; move mark-contrast coverage off the deleted marks-preview route; assert PracticeMode's Stop control never overlaps a sub-surface control"
