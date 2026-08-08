@@ -23,7 +23,6 @@ import { useMountEffect, useSyncRef } from "../hooks/useFoundation";
 import { usePracticeSession } from "../hooks/usePracticeSession";
 import type { ChatStreamEvent } from "../lib/api";
 import { api, checkNeedsSynthesis, triggerDeferredSynthesis } from "../lib/api";
-import { client } from "../lib/api-client";
 import { useAuth } from "../lib/auth";
 import type { RichMessage } from "../lib/types";
 import { useScorePanelStore } from "../stores/score-panel";
@@ -33,7 +32,7 @@ import { useUIStore } from "../stores/ui";
 import { ArtifactOverlay } from "./ArtifactOverlay";
 import { ChatInput } from "./ChatInput";
 import { ChatMessages } from "./ChatMessages";
-import { ListeningMode } from "./ListeningMode";
+import { PracticeMode } from "./PracticeMode";
 import { ScorePanel } from "./ScorePanel";
 import {
 	ChatSkeleton,
@@ -90,15 +89,6 @@ export default function AppChat() {
 	});
 
 	const recordButtonRef = useRef<HTMLButtonElement>(null);
-	const [showListeningMode, setShowListeningMode] = useState(false);
-	const [recordButtonRect, setRecordButtonRect] = useState<DOMRect | null>(
-		null,
-	);
-	const [sessionNotes, setSessionNotes] = useState("");
-	const [pieceContext, setPieceContext] = useState<{
-		piece: string;
-		section?: string;
-	} | null>(null);
 
 	// Chat state — URL is source of truth for conversation ID.
 	// Override allows immediate ID switch before navigate completes (e.g., chat
@@ -221,9 +211,7 @@ export default function AppChat() {
 			});
 		},
 		onSummary: (_summary, conversationId) => {
-			setSessionNotes("");
 			setShowListeningMode(false);
-			setRecordButtonRect(null);
 
 			const convId = conversationId ?? activeConversationId;
 			if (convId) {
@@ -243,48 +231,21 @@ export default function AppChat() {
 			}
 		},
 	});
-
-	async function extractPieceContext(msgs: RichMessage[]) {
-		if (msgs.length === 0) return;
-		try {
-			const conversationText = msgs
-				.slice(-10)
-				.map((m) => `${m.role}: ${m.content}`)
-				.join("\n");
-
-			const res = await client.api["extract-goals"].$post({
-				json: {
-					message: `Extract the piece name and composer from this conversation. Focus on any piano pieces mentioned.\n\n${conversationText}`,
-				},
-			} as never);
-
-			if (res.ok) {
-				const data = (await res.json()) as {
-					goals?: { pieces?: string[] };
-				};
-				const piece = data?.goals?.pieces?.[0];
-				if (piece) {
-					setPieceContext({ piece });
-				}
-			}
-		} catch (e) {
-			// Non-critical -- user can edit piece name manually
-			console.error("Piece context extraction failed:", e);
-		}
-	}
+	// Lazy-initialized from practice.state at mount: a fresh session always
+	// mounts idle (false), but a session resumed mid-recording (e.g. this
+	// component remounting while the hook's state is already non-idle) should
+	// show the surface without waiting for a click.
+	const [showListeningMode, setShowListeningMode] = useState(
+		() => practice.state !== "idle",
+	);
 
 	function handleRecord() {
-		const rect = recordButtonRef.current?.getBoundingClientRect() ?? null;
-		setRecordButtonRect(rect);
-		setPieceContext(null);
 		setShowListeningMode(true);
 		practice.start(activeConversationId ?? undefined);
-		extractPieceContext(messages);
 	}
 
 	function handleExitListeningMode() {
 		setShowListeningMode(false);
-		setRecordButtonRect(null);
 
 		// If the practice session created a new conversation, navigate to it
 		// so the chat view loads persisted observations from D1.
@@ -297,6 +258,11 @@ export default function AppChat() {
 			});
 			invalidateConversation(practiceConvId);
 		}
+	}
+
+	function handleStopPracticeMode() {
+		practice.stop();
+		handleExitListeningMode();
 	}
 
 	// Merge practice observation messages into the chat thread during recording
@@ -998,25 +964,17 @@ export default function AppChat() {
 
 			{/* Listening mode overlay */}
 			{showListeningMode && (
-				<ListeningMode
-					state={practice.state}
-					energy={practice.energy}
-					isPlaying={practice.isPlaying}
-					error={practice.error}
-					wsStatus={practice.wsStatus}
-					onStop={practice.stop}
-					originRect={recordButtonRect}
-					onExit={handleExitListeningMode}
-					pieceContext={pieceContext}
-					sessionNotes={sessionNotes}
-					onNotesChange={setSessionNotes}
-					analyserNode={practice.analyserNode}
-					observations={practice.observations.map((o, i) => ({
-						text: o.text,
-						dimension: o.dimension,
-						id: `obs-${i}`,
-					}))}
-				/>
+				<div className="fixed inset-0 z-50 bg-surface-page">
+					<PracticeMode
+						userPickedPieceId={null}
+						confidentGuess={null}
+						marks={practice.marks}
+						elapsedSeconds={practice.elapsedSeconds}
+						isPlaying={practice.isPlaying}
+						isRecording={practice.state === "recording"}
+						onStop={handleStopPracticeMode}
+					/>
+				</div>
 			)}
 
 			{/* Artifact expanded overlay */}
