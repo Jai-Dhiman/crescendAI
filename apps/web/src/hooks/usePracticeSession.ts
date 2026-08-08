@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createLogger } from "../lib/logger";
+import type { Mark } from "../lib/mark";
 import { ObservationThrottle } from "../lib/observation-throttle";
 import type {
 	DimScores,
@@ -43,6 +44,7 @@ export interface UsePracticeSessionReturn {
 	state: PracticeState;
 	elapsedSeconds: number;
 	observations: ObservationEvent[];
+	marks: Mark[];
 	latestScores: DimScores | null;
 	summary: string | null;
 	error: string | null;
@@ -75,6 +77,7 @@ export function usePracticeSession(
 	const [state, setState] = useState<PracticeState>("idle");
 	const [elapsedSeconds, setElapsedSeconds] = useState(0);
 	const [observations, setObservations] = useState<ObservationEvent[]>([]);
+	const [marks, setMarks] = useState<Mark[]>([]);
 	const [latestScores, setLatestScores] = useState<DimScores | null>(null);
 	const [summary, setSummary] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -309,6 +312,10 @@ export function usePracticeSession(
 				case "piece_set":
 					console.log("Piece context set:", data.query);
 					break;
+				case "mark": {
+					setMarks((prev) => [...prev, data.mark]);
+					break;
+				}
 				case "segment_loop_status": {
 					if (data.assignment === null) {
 						setActiveLoop(null);
@@ -416,6 +423,7 @@ export function usePracticeSession(
 			setState("requesting-mic");
 			setElapsedSeconds(0);
 			setObservations([]);
+			setMarks([]);
 			setLatestScores(null);
 			setSummary(null);
 			setError(null);
@@ -734,6 +742,7 @@ export function usePracticeSession(
 		state,
 		elapsedSeconds,
 		observations,
+		marks,
 		latestScores,
 		summary,
 		error,
