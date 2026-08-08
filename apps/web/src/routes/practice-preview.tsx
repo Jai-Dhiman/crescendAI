@@ -29,7 +29,7 @@ const CONFIRM_CHIP_GUESS: ConfidentGuess = {
 const SCORE_FIXTURE_MARKS: readonly Mark[] = [
 	{
 		id: "score-fixture-1",
-		anchor: resolveAnchor({
+		anchor: /*#__PURE__*/ resolveAnchor({
 			atSeconds: 20,
 			bars: [1, 1],
 			alignmentQuality: 1,
