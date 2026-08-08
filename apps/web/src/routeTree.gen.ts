@@ -12,7 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as MarksPreviewRouteImport } from './routes/marks-preview'
+import { Route as PracticePreviewRouteImport } from './routes/practice-preview'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
@@ -35,9 +35,9 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
-const MarksPreviewRoute = MarksPreviewRouteImport.update({
-  id: '/marks-preview',
-  path: '/marks-preview',
+const PracticePreviewRoute = PracticePreviewRouteImport.update({
+  id: '/practice-preview',
+  path: '/practice-preview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppRoute = AppRouteImport.update({
@@ -74,7 +74,7 @@ const AppCConversationIdRoute = AppCConversationIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
-  '/marks-preview': typeof MarksPreviewRoute
+  '/practice-preview': typeof PracticePreviewRoute
   '/privacy': typeof PrivacyRoute
   '/signin': typeof SigninRoute
   '/terms': typeof TermsRoute
@@ -85,7 +85,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/marks-preview': typeof MarksPreviewRoute
+  '/practice-preview': typeof PracticePreviewRoute
   '/privacy': typeof PrivacyRoute
   '/signin': typeof SigninRoute
   '/terms': typeof TermsRoute
@@ -98,7 +98,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
-  '/marks-preview': typeof MarksPreviewRoute
+  '/practice-preview': typeof PracticePreviewRoute
   '/privacy': typeof PrivacyRoute
   '/signin': typeof SigninRoute
   '/terms': typeof TermsRoute
@@ -112,7 +112,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/app'
-    | '/marks-preview'
+    | '/practice-preview'
     | '/privacy'
     | '/signin'
     | '/terms'
@@ -123,7 +123,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/marks-preview'
+    | '/practice-preview'
     | '/privacy'
     | '/signin'
     | '/terms'
@@ -135,7 +135,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/app'
-    | '/marks-preview'
+    | '/practice-preview'
     | '/privacy'
     | '/signin'
     | '/terms'
@@ -148,7 +148,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
-  MarksPreviewRoute: typeof MarksPreviewRoute
+  PracticePreviewRoute: typeof PracticePreviewRoute
   PrivacyRoute: typeof PrivacyRoute
   SigninRoute: typeof SigninRoute
   TermsRoute: typeof TermsRoute
@@ -177,11 +177,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/marks-preview': {
-      id: '/marks-preview'
-      path: '/marks-preview'
-      fullPath: '/marks-preview'
-      preLoaderRoute: typeof MarksPreviewRouteImport
+    '/practice-preview': {
+      id: '/practice-preview'
+      path: '/practice-preview'
+      fullPath: '/practice-preview'
+      preLoaderRoute: typeof PracticePreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app': {
@@ -248,7 +248,7 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
-  MarksPreviewRoute: MarksPreviewRoute,
+  PracticePreviewRoute: PracticePreviewRoute,
   PrivacyRoute: PrivacyRoute,
   SigninRoute: SigninRoute,
   TermsRoute: TermsRoute,
