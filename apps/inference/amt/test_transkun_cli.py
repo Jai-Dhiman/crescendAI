@@ -175,3 +175,41 @@ def test_transcribe_wav_forwards_device(tmp_path, monkeypatch):
 
     assert seen["device"] == "cuda"
     assert len(notes) == 1
+
+
+# TRANSKUN_TIMEOUT_S is read PER CALL, not at import. As a module constant it
+# silently reverted to the default whenever a caller imported this module
+# before setting the variable -- and #167's 2285s eval item would then have
+# timed out and vanished from the arm.
+
+
+def _capture_timeout(monkeypatch):
+    seen = {}
+
+    class _Proc:
+        returncode = 0
+        stderr = b""
+
+    def _fake_run(cmd, **kwargs):
+        seen["timeout"] = kwargs.get("timeout")
+        Path(cmd[-3]).write_bytes(b"")
+        return _Proc()
+
+    monkeypatch.setattr(transkun_cli.subprocess, "run", _fake_run)
+    return seen
+
+
+def test_transkun_timeout_defaults_to_900(tmp_path, monkeypatch):
+    monkeypatch.delenv("TRANSKUN_TIMEOUT_S", raising=False)
+    seen = _capture_timeout(monkeypatch)
+    transkun_cli._run_transkun(tmp_path / "in.wav", tmp_path / "out.mid")
+    assert seen["timeout"] == 900
+
+
+def test_transkun_timeout_honours_the_env_var_set_after_import(tmp_path, monkeypatch):
+    """The ordering that matters: this module is already imported by the time
+    a batch runner sets the variable."""
+    seen = _capture_timeout(monkeypatch)
+    monkeypatch.setenv("TRANSKUN_TIMEOUT_S", "7200")
+    transkun_cli._run_transkun(tmp_path / "in.wav", tmp_path / "out.mid")
+    assert seen["timeout"] == 7200

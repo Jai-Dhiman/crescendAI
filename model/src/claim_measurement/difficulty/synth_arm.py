@@ -36,7 +36,6 @@ import json
 import os
 import sys
 import tempfile
-import threading
 import traceback
 import zipfile
 from dataclasses import dataclass
@@ -207,23 +206,24 @@ def run_arm(items, arm: str, mid_zip: Path, soundfont: Path, out_dir: Path,
 
     failures = 0
     done = 0
-    lock = threading.Lock()
 
     def work(item: ArmItem) -> dict:
         return run_item(item, arm, mid_zip, soundfont, out_dir, transcribe,
                         render=render)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        # No lock: pool.map yields into THIS thread, so the body below is
+        # single-threaded and the rows land in item order. The workers only
+        # ever touch their own item's files.
         for row in pool.map(work, todo):
-            with lock:
-                append_row(out_dir, row)
-                done += 1
-                if not row["ok"]:
-                    failures += 1
-                    log(f"  ITEM_FAILURE [{done}/{len(todo)}] {row['seg_id']}: "
-                        f"{row.get('error')}")
-                elif done % 25 == 0 or done == len(todo):
-                    log(f"  [{done}/{len(todo)}] {failures} failures so far")
+            append_row(out_dir, row)
+            done += 1
+            if not row["ok"]:
+                failures += 1
+                log(f"  ITEM_FAILURE [{done}/{len(todo)}] {row['seg_id']}: "
+                    f"{row.get('error')}")
+            elif done % 25 == 0 or done == len(todo):
+                log(f"  [{done}/{len(todo)}] {failures} failures so far")
     return failures
 
 

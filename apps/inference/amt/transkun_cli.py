@@ -22,13 +22,23 @@ import pretty_midi
 import soundfile as sf
 
 SAMPLE_RATE = 16000
-# 900s clears any single piece at the ~0.22x realtime a warm native CPU reads.
-# It does NOT clear a batch sweep: #167 transcribes the 900-piece eval set,
-# whose longest item is 2285s of audio, under parallel workers that push the
-# effective rate toward 1x -- so the tail would time out and vanish from the
-# arm. Overridable rather than raised, because a longer default would also
-# delay the honest failure every other caller wants.
-_TRANSKUN_TIMEOUT_S = int(os.environ.get("TRANSKUN_TIMEOUT_S", "900"))
+_DEFAULT_TIMEOUT_S = 900
+
+
+def _transkun_timeout_s() -> int:
+    """900s clears any single piece at the ~0.22x realtime a warm native CPU
+    reads. It does NOT clear a batch sweep: #167 transcribes the 900-piece eval
+    set, whose longest item is 2285s of audio, under parallel workers that push
+    the effective rate toward 1x -- so the tail would time out and vanish from
+    the arm. Overridable rather than raised, because a longer default would
+    also delay the honest failure every other caller wants.
+
+    Read per call, NOT at import. As a module-level constant this silently
+    reverted to the default whenever a caller imported transkun_cli before
+    setting the variable -- an ordering dependency nothing tested and nothing
+    would report.
+    """
+    return int(os.environ.get("TRANSKUN_TIMEOUT_S", _DEFAULT_TIMEOUT_S))
 
 
 class TranskunError(RuntimeError):
@@ -95,7 +105,7 @@ def _run_transkun(in_wav: Path, out_mid: Path, device: str = DEFAULT_DEVICE) -> 
     ]
     try:
         proc = subprocess.run(
-            cmd, capture_output=True, timeout=_TRANSKUN_TIMEOUT_S
+            cmd, capture_output=True, timeout=_transkun_timeout_s()
         )
     except (subprocess.TimeoutExpired, OSError) as exc:
         raise TranskunError(f"transkun subprocess failed to run: {exc}") from exc
