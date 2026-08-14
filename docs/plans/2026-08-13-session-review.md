@@ -63,7 +63,7 @@ singular/plural correct.
 - Create: `apps/web/src/lib/session-review.ts`
 - Test: `apps/web/src/lib/session-review.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // apps/web/src/lib/session-review.test.ts
@@ -82,14 +82,14 @@ describe("formatWsGap", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run test -- src/lib/session-review.test.ts
 ```
 Expected: FAIL — `Cannot find module './session-review'` (the file does not exist yet).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```typescript
 // apps/web/src/lib/session-review.ts
@@ -127,14 +127,14 @@ export function formatWsGap(gap: WsGap): string {
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run test -- src/lib/session-review.test.ts
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/lib/session-review.ts apps/web/src/lib/session-review.test.ts
@@ -157,7 +157,7 @@ when playback hasn't started or the bar is unknown.
 - Create: `apps/web/src/lib/passage-cursor.ts`
 - Test: `apps/web/src/lib/passage-cursor.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // apps/web/src/lib/passage-cursor.test.ts
@@ -196,14 +196,14 @@ describe("createPassageQstampSource", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run test -- src/lib/passage-cursor.test.ts
 ```
 Expected: FAIL — `Cannot find module './passage-cursor'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```typescript
 // apps/web/src/lib/passage-cursor.ts
@@ -261,14 +261,14 @@ export function createPassageQstampSource(
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run test -- src/lib/passage-cursor.test.ts
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/lib/passage-cursor.ts apps/web/src/lib/passage-cursor.test.ts
@@ -291,7 +291,7 @@ the future review) that must fetch a passage scoped to this session.
 - Test: `apps/web/src/hooks/usePracticeSession.sessionid.test.ts` (new file,
   mirrors the existing `usePracticeSession.marks.test.ts` fixture exactly)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // apps/web/src/hooks/usePracticeSession.sessionid.test.ts
@@ -398,14 +398,14 @@ describe("usePracticeSession sessionId", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run test -- src/hooks/usePracticeSession.sessionid.test.ts
 ```
 Expected: FAIL — `Property 'sessionId' does not exist on type 'UsePracticeSessionReturn'` (typecheck) or `result.current.sessionId` is `undefined` at runtime.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/web/src/hooks/usePracticeSession.ts`, add `sessionId` to the return
 interface, right after `conversationId`:
@@ -467,14 +467,14 @@ And in the return object at the bottom of `usePracticeSession`, right after
 	};
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run test -- src/hooks/usePracticeSession.sessionid.test.ts
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/hooks/usePracticeSession.ts apps/web/src/hooks/usePracticeSession.sessionid.test.ts
@@ -497,7 +497,7 @@ unchanged.
 - Modify: `apps/web/src/components/ScoreMarkLayer.tsx`
 - Modify: `apps/web/src/components/ScoreMarkLayer.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `apps/web/src/components/ScoreMarkLayer.test.tsx` (change the
 existing `renderLayer` helper to accept an overrides param, and add a new
@@ -554,14 +554,14 @@ function renderLayer(
 	});
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run test -- src/components/ScoreMarkLayer.test.tsx
 ```
 Expected: FAIL — `Property 'renderDetail' does not exist on type 'IntrinsicAttributes & ScoreMarkLayerProps'` (typecheck), or the custom testid is not found at runtime.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/web/src/components/ScoreMarkLayer.tsx`:
 
@@ -599,14 +599,14 @@ block with:
 (Add `renderDetail` to the destructured props at the top of the function
 alongside `containerRef, bars, marks`.)
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run test -- src/components/ScoreMarkLayer.test.tsx
 ```
 Expected: PASS (both the existing test and the new one)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/ScoreMarkLayer.tsx apps/web/src/components/ScoreMarkLayer.test.tsx
@@ -627,7 +627,7 @@ canvas.
 - Modify: `apps/web/src/components/SessionTimelineStrip.tsx`
 - Modify: `apps/web/src/components/SessionTimelineStrip.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `apps/web/src/components/SessionTimelineStrip.test.tsx`:
 
@@ -654,7 +654,7 @@ Add to `apps/web/src/components/SessionTimelineStrip.test.tsx`:
 	});
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run test -- src/components/SessionTimelineStrip.test.tsx
@@ -662,7 +662,7 @@ cd apps/web && bun run test -- src/components/SessionTimelineStrip.test.tsx
 Expected: FAIL — `renderDetail` is not a valid prop (typecheck), or the
 custom testid is not found at runtime.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/web/src/components/SessionTimelineStrip.tsx`, add the import and
 prop:
@@ -704,14 +704,14 @@ with:
 						))}
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run test -- src/components/SessionTimelineStrip.test.tsx
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/SessionTimelineStrip.tsx apps/web/src/components/SessionTimelineStrip.test.tsx
