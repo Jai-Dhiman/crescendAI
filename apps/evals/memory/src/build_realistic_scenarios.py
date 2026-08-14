@@ -45,7 +45,7 @@ from .scenarios import (
 DATA_DIR = Path(__file__).parents[1] / "data"
 _DEV_VARS_PATH = Path(__file__).parents[3] / "api" / ".dev.vars"
 DEFAULT_CF_ACCOUNT_ID = "5df63f40beeab277db407f1ecbd6e1ec"
-DEFAULT_GATEWAY_ID = "crescendai-background"
+DEFAULT_GATEWAY_ID = "crescendai"
 # GPT-OSS-120B for quality scenario generation (no thinking mode quirks)
 _WORKERS_AI_MODEL = "@cf/openai/gpt-oss-120b"
 

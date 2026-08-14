@@ -53,7 +53,7 @@ def _strip_regex(pattern: str) -> str:
 
 _DEV_VARS_PATH = Path(__file__).parents[3] / "api" / ".dev.vars"
 DEFAULT_CF_ACCOUNT_ID = "5df63f40beeab277db407f1ecbd6e1ec"
-DEFAULT_GATEWAY_ID = "crescendai-background"
+DEFAULT_GATEWAY_ID = "crescendai"
 _WORKERS_AI_MODEL = "@cf/google/gemma-4-26b-a4b-it"
 
 # Exact replica of prompts.rs SYNTHESIS_SYSTEM

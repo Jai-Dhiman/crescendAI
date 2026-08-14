@@ -26,7 +26,7 @@ import requests
 # Cloudflare account ID from wrangler.toml
 # (See apps/api/wrangler.toml for the canonical source)
 DEFAULT_CF_ACCOUNT_ID = "5df63f40beeab277db407f1ecbd6e1ec"
-DEFAULT_GATEWAY_ID = "crescendai-background"
+DEFAULT_GATEWAY_ID = "crescendai"
 
 # Model defaults per task type
 MODELS = {
