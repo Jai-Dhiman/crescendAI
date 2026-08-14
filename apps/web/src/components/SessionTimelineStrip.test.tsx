@@ -51,4 +51,25 @@ describe("SessionTimelineStrip", () => {
 		fireEvent.click(glyph);
 		expect(screen.queryByText(/the left hand lagged/)).not.toBeInTheDocument();
 	});
+
+	it("uses renderDetail instead of MarkDetail when provided", () => {
+		render(
+			<SessionTimelineStrip
+				durationSeconds={FIXTURE_DURATION_SECONDS}
+				marks={FIXTURE_MARKS}
+				renderDetail={(mark, onClose) => (
+					<button
+						type="button"
+						data-testid={`custom-detail-${mark.id}`}
+						onClick={onClose}
+					>
+						custom
+					</button>
+				)}
+			/>,
+		);
+
+		fireEvent.click(screen.getByLabelText(/Needs work: Pedaling, bars 5-6/));
+		expect(screen.getByTestId("custom-detail-m1")).toBeInTheDocument();
+	});
 });
