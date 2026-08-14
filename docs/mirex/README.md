@@ -25,7 +25,7 @@ the current repo.
 - **Submission opens:** July 1, 2026. **Closes:** Oct 1, 2026. **Results:** Oct 15, 2026.
 - **Venue:** ISMIR 2026, Abu Dhabi, Nov 8-12 (online component). Accepted work → Late-Breaking Demo (LBD).
 - **Deliverable:** a Docker container with a standardised `WAV path → float` interface, plus a 2-4 page extended-abstract PDF (ISMIR LBD template, non-anonymous). New for 2026: must disclose training-data size, model size, and compute.
-- **No baseline, reference container, or starter kit is provided.** The interface details are under-specified; ask the captains rather than guessing.
+- **A reference Docker template and inference wrapper script are promised on the task page but have not appeared** (page unedited since 2026-07-01; checked 2026-08-13). Ask the captains rather than guessing, and re-check before the freeze.
 - **MIREX home:** https://music-ir.org/mirex/wiki/MIREX_HOME · **Task page:** https://music-ir.org/mirex/wiki/2026:Music_Performance_Difficulty_Prediction · **Org GitHub:** https://github.com/ismir-mirex/
 
 ## How to use these docs
