@@ -153,11 +153,17 @@ export async function callWorkersAI(
 	// statically. The response is validated below instead.
 	const data = (await env.AI.run(model as keyof AiModels, inputs as never, {
 		gateway: { id: gatewayId(env) },
-	})) as { response?: string };
-	if (!data?.response) {
+	})) as {
+		response?: string;
+		choices?: Array<{ message?: { content?: string } }>;
+	};
+	// Chat-completion models (verified live: @cf/google/gemma-4-26b-a4b-it)
+	// return the OpenAI shape through the binding; others return { response }.
+	const content = data?.response ?? data?.choices?.[0]?.message?.content;
+	if (!content) {
 		throw new InferenceError(
 			`Workers AI returned no content. model=${model} body=${JSON.stringify(data).slice(0, 500)}`,
 		);
 	}
-	return data.response;
+	return content;
 }

@@ -39,6 +39,19 @@ describe("callWorkersAI", () => {
 		expect(result).toBe("Test title");
 	});
 
+	it("reads content from the OpenAI-shaped binding response", async () => {
+		const run = vi.fn().mockResolvedValueOnce({
+			choices: [{ message: { role: "assistant", content: "pong" } }],
+			usage: { total_tokens: 43 },
+		});
+
+		const result = await callWorkersAI(envWithAiRun(run), "@cf/test-model", [
+			{ role: "user", content: "hi" },
+		]);
+
+		expect(result).toBe("pong");
+	});
+
 	it("throws InferenceError when the binding returns no content", async () => {
 		const run = vi.fn().mockResolvedValueOnce({ usage: {} });
 
