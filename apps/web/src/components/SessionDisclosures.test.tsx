@@ -14,7 +14,10 @@ describe("SessionDisclosures", () => {
 			<SessionDisclosures
 				wsGaps={[{ startSeconds: 0, endSeconds: 240 }]}
 				noCommentZones={[
-					{ atSeconds: 58, reason: "transcription confidence was too low here" },
+					{
+						atSeconds: 58,
+						reason: "transcription confidence was too low here",
+					},
 				]}
 			/>,
 		);
