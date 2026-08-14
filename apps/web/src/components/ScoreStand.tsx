@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMetronome } from "../hooks/useMetronome";
 import type { Mark } from "../lib/mark";
@@ -11,6 +12,7 @@ interface ScoreStandProps {
 	marks: readonly Mark[];
 	elapsedSeconds: number;
 	isRecording: boolean;
+	renderDetail?: (mark: Mark, onClose: () => void) => ReactNode;
 }
 
 /**
@@ -25,6 +27,7 @@ export function ScoreStand({
 	marks,
 	elapsedSeconds,
 	isRecording,
+	renderDetail,
 }: ScoreStandProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const svgHostRef = useRef<HTMLDivElement>(null);
@@ -127,6 +130,7 @@ export function ScoreStand({
 						containerRef={containerRef}
 						bars={barsForCurrentPage}
 						marks={marks}
+						renderDetail={renderDetail}
 					/>
 				)}
 			</div>
