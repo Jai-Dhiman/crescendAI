@@ -1728,7 +1728,7 @@ already covers its whole placement branch.
 - Create: `apps/web/src/components/SessionReview.tsx`
 - Test: `apps/web/src/components/SessionReview.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```tsx
 // apps/web/src/components/SessionReview.test.tsx
@@ -1824,14 +1824,14 @@ describe("SessionReview", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run test -- src/components/SessionReview.test.tsx
 ```
 Expected: FAIL — `Cannot find module './SessionReview'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```tsx
 // apps/web/src/components/SessionReview.tsx
@@ -1923,14 +1923,14 @@ export function SessionReview({
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run test -- src/components/SessionReview.test.tsx
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/SessionReview.tsx apps/web/src/components/SessionReview.test.tsx

@@ -36,3 +36,6 @@ Implemented verbatim per plan.
 
 ## Task 11: MarkReviewDetail
 Implemented verbatim per plan, mirroring MarkDetail.tsx's evidence-rendering pattern. `MarkPassagePlayback` mocked at module boundary in the test.
+
+## Task 12: SessionReview
+Implemented verbatim per plan. Composes VerdictBanner/ScoreStand-or-PieceLessMode/SessionDisclosures/carry-forward line, with `renderDetail` closure wired to MarkReviewDetail. 10-prop composer accepted per the plan's challenge review (pure composition layer over a client contract with no server implementation yet).
