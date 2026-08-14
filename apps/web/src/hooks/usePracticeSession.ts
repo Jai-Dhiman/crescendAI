@@ -61,6 +61,7 @@ export interface UsePracticeSessionReturn {
 	setPiece: (query: string) => void;
 	observationMessages: RichMessage[];
 	conversationId: string | null;
+	sessionId: string | null;
 	activeLoop: SegmentLoopConfig | null;
 }
 
@@ -200,6 +201,7 @@ export function usePracticeSession(
 
 		mediaRecorderRef.current = null;
 		wsRef.current = null;
+		// Landmine: this nulls sessionId at the exact moment synthesis/session_summary arrives (see handleWsMessage), so any live-review surface reading sessionId from that handler sees null -- future wiring (#162) must capture the id before cleanup() runs.
 		sessionIdRef.current = null;
 		// NOTE: conversationIdRef is NOT reset here -- AppChat reads it
 		// after cleanup to navigate to the conversation. It's reset in start().
@@ -759,6 +761,7 @@ export function usePracticeSession(
 		setPiece,
 		observationMessages,
 		conversationId: conversationIdRef.current,
+		sessionId: sessionIdRef.current,
 		activeLoop,
 	};
 }
