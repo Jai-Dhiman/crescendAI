@@ -18,6 +18,9 @@ from pathlib import Path
 import requests
 
 DEFAULT_JUDGE_MODEL = "@cf/google/gemma-4-26b-a4b-it"
+# Non-secret routing defaults, overridable via env; only the token is required.
+DEFAULT_CF_ACCOUNT_ID = "5df63f40beeab277db407f1ecbd6e1ec"
+DEFAULT_GATEWAY_ID = "crescendai"
 _DEV_VARS = Path(__file__).resolve().parents[3] / "api" / ".dev.vars"
 
 
@@ -49,12 +52,12 @@ class WorkersAiGatewayJudge:
 
     def __init__(self, model: str | None = None):
         self.model = model or DEFAULT_JUDGE_MODEL
-        account_id = _require("CLOUDFLARE_ACCOUNT_ID")
+        account_id = _dev_var("CLOUDFLARE_ACCOUNT_ID") or DEFAULT_CF_ACCOUNT_ID
         self._url = (
             f"https://api.cloudflare.com/client/v4/accounts/"
             f"{account_id}/ai/v1/chat/completions"
         )
-        self._gateway_id = _require("AI_GATEWAY_ID")
+        self._gateway_id = _dev_var("AI_GATEWAY_ID") or DEFAULT_GATEWAY_ID
         self._cf_token = _require("CLOUDFLARE_API_TOKEN")
 
     def complete(self, *, user: str, system: str, max_tokens: int) -> str:
