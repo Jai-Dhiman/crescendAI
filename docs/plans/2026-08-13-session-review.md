@@ -2333,7 +2333,7 @@ criterion's "the synthesis-failure path visibly renders."
 - Modify: `apps/web/src/routes/practice-preview.tsx`
 - Modify: `apps/web/src/routes/practice-preview.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `apps/web/src/routes/practice-preview.test.tsx`:
 
@@ -2355,14 +2355,14 @@ Add to `apps/web/src/routes/practice-preview.test.tsx`:
 	});
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run test -- src/routes/practice-preview.test.tsx
 ```
 Expected: FAIL — `practice-mode-review-failed-preview` testid not found.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/web/src/routes/practice-preview.tsx`, add `REVIEW_VERDICT_FAILED`
 to the existing import from `practice-preview-fixtures`, and append a new
@@ -2405,14 +2405,14 @@ import {
 			</div>
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run test -- src/routes/practice-preview.test.tsx
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/routes/practice-preview.tsx apps/web/src/routes/practice-preview.test.tsx

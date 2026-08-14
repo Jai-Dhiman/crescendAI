@@ -45,3 +45,8 @@ Implemented verbatim per plan. `phase` defaults to "practice" so all existing ca
 
 ## Task 14: /practice-preview review-ready fixture section
 Implemented per plan, reusing the pre-existing `SCORE_FIXTURE_MARKS` local const. Deviation: used `style={{height:500}}` for the new section's inner wrapper instead of the existing sections' `h-1/3` flex classes, since the existing three sections already sum to 100% height (h-1/3 * 3) inside the `h-dvh` parent — a 4th h-1/3 would overflow. Reviewer confirmed this reasoning is sound and doesn't disturb the prior three sections.
+
+## Task 15: /practice-preview review-failed fixture section (final task)
+Implemented per plan. Deviation: the plan's illustrative snippet used `userPickedPieceId={null}`, which would have made this section fall back to `PieceLessMode` and collide (duplicate `data-testid="session-timeline"`) with the pre-existing pieceless fixture section elsewhere on the page, breaking that section's own test. Fixed by setting `userPickedPieceId="chopin-nocturne-op9-no2"` so this section renders `ScoreStand` instead. Reviewer verified `VerdictBanner` (which renders the failed-state alert under test) is a sibling of the ScoreStand/PieceLessMode conditional inside SessionReview, receiving only `verdict`/`onRetry` — entirely independent of `pieceId` — so the deviation does not touch what this task verifies. All 4 tests in practice-preview.test.tsx pass, including the pre-existing pieceless test, confirming the collision was genuinely fixed.
+
+## Plan complete: all 15 tasks implemented, spec-reviewed, and quality-reviewed. See STATE comment on issue #159 and the /review pass for final verification.
