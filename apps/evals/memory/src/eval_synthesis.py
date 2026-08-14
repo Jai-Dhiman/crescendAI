@@ -194,8 +194,8 @@ def _call_workers_ai(
     account_id = os.environ.get("CF_ACCOUNT_ID", DEFAULT_CF_ACCOUNT_ID)
     gateway_id = os.environ.get("CF_GATEWAY_ID", DEFAULT_GATEWAY_ID)
     url = (
-        f"https://gateway.ai.cloudflare.com/v1/"
-        f"{account_id}/{gateway_id}/workers-ai/v1/chat/completions"
+        f"https://api.cloudflare.com/client/v4/accounts/"
+        f"{account_id}/ai/v1/chat/completions"
     )
     messages = [
         {"role": "system", "content": system},
@@ -205,6 +205,7 @@ def _call_workers_ai(
         url,
         headers={
             "Authorization": f"Bearer {token}",
+            "cf-aig-gateway-id": gateway_id,
             "Content-Type": "application/json",
         },
         json={
