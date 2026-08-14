@@ -2445,3 +2445,269 @@ Then, per the spec's Verification Architecture manual click-through:
 
 Record the outcome and any deviations as a `STATE:` comment on issue #159,
 per `CLAUDE.md`'s work-tracking convention, before `/review`.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise Challenge.** The problem is real and specific: `docs/apps/05-ui-system.md`
+and `01-product-vision.md` both name session review as a required surface and
+mark it NOT STARTED, and `AppChat.tsx`'s `handleStopPracticeMode` today drops
+straight to `handleExitPracticeMode()` with the review payload dumped as chat
+prose. Verified directly: `PracticeMode.tsx` currently has no `phase` concept
+at all (confirmed by reading the file — single-branch component, `onStop` is
+the only exit). The plan's framing that "two pieces of machinery are stranded"
+(`PlayPassageCard.tsx`, `ExerciseSetCard.tsx`) is accurate but their actual
+path is `apps/web/src/components/cards/`, not `apps/web/src/components/` as
+the plan's prose implies in a couple of places — cosmetic, not a blocker,
+since no task actually imports from the wrong path.
+
+**Real pain?** Yes — without this, #162 (backend review synthesis, blocked on
+having a client contract) and #160/#161 (drill entry, ask-about-this) have
+nothing to render into. This is genuinely on the critical path, not gold-plating.
+
+**Existing coverage exploited well.** The plan's core architectural bet —
+extend `ScoreMarkLayer`/`SessionTimelineStrip`/`ScoreStand`/`PieceLessMode`
+with one optional `renderDetail` prop each rather than forking them — is
+verified sound by reading all four files. Each currently hard-codes
+`<MarkDetail mark={mark} onClose={...} />` at exactly one call site with no
+other logic branching on it, so the diff really is minimal and additive, and
+every default-omitting caller (there are several: `practice-preview.tsx`'s
+existing three demo blocks, and presumably `AppChat.tsx`) is provably
+unaffected by TypeScript's optional-prop default behavior alone.
+
+**Scope check.** The plan matches the spec's stated scope precisely — no
+drift found. The "Not in scope" list (backend synthesis, drill generation,
+ask-about-this threads, live `AppChat` wiring) is honored: no task tries to
+wire a live WS event into these props. 15 tasks across 6 groups touching ~13
+files is on the high side of the ">8 files" complexity-smell heuristic, but
+the file count is inflated by the paired-props pattern (4 near-identical
+`renderDetail` plumbing tasks: 4, 5, 9, 10) rather than genuine architectural
+sprawl — those four tasks are legitimately small and mechanical.
+
+**Twelve-month alignment.**
+```
+CURRENT STATE                    THIS PLAN                      12-MONTH IDEAL
+Stop -> chat dump,            -> SessionReview surface        -> Stop -> live
+no review surface,               (fixture-driven, proven          server-fed
+PlayPassageCard/Exercise-        via /practice-preview),          review with
+SetCard stranded in chat          renderDetail bridges Canvas      real synthesis
+(soon-removed #164)                A/B to a review expansion       (#162), real
+                                                                     drill assign
+                                                                     (#160/161)
+```
+This moves cleanly toward the ideal: it does not add tech debt that conflicts
+with #162 landing later, because `VerdictState`/`CarryForward`/`WsGap`/
+`NoCommentZone` are deliberately typed as the client contract this plan
+commits to, not a guess at the WS payload shape (the spec's rejected
+alternative — extending `PracticeWsEvent` now — is explicitly and correctly
+avoided).
+
+**Alternatives.** The spec documents two rejected alternatives with real
+reasoning (duplicate canvases; always-on playback+drill in `MarkDetail`) and
+one rejected alternative for the WS event shape. No `[QUESTION]` needed here —
+this bar is met.
+
+### Engineering Pass
+
+**Architecture / data flow.**
+```
+PracticeMode(phase="review")
+   -> SessionReview(props)
+        -> VerdictBanner(verdict, onRetry)        [closed union, exhaustive switch]
+        -> ScoreStand | PieceLessMode(marks, renderDetail=MarkReviewDetail)
+                -> ScoreMarkLayer|SessionTimelineStrip(renderDetail)
+                       -> MarkReviewDetail(mark, sessionId, onClose, onWorkOnThis)
+                              -> MarkPassagePlayback(mark, sessionId)
+                                     -> api.sessions.getPassage(sessionId, bars)
+                                     -> scoreRenderer.getClipPlayback(pieceId, b0, b1)
+                                     -> PassagePlayer(manifest, ctx).load()/.play()
+                                     -> createPassageQstampSource(barTimeline, ir.bars, tSecGetter)
+                                     -> ScoreCursor(pieceId, container, ir, qstampSource).start()
+        -> SessionDisclosures(wsGaps, noCommentZones)
+        -> carryForward && <p>Next: ...</p>
+```
+Verified against real code: `PassagePlayer` (`passage-player.ts`) constructor
+`(manifest, ctx)`, `.load()/.play()/.onTick()/.destroy()` all match Task 6's
+usage exactly. `ScoreCursor` (`score-cursor.ts`) constructor
+`{pieceId, container, ir, qstampSource}` and `.start()/.stop()` match Task 6
+and Task 2 exactly. `scoreRenderer.getClipPlayback` (verified in
+`score-renderer.ts:189`) returns `{svg, ir, notes}` exactly as Task 6 expects
+— this is the correct sibling of `getClip` (which `PlayPassageCard` uses and
+which only returns `svg`), so Task 6 is not silently reusing the wrong,
+narrower API. `PassageManifest` (`types.ts:120`) has `barTimeline: {bar, tSec}[]`
+matching Task 2's bridge input exactly. `mark.ts`'s `resolveAnchor`,
+`anchorLabel`, `formatElapsed`, and the `Mark`/`MarkAnchor`/`MarkConfidence`
+shapes all match every task's usage (including the `confidence?:
+"exploratory"` framing branch in `MarkReviewDetail`, Task 11).
+
+**[RISK] (confidence: 7/10) — `sessionIdRef` is nulled by `cleanup()` at
+the exact moment session data would matter for review.** Verified in
+`usePracticeSession.ts`: `cleanup()` (called from the `"synthesis"` and
+`"session_summary"` WS-message handlers, i.e. exactly when review data
+arrives) does `sessionIdRef.current = null;`. Task 3's own stated
+justification is "needed by any surface (like the future review) that must
+fetch a passage scoped to this session" — but by the time a live `AppChat`
+integration (future #162 work) would read `sessionId` to feed `SessionReview`,
+the hook will have already cleared it in the same tick that produced the
+review data. Task 3's own test never exercises this path (it stops at
+`state === "recording"`, before any `synthesis`/`session_summary` message),
+so the test passes without proving the property the task exists to serve.
+This is not a blocker for #159 (which stops at `/practice-preview` fixtures
+and never wires `AppChat`), but it is a real landmine for whoever picks up
+#162's live wiring, and it would be cheap to flag now in the plan's Open
+Questions or a code comment on `sessionIdRef` so it isn't rediscovered the
+hard way later. Fallback: capture `sessionIdRef.current` into a separate
+"last completed session id" ref/state that `cleanup()` does not clear, at
+the point `#162`'s wiring actually needs it — out of scope for this plan to
+build, but worth a one-line note.
+
+**[OBS] — `ScoreStand`/`PieceLessMode` both keep rendering their live
+"Metronome" toggle button when reused for review (`isRecording={false}`,
+`elapsedSeconds={durationSeconds}`).** Neither component has a way to
+suppress it, and the plan doesn't add one. A metronome toggle on a
+post-session review screen is very likely unintended UX, but it's cosmetic,
+not functionally broken, and the manual click-through step in the Final
+Verification section would surface it immediately if it matters. Not
+blocking; worth a one-line mention to whoever does the manual click-through.
+
+**[OBS] — `PieceLessMode`'s `durationSeconds` and `elapsedSeconds` are both
+wired to the same `durationSeconds` prop in `SessionReview`/`PracticeMode`'s
+review branch** (`durationSeconds={elapsedSeconds}` when calling
+`PieceLessMode`, and `SessionReview` passes its own `durationSeconds` to
+both `elapsedSeconds` and `durationSeconds` params of the pieceless canvas).
+Since `PieceLessMode`'s `elapsedSeconds` only drives a large "current time"
+readout, showing the session's total duration as if it were "now" reads
+fine for a finished session — this is very likely intentional reuse, not
+a bug, but it's worth naming since it's easy to misread as a mistake during
+review.
+
+**Module depth audit.**
+- `session-review.ts` — interface: 4 types + `formatWsGap`. Implementation:
+  ~5 lines. Verdict: borderline SHALLOW as a standalone module, but its
+  actual role is "one shared vocabulary of types + one formatting function
+  used by 3 other components" (`VerdictBanner`, `SessionDisclosures`,
+  `SessionReview`) — DEEP in aggregate given how many callers it decouples
+  from each other, not shallow.
+- `passage-cursor.ts` — interface: 1 function (`createPassageQstampSource`).
+  Implementation: real branching logic (bracketing-pair search, fraction
+  math, null-degradation on three distinct conditions). Verdict: DEEP —
+  exactly the kind of "one new bridge that hides real complexity" the spec
+  calls out as the one genuinely new algorithmic piece.
+- `MarkPassagePlayback.tsx` — interface: 1 component, 4 test-only escape-hatch
+  props mirroring `PlayPassageCard`'s established pattern. Implementation:
+  5-state lifecycle (`no_bars/loading/ready/audio_error/error`), two effects,
+  three collaborator integrations. Verdict: DEEP.
+- `VerdictBanner.tsx` / `SessionDisclosures.tsx` / `MarkReviewDetail.tsx` —
+  each is a small, single-purpose presentational component with 1-3 props
+  and a handful of branches. Verdict: appropriately shallow-and-simple for
+  what they are — not a smell, since none of them hide meaningful logic they
+  shouldn't (that logic correctly lives in `passage-cursor.ts`/
+  `mark.ts`/`session-review.ts` instead).
+- `SessionReview.tsx` — interface: 10 props. Implementation: canvas selection
+  + 4 sub-component composition. Verdict: DEEP as a composer, but it's worth
+  noting 10 props is a lot for one component; most are pass-throughs
+  (`wsGaps`, `noCommentZones`, `carryForward`, `verdict`, `onRetryVerdict`)
+  rather than derived, so this is inherent to being a pure composition layer
+  over a client contract that doesn't exist server-side yet — acceptable.
+
+**Test philosophy / vertical slice audit.** All 15 tasks are one behavior
+test -> minimal implementation -> one commit, with no task writing tests for
+future tasks' implementations (verified against every task's Step
+1-3 sequence) and no task bundling unrelated behaviors into one commit. Tests
+exercise public component/hook interfaces and rendered output
+(`getByText`/`getByRole`/`getByLabelText`), not internal state or private
+methods. External boundaries (`api`, `scoreRenderer`, `PassagePlayer`,
+`ScoreCursor`, `AudioContext`) are mocked at module boundaries in Tasks 6, 11,
+and 12 — correct, since those are genuine I/O/DOM/Web-Audio boundaries
+jsdom cannot exercise, not internal collaborators of the module under test.
+Every test would fail before its implementation exists (verified by tracing
+the "cannot find module" / "prop does not exist" failure mode stated in each
+task's Step 2) — none are shape-only tests.
+
+**Test coverage gaps.**
+```
+[+] apps/web/src/lib/passage-cursor.ts
+    └── createPassageQstampSource()
+        ├── [TESTED] ★★  mid-bar interpolation — Task 2 test
+        ├── [TESTED] ★★  null when playback not started — Task 2 test
+        ├── [TESTED] ★★  null past last known bar boundary — Task 2 test
+        └── [GAP]         null when `bars` has no entry for the resolved bar
+                           number (a clip IR that doesn't cover the manifest's
+                           bar) — spec explicitly calls this degradation path
+                           out (session-review.md line ~159) but no task tests
+                           it. RISK, not BLOCKER: it's a straightforward `if
+                           (!barIR) return null;` already in the reference
+                           implementation, and the two tested null-paths give
+                           reasonable confidence in the pattern, but it is the
+                           one branch the spec singles out by name that has
+                           zero test coverage.
+
+[+] apps/web/src/components/MarkPassagePlayback.tsx
+    └── MarkPassagePlayback()
+        ├── [TESTED] ★★  no_bars (timestamp-only mark) — Task 6 test
+        ├── [TESTED] ★★  ready (fetch + clip + Play control) — Task 6 test
+        ├── [GAP]         error state (getPassage/getClipPlayback rejects) —
+        │                 no test, despite the component defining this state
+        │                 and the spec explicitly listing it as one of five
+        │                 states this module hides
+        └── [GAP]         audio_error state (PassagePlayer.load() rejects) —
+                          same: defined, spec-named, untested
+```
+**[RISK] (confidence: 6/10) — `MarkPassagePlayback`'s `error` and
+`audio_error` states are implemented but never exercised by a test**, even
+though the spec's own module doc explicitly calls out "loading/ready/
+audio_error/error/no_bars states" as the thing this component's tests should
+cover, and `VerdictBanner`'s sibling failure-state (`failed`) *is* tested.
+This is inconsistent rigor within the same plan for two components with the
+same "loud, never blank" design goal. Not a BLOCKER because these aren't
+data-mutation or auth paths and the existing 2-of-5 states give real signal,
+but per the plan's own "Iron rule" instinct (test what the spec calls a named
+state), this is worth one more `it()` block in Task 6 before merge — mock
+`mockGetPassage.mockRejectedValue(...)` for `error`, and make `mockLoad`
+reject for `audio_error`.
+
+**Failure modes.** Every async operation in `MarkPassagePlayback` (fetch,
+clip fetch, audio load) is wrapped in `try/catch` with a `console.error` and
+an explicit failure state set — no silent failures, no bare `catch (e) {}`.
+`cancelled` guards prevent state updates after unmount, and cleanup
+(`player.destroy()`, `ctx.close()`) runs on every unwind path including the
+mid-flight-cancel branch. `ScoreCursor`'s `tick()` (existing code, unchanged)
+already wraps its per-frame work in try/catch reporting to Sentry — the new
+`passage-cursor.ts` bridge composes into that existing safety net rather than
+needing its own. No new database writes or transaction boundaries are
+introduced by this plan (client-only). `SessionReview`'s composition has no
+async operations of its own to fail.
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `ScoreMarkLayer`/`SessionTimelineStrip`/`ScoreStand`/`PieceLessMode` each have exactly one `MarkDetail` call site with no other logic branching on it | SAFE | Verified by reading all four files — each has exactly one such site. |
+| `PassagePlayer`, `ScoreCursor`, `scoreRenderer.getClipPlayback`, `PassageManifest.barTimeline`, `BarIR.qstampStart/qstampEnd` have the shapes the plan's code snippets use | SAFE | Verified directly against `passage-player.ts`, `score-cursor.ts`, `score-renderer.ts`, `types.ts`, `score-ir.ts` — all match. |
+| `mark.ts`'s `resolveAnchor`/`anchorLabel`/`formatElapsed`/`Mark`/`MarkConfidence` match every task's usage | SAFE | Verified directly against `mark.ts`. |
+| `PlayPassageCard.tsx`'s mocking pattern is the right precedent for `MarkPassagePlayback.test.tsx` | SAFE | Verified — `PlayPassageCard.tsx` (at `apps/web/src/components/cards/`, not the path implied by the spec prose) uses the identical `_mockManifest/_mockClip/_playable` escape hatch Task 6 copies. |
+| `usePracticeSession`'s exposed `sessionId` will be usable by a future review surface fed from a live session | RISKY | `cleanup()` nulls `sessionIdRef.current` exactly when `synthesis`/`session_summary` arrives — the moment review data exists. Out of scope for #159 to fix, but the assumption underlying Task 3's stated purpose does not hold as written; flag for #162. |
+| `usePauseTracker(phase === "practice" && isPlaying)` correctly suppresses the auto-stop banner during review | SAFE | Hook signature verified (`usePauseTracker(isPlaying: boolean)`); gating the input on `phase === "practice"` is a sound, minimal guard. |
+| `MarkGlyph`'s aria-label format (`"Needs work: Pedaling, bars 5-6"` / `"...bar 1"` / `"...0:30"`) matches what every new/modified test asserts against | SAFE | Verified `MarkGlyph.tsx` renders a computed `label` as `aria-label`; existing tests in the same files already assert this exact format, so the new tests are following an established, working pattern rather than guessing. |
+| `apps/web/src/test-utils/mark-fixtures.ts` (imported by Task 4's test) exists and exports `FIXTURE_BARS`/`FIXTURE_MARKS` | SAFE | Confirmed present on disk. |
+| `SCORE_FIXTURE_MARKS` referenced in Task 14's JSX snippet is in scope | SAFE | It's a pre-existing local `const` already declared in `practice-preview.tsx` (not something Task 14 needs to import) — the task's snippet correctly omits it from the new import list. |
+
+### Summary
+[BLOCKER] count: 0
+[RISK]    count: 3
+[QUESTION] count: 0
+
+VERDICT: PROCEED_WITH_CAUTION — (1) `usePracticeSession`'s `sessionIdRef` is
+cleared by `cleanup()` at the exact moment `synthesis`/`session_summary`
+arrives, which undermines Task 3's stated rationale for exposing `sessionId`
+for a future live review; not a blocker for this plan's fixture-only scope,
+but should be left as a one-line comment/Open-Question so #162's wiring
+doesn't silently break on it. (2) `MarkPassagePlayback`'s `error` and
+`audio_error` states are implemented and spec-named but untested in Task 6 —
+cheap to close with two more assertions before `/review`. (3) `ScoreStand`/
+`PieceLessMode`'s metronome toggle remains visible/interactive during review
+with no way to suppress it — confirm during the manual click-through whether
+this is acceptable or needs a follow-up.
