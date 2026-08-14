@@ -10,4 +10,10 @@ describe("formatWsGap", () => {
 			"1 minute didn't reach me",
 		);
 	});
+
+	it("never renders a zero-minute gap for a sub-minute gap", () => {
+		expect(formatWsGap({ startSeconds: 0, endSeconds: 20 })).toBe(
+			"under a minute didn't reach me",
+		);
+	});
 });

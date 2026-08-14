@@ -25,7 +25,11 @@ export interface NoCommentZone {
 
 /** The one place a WS gap becomes words. */
 export function formatWsGap(gap: WsGap): string {
-	const minutes = Math.round((gap.endSeconds - gap.startSeconds) / 60);
+	const seconds = gap.endSeconds - gap.startSeconds;
+	if (seconds < 60) {
+		return "under a minute didn't reach me";
+	}
+	const minutes = Math.round(seconds / 60);
 	const unit = minutes === 1 ? "minute" : "minutes";
 	return `${minutes} ${unit} didn't reach me`;
 }
