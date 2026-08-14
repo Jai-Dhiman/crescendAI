@@ -735,7 +735,7 @@ fetching; a fetch failure shows an error state; an audio-decode failure shows
 - Create: `apps/web/src/components/MarkPassagePlayback.tsx`
 - Test: `apps/web/src/components/MarkPassagePlayback.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // apps/web/src/components/MarkPassagePlayback.test.tsx
@@ -864,14 +864,14 @@ describe("MarkPassagePlayback", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run test -- src/components/MarkPassagePlayback.test.tsx
 ```
 Expected: FAIL — `Cannot find module './MarkPassagePlayback'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```tsx
 // apps/web/src/components/MarkPassagePlayback.tsx
@@ -1069,14 +1069,14 @@ export function MarkPassagePlayback({
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run test -- src/components/MarkPassagePlayback.test.tsx
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/MarkPassagePlayback.tsx apps/web/src/components/MarkPassagePlayback.test.tsx
@@ -1098,7 +1098,7 @@ clicking it calls `onRetry`.
 - Create: `apps/web/src/components/VerdictBanner.tsx`
 - Test: `apps/web/src/components/VerdictBanner.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // apps/web/src/components/VerdictBanner.test.tsx
@@ -1134,14 +1134,14 @@ describe("VerdictBanner", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run test -- src/components/VerdictBanner.test.tsx
 ```
 Expected: FAIL — `Cannot find module './VerdictBanner'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```tsx
 // apps/web/src/components/VerdictBanner.tsx
@@ -1188,14 +1188,14 @@ export function VerdictBanner({ verdict, onRetry }: VerdictBannerProps) {
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run test -- src/components/VerdictBanner.test.tsx
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/VerdictBanner.tsx apps/web/src/components/VerdictBanner.test.tsx
@@ -1217,7 +1217,7 @@ never implying a problem a clean session didn't have).
 - Create: `apps/web/src/components/SessionDisclosures.tsx`
 - Test: `apps/web/src/components/SessionDisclosures.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // apps/web/src/components/SessionDisclosures.test.tsx
@@ -1249,14 +1249,14 @@ describe("SessionDisclosures", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run test -- src/components/SessionDisclosures.test.tsx
 ```
 Expected: FAIL — `Cannot find module './SessionDisclosures'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```tsx
 // apps/web/src/components/SessionDisclosures.tsx
@@ -1299,14 +1299,14 @@ export function SessionDisclosures({
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run test -- src/components/SessionDisclosures.test.tsx
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/SessionDisclosures.tsx apps/web/src/components/SessionDisclosures.test.tsx
@@ -1327,7 +1327,7 @@ git commit -m "feat(web): disclose WS gaps and no-comment zones in session revie
 - Modify: `apps/web/src/components/ScoreStand.tsx`
 - Modify: `apps/web/src/components/ScoreStand.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `apps/web/src/components/ScoreStand.test.tsx` (add `Mark`/
 `resolveAnchor` imports at the top alongside the existing ones):
@@ -1389,14 +1389,14 @@ import { ScoreStand } from "./ScoreStand";
 (Uses the file's existing `TWO_PAGE_IR`/`beforeEach` mocks — `TWO_PAGE_IR`
 already has `barNumber: 1, measureOn: "m1", pageN: 1`.)
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run test -- src/components/ScoreStand.test.tsx
 ```
 Expected: FAIL — `renderDetail` is not a valid prop on `ScoreStand`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/web/src/components/ScoreStand.tsx`, add the import and prop:
 
@@ -1432,14 +1432,14 @@ the existing `<ScoreMarkLayer ... />` call:
 					/>
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run test -- src/components/ScoreStand.test.tsx
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/ScoreStand.tsx apps/web/src/components/ScoreStand.test.tsx
@@ -1460,7 +1460,7 @@ git commit -m "feat(web): forward renderDetail from ScoreStand to its mark layer
 - Modify: `apps/web/src/components/PieceLessMode.tsx`
 - Modify: `apps/web/src/components/PieceLessMode.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `apps/web/src/components/PieceLessMode.test.tsx`:
 
@@ -1510,14 +1510,14 @@ describe("PieceLessMode", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run test -- src/components/PieceLessMode.test.tsx
 ```
 Expected: FAIL — `renderDetail` is not a valid prop on `PieceLessMode`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/web/src/components/PieceLessMode.tsx`:
 
@@ -1548,14 +1548,14 @@ Add `renderDetail` to the destructured function params, and forward it:
 			</div>
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run test -- src/components/PieceLessMode.test.tsx
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/PieceLessMode.tsx apps/web/src/components/PieceLessMode.test.tsx

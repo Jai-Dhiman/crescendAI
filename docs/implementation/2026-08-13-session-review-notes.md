@@ -18,3 +18,18 @@ Implemented verbatim per plan. Existing `renderLayer` test helper extended to ac
 
 ## Task 5: SessionTimelineStrip renderDetail
 Implemented verbatim per plan, mirrors Task 4's pattern exactly.
+
+## Task 6: MarkPassagePlayback
+Implemented all 5 states (no_bars/loading/ready/audio_error/error) plus the two extra test cases (error, audio_error) mandated by the challenge review. Deviation: implementer omitted the plan's `_mockManifest`/`_mockClip`/`_mockIr`/`_playable` escape-hatch props (copy-pasted precedent from `PlayPassageCard.tsx`) since the test suite mocks at the module boundary instead and no caller anywhere in the plan (present or planned) ever passes those props. Reviewer traced the whole plan doc and confirmed this is genuinely dead surface — accepted as scope discipline, not a scope-narrowing bug.
+
+## Task 7: VerdictBanner
+Implemented per plan with one adaptation: the "loading" case uses `<output>` instead of `<p role="status">` because Biome's `lint/a11y/useSemanticElements` rule blocks that pairing and explicitly recommends `<output>`. `<output>` carries an implicit ARIA status role so semantics are preserved; verified sound by the reviewer.
+
+## Task 8: SessionDisclosures
+Implemented verbatim per plan. Content landed across two commits (fd1bbd8d, eed3838b) due to a shared-worktree commit-ordering race with the parallel Task 7 agent — both agents confirmed no content was lost; reviewed at HEAD.
+
+## Task 9: ScoreStand renderDetail
+Implemented verbatim per plan.
+
+## Task 10: PieceLessMode renderDetail
+Implemented verbatim per plan.
