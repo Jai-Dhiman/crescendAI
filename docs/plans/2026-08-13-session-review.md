@@ -2192,7 +2192,7 @@ exports from `practice-preview-fixtures.ts`.
 - Modify: `apps/web/src/routes/practice-preview.tsx`
 - Modify: `apps/web/src/routes/practice-preview.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `apps/web/src/routes/practice-preview.test.tsx`:
 
@@ -2212,7 +2212,7 @@ Add to `apps/web/src/routes/practice-preview.test.tsx`:
 	});
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run test -- src/routes/practice-preview.test.tsx
@@ -2220,7 +2220,7 @@ cd apps/web && bun run test -- src/routes/practice-preview.test.tsx
 Expected: FAIL — `practice-mode-review-preview` testid not found (section
 doesn't exist yet).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Add to `apps/web/src/lib/practice-preview-fixtures.ts`:
 
@@ -2303,14 +2303,14 @@ import {
 `data-testid="practice-mode-preview"` section, still inside the outer
 `<div className="h-dvh">`.)
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run test -- src/routes/practice-preview.test.tsx
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/lib/practice-preview-fixtures.ts apps/web/src/routes/practice-preview.tsx apps/web/src/routes/practice-preview.test.tsx

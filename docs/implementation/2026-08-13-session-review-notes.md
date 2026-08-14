@@ -42,3 +42,6 @@ Implemented verbatim per plan. Composes VerdictBanner/ScoreStand-or-PieceLessMod
 
 ## Task 13: PracticeMode review phase
 Implemented verbatim per plan. `phase` defaults to "practice" so all existing callers (AppChat, /practice-preview) are unaffected — verified all 4 pre-existing PracticeMode tests still pass alongside the new one. `usePauseTracker` gated on `phase === "practice"` so auto-stop banner logic doesn't fire during review. Optional review-data props all have safe defaults matching SessionReview's required prop types.
+
+## Task 14: /practice-preview review-ready fixture section
+Implemented per plan, reusing the pre-existing `SCORE_FIXTURE_MARKS` local const. Deviation: used `style={{height:500}}` for the new section's inner wrapper instead of the existing sections' `h-1/3` flex classes, since the existing three sections already sum to 100% height (h-1/3 * 3) inside the `h-dvh` parent — a 4th h-1/3 would overflow. Reviewer confirmed this reasoning is sound and doesn't disturb the prior three sections.
