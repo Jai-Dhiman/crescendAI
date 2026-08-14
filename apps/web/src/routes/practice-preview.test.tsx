@@ -41,4 +41,20 @@ describe("PracticePreview", () => {
 		).toBeInTheDocument();
 		expect(screen.getByText(/Start with bars 40-44/)).toBeInTheDocument();
 	});
+
+	it("renders the review-failed fixture section with an explicit retry state", async () => {
+		vi.stubEnv("DEV", true);
+		const { PracticePreview } = await import("./practice-preview");
+		render(<PracticePreview />);
+
+		expect(
+			screen.getByTestId("practice-mode-review-failed-preview"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText(/Couldn't put together a review this time/),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /try again/i }),
+		).toBeInTheDocument();
+	});
 });

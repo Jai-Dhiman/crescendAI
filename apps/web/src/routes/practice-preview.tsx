@@ -10,6 +10,7 @@ import {
 	PIECELESS_DURATION_SECONDS,
 	REVIEW_CARRY_FORWARD,
 	REVIEW_NO_COMMENT_ZONES,
+	REVIEW_VERDICT_FAILED,
 	REVIEW_VERDICT_READY,
 	REVIEW_WS_GAPS,
 } from "../lib/practice-preview-fixtures";
@@ -108,6 +109,28 @@ export function PracticePreview() {
 						carryForward={REVIEW_CARRY_FORWARD}
 						wsGaps={REVIEW_WS_GAPS}
 						noCommentZones={REVIEW_NO_COMMENT_ZONES}
+						onWorkOnThis={() => {}}
+						onExitReview={() => {}}
+					/>
+				</div>
+			</div>
+			<div data-testid="practice-mode-review-failed-preview">
+				<div style={{ height: 300 }}>
+					<PracticeMode
+						userPickedPieceId="chopin-nocturne-op9-no2"
+						confidentGuess={null}
+						marks={[]}
+						elapsedSeconds={60}
+						isPlaying={false}
+						isRecording={false}
+						onStop={() => {}}
+						phase="review"
+						sessionId="practice-preview-session"
+						verdict={REVIEW_VERDICT_FAILED}
+						onRetryVerdict={() => {}}
+						carryForward={null}
+						wsGaps={[]}
+						noCommentZones={[]}
 						onWorkOnThis={() => {}}
 						onExitReview={() => {}}
 					/>
