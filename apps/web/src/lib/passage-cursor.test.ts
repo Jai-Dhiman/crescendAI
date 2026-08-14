@@ -39,4 +39,20 @@ describe("createPassageQstampSource", () => {
 		);
 		expect(pastKnownRange()).toBeNull();
 	});
+
+	it("degrades to null when the resolved bar has no entry in bars (clip IR doesn't cover it)", () => {
+		// tSec=13 brackets between bar 6 (tSec=12) and bar 7 (tSec=14), so the
+		// resolved lower bar is 6 -- which BARS (only bar 5) doesn't cover.
+		const timelineWithGap = [
+			{ bar: 5, tSec: 10 },
+			{ bar: 6, tSec: 12 },
+			{ bar: 7, tSec: 14 },
+		];
+		const missingBarIR = createPassageQstampSource(
+			timelineWithGap,
+			BARS,
+			() => 13,
+		);
+		expect(missingBarIR()).toBeNull();
+	});
 });
