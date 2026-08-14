@@ -1577,7 +1577,7 @@ mark; "Close" calls `onClose`.
 - Create: `apps/web/src/components/MarkReviewDetail.tsx`
 - Test: `apps/web/src/components/MarkReviewDetail.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // apps/web/src/components/MarkReviewDetail.test.tsx
@@ -1628,14 +1628,14 @@ describe("MarkReviewDetail", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run test -- src/components/MarkReviewDetail.test.tsx
 ```
 Expected: FAIL — `Cannot find module './MarkReviewDetail'`
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```tsx
 // apps/web/src/components/MarkReviewDetail.tsx
@@ -1695,14 +1695,14 @@ export function MarkReviewDetail({
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run test -- src/components/MarkReviewDetail.test.tsx
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/MarkReviewDetail.tsx apps/web/src/components/MarkReviewDetail.test.tsx

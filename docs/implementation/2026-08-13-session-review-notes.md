@@ -33,3 +33,6 @@ Implemented verbatim per plan.
 
 ## Task 10: PieceLessMode renderDetail
 Implemented verbatim per plan.
+
+## Task 11: MarkReviewDetail
+Implemented verbatim per plan, mirroring MarkDetail.tsx's evidence-rendering pattern. `MarkPassagePlayback` mocked at module boundary in the test.
