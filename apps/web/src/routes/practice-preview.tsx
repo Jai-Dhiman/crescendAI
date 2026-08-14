@@ -8,6 +8,10 @@ import type { ConfidentGuess } from "../lib/piece-ladder";
 import {
 	FIXTURE_MARKS,
 	PIECELESS_DURATION_SECONDS,
+	REVIEW_CARRY_FORWARD,
+	REVIEW_NO_COMMENT_ZONES,
+	REVIEW_VERDICT_READY,
+	REVIEW_WS_GAPS,
 } from "../lib/practice-preview-fixtures";
 
 export const Route = createFileRoute("/practice-preview")({
@@ -83,6 +87,31 @@ export function PracticePreview() {
 					isRecording={true}
 					onStop={() => {}}
 				/>
+			</div>
+			<div
+				className="border-b border-border-subtle"
+				data-testid="practice-mode-review-preview"
+			>
+				<div style={{ height: 500 }}>
+					<PracticeMode
+						userPickedPieceId="chopin-nocturne-op9-no2"
+						confidentGuess={null}
+						marks={SCORE_FIXTURE_MARKS}
+						elapsedSeconds={212}
+						isPlaying={false}
+						isRecording={false}
+						onStop={() => {}}
+						phase="review"
+						sessionId="practice-preview-session"
+						verdict={REVIEW_VERDICT_READY}
+						onRetryVerdict={() => {}}
+						carryForward={REVIEW_CARRY_FORWARD}
+						wsGaps={REVIEW_WS_GAPS}
+						noCommentZones={REVIEW_NO_COMMENT_ZONES}
+						onWorkOnThis={() => {}}
+						onExitReview={() => {}}
+					/>
+				</div>
 			</div>
 		</div>
 	);
