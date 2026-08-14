@@ -1954,7 +1954,7 @@ new review-data props.
 - Modify: `apps/web/src/components/PracticeMode.tsx`
 - Modify: `apps/web/src/components/PracticeMode.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to the top of `apps/web/src/components/PracticeMode.test.tsx` (alongside
 the existing `vi.mock("../lib/score-renderer", ...)`):
@@ -1999,7 +1999,7 @@ vi.mock("./SessionReview", () => ({
 	});
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run test -- src/components/PracticeMode.test.tsx
@@ -2008,7 +2008,7 @@ Expected: FAIL — `phase` is not a valid prop on `PracticeMode` (typecheck),
 or `session-review-stub` is never found because `PracticeMode` still renders
 the live-canvas branch.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/web/src/components/PracticeMode.tsx`:
 
@@ -2159,7 +2159,7 @@ export function PracticeMode({
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run test -- src/components/PracticeMode.test.tsx
@@ -2167,7 +2167,7 @@ cd apps/web && bun run test -- src/components/PracticeMode.test.tsx
 Expected: PASS (existing practice-phase tests unaffected; new review test
 passes)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/PracticeMode.tsx apps/web/src/components/PracticeMode.test.tsx

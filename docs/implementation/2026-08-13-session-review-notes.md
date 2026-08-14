@@ -39,3 +39,6 @@ Implemented verbatim per plan, mirroring MarkDetail.tsx's evidence-rendering pat
 
 ## Task 12: SessionReview
 Implemented verbatim per plan. Composes VerdictBanner/ScoreStand-or-PieceLessMode/SessionDisclosures/carry-forward line, with `renderDetail` closure wired to MarkReviewDetail. 10-prop composer accepted per the plan's challenge review (pure composition layer over a client contract with no server implementation yet).
+
+## Task 13: PracticeMode review phase
+Implemented verbatim per plan. `phase` defaults to "practice" so all existing callers (AppChat, /practice-preview) are unaffected — verified all 4 pre-existing PracticeMode tests still pass alongside the new one. `usePauseTracker` gated on `phase === "practice"` so auto-stop banner logic doesn't fire during review. Optional review-data props all have safe defaults matching SessionReview's required prop types.
