@@ -1,4 +1,10 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+	cleanup,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Mark } from "../lib/mark";
 import { resolveAnchor } from "../lib/mark";
@@ -123,6 +129,20 @@ describe("MarkPassagePlayback", () => {
 			).toBeInTheDocument(),
 		);
 		expect(mockGetPassage).toHaveBeenCalledWith("s1", [5, 6]);
+	});
+
+	it("calls the passage player's play() when the Play button is clicked", async () => {
+		mockGetPassage.mockResolvedValue(manifest);
+		mockGetClipPlayback.mockResolvedValue(clipPayload);
+
+		render(<MarkPassagePlayback mark={barMark} sessionId="s1" />);
+
+		const playButton = await waitFor(() =>
+			screen.getByRole("button", { name: /play passage/i }),
+		);
+		fireEvent.click(playButton);
+
+		expect(mockPlay).toHaveBeenCalled();
 	});
 
 	it("shows an error state when the passage fetch fails", async () => {
