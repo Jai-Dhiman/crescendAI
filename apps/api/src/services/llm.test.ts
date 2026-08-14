@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { InferenceError } from "../lib/errors";
+import { ConfigError, InferenceError } from "../lib/errors";
 import type { Bindings } from "../lib/types";
 import { callWorkersAI, callWorkersAIStream } from "./llm";
 
@@ -7,67 +7,67 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-describe("callWorkersAI", () => {
-	it("sends Authorization Bearer + cf-aig-authorization headers to AI_GATEWAY_ENDPOINT/workers-ai path", async () => {
-		const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-			new Response(
-				JSON.stringify({
-					choices: [{ message: { content: "Test title" } }],
-				}),
-				{ status: 200, headers: { "Content-Type": "application/json" } },
-			),
-		);
+function envWithAiRun(run: ReturnType<typeof vi.fn>): Bindings {
+	return {
+		AI: { run } as unknown as Ai,
+		AI_GATEWAY_ID: "crescendai",
+	} as unknown as Bindings;
+}
 
-		const mockEnv = {
-			AI_GATEWAY_ENDPOINT: "https://gateway.example.com",
-			AI_GATEWAY_TOKEN: "gw-token-abc",
-			CLOUDFLARE_API_TOKEN: "test-cf-token-abc123",
-		} as unknown as Bindings;
+describe("callWorkersAI", () => {
+	it("runs the model on the AI binding routed through the configured gateway", async () => {
+		const run = vi.fn().mockResolvedValueOnce({ response: "Test title" });
 
 		const result = await callWorkersAI(
-			mockEnv,
+			envWithAiRun(run),
 			"@cf/google/gemma-4-26b-a4b-it",
 			[{ role: "user", content: "Generate a title" }],
 			30,
+			{ enable_thinking: false },
 		);
 
-		expect(mockFetch).toHaveBeenCalledOnce();
-		const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-		expect(url).toBe(
-			"https://gateway.example.com/workers-ai/v1/chat/completions",
+		expect(run).toHaveBeenCalledOnce();
+		expect(run).toHaveBeenCalledWith(
+			"@cf/google/gemma-4-26b-a4b-it",
+			{
+				messages: [{ role: "user", content: "Generate a title" }],
+				max_tokens: 30,
+				chat_template_kwargs: { enable_thinking: false },
+			},
+			{ gateway: { id: "crescendai" } },
 		);
-
-		const headers = init.headers as Record<string, string>;
-		expect(headers["Authorization"]).toBe("Bearer test-cf-token-abc123");
-		expect(headers["cf-aig-authorization"]).toBe("Bearer gw-token-abc");
 		expect(result).toBe("Test title");
 	});
 
-	it("throws InferenceError on non-ok response", async () => {
-		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-			new Response("Unauthorized", { status: 401 }),
-		);
+	it("throws InferenceError when the binding returns no content", async () => {
+		const run = vi.fn().mockResolvedValueOnce({ usage: {} });
 
-		const mockEnv = {
-			AI_GATEWAY_ENDPOINT: "https://gateway.example.com",
-			AI_GATEWAY_TOKEN: "bad-gw-token",
-			CLOUDFLARE_API_TOKEN: "bad-token",
-		} as unknown as Bindings;
+		await expect(
+			callWorkersAI(envWithAiRun(run), "@cf/test-model", [
+				{ role: "user", content: "hi" },
+			]),
+		).rejects.toThrow(InferenceError);
+	});
+
+	it("throws ConfigError when no gateway is configured", async () => {
+		const run = vi.fn();
+		const mockEnv = { AI: { run } as unknown as Ai } as unknown as Bindings;
 
 		await expect(
 			callWorkersAI(mockEnv, "@cf/test-model", [
 				{ role: "user", content: "hi" },
 			]),
-		).rejects.toThrow("Workers AI error: 401");
+		).rejects.toThrow(ConfigError);
+		expect(run).not.toHaveBeenCalled();
 	});
 });
 
 const streamMockEnv: Pick<
 	Bindings,
-	"AI_GATEWAY_ENDPOINT" | "AI_GATEWAY_TOKEN" | "CLOUDFLARE_API_TOKEN"
+	"CLOUDFLARE_ACCOUNT_ID" | "AI_GATEWAY_ID" | "CLOUDFLARE_API_TOKEN"
 > = {
-	AI_GATEWAY_ENDPOINT: "https://gateway.example.com",
-	AI_GATEWAY_TOKEN: "gw-token",
+	CLOUDFLARE_ACCOUNT_ID: "acct-123",
+	AI_GATEWAY_ID: "crescendai",
 	CLOUDFLARE_API_TOKEN: "cf-token",
 };
 
@@ -84,7 +84,7 @@ describe("callWorkersAIStream", () => {
 		vi.stubGlobal("fetch", vi.fn());
 	});
 
-	it("POSTs to workers-ai completions endpoint with stream:true and both auth headers, returns res.body", async () => {
+	it("POSTs to the unified AI REST endpoint with stream:true and gateway routing, returns res.body", async () => {
 		const fakeBody = new ReadableStream();
 		vi.mocked(fetch).mockResolvedValue(new Response(fakeBody, { status: 200 }));
 
@@ -96,10 +96,10 @@ describe("callWorkersAIStream", () => {
 		expect(fetch).toHaveBeenCalledOnce();
 		const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
 		expect(url).toBe(
-			"https://gateway.example.com/workers-ai/v1/chat/completions",
+			"https://api.cloudflare.com/client/v4/accounts/acct-123/ai/v1/chat/completions",
 		);
 		const headers = init.headers as Record<string, string>;
-		expect(headers["cf-aig-authorization"]).toBe("Bearer gw-token");
+		expect(headers["cf-aig-gateway-id"]).toBe("crescendai");
 		expect(headers["Authorization"]).toBe("Bearer cf-token");
 		const sentBody = JSON.parse(init.body as string) as Record<string, unknown>;
 		expect(sentBody.stream).toBe(true);
