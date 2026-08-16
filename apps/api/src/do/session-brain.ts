@@ -15,13 +15,13 @@ import {
 	SessionAccumulator,
 } from "../services/accumulator";
 import { buildBarAnalysisFacts } from "../services/bar-analysis-facts";
-import { applyConfidenceGate } from "../services/confidence_gate";
-import { callAmtEndpoint, callMuqEndpoint } from "../services/inference";
+import { callAmtEndpoint } from "../services/inference";
 import {
 	buildPendingExerciseComponent,
 	stageDominantExercise,
 } from "../services/pending-exercise";
 import { type ChunkSignal, ModeDetector } from "../services/practice-mode";
+import { scoreChunk } from "../services/scoring";
 import {
 	findActiveForPiece,
 	incrementAttempts,
@@ -214,6 +214,11 @@ const DEFAULT_LOOP_REQUIRED_CORRECT = 5;
 
 // How often to attempt teaching moment selection (every N chunks)
 const TEACHING_MOMENT_INTERVAL = 2;
+
+// Minimum transcribed notes before a chunk is comment-worthy. Transkun
+// exposes no confidence signal, so note density is the proxy (spec
+// docs/apps/02-pipeline.md open question 2).
+const MIN_NOTES_FOR_COMMENT = 10;
 
 export interface EnrichedChunk {
 	chunkIndex: number;
@@ -725,9 +730,9 @@ export class SessionBrain extends DurableObject<Bindings> {
 		const contextAudio = previousChunkAudio.get(this) ?? null;
 		previousChunkAudio.set(this, audioBytes);
 
-		// 3. Parallel inference — this is the major await; state may change during it
-		const [muqResult, amtResult] = await Promise.allSettled([
-			callMuqEndpoint(this.env, audioBytes),
+		// 3. Inference — this is the major await; state may change during it. MuQ is
+		// gone (#162): AMT (Transkun) is the only inference call on the request path.
+		const [amtResult] = await Promise.allSettled([
 			callAmtEndpoint(this.env, audioBytes, contextAudio),
 		]);
 
@@ -740,7 +745,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 		// blockConcurrencyWhile serializes ONLY this cheap post-inference section; the expensive
 		// inference ran outside the lock, so chunks still infer concurrently.
 		await this.ctx.blockConcurrencyWhile(() =>
-			this.finalizeChunk(ws, index, muqResult, amtResult),
+			this.finalizeChunk(ws, index, amtResult),
 		);
 	}
 
@@ -754,9 +759,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 	private async finalizeChunk(
 		ws: WebSocket,
 		index: number,
-		muqResult: PromiseSettledResult<
-			Awaited<ReturnType<typeof callMuqEndpoint>>
-		>,
 		amtResult: PromiseSettledResult<
 			Awaited<ReturnType<typeof callAmtEndpoint>>
 		>,
@@ -766,71 +768,10 @@ export class SessionBrain extends DurableObject<Bindings> {
 		// Decrement chunksInFlight (this chunk's inference is done)
 		currentState.chunksInFlight = Math.max(0, currentState.chunksInFlight - 1);
 
-		// 5. Process MuQ result — send chunk_processed immediately
-		if (muqResult.status === "rejected") {
-			console.error(
-				JSON.stringify({
-					level: "error",
-					message: "MuQ inference failed",
-					index,
-					error:
-						muqResult.reason instanceof Error
-							? muqResult.reason.message
-							: String(muqResult.reason),
-				}),
-			);
-			currentState.inferenceFailures++;
-			currentState.version++;
-			await this.writeState(currentState);
-			this.sendWs(ws, {
-				type: "chunk_processed",
-				index,
-				scores: {
-					dynamics: 0,
-					timing: 0,
-					pedaling: 0,
-					articulation: 0,
-					phrasing: 0,
-					interpretation: 0,
-				},
-			});
-			return;
-		}
-
-		const {
-			scores: muqScores,
-			confidences: muqConfidences,
-			chromaBytes,
-			chromaFrames,
-			chromaFrameRateHz,
-		} = muqResult.value;
-		const scoresArray: [number, number, number, number, number, number] = [
-			muqScores.dynamics,
-			muqScores.timing,
-			muqScores.pedaling,
-			muqScores.articulation,
-			muqScores.phrasing,
-			muqScores.interpretation,
-		];
-
-		this.sendWs(ws, {
-			type: "chunk_processed",
-			index,
-			scores: {
-				dynamics: muqScores.dynamics,
-				timing: muqScores.timing,
-				pedaling: muqScores.pedaling,
-				articulation: muqScores.articulation,
-				phrasing: muqScores.phrasing,
-				interpretation: muqScores.interpretation,
-			},
-		});
-
-		currentState.scoredChunks.push({ chunkIndex: index, scores: scoresArray });
-
-		// 6. Process AMT result (graceful degradation: AMT failure -> Tier 3)
+		// 5. Process AMT result (graceful degradation: AMT failure -> no-comment zone)
 		let perfNotes: PerfNote[] = [];
 		let perfPedal: PerfPedalEvent[] = [];
+		let amtFailed = false;
 
 		if (amtResult.status === "rejected") {
 			console.error(
@@ -845,9 +786,61 @@ export class SessionBrain extends DurableObject<Bindings> {
 				}),
 			);
 			currentState.inferenceFailures++;
+			amtFailed = true;
 		} else {
 			perfNotes = amtResult.value.notes;
 			perfPedal = amtResult.value.pedalEvents;
+		}
+
+		const isNoCommentZone =
+			amtFailed || perfNotes.length < MIN_NOTES_FOR_COMMENT;
+		let scoresArray: [number, number, number, number, number, number] = [
+			0.5, 0.5, 0.5, 0.5, 0.5, 0.5,
+		];
+
+		// Tier-1 (chroma-driven) alignment is dormant pending Task 13's structural
+		// removal (#162) — MuQ was its only chroma producer, so these stay null/0
+		// and the tier-1 branch below always falls through to Tier 2.
+		const chromaBytes: Uint8Array | null = null;
+		const chromaFrames = 0;
+		const chromaFrameRateHz = 0;
+
+		if (isNoCommentZone) {
+			currentState.noCommentZones.push({
+				chunkIndex: index,
+				reason: amtFailed ? "amt_rejected" : "insufficient_notes",
+			});
+			this.sendWs(ws, {
+				type: "chunk_processed",
+				index,
+				scores: {
+					dynamics: 0,
+					timing: 0,
+					pedaling: 0,
+					articulation: 0,
+					phrasing: 0,
+					interpretation: 0,
+				},
+			});
+		} else {
+			const scores = scoreChunk(perfNotes, perfPedal);
+			scoresArray = [
+				scores.dynamics,
+				scores.timing,
+				scores.pedaling,
+				scores.articulation,
+				scores.phrasing,
+				scores.interpretation,
+			];
+			this.sendWs(ws, { type: "chunk_processed", index, scores });
+			currentState.scoredChunks.push({
+				chunkIndex: index,
+				scores: scoresArray,
+			});
+			for (const dim of DIMS_6) {
+				const existing = currentState.sessionSamples[dim] ?? [];
+				currentState.sessionSamples[dim] = [...existing, scores[dim]];
+			}
 		}
 
 		// 6b. Bar analysis: align chunk + analyze (WASM; skip gracefully if not built)
@@ -1218,14 +1211,9 @@ export class SessionBrain extends DurableObject<Bindings> {
 				if (moment !== null) {
 					const momentDim = moment.dimension as Dimension;
 
-					// Suppress high-uncertainty dims: if the gaussian head provided
-					// confidences and this dim's sigma exceeds threshold, skip it.
-					const gated =
-						muqConfidences !== null
-							? applyConfidenceGate(muqScores, muqConfidences)
-							: null;
-					const dimSuppressed =
-						gated !== null && gated.suppressed.includes(momentDim);
+					// The mock scorer carries no confidence signal (unlike the retired
+					// MuQ gaussian head), so there is nothing to suppress on here (#162).
+					const dimSuppressed = false;
 
 					const accMoment = {
 						chunkIndex: moment.chunk_index,
