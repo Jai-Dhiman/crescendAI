@@ -149,7 +149,7 @@ DO surface, driven the same way `session-brain.concurrency.test.ts` and
 **Files:**
 - Create: `apps/api/src/do/session-brain.marks.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 /// <reference types="@cloudflare/vitest-pool-workers" />
@@ -345,19 +345,19 @@ describe("pipeline retarget: marks + review end-to-end (#162)", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/api && bun run test -- --run session-brain.marks.test.ts
 ```
 Expected: FAIL — `Cannot find module '../services/scoring'` (or `mark-gate`/`mpm-features`/`baseline-store` — whichever resolves first), because none of those modules exist yet and `session-brain.ts` has not been wired to emit `mark`/`review` events.
 
-- [ ] **Step 3: No implementation in this task.** This is the Group 0 harness — it
+- [x] **Step 3: No implementation in this task.** This is the Group 0 harness — it
   stays red through Group A and Group B until Task 17 wires the last piece.
 
-- [ ] **Step 4: N/A until Task 17.**
+- [x] **Step 4: N/A until Task 17.**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/do/session-brain.marks.test.ts && git commit -m "test(#162): add failing end-to-end marks+review harness (Group 0)"
@@ -380,7 +380,7 @@ dimension at the neutral midpoint 0.5, never NaN or out of range.
 - Create: `apps/api/src/services/scoring.ts`
 - Test: `apps/api/src/services/scoring.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 import { describe, expect, it } from "vitest";
@@ -401,14 +401,14 @@ describe("scoreChunk", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/api && bunx vitest run --config vitest.node.config.ts scoring.test.ts
 ```
 Expected: FAIL — `Cannot find module './scoring'` (file does not exist).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```typescript
 // apps/api/src/services/scoring.ts
@@ -502,14 +502,14 @@ export function scoreChunk(
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bunx vitest run --config vitest.node.config.ts scoring.test.ts
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/services/scoring.ts apps/api/src/services/scoring.test.ts && git commit -m "feat(#162): add deterministic mock scorer (silence case)"
@@ -530,7 +530,7 @@ tracks mean velocity directly (higher velocity -> higher dynamics).
   only adds coverage; Task 2's implementation already satisfies it)
 - Test: `apps/api/src/services/scoring.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 it("is deterministic across repeated calls with the same input", () => {
@@ -572,7 +572,7 @@ it("higher mean velocity produces a higher dynamics score", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/api && bunx vitest run --config vitest.node.config.ts scoring.test.ts
@@ -587,16 +587,16 @@ no `Date.now()`, no I/O, and `dynamics = clamp01(mean(velocities) / 127)` is
 monotonic in velocity. If any assertion fails, fix `scoring.ts` until it
 passes — do not weaken the test.
 
-- [ ] **Step 3: No new implementation required (see Step 2).**
+- [x] **Step 3: No new implementation required (see Step 2).**
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bunx vitest run --config vitest.node.config.ts scoring.test.ts
 ```
 Expected: PASS (all tests in the file, including Task 2's)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/services/scoring.test.ts && git commit -m "test(#162): cover scoreChunk determinism, range, and velocity monotonicity"
@@ -616,7 +616,7 @@ never a thrown error or `NaN`.
 - Create: `apps/api/src/services/mpm-features.ts`
 - Test: `apps/api/src/services/mpm-features.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 import { describe, expect, it } from "vitest";
@@ -644,14 +644,14 @@ describe("extractMpmFeatures", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/api && bunx vitest run --config vitest.node.config.ts mpm-features.test.ts
 ```
 Expected: FAIL — `Cannot find module './mpm-features'`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```typescript
 // apps/api/src/services/mpm-features.ts
@@ -712,14 +712,14 @@ export function evidenceFor(set: MpmFeatureSet, dimension: Dimension): string {
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bunx vitest run --config vitest.node.config.ts mpm-features.test.ts
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/services/mpm-features.ts apps/api/src/services/mpm-features.test.ts && git commit -m "feat(#162): add mpm-features module (sparse-input case)"
@@ -741,7 +741,7 @@ pattern the review's mark evidence must contain.
 - Modify: `apps/api/src/services/mpm-features.ts`
 - Test: `apps/api/src/services/mpm-features.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 import { evidenceFor, extractMpmFeatures } from "./mpm-features";
@@ -818,7 +818,7 @@ describe("extractMpmFeatures — full computation", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/api && bunx vitest run --config vitest.node.config.ts mpm-features.test.ts
@@ -827,7 +827,7 @@ Expected: FAIL — `set?.localTempoBpm` is `0` (Task 4's stub always returns a
 zeroed set); `evidenceFor` returns the `"timing placeholder"` string, not the
 MPM sentence.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Replace the two placeholder function bodies in `apps/api/src/services/mpm-features.ts`:
 
@@ -916,14 +916,14 @@ export function evidenceFor(set: MpmFeatureSet, dimension: Dimension): string {
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bunx vitest run --config vitest.node.config.ts mpm-features.test.ts
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/services/mpm-features.ts apps/api/src/services/mpm-features.test.ts && git commit -m "feat(#162): compute real MPM features and evidence prose"
@@ -944,7 +944,7 @@ minimum-spread guard, matching `student-baseline.ts`'s
 - Create: `apps/api/src/services/mark-gate.ts`
 - Test: `apps/api/src/services/mark-gate.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 import { describe, expect, it } from "vitest";
@@ -972,14 +972,14 @@ describe("proposeMarks — cold start", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/api && bunx vitest run --config vitest.node.config.ts mark-gate.test.ts
 ```
 Expected: FAIL — `Cannot find module './mark-gate'`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```typescript
 // apps/api/src/services/mark-gate.ts
@@ -1095,14 +1095,14 @@ export function proposeMarks(input: ProposeMarksInput): ProposeMarksResult {
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bunx vitest run --config vitest.node.config.ts mark-gate.test.ts
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/services/mark-gate.ts apps/api/src/services/mark-gate.test.ts && git commit -m "feat(#162): add mark-gate cold-start minimum-spread guard"
@@ -1125,7 +1125,7 @@ dimensions yield only one candidate (DIMS_6 order).
   implementation already covers this; this task only adds coverage)
 - Test: `apps/api/src/services/mark-gate.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 const BASELINE_DIM = {
@@ -1226,7 +1226,7 @@ describe("proposeMarks — persisted baseline", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 Confirm first by inspection whether these pass or fail against Task 6's
 implementation (the gate logic is already complete). Run:
@@ -1238,16 +1238,16 @@ Expected: PASS immediately, by the same "previous task's pure logic already
 covers this" reasoning as Task 3. If any assertion fails (e.g. band math is
 off), fix `mark-gate.ts` — do not weaken the test — then re-run.
 
-- [ ] **Step 3: No new implementation required if Step 2 passed; otherwise fix `bandFor`/`trailingOutOfBandCount` in `mark-gate.ts` until all four assertions hold.**
+- [x] **Step 3: No new implementation required if Step 2 passed; otherwise fix `bandFor`/`trailingOutOfBandCount` in `mark-gate.ts` until all four assertions hold.**
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bunx vitest run --config vitest.node.config.ts mark-gate.test.ts
 ```
 Expected: PASS (all tests in the file)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/services/mark-gate.test.ts && git commit -m "test(#162): cover mark-gate persistence, dedupe, and one-per-chunk cap"
@@ -1267,7 +1267,7 @@ error.
 - Create: `apps/api/src/services/baseline-store.ts`
 - Test: `apps/api/src/services/baseline-store.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 import { describe, expect, it } from "vitest";
@@ -1296,14 +1296,14 @@ describe("loadBaselineState", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/api && bunx vitest run --config vitest.node.config.ts baseline-store.test.ts
 ```
 Expected: FAIL — `Cannot find module './baseline-store'`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 First, add the backing column this module reads/writes. In
 `apps/api/src/db/schema/students.ts`, add `baselineState` to the
@@ -1405,14 +1405,14 @@ treats an unused named import as an error). Final import line:
 import { studentProfiles } from "../db/schema/students";
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bunx vitest run --config vitest.node.config.ts baseline-store.test.ts
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/services/baseline-store.ts apps/api/src/services/baseline-store.test.ts && git commit -m "feat(#162): add baseline-store load path (null cases)"
@@ -1435,7 +1435,7 @@ value fails `BaselineStateSchema`.
   Task 8's implementation already covers this)
 - Test: `apps/api/src/services/baseline-store.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 import { initialBaselineState } from "./student-baseline";
@@ -1479,7 +1479,7 @@ it("loadBaselineState throws ValidationError when the stored shape is corrupt", 
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 Run and confirm by inspection: Task 8's implementation already implements
 both functions correctly, so this is expected to PASS immediately (same
@@ -1491,16 +1491,16 @@ cd apps/api && bunx vitest run --config vitest.node.config.ts baseline-store.tes
 Expected: PASS. If it fails, fix `baseline-store.ts` (not the test) until it
 passes.
 
-- [ ] **Step 3: No new implementation required if Step 2 passed.**
+- [x] **Step 3: No new implementation required if Step 2 passed.**
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bunx vitest run --config vitest.node.config.ts baseline-store.test.ts
 ```
 Expected: PASS (all tests in the file)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/services/baseline-store.test.ts && git commit -m "test(#162): cover baseline-store save path and corrupt-row rejection"
@@ -1525,7 +1525,7 @@ accepts a valid `mark` payload and a valid `review` payload.
 - Modify: `apps/api/src/do/session-brain.schema.ts`
 - Test: `apps/api/src/do/session-brain.schema.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // append to apps/api/src/do/session-brain.schema.test.ts
@@ -1570,7 +1570,7 @@ describe("wsOutgoingMessageSchema — mark and review (#162)", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/api && bunx vitest run --config vitest.node.config.ts session-brain.schema.test.ts
@@ -1580,7 +1580,7 @@ exist on the current `SessionState`), and the `mark`/`review` schemas do not
 exist so `wsOutgoingMessageSchema.parse` throws
 `Invalid discriminator value`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/api/src/do/session-brain.schema.ts`, change the top import and add
 the new fields:
@@ -1665,14 +1665,14 @@ export type WsMark = z.infer<typeof wsMarkSchema>;
 export type WsReview = z.infer<typeof wsReviewSchema>;
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bunx vitest run --config vitest.node.config.ts session-brain.schema.test.ts
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/do/session-brain.schema.ts apps/api/src/do/session-brain.schema.test.ts && git commit -m "feat(#162): add mark/review session state fields and outgoing schemas"
@@ -1695,7 +1695,7 @@ the existing `computeSessionDurationMs` test continuing to pass.
 - Modify: `apps/api/wrangler.toml`
 - Modify: `apps/api/src/do/session-brain.ts`
 
-- [ ] **Step 1: Confirm the existing regression test still encodes the contract**
+- [x] **Step 1: Confirm the existing regression test still encodes the contract**
 
 `apps/api/src/do/session-brain.unit.test.ts` already has:
 
@@ -1716,9 +1716,9 @@ cd apps/api && bun run test -- --run session-brain.unit.test.ts
 ```
 Expected: PASS (pre-change baseline).
 
-- [ ] **Step 2: N/A (rename, not new behavior) — proceed to Step 3.**
+- [x] **Step 2: N/A (rename, not new behavior) — proceed to Step 3.**
 
-- [ ] **Step 3: Implement the rename**
+- [x] **Step 3: Implement the rename**
 
 In `apps/api/src/lib/types.ts`, remove the line:
 
@@ -1768,7 +1768,7 @@ export function computeSessionDurationMs(scoredChunkCount: number): number {
 }
 ```
 
-- [ ] **Step 4: Run test — verify it still PASSES**
+- [x] **Step 4: Run test — verify it still PASSES**
 
 ```bash
 cd apps/api && bun run typecheck && bun run test -- --run session-brain.unit.test.ts
@@ -1780,7 +1780,7 @@ that function is deleted in Task 18, not this task. Confirm the *only*
 typecheck error at this point is inside `callMuqEndpoint`'s body; if there
 are others, stop and re-scope this task).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/lib/types.ts apps/api/wrangler.toml apps/api/src/do/session-brain.ts && git commit -m "chore(#162): rename MUQ_CHUNK_MS to CHUNK_MS, drop MUQ_ENDPOINT binding"
@@ -1803,7 +1803,7 @@ the exact pattern of `session-brain.concurrency.test.ts`.
 - Modify: `apps/api/src/do/session-brain.ts`
 - Test: `apps/api/src/do/session-brain.no-comment-zone.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 /// <reference types="@cloudflare/vitest-pool-workers" />
@@ -1867,7 +1867,7 @@ describe("no-comment zone (#162): fewer than MIN_NOTES_FOR_COMMENT transcribed n
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/api && bun run test -- --run session-brain.no-comment-zone.test.ts
@@ -1877,7 +1877,7 @@ on the pre-wiring state shape's runtime behavior; `finalizeChunk` still
 pushes MuQ-sourced `scoredChunks` unconditionally and never writes
 `noCommentZones`).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/api/src/do/session-brain.ts`, change the import at the top:
 
@@ -2039,14 +2039,14 @@ shapes and are now always defined (falling back to the neutral 0.5 array in
 a no-comment-zone chunk, matching the existing failure convention elsewhere
 in this function).
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bun run test -- --run session-brain.no-comment-zone.test.ts
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/do/session-brain.ts apps/api/src/do/session-brain.no-comment-zone.test.ts && git commit -m "feat(#162): rip MuQ from finalizeChunk, wire no-comment zones and scoreChunk"
@@ -2067,7 +2067,7 @@ observed via captured `ws.send` calls.
 - Modify: `apps/api/src/do/session-brain.ts`
 - Test: `apps/api/src/do/session-brain.no-comment-zone.test.ts` (extended)
 
-- [ ] **Step 1: Write the regression-guard test**
+- [x] **Step 1: Write the regression-guard test**
 
 This task is a structural deletion, not new behavior: the tier-1 chroma
 branch cannot be exercised even on `main` today without a real score-catalog
@@ -2160,7 +2160,7 @@ describe("tier-1 removal (#162): every chunk takes Tier-2, no chunk_bar_map", ()
 });
 ```
 
-- [ ] **Step 2: Run test — confirm it already PASSES (not a red step)**
+- [x] **Step 2: Run test — confirm it already PASSES (not a red step)**
 
 ```bash
 cd apps/api && bun run test -- --run session-brain.tier2-only.test.ts
@@ -2184,7 +2184,7 @@ The existing `describe("chunk_bar_map WebSocket message", ...)` block in
 `session-brain.unit.test.ts` tests only the **schema**, not emission — leave
 it in place (`chunk_bar_map` remains a valid, just-unused, outgoing type).
 
-- [ ] **Step 3: Implement the change**
+- [x] **Step 3: Implement the change**
 
 In `apps/api/src/do/session-brain.ts`, replace the entire `// 6b. Bar
 analysis` block — from `let chunkAnalysisTier = 3;` through the closing
@@ -2254,14 +2254,14 @@ Remove the now-unused `ChunkNoteResult` and `ScoreContext` imports from the
 top-of-file type import list if `bun run check-api` flags them as unused
 after this edit (they were only consumed by the deleted tier-1 branch).
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bun run typecheck && bun run test -- --run session-brain.tier2-only.test.ts
 ```
 Expected: PASS, with `typecheck` confirming no dangling references.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/do/session-brain.ts apps/api/src/do/session-brain.tier2-only.test.ts && git commit -m "feat(#162): remove tier-1 chroma branch and chunk_bar_map emission"
@@ -2282,7 +2282,7 @@ dimension is recorded in `state.emittedMarks` so it never fires twice.
 - Modify: `apps/api/src/do/session-brain.ts`
 - Test: `apps/api/src/do/session-brain.mark-emission.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 /// <reference types="@cloudflare/vitest-pool-workers" />
@@ -2377,7 +2377,7 @@ describe("mark emission (#162)", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/api && bun run test -- --run session-brain.mark-emission.test.ts
@@ -2385,7 +2385,7 @@ cd apps/api && bun run test -- --run session-brain.mark-emission.test.ts
 Expected: FAIL — `sent` contains zero `mark` messages (nothing calls
 `proposeMarks` yet).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Add imports at the top of `apps/api/src/do/session-brain.ts`:
 
@@ -2471,14 +2471,14 @@ inside that `else { ... }` body from Task 12, after the `sessionSamples`
 loop and before the closing `}` of the `else`. `scores` (the `DimScores`
 object from `scoreChunk`) is already in scope there from Task 12's edit.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bun run test -- --run session-brain.mark-emission.test.ts
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/do/session-brain.ts apps/api/src/do/session-brain.mark-emission.test.ts && git commit -m "feat(#162): wire markBaseline load, mark gate, and mark emission"
@@ -2498,7 +2498,7 @@ session's `observation` emission is unchanged.
 - Modify: `apps/api/src/do/session-brain.ts`
 - Test: `apps/api/src/do/session-brain.observation.test.ts` (existing file, extended)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `apps/api/src/do/session-brain.observation.test.ts`, as it exists today,
 only unit-tests `buildObservationPayload` directly with plain `vitest` — it
@@ -2615,7 +2615,7 @@ describe("observation gating (#162): real sessions never receive observation", (
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/api && bun run test -- --run session-brain.observation.test.ts
@@ -2626,7 +2626,7 @@ regardless of `isEvalSession`. The seeded state above guarantees a moment is
 selected (two scored chunks, non-null baselines), so `sent` contains an
 `observation` message and `toBe(false)` fails.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/api/src/do/session-brain.ts`, locate the teaching-moment block
 (originally around the confidence-gate + `accMoment` + `sendWs` code you
@@ -2701,7 +2701,7 @@ Remove the now-unused `applyConfidenceGate` import:
 import { applyConfidenceGate } from "../services/confidence_gate";
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bun run typecheck && bun run test -- --run session-brain.observation.test.ts
@@ -2712,7 +2712,7 @@ and still exports the same function for any future caller — it is not in
 the spec's file-changes list, so it is left in place, just unused by
 `session-brain.ts`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/do/session-brain.ts apps/api/src/do/session-brain.observation.test.ts && git commit -m "feat(#162): gate observation emission on isEvalSession, drop dead confidence-gate call"
@@ -2737,7 +2737,7 @@ of `synthesis`, then folds the session's `sessionSamples` into the student's
   — this task is what turns its `review`/baseline-insert assertions green.
   No new test file; re-run Task 1's test as this task's verification.
 
-- [ ] **Step 1: Confirm the target behavior via the existing Group 0 test**
+- [x] **Step 1: Confirm the target behavior via the existing Group 0 test**
 
 `apps/api/src/do/session-brain.marks.test.ts` (Task 1) already asserts:
 ```typescript
@@ -2752,7 +2752,7 @@ const baselineInsert = capturedInserts.find(
 expect(baselineInsert).toBeDefined();
 ```
 
-- [ ] **Step 2: Run test — verify it still FAILS at this line**
+- [x] **Step 2: Run test — verify it still FAILS at this line**
 
 ```bash
 cd apps/api && bun run test -- --run session-brain.marks.test.ts
@@ -2760,7 +2760,7 @@ cd apps/api && bun run test -- --run session-brain.marks.test.ts
 Expected: FAIL — `reviews` is empty (the DO still sends `synthesis`, not
 `review`, and never calls `saveBaselineState`).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 Add imports at the top of `apps/api/src/do/session-brain.ts`:
 
@@ -2853,7 +2853,7 @@ surface:
 			}
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bun run typecheck && bun run test -- --run session-brain.marks.test.ts
@@ -2861,7 +2861,7 @@ cd apps/api && bun run typecheck && bun run test -- --run session-brain.marks.te
 Expected: PASS — every assertion in the Group 0 test now holds, including
 the mark, the review, and the baseline insert.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/do/session-brain.ts && git commit -m "feat(#162): emit review event and fold+persist the session baseline on synthesis success"
@@ -2883,7 +2883,7 @@ event instead of silently returning.
 - Modify: `apps/api/src/do/session-brain.ts`
 - Test: `apps/api/src/do/session-brain.review-failure.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 /// <reference types="@cloudflare/vitest-pool-workers" />
@@ -2965,7 +2965,7 @@ describe("review event on synthesis failure (#162)", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/api && bun run test -- --run session-brain.review-failure.test.ts
@@ -2973,7 +2973,7 @@ cd apps/api && bun run test -- --run session-brain.review-failure.test.ts
 Expected: FAIL — `received` is empty; the current `catch` block only logs
 and returns, sending nothing.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/api/src/do/session-brain.ts`, `runSynthesisAndPersist`'s outer
 `catch (err)` block currently reads:
@@ -3088,7 +3088,7 @@ with:
 			}
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES, then re-run Group 0**
+- [x] **Step 4: Run test — verify it PASSES, then re-run Group 0**
 
 ```bash
 cd apps/api && bun run typecheck && bun run test -- --run session-brain.review-failure.test.ts
@@ -3096,7 +3096,7 @@ cd apps/api && bun run test -- --run session-brain.marks.test.ts
 ```
 Expected: both PASS. This closes Group 0 — the Task 1 harness is now green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/do/session-brain.ts apps/api/src/do/session-brain.review-failure.test.ts && git commit -m "feat(#162): emit a loud review(verdict: null) on synthesis failure, close Group 0"
@@ -3118,7 +3118,7 @@ deletion task).
 **Files:**
 - Modify: `apps/api/src/services/inference.ts`
 
-- [ ] **Step 1: Confirm nothing outside this file still imports the symbols being deleted**
+- [x] **Step 1: Confirm nothing outside this file still imports the symbols being deleted**
 
 ```bash
 cd apps/api && grep -rn "callMuqEndpoint\|parseMuqResponse\|MuqResult\b" src --include="*.ts" | grep -v inference.ts
@@ -3127,9 +3127,9 @@ Expected: no output (Group B already removed every call site; Group C's
 remaining tasks 19-22 fix the *test* files that still reference them, which
 this task's deletion will break — do those next, in order).
 
-- [ ] **Step 2: N/A (deletion, not new behavior).**
+- [x] **Step 2: N/A (deletion, not new behavior).**
 
-- [ ] **Step 3: Implement the deletion**
+- [x] **Step 3: Implement the deletion**
 
 In `apps/api/src/services/inference.ts`, delete:
 - The `MuqConfidences` interface stays (still imported by
@@ -3154,7 +3154,7 @@ In `apps/api/src/services/inference.ts`, delete:
 - Keep `fetchWithRetry`, `encodeBase64`, `callAmtEndpoint`,
   `AmtResult`/`AmtResponseRaw`/`PerfNote`/`PerfPedalEvent`, all unchanged.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bun run typecheck
@@ -3165,7 +3165,7 @@ Expected: FAIL at this point — `session-brain.canary.test.ts`,
 Tasks 19-22 fix them next. Confirm the *only* errors are inside those four
 test files (no production `src/` file breaks).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/services/inference.ts && git commit -m "chore(#162): delete callMuqEndpoint, parseMuqResponse, MuqResult, and chroma fields"
@@ -3181,9 +3181,9 @@ proves no chunk is dropped, now driven by AMT alone.
 **Files:**
 - Modify: `apps/api/src/do/session-brain.concurrency.test.ts`
 
-- [ ] **Step 1-2: N/A (fixup, not new behavior) — proceed to Step 3.**
+- [x] **Step 1-2: N/A (fixup, not new behavior) — proceed to Step 3.**
 
-- [ ] **Step 3: Implement the fix**
+- [x] **Step 3: Implement the fix**
 
 Replace the mock block:
 
@@ -3257,14 +3257,14 @@ test's original intent (every concurrent chunk contributes):
 		}),
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bun run test -- --run session-brain.concurrency.test.ts
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/do/session-brain.concurrency.test.ts && git commit -m "fix(#162): drop MuQ mock from concurrency test, keep 10-note AMT stub"
@@ -3285,9 +3285,9 @@ no-comment zone).
 **Files:**
 - Modify: `apps/api/src/do/session-brain.canary.test.ts`
 
-- [ ] **Step 1-2: N/A (fixup, not new behavior) — proceed to Step 3.**
+- [x] **Step 1-2: N/A (fixup, not new behavior) — proceed to Step 3.**
 
-- [ ] **Step 3: Implement the fix**
+- [x] **Step 3: Implement the fix**
 
 Replace the mock block:
 
@@ -3424,14 +3424,14 @@ with:
 			amtMock.mockImplementation(okAmt); // restore for remaining scenarios
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bun run test -- --run session-brain.canary.test.ts
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/do/session-brain.canary.test.ts && git commit -m "fix(#162): rewrite canary Scenario 4 for AMT-only failure + no-comment zones"
@@ -3449,9 +3449,9 @@ emission, not the schema).
 **Files:**
 - Modify: `apps/api/src/do/session-brain.unit.test.ts`
 
-- [ ] **Step 1-2: N/A (fixup, not new behavior) — proceed to Step 3.**
+- [x] **Step 1-2: N/A (fixup, not new behavior) — proceed to Step 3.**
 
-- [ ] **Step 3: Implement the fix**
+- [x] **Step 3: Implement the fix**
 
 Remove the import:
 
@@ -3474,14 +3474,14 @@ describe("parseMuqResponse chroma extraction", () => {
 Leave `describe("chunk_bar_map WebSocket message", ...)` untouched — it
 tests only `wsOutgoingMessageSchema`, which still defines the type.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bun run test -- --run session-brain.unit.test.ts
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/do/session-brain.unit.test.ts && git commit -m "fix(#162): drop parseMuqResponse coverage from session-brain.unit.test.ts"
@@ -3498,15 +3498,15 @@ untouched.
 **Files:**
 - Modify: `apps/api/src/services/inference.test.ts`
 
-- [ ] **Step 1-2: N/A (fixup, not new behavior) — proceed to Step 3.**
+- [x] **Step 1-2: N/A (fixup, not new behavior) — proceed to Step 3.**
 
-- [ ] **Step 3: Implement the fix**
+- [x] **Step 3: Implement the fix**
 
 Delete the `makeChromaB64` helper and the entire
 `describe("parseMuqResponse chroma fields", ...)` block (lines 14-54 as
 read). Leave `describe("callAmtEndpoint base64 encoding", ...)` untouched.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/api && bunx vitest run --config vitest.node.config.ts inference.test.ts
@@ -3516,7 +3516,7 @@ Expected: PASS on both (this file runs under both pools per the node
 config's `src/services/**/*.test.ts` glob and the default workerd config's
 lack of an include filter).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/services/inference.test.ts && git commit -m "fix(#162): drop parseMuqResponse coverage from inference.test.ts"
@@ -3541,7 +3541,7 @@ types).
 **Files:**
 - Modify: `apps/web/src/lib/practice-api.ts`
 
-- [ ] **Step 1: Confirm there is no existing runtime test to extend**
+- [x] **Step 1: Confirm there is no existing runtime test to extend**
 
 ```bash
 grep -rn "practice-api" apps/web/src --include="*.test.ts" --include="*.test.tsx"
@@ -3551,14 +3551,14 @@ Expected: no output — `practice-api.ts` has no dedicated test file; its
 tests (Task 24 adds one there). This task's verification is `bun run
 typecheck` in `apps/web`.
 
-- [ ] **Step 2: Run typecheck — verify it currently has nothing to check (baseline)**
+- [x] **Step 2: Run typecheck — verify it currently has nothing to check (baseline)**
 
 ```bash
 cd apps/web && bun run typecheck
 ```
 Expected: PASS (pre-change baseline — confirms the starting state compiles).
 
-- [ ] **Step 3: Implement the change**
+- [x] **Step 3: Implement the change**
 
 In `apps/web/src/lib/practice-api.ts`, import the `NoCommentZone` type used
 by the review event's `no_comment_zones` field (already defined in
@@ -3579,14 +3579,14 @@ Add to the `PracticeWsEvent` union (after the `mark` variant):
 	  }
 ```
 
-- [ ] **Step 4: Run typecheck — verify it PASSES**
+- [x] **Step 4: Run typecheck — verify it PASSES**
 
 ```bash
 cd apps/web && bun run typecheck
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/lib/practice-api.ts && git commit -m "feat(#162): add review event to PracticeWsEvent"
@@ -3613,7 +3613,7 @@ new mechanism.
 - Modify: `apps/web/src/hooks/usePracticeSession.ts`
 - Test: `apps/web/src/hooks/usePracticeSession.review.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 import { act, renderHook, waitFor } from "@testing-library/react";
@@ -3736,7 +3736,7 @@ describe("usePracticeSession — review event (#162)", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run test -- usePracticeSession.review.test.ts
@@ -3744,7 +3744,7 @@ cd apps/web && bun run test -- usePracticeSession.review.test.ts
 Expected: FAIL — `result.current.verdict` is `undefined` (no such field
 exists on `UsePracticeSessionReturn` yet).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/web/src/hooks/usePracticeSession.ts`, add imports:
 
@@ -3788,14 +3788,14 @@ Add them to the hook's returned object (after `marks,`):
 		noCommentZones,
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run test -- usePracticeSession.review.test.ts
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/hooks/usePracticeSession.ts apps/web/src/hooks/usePracticeSession.review.test.ts && git commit -m "feat(#162): handle review event in usePracticeSession"
@@ -3815,7 +3815,7 @@ repo references it (no build/deploy script targets it).
 **Files:**
 - Delete: `apps/inference/muq/` (entire directory)
 
-- [ ] **Step 1: Confirm nothing references the directory before deleting**
+- [x] **Step 1: Confirm nothing references the directory before deleting**
 
 ```bash
 grep -rn "apps/inference/muq" --include="*.toml" --include="*.json" --include="justfile" --include="*.md" . 2>/dev/null
@@ -3823,22 +3823,22 @@ grep -rn "apps/inference/muq" --include="*.toml" --include="*.json" --include="j
 Expected: review any hits (e.g. a `justfile` recipe or CI workflow) and
 remove them alongside the directory in Step 3 if found; if none, proceed.
 
-- [ ] **Step 2: N/A (deletion) — proceed to Step 3.**
+- [x] **Step 2: N/A (deletion) — proceed to Step 3.**
 
-- [ ] **Step 3: Delete**
+- [x] **Step 3: Delete**
 
 ```bash
 git rm -r apps/inference/muq
 ```
 
-- [ ] **Step 4: Verify the repo still builds**
+- [x] **Step 4: Verify the repo still builds**
 
 ```bash
 cd apps/api && bun run typecheck
 ```
 Expected: PASS (this directory was never part of the `apps/api` TS project).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "chore(#162): delete apps/inference/muq/"
@@ -3856,9 +3856,9 @@ the follower issue rather than described as live.
 **Files:**
 - Modify: `docs/apps/02-pipeline.md`
 
-- [ ] **Step 1-2: N/A (doc update) — proceed to Step 3.**
+- [x] **Step 1-2: N/A (doc update) — proceed to Step 3.**
 
-- [ ] **Step 3: Implement the edit**
+- [x] **Step 3: Implement the edit**
 
 Replace the `## Open Questions` section's items 1 and 2:
 
@@ -3899,9 +3899,9 @@ anchoring behind the unchanged `BarMap` contract. The WASM aligner
 (`alignChunkNotes`/`alignChunkChroma`, #64) stays in the tree, dormant.
 ```
 
-- [ ] **Step 4: N/A (doc-only; no automated check beyond a read-through).**
+- [x] **Step 4: N/A (doc-only; no automated check beyond a read-through).**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/apps/02-pipeline.md && git commit -m "docs(#162): resolve pipeline open questions 1-2, record stage-4 deferral"
@@ -3917,9 +3917,9 @@ full API test suite (both pools) green.
 
 **Files:** none (verification only)
 
-- [ ] **Step 1-3: N/A (verification, not new behavior).**
+- [x] **Step 1-3: N/A (verification, not new behavior).**
 
-- [ ] **Step 4: Run the full verification suite**
+- [x] **Step 4: Run the full verification suite**
 
 ```bash
 cd apps/api && rg -il muq src wrangler.toml
@@ -3942,7 +3942,7 @@ cd apps/web && bun run typecheck
 ```
 Expected: PASS, 0 errors.
 
-- [ ] **Step 5: No new commit — this task only verifies prior commits.** If
+- [x] **Step 5: No new commit — this task only verifies prior commits.** If
   any check fails, return to the task whose file caused it, fix it there,
   and re-run this task's verification from the top.
 
