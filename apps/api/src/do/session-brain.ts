@@ -690,7 +690,10 @@ export class SessionBrain extends DurableObject<Bindings> {
 						r2Key,
 					}),
 				);
-				await this.decrementChunksInFlight();
+				await this.decrementChunksInFlight({
+					chunkIndex: index,
+					reason: "r2_not_found",
+				});
 				this.sendWs(ws, {
 					type: "chunk_processed",
 					index,
@@ -716,7 +719,10 @@ export class SessionBrain extends DurableObject<Bindings> {
 					error: error.message,
 				}),
 			);
-			await this.decrementChunksInFlight();
+			await this.decrementChunksInFlight({
+				chunkIndex: index,
+				reason: "r2_fetch_failed",
+			});
 			this.sendWs(ws, {
 				type: "chunk_processed",
 				index,
@@ -2229,7 +2235,10 @@ export class SessionBrain extends DurableObject<Bindings> {
 		await this.ctx.storage.put("state", state);
 	}
 
-	private async decrementChunksInFlight(): Promise<void> {
+	private async decrementChunksInFlight(noCommentZone?: {
+		chunkIndex: number;
+		reason: string;
+	}): Promise<void> {
 		// Serialized so a failed-fetch decrement cannot race a concurrent increment or
 		// finalizeChunk merge and lose the counter update. Never called from inside another
 		// blockConcurrencyWhile (only the pre-inference R2-failure paths use it), so no deadlock.
@@ -2237,6 +2246,9 @@ export class SessionBrain extends DurableObject<Bindings> {
 			try {
 				const state = await this.readState();
 				state.chunksInFlight = Math.max(0, state.chunksInFlight - 1);
+				if (noCommentZone) {
+					state.noCommentZones.push(noCommentZone);
+				}
 				state.version++;
 				await this.writeState(state);
 			} catch {

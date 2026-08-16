@@ -59,4 +59,36 @@ describe("no-comment zone (#162): fewer than MIN_NOTES_FOR_COMMENT transcribed n
 			await state.storage.deleteAlarm();
 		});
 	});
+
+	it("records a zone for a chunk whose R2 object is missing", async () => {
+		const id = env.SESSION_BRAIN.idFromName("no-comment-zone-r2-miss");
+		const stub = env.SESSION_BRAIN.get(id);
+
+		await runInDurableObject(stub, async (instance: SessionBrain, state) => {
+			const seeded = createInitialState("sess-ncz-r2", "stud-ncz-r2", null);
+			seeded.baselinesLoaded = true;
+			seeded.baselines = null;
+			seeded.pieceLocked = true;
+			seeded.markBaselineLoaded = true;
+			await state.storage.put("state", seeded);
+
+			await instance.webSocketMessage(
+				fakeWs,
+				JSON.stringify({
+					type: "chunk_ready",
+					index: 0,
+					r2Key: "ncz-r2-missing-key",
+				}),
+			);
+
+			const after = (await state.storage.get("state")) as {
+				noCommentZones: { chunkIndex: number; reason: string }[];
+			};
+			expect(after.noCommentZones).toEqual([
+				{ chunkIndex: 0, reason: "r2_not_found" },
+			]);
+
+			await state.storage.deleteAlarm();
+		});
+	});
 });
