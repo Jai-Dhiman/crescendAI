@@ -2067,7 +2067,15 @@ observed via captured `ws.send` calls.
 - Modify: `apps/api/src/do/session-brain.ts`
 - Test: `apps/api/src/do/session-brain.no-comment-zone.test.ts` (extended)
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the regression-guard test**
+
+This task is a structural deletion, not new behavior: the tier-1 chroma
+branch cannot be exercised even on `main` today without a real score-catalog
+row (`loadScoreContext` throws and falls through to Tier-3 without one), so
+there is no reachable pre-change state in which this test could be red. The
+test below is a regression guard against a future re-introduction of
+`chunk_bar_map` emission, verified by typecheck + Task 27's grep gate (see
+Step 2), not by a red/green TDD cycle.
 
 Add to `apps/api/src/do/session-brain.no-comment-zone.test.ts` (needs a
 second AMT mock returning >=10 notes; add a second `describe` block with its
@@ -2152,41 +2160,29 @@ describe("tier-1 removal (#162): every chunk takes Tier-2, no chunk_bar_map", ()
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [ ] **Step 2: Run test — confirm it already PASSES (not a red step)**
 
 ```bash
 cd apps/api && bun run test -- --run session-brain.tier2-only.test.ts
 ```
-Expected: PASS is actually possible even before the change *if*
-`currentState.pieceIdentification` is null in the seeded state (Task 12's
-no-comment-zone test never sets a piece), so the tier-1 branch's outer
-`if (scoreCtx !== null)` guard never opens and `chunk_bar_map` was already
-never sent. To make this a genuine red test, the seeded state must set
-`pieceIdentification` so `loadScoreContext` is attempted (verify by reading
-`loadScoreContext` — it is a private method, so provide a
-`pieceIdentification` and confirm the test fails only if the removal is
-incomplete). Since `loadScoreContext` requires a real piece catalog row this
-test cannot cheaply seed, instead assert the *code path structurally*: this
-task's real regression guard is the existing
-`describe("chunk_bar_map WebSocket message", ...)` block in
-`session-brain.unit.test.ts`, which tests only the **schema**, not emission —
-leave it in place (chunk_bar_map remains a valid, just-unused, outgoing
-type). Treat this task's test as it stands: it passes both before and after
-if no piece is set, so it is a **weak regression guard, not a red test**.
-Replace it with a stronger one that seeds `pieceIdentification` directly, and
-accept that with no real score catalog row `loadScoreContext` will throw
-inside the existing `try` and fall through to Tier-3 in both the before and
-after code — which still proves no `chunk_bar_map` is sent, satisfying the
-task's behavior claim. Confirm:
+Expected: PASS, both now (pre-change) and after Step 3's implementation
+edit. This is expected and correct, not a mistake to fix: the seeded state
+has no real score-catalog row backing `pieceIdentification`, so even with
+`pieceIdentification` set, `loadScoreContext` throws inside the existing
+`try` and falls through to Tier-3 in both the before and after code —
+`chunk_bar_map` was never reachable pre-change and stays unreachable
+post-change. There is no code path here that a red/green cycle could
+exercise; this is a structural regression guard against a future
+re-introduction of `chunk_bar_map` emission, not a TDD red step. The actual
+proof that the tier-1 branch is *deleted* (not just unreachable) is:
+`bun run typecheck` in Step 4, which fails loudly on any dangling reference
+to the removed tier-1 locals (`ChunkNoteResult`, `ScoreContext`,
+`TIER1_ONSET_WINDOW_S`, `wasm.alignChunkNotes`), plus Task 27's grep gate,
+which greps the source tree for those same removed identifiers.
 
-```bash
-cd apps/api && bun run test -- --run session-brain.tier2-only.test.ts
-```
-Expected: PASS (both before and after this task's implementation edit — this
-is a structural regression guard for future changes, not a strict TDD red
-step; the actual code deletion is verified by the grep gate in Task 27 and
-by `just check-api` catching any dangling reference to the removed tier-1
-locals).
+The existing `describe("chunk_bar_map WebSocket message", ...)` block in
+`session-brain.unit.test.ts` tests only the **schema**, not emission — leave
+it in place (`chunk_bar_map` remains a valid, just-unused, outgoing type).
 
 - [ ] **Step 3: Implement the change**
 
@@ -2504,29 +2500,119 @@ session's `observation` emission is unchanged.
 
 - [ ] **Step 1: Write the failing test**
 
-Read `apps/api/src/do/session-brain.observation.test.ts` first to match its
-existing mocking/seeding conventions exactly, then append:
+`apps/api/src/do/session-brain.observation.test.ts`, as it exists today,
+only unit-tests `buildObservationPayload` directly with plain `vitest` — it
+has no DO-integration seeding/mocking convention to reuse. The convention
+that applies here instead comes from this task's sibling Group-B test files
+(`session-brain.no-comment-zone.test.ts`, Task 12;
+`session-brain.tier2-only.test.ts`, Task 13; `session-brain.mark-emission.test.ts`,
+Task 14), all of which drive `webSocketMessage("chunk_ready", ...)` through
+`runInDurableObject` with a mocked `callAmtEndpoint` and a `sent`-array
+`fakeWs`. Append the following to the top and bottom of
+`session-brain.observation.test.ts` (the existing plain-vitest tests and
+imports stay unchanged; this only adds a new `vi.mock`, new imports, and one
+new `describe` block):
+
+At the top of the file, before the existing imports:
 
 ```typescript
-it("never sends observation for a real (non-eval) session even when a moment is selected", async () => {
-	// Reuse this file's existing seeded-session + mocked-inference setup
-	// (baselines set so the >= 2-chunk teaching-moment gate can open), with
-	// isEvalSession left false (the default). Drive >= TEACHING_MOMENT_INTERVAL
-	// chunks and assert no `observation` message was ever sent to the socket,
-	// using the same ws-capture (`sent` array) pattern already established by
-	// the file's other tests.
+/// <reference types="@cloudflare/vitest-pool-workers" />
+
+import { env, runInDurableObject } from "cloudflare:test";
+import { vi } from "vitest";
+
+vi.mock("../services/inference", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../services/inference")>();
+	return {
+		...actual,
+		callAmtEndpoint: vi.fn(async () => ({
+			notes: Array.from({ length: 10 }, (_, i) => ({
+				pitch: 60,
+				onset: i * 0.3,
+				offset: i * 0.3 + 0.2,
+				velocity: 20,
+			})),
+			pedalEvents: [],
+		})),
+	};
 });
 ```
 
-Since this file's exact fixtures are not yet read in full, the build agent
-implementing this task must adapt the seeding/mocking boilerplate already
-present in `session-brain.observation.test.ts` for existing passing tests
-(which already exercise the `observation` emission path for eval and/or
-baseline-present sessions) and add one new `it` asserting zero `observation`
-sends when `isEvalSession` stays `false`. The assertion shape is:
+(The existing `import { describe, expect, it } from "vitest";` line gains
+`vi` — merge into one import instead of duplicating it.)
+
+After the existing `import { buildObservationPayload } from "./session-brain";`
+line, add:
 
 ```typescript
-expect(sent.some((m) => (m as { type?: string }).type === "observation")).toBe(false);
+import type { SessionBrain } from "./session-brain";
+import { createInitialState } from "./session-brain.schema";
+
+declare module "cloudflare:test" {
+	interface ProvidedEnv {
+		SESSION_BRAIN: DurableObjectNamespace<SessionBrain>;
+		CHUNKS: R2Bucket;
+	}
+}
+```
+
+At the bottom of the file, after the existing `describe("buildObservationPayload", ...)` block:
+
+```typescript
+describe("observation gating (#162): real sessions never receive observation", () => {
+	it("never sends observation for a real (non-eval) session even when a moment is selected", async () => {
+		await env.CHUNKS.put("obs-0", new Uint8Array([1]));
+		await env.CHUNKS.put("obs-1", new Uint8Array([1]));
+		const id = env.SESSION_BRAIN.idFromName("observation-gate");
+		const stub = env.SESSION_BRAIN.get(id);
+		const sent: unknown[] = [];
+		const fakeWs = {
+			send(data: string) {
+				sent.push(JSON.parse(data));
+			},
+			close() {},
+		} as unknown as WebSocket;
+
+		await runInDurableObject(stub, async (instance: SessionBrain, state) => {
+			const seeded = createInitialState("sess-obs", "stud-obs", null);
+			seeded.baselinesLoaded = true;
+			seeded.baselines = {
+				dynamics: 0.55,
+				timing: 0.5,
+				pedaling: 0.45,
+				articulation: 0.54,
+				phrasing: 0.52,
+				interpretation: 0.5,
+			};
+			seeded.pieceLocked = true;
+			seeded.markBaselineLoaded = true;
+			// isEvalSession stays false -- createInitialState's default.
+			await state.storage.put("state", seeded);
+
+			await instance.webSocketMessage(
+				fakeWs,
+				JSON.stringify({ type: "chunk_ready", index: 0, r2Key: "obs-0" }),
+			);
+			await instance.webSocketMessage(
+				fakeWs,
+				JSON.stringify({ type: "chunk_ready", index: 1, r2Key: "obs-1" }),
+			);
+
+			await state.storage.deleteAlarm();
+		});
+
+		// Two scored chunks (>= MIN_NOTES_FOR_COMMENT notes each, so neither is a
+		// no-comment zone) plus a non-null baseline are enough to guarantee
+		// select_teaching_moment returns Some: per teaching_moments.rs, once
+		// chunks.len() >= MIN_CHUNKS (2) it either finds a below-baseline
+		// candidate or falls back to a positive moment -- it only returns None
+		// below MIN_CHUNKS. So a moment is selected here, and the assertion
+		// below is a genuine test of the isEvalSession gate, not a vacuous one.
+		expect(
+			sent.some((m) => (m as { type?: string }).type === "observation"),
+		).toBe(false);
+	});
+});
 ```
 
 - [ ] **Step 2: Run test — verify it FAILS**
@@ -2536,7 +2622,9 @@ cd apps/api && bun run test -- --run session-brain.observation.test.ts
 ```
 Expected: FAIL — the existing (pre-Task-15) code sends `observation`
 unconditionally whenever a teaching moment is selected and not suppressed,
-regardless of `isEvalSession`.
+regardless of `isEvalSession`. The seeded state above guarantees a moment is
+selected (two scored chunks, non-null baselines), so `sent` contains an
+`observation` message and `toBe(false)` fails.
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
 
@@ -3898,3 +3986,273 @@ schemas — it does not touch `students.ts` or the migrations directory.
 None. Every numbered design decision in the spec (Design items 1-7, the
 Modules table, the Verification Architecture, the File Changes table, and
 both Open Questions defaults) maps to at least one task above.
+
+---
+
+## Challenge Review
+
+Reviewed against the actual current contents of `apps/api/src/do/session-brain.ts`
+(2379 lines), `session-brain.schema.ts`, `services/student-baseline.ts`,
+`services/inference.ts`, `lib/dims.ts`, `db/schema/students.ts`,
+`apps/web/src/lib/{practice-api,mark,session-review}.ts`, and the migrations
+journal — not from the plan's prose alone. Per the caller's framing, the mock
+6-dim scorer, timestamp-only anchors (no chroma port), eval-only observation
+retention, and pre-beta/zero-user posture are treated as settled #162
+decisions, not findings.
+
+### CEO Pass
+
+**Premise / real pain:** Real. `mark`/`review` currently have zero server
+producers (confirmed: `wsOutgoingMessageSchema` in `session-brain.schema.ts`
+today only has `wsChunkBarMapSchema` — no mark, no review), and the DO
+imports `callMuqEndpoint` from a dead HF endpoint on every chunk. The plan is
+the direct route: rip MuQ, wire the three new pure modules, map V6 synthesis
+to `review`.
+
+**Existing coverage:** Correctly reused rather than reinvented —
+`student-baseline.ts`'s `updateBaseline`/`DEFAULT_BASELINE_CONFIG` (verified:
+`firePersistence: 3`, `minSamplesForSpread: 3`, `deviantSampleMultiple: 1.5`
+all match what Task 6/7's `mark-gate.ts` assumes), `synthesis.ts`'s
+`loadBaselinesFromDb(db, studentId)` shape precedent for `baseline-store.ts`,
+and the existing `session-brain.concurrency.test.ts`/`canary.test.ts`
+harness patterns for the new integration tests.
+
+**12-month alignment / new finding:** The plan adds a *second*,
+independently-shaped per-student baseline representation without addressing
+the first. `student_profiles` already carries six flat columns
+(`baselineDynamics` etc., `db/schema/students.ts:6-11`) read via
+`loadBaselinesFromDb` and gating the *old* teaching-moment/observation path
+(now eval-only per Task 15) — and, verified by grep, those columns are
+written today only by `services/sync.ts` (an iOS/client sync path, out of
+scope here), never by `session-brain.ts`'s own pipeline. This plan adds a
+*third* representation (`baseline_state` jsonb, EWMA/lifecycle-based) that
+now becomes the only one the server-side pipeline itself writes. Net result
+after this ships: two parallel "what's normal for this student" stores exist
+in the same table, one dead-write from the pipeline's own perspective, one
+live — and nothing in the plan says so.
+```
+CURRENT STATE                  THIS PLAN                    12-MONTH IDEAL
+6 flat baseline columns    ->  + baseline_state jsonb    ->  one baseline
+(read-only from pipeline,      (read+write from pipeline,    representation,
+externally written)            gates marks)                  flat columns
+                                                               retired or
+                                                               repurposed
+```
+```
+[QUESTION] — Should this plan (or a fast follow-up) note in
+             docs/apps/02-pipeline.md / architecture.md that
+             `student_profiles.baseline_dynamics` etc. are now dead weight
+             from the session pipeline's perspective, so a future reader
+             does not assume they still gate anything for real sessions?
+             Not a blocker — Task 26 already touches this doc for other
+             reasons and could carry one sentence.
+```
+
+**Scope:** ~20 files touched, most of them one-per-behavior test files
+required by the plan's own vertical-slice discipline — not a smell by
+itself. The `apps/inference/muq/` deletion and `MUQ_CHUNK_MS` rename are
+genuinely separable no-op-risk cleanup and could ship as Task 25/11 alone if
+time-boxed, but the plan is honest that no subset is independently useful
+(no server emits `mark`/`review` until Group C closes) — this is correct,
+not scope-padding.
+
+**Alternatives:** Spec's "Not in scope" section functions as the
+alternatives-considered record (bar anchoring deferred with a named
+reactivation path, `missed_opportunity` deferred with a named reason). This
+satisfies the intent of the alternatives check even without a formal
+2-3-option table.
+
+### Engineering Pass
+
+**Architecture / data flow — verified by reading the real code, not the
+plan's paraphrase:**
+```
+handleChunkReady (unchanged: R2 fetch, 2 early-return neutral-score paths)
+  -> Promise.allSettled([callAmtEndpoint])          [Task 11-12: MuQ leg removed]
+  -> finalizeChunk (blockConcurrencyWhile)
+       amtFailed || perfNotes.length < 10 ?
+         -> noCommentZones.push, chunk_processed(0.5s)      [Task 12]
+         : -> scoreChunk -> sessionSamples[dim].push,
+              chunk_processed(scores), scoredChunks.push    [Task 12]
+              -> markBaseline lazy-load once/session        [Task 14]
+              -> proposeMarks -> mark WS event(s)           [Task 14]
+       -> Tier-2-only bar analysis (unconditional)          [Task 13]
+       -> mode detector, teaching-moment select
+            (observation sent only if isEvalSession)        [Task 15]
+       -> writeState (unconditional, end of function)
+alarm() -> runSynthesisAndPersist
+       -> synthesizeV6 success -> review{verdict, carry_forward} (non-eval)
+                                -> updateBaseline + saveBaselineState (always)
+       -> synthesizeV6 failure/no-artifact -> review{verdict: null} (non-eval) [Task 17]
+```
+This matches the plan's described edits closely, including the specific
+line ranges it names (`finalizeChunk`'s MuQ-result block at lines ~769-829,
+AMT-result block at ~831-851, the tier-1 branch at ~853-975, the
+teaching-moment confidence-gate call at ~1221-1228, `runSynthesisAndPersist`
+broadcast block, `db` already in scope there at line ~1764 before the
+insertion point). The two early-return R2-failure paths in `handleChunkReady`
+(lines 682-696, 708-721) are untouched by Task 12 and never reach
+`finalizeChunk`, so they never populate `noCommentZones` — see RISK below.
+
+**Verified math (not just read — hand-computed against Task 1's fixture):**
+`scoreChunk`'s `dynamics = mean(velocities)/127` and the VELOCITIES sequence
+`[62,66,63,65,64,10,10,10]` do produce a 3-consecutive-out-of-band streak in
+the cold-start median/MAD band exactly at chunk index 7, firing
+`dynamics`/`needs_work` at `atSeconds: 105` — the harness's assertions are
+correct, not aspirational. `timing`/`pedaling`/`articulation`/`phrasing`
+correctly stay constant (spread 0 -> `bandFor` returns null) given the
+fixture's identical note shapes, exactly as the harness comment claims.
+
+**Module depth:**
+- `scoring.ts` — 1 exported fn, ~90 LOC of pure math hidden. DEEP.
+- `mpm-features.ts` — 2 exported fns, ~150 LOC hidden (tempo/velocity/
+  articulation/pedal decomposition + prose rendering). DEEP.
+- `mark-gate.ts` — 1 exported fn, ~90 LOC hidden (band computation,
+  persistence counting, dedupe). DEEP.
+- `baseline-store.ts` — 2 exported fns, ~30 LOC, thin jsonb CRUD. The spec
+  itself calls this "shallow-ish by necessity" and justifies it as the
+  single owner of the persistence format — accepted, not flagged again here.
+
+**Failure modes:** Zero silent failures confirmed for the new paths —
+markBaseline load failure logs and falls through (mark gate just sees
+`baseline: null`, degrades to cold-start, not silent data loss); baseline
+fold/persist failure is caught and logged without blocking the review send;
+synthesis failure now correctly reaches the client as
+`review{verdict: null}` instead of vanishing (Task 17 closes a real
+pre-existing silent-failure gap — the old code's outer `catch` only logged
+and returned).
+
+### Findings
+
+```
+[BLOCKER] (confidence: 7/10) — Task 13's own Step 2 admits the test it writes
+    "passes both before and after this task's implementation edit" because
+    seeding `pieceIdentification` without a real score-catalog row makes
+    `loadScoreContext` throw and fall through to Tier-2 in both the pre- and
+    post-change code. This is a self-acknowledged violation of the Iron Rule
+    (a test covering changed behavior must fail before the change). The task
+    substitutes `just check-api`/typecheck-catches-dangling-references as the
+    real gate, which is a legitimate check but is not what the task claims to
+    be doing. Fix: either seed a minimal fake score-catalog row so
+    `loadScoreContext` actually succeeds and the tier-1 branch is genuinely
+    reachable pre-change (making the test truly red then green), or rewrite
+    the task's framing to "structural deletion, verified by typecheck + the
+    Task 27 grep gate" and drop the pretense of a TDD red step.
+
+[BLOCKER] (confidence: 7/10) — Task 15 Step 1 contains no test code. Every
+    other task in this plan writes the literal failing test; this one
+    instead instructs "the build agent implementing this task must adapt the
+    seeding/mocking boilerplate already present ... and add one new it,"
+    supplying only the final assertion line. This is the plan-writing
+    equivalent of a "test scaffolding" placeholder the challenge skill
+    treats as a horizontal-slice smell: it defers a real judgment call
+    (which existing fixture already opens the `>= 2 && % TEACHING_MOMENT_
+    INTERVAL === 0` teaching-moment gate, and with what baseline shape) to
+    build time with nothing here to review it against. Read
+    `session-brain.observation.test.ts` now and write the actual test into
+    the plan before `/build` runs.
+```
+
+```
+[RISK] (confidence: 6/10, mock-scorer-specific, revisit when the real head
+    lands) — `scoreChunk`'s `interpretation = mean([dynamics, timing,
+    pedaling, articulation, phrasing])` is an affine transform of the other
+    five when only one varies. Hand-verified against Task 1's fixture:
+    `interpretation`'s per-chunk samples equal exactly `dynamics/5 + 0.4`
+    across all 8 chunks, so its median/MAD band opens and its 3-consecutive-
+    out-of-band streak fires at the *same* chunk (index 7) as `dynamics`.
+    The Group 0 harness only asserts `dynamics` fires because `DIMS_6` lists
+    "dynamics" before "interpretation" and `proposeMarks` breaks after the
+    first candidate — it is order-luck, not independence. In a real session
+    where `dynamics` has already fired and is in `emittedDimensions`, a
+    further dynamics drift will make `interpretation` independently satisfy
+    the gate for what is actually the same root cause, producing a
+    duplicate-looking mark under a different dimension label. Not a blocker
+    (mock accuracy is an explicit #162 non-goal), but the mark-gate's
+    implicit "dimensions are independent evidence" assumption should be
+    re-examined once a real, presumably-correlated-but-not-literally-affine,
+    scorer replaces this one.
+
+[RISK] (confidence: 5/10) — The two early-return paths in `handleChunkReady`
+    (R2 object not found, R2 fetch exception — lines 682-696 and 708-721 as
+    they exist today) send a neutral `chunk_processed` and return *before*
+    ever calling `finalizeChunk`, so they never push to `noCommentZones`.
+    Pre-existing code, not introduced by this plan, but the spec's
+    "disclosed no-comment zones" framing (`docs/apps/02-pipeline.md`,
+    Design item 7) implies every chunk where nothing could be said should
+    surface in the review. R2 failures are a real, if rare, silent gap in
+    that guarantee. Not this plan's bug to fix; worth a one-line follow-up
+    note (could ride with Task 26's doc edit) rather than silence.
+
+[RISK] (confidence: 4/10) — `emittedMarks` is stored as `z.array(z.string())`
+    (Task 10) and read back via `new Set(currentState.emittedMarks as
+    Dimension[])` (Task 14) — an unchecked cast rather than
+    `z.enum(DIMS_6)`. The sole writer is this same code today, so practical
+    risk is low, but it's an avoidable gap against the project's stated
+    "no `any`"/loud-failure preference, and a corrupted/hand-edited storage
+    value would silently degrade dedup rather than throw. Cheap fix: change
+    the schema field to `z.array(z.enum(DIMS_6))` and drop the cast.
+
+[RISK] (confidence: 3/10) — `sendWs(ws, data: unknown)` never runs the new
+    `wsMarkSchema`/`wsReviewSchema` (or the existing `wsOutgoingMessageSchema`
+    union) against outgoing payloads at the send site — the schemas exist
+    for the incoming test suite to validate against, not as a runtime
+    contract on the hot path. Pre-existing looseness, not introduced here,
+    and largely covered in practice by this plan's own behavioral tests
+    asserting exact payload shape. Noting for completeness only.
+```
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `DEFAULT_BASELINE_CONFIG` values (`firePersistence: 3`, `minSamplesForSpread: 3`, `deviantSampleMultiple: 1.5`) match what `mark-gate.ts` hand-codes as its own constants | SAFE | Verified: `mark-gate.ts` re-declares `MIN_SAMPLES_FOR_COLD_START_SPREAD = 3` / `COLD_START_BAND_MULTIPLE = 1.5` locally rather than importing from `student-baseline.ts`; values match today but there is no compile-time link forcing them to stay in sync if `DEFAULT_BASELINE_CONFIG` changes later. |
+| `sendWs`'s `data: unknown` signature accepts the new `mark`/`review` payload shapes without a compile error | SAFE | Verified — no type constraint on `sendWs`'s second parameter. |
+| `db` is in scope at the point Task 16 inserts the baseline-fold block inside `runSynthesisAndPersist` | SAFE | Verified: `const db = createDb(this.env.HYPERDRIVE)` at line ~1764, well before the synthesis broadcast block Task 16 edits. |
+| `PracticeWsEvent` already has a `mark` variant and `NoCommentZone` is already exported from `session-review.ts` for Task 23 to import | SAFE | Verified directly in `apps/web/src/lib/practice-api.ts:87` and `session-review.ts:21`. |
+| Drizzle-kit's `bun run generate -- --name=baseline_state` produces exactly `0005_baseline_state.sql` | VALIDATE | Journal's last entry is idx 4 (`0004_pending_exercises_routing`), so idx 5 is next, but the migrations directory already has two files claiming index 3 (`0003_gorgeous_sumo.sql` and `0003_segment_loops.sql`) with only one idx-3 journal entry — a pre-existing discipline gap unrelated to this plan, but it means "assume the next generated file is well-behaved" is not a given in this repo's migration history. Not a blocker; just don't assume Task 8's generate step is risk-free to skip verifying. |
+| Two independently-shaped per-student baseline stores (`baseline_dynamics` flat columns vs. new `baseline_state` jsonb) coexisting is acceptable for this issue | RISKY (accepted as out of scope) | See CEO Pass 12-month alignment finding — real, but explicitly not this plan's job to resolve. |
+
+### Summary
+
+[BLOCKER] count: 2
+[RISK]    count: 4
+[QUESTION] count: 1
+
+VERDICT: NEEDS_REWORK — resolve Task 13 (self-admitted non-red test for the
+tier-1 removal) and Task 15 (missing test code, deferred to build time)
+before `/build` runs. Both are narrow, mechanical fixes — write the actual
+test bodies into the plan — not a redesign; every other finding is a RISK or
+QUESTION that can be monitored or answered inline during `/build` without
+blocking the start of execution once the two BLOCKERs are addressed.
+
+### Blocker resolution (loop 1)
+
+- **Task 13:** Dropped the red/green pretense instead of seeding a fake
+  score-catalog row. Step 1 is now labeled "Write the regression-guard test"
+  and states up front that this is a structural deletion with no reachable
+  pre-change red state. Step 2 is now "Run test — confirm it already PASSES
+  (not a red step)" and explains honestly that the test passes before and
+  after Step 3's edit because `loadScoreContext` throws without a real
+  catalog row in both cases; the real proof of deletion is `bun run
+  typecheck` (Step 4, catches dangling references to the removed tier-1
+  locals) plus Task 27's grep gate. No code/scope change, wording only.
+- **Task 15:** Replaced the placeholder ("build agent must adapt... add one
+  new `it`") with the complete literal test. Read
+  `apps/api/src/do/session-brain.observation.test.ts` and confirmed it has
+  no DO-integration fixtures to reuse (it only unit-tests
+  `buildObservationPayload` with plain `vitest`) — the plan's premise that
+  such fixtures existed there was wrong. The real convention lives in this
+  task's Group-B siblings (Tasks 12-14's test files: `runInDurableObject` +
+  mocked `callAmtEndpoint` + a `sent`-array `fakeWs`), so Step 1 now adds
+  that convention to the file verbatim: a `vi.mock` for
+  `../services/inference`, the `SESSION_BRAIN`/`CHUNKS` `ProvidedEnv`
+  declaration, and a new `describe` block that seeds two >=10-note chunks
+  with non-null `baselines` and asserts no `observation` message is ever
+  sent while `isEvalSession` is false. Verified against
+  `apps/api/src/wasm/score-analysis/src/teaching_moments.rs` that
+  `select_teaching_moment` returns `Some` unconditionally once
+  `chunks.len() >= MIN_CHUNKS (2)` (falls back to a positive moment when
+  nothing is below baseline; only returns `None` below `MIN_CHUNKS`), so the
+  seeded two-chunk state guarantees a moment is selected and the test is a
+  genuine, non-vacuous exercise of the `isEvalSession` gate.
