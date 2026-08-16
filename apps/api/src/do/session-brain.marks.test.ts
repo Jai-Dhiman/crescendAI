@@ -1,5 +1,13 @@
 /// <reference types="@cloudflare/vitest-pool-workers" />
 
+// NOTE: this file crashes at vitest-pool-workers teardown ("Isolated storage
+// failed" inside updateStackedStorage) when it combines a real WebSocketPair,
+// runDurableObjectAlarm, and DO storage in one runInDurableObject callback --
+// a known vitest-pool-workers framework issue, not a bug in the test or the
+// code under test. The test bodies themselves run to completion and pass; the
+// crash happens after assertions finish, during isolated-storage cleanup. See
+// docs/implementation/2026-08-15-pipeline-retarget-marks-notes.md for detail.
+
 import {
 	env,
 	runDurableObjectAlarm,
