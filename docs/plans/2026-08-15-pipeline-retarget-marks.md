@@ -4256,3 +4256,5 @@ blocking the start of execution once the two BLOCKERs are addressed.
   nothing is below baseline; only returns `None` below `MIN_CHUNKS`), so the
   seeded two-chunk state guarantees a moment is selected and the test is a
   genuine, non-vacuous exercise of the `isEvalSession` gate.
+
+Re-challenge (loop 1) VERDICT: PROCEED_WITH_CAUTION — both blockers verified resolved; four RISK items carried to build (see review record on issue #162).
