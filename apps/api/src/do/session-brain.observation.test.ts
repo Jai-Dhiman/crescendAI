@@ -3,8 +3,8 @@
 import { env, runInDurableObject } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 import type { TeachingMoment } from "../services/wasm-bridge";
-import { buildObservationPayload } from "./session-brain";
 import type { SessionBrain } from "./session-brain";
+import { buildObservationPayload } from "./session-brain";
 import { createInitialState } from "./session-brain.schema";
 
 declare module "cloudflare:test" {

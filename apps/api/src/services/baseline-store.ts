@@ -1,7 +1,7 @@
 import { studentProfiles } from "../db/schema/students";
 import { ValidationError } from "../lib/errors";
 import type { Db } from "../lib/types";
-import { BaselineStateSchema, type BaselineState } from "./student-baseline";
+import { type BaselineState, BaselineStateSchema } from "./student-baseline";
 
 export async function loadBaselineState(
 	db: Db,
