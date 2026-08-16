@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 // jsdom does not implement matchMedia — stub it globally so components that
-// read window.matchMedia at render time (e.g. ProofCard reducedMotion ref) don't throw.
+// read window.matchMedia at render time (reduced-motion refs) don't throw.
 // Tests that need to control the return value override this in beforeEach.
 Object.defineProperty(window, "matchMedia", {
 	writable: true,
