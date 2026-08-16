@@ -1,6 +1,34 @@
-import { describe, expect, it } from "vitest";
+/// <reference types="@cloudflare/vitest-pool-workers" />
+
+import { env, runInDurableObject } from "cloudflare:test";
+import { describe, expect, it, vi } from "vitest";
 import type { TeachingMoment } from "../services/wasm-bridge";
 import { buildObservationPayload } from "./session-brain";
+import type { SessionBrain } from "./session-brain";
+import { createInitialState } from "./session-brain.schema";
+
+declare module "cloudflare:test" {
+	interface ProvidedEnv {
+		SESSION_BRAIN: DurableObjectNamespace<SessionBrain>;
+		CHUNKS: R2Bucket;
+	}
+}
+
+vi.mock("../services/inference", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../services/inference")>();
+	return {
+		...actual,
+		callAmtEndpoint: vi.fn(async () => ({
+			notes: Array.from({ length: 10 }, (_, i) => ({
+				pitch: 60,
+				onset: i * 0.3,
+				offset: i * 0.3 + 0.2,
+				velocity: 20,
+			})),
+			pedalEvents: [],
+		})),
+	};
+});
 
 function moment(overrides: Partial<TeachingMoment> = {}): TeachingMoment {
 	return {
@@ -109,5 +137,60 @@ describe("buildObservationPayload", () => {
 		expect(payload.eval_context?.analysis_facts).toBeNull();
 		expect(payload.eval_context?.bar_range).toBeNull();
 		expect(payload.eval_context?.analysis_tier).toBe(3);
+	});
+});
+
+describe("observation gating (#162): real sessions never receive observation", () => {
+	it("never sends observation for a real (non-eval) session even when a moment is selected", async () => {
+		await env.CHUNKS.put("obs-0", new Uint8Array([1]));
+		await env.CHUNKS.put("obs-1", new Uint8Array([1]));
+		const id = env.SESSION_BRAIN.idFromName("observation-gate");
+		const stub = env.SESSION_BRAIN.get(id);
+		const sent: unknown[] = [];
+		const fakeWs = {
+			send(data: string) {
+				sent.push(JSON.parse(data));
+			},
+			close() {},
+		} as unknown as WebSocket;
+
+		await runInDurableObject(stub, async (instance: SessionBrain, state) => {
+			const seeded = createInitialState("sess-obs", "stud-obs", null);
+			seeded.baselinesLoaded = true;
+			seeded.baselines = {
+				dynamics: 0.55,
+				timing: 0.5,
+				pedaling: 0.45,
+				articulation: 0.54,
+				phrasing: 0.52,
+				interpretation: 0.5,
+			};
+			seeded.pieceLocked = true;
+			seeded.markBaselineLoaded = true;
+			// isEvalSession stays false -- createInitialState's default.
+			await state.storage.put("state", seeded);
+
+			await instance.webSocketMessage(
+				fakeWs,
+				JSON.stringify({ type: "chunk_ready", index: 0, r2Key: "obs-0" }),
+			);
+			await instance.webSocketMessage(
+				fakeWs,
+				JSON.stringify({ type: "chunk_ready", index: 1, r2Key: "obs-1" }),
+			);
+
+			await state.storage.deleteAlarm();
+		});
+
+		// Two scored chunks (>= MIN_NOTES_FOR_COMMENT notes each, so neither is a
+		// no-comment zone) plus a non-null baseline are enough to guarantee
+		// select_teaching_moment returns Some: per teaching_moments.rs, once
+		// chunks.len() >= MIN_CHUNKS (2) it either finds a below-baseline
+		// candidate or falls back to a positive moment -- it only returns None
+		// below MIN_CHUNKS. So a moment is selected here, and the assertion
+		// below is a genuine test of the isEvalSession gate, not a vacuous one.
+		expect(
+			sent.some((m) => (m as { type?: string }).type === "observation"),
+		).toBe(false);
 	});
 });

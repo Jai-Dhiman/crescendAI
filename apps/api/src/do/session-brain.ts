@@ -1215,21 +1215,21 @@ export class SessionBrain extends DurableObject<Bindings> {
 					if (!dimSuppressed) {
 						acc.accumulateMoment(accMoment);
 
-						this.sendWs(
-							ws,
-							buildObservationPayload(
-								moment,
-								currentState.isEvalSession
-									? {
-											predictions: scoresArray,
-											baselines,
-											analysisFacts: accMoment.llmAnalysis,
-											barRange: chunkBarRange,
-											analysisTier: chunkAnalysisTier,
-										}
-									: null,
-							),
-						);
+						// Real sessions no longer stream observations (#162) — marks are
+						// the delivery surface now. Eval sessions keep the observation
+						// stream so the teaching-knowledge eval stays comparable.
+						if (currentState.isEvalSession) {
+							this.sendWs(
+								ws,
+								buildObservationPayload(moment, {
+									predictions: scoresArray,
+									baselines,
+									analysisFacts: accMoment.llmAnalysis,
+									barRange: chunkBarRange,
+									analysisTier: chunkAnalysisTier,
+								}),
+							);
+						}
 					}
 				}
 			} catch (err) {
