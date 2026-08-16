@@ -15,7 +15,10 @@ import {
 	SessionAccumulator,
 } from "../services/accumulator";
 import { buildBarAnalysisFacts } from "../services/bar-analysis-facts";
+import { loadBaselineState } from "../services/baseline-store";
 import { callAmtEndpoint } from "../services/inference";
+import { proposeMarks } from "../services/mark-gate";
+import { evidenceFor, extractMpmFeatures } from "../services/mpm-features";
 import {
 	buildPendingExerciseComponent,
 	stageDominantExercise,
@@ -27,6 +30,7 @@ import {
 	incrementAttempts,
 	toLoopComponent,
 } from "../services/segment-loops";
+import { DEFAULT_BASELINE_CONFIG } from "../services/student-baseline";
 import {
 	clearNeedsSynthesis,
 	loadBaselinesFromDb,
@@ -828,6 +832,73 @@ export class SessionBrain extends DurableObject<Bindings> {
 			for (const dim of DIMS_6) {
 				const existing = currentState.sessionSamples[dim] ?? [];
 				currentState.sessionSamples[dim] = [...existing, scores[dim]];
+			}
+
+			// Lazy-load the student's persisted mark baseline once per session.
+			if (!currentState.markBaselineLoaded) {
+				try {
+					const db = createDb(this.env.HYPERDRIVE);
+					currentState.markBaseline = await loadBaselineState(
+						db,
+						currentState.studentId,
+					);
+				} catch (err) {
+					const error = err as Error;
+					console.error(
+						JSON.stringify({
+							level: "error",
+							message: "markBaseline load failed",
+							error: error.message,
+						}),
+					);
+				}
+				currentState.markBaselineLoaded = true;
+			}
+
+			const { candidates } = proposeMarks({
+				atSeconds: index * (CHUNK_MS / 1000),
+				scores,
+				baseline: currentState.markBaseline,
+				sessionSamples: currentState.sessionSamples as Partial<
+					Record<Dimension, number[]>
+				>,
+				emittedDimensions: new Set(currentState.emittedMarks as Dimension[]),
+				firePersistence: DEFAULT_BASELINE_CONFIG.firePersistence,
+			});
+
+			for (const candidate of candidates) {
+				const [mpmSet] = extractMpmFeatures({
+					windowIndex: index,
+					perfNotes,
+					perfPedal,
+				});
+				if (mpmSet === undefined) continue;
+				const dimState =
+					currentState.markBaseline?.dimensions[candidate.dimension];
+				const lifecycle: "active" | "improving" | "resolved" =
+					dimState !== undefined && dimState.lifecycle !== "absent"
+						? dimState.lifecycle
+						: "active";
+				const confidence = dimState?.confidence ?? "exploratory";
+				currentState.emittedMarks = [
+					...currentState.emittedMarks,
+					candidate.dimension,
+				];
+				this.sendWs(ws, {
+					type: "mark",
+					mark: {
+						id: `${currentState.sessionId}-${candidate.dimension}-${index}`,
+						anchor: {
+							type: "timestamp" as const,
+							atSeconds: candidate.atSeconds,
+						},
+						taxonomy: candidate.taxonomy,
+						dimension: candidate.dimension,
+						evidence: evidenceFor(mpmSet, candidate.dimension),
+						lifecycle,
+						confidence,
+					},
+				});
 			}
 		}
 
