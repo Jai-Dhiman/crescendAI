@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { Dimension } from "../lib/dims";
 import { proposeMarks } from "./mark-gate";
+import type { DimensionBaselineState } from "./student-baseline";
 
 describe("proposeMarks — cold start", () => {
 	it("fires nothing when a dimension has fewer than 3 session samples", () => {
@@ -48,7 +50,7 @@ function baselineWith(
 		lifecycle: "absent" as const,
 		initialized: false,
 	};
-	const dims = {
+	const dims: Record<Dimension, DimensionBaselineState> = {
 		dynamics: absent,
 		timing: absent,
 		pedaling: absent,
@@ -56,7 +58,7 @@ function baselineWith(
 		phrasing: absent,
 		interpretation: absent,
 	};
-	dims[dim as keyof typeof dims] = { ...BASELINE_DIM, ...overrides };
+	dims[dim as Dimension] = { ...BASELINE_DIM, ...overrides };
 	return { lastSessionTimestamp: null, dimensions: dims };
 }
 
