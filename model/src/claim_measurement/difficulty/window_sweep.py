@@ -132,12 +132,10 @@ def extract_arm(bundle_dir: Path, out_dir: Path, embedder_for_fold,
               f"({time.monotonic() - started:.0f}s)", flush=True)
 
 
-def arm_oof(arm_dir: Path, y: np.ndarray, composers: np.ndarray,
-            seg_ids: list, n_folds: int = N_FOLDS, seed: int = SEED
-            ) -> np.ndarray:
-    """Pooled OOF predictions for one arm dir, on ft_eval's exact protocol.
-    The row-order check is the pairing guarantee: a mismatched arm would not
-    crash downstream, it would silently score permuted embeddings."""
+def load_arm(arm_dir: Path, seg_ids: list, n_folds: int = N_FOLDS) -> dict:
+    """emb_fold{F}.npz matrices keyed by fold. The row-order check is the
+    pairing guarantee: a mismatched arm would not crash downstream, it would
+    silently score permuted embeddings."""
     emb_by_fold = {}
     for f in range(n_folds):
         fold_data = read_fold_embeddings(Path(arm_dir) / f"emb_fold{f}.npz")
@@ -146,7 +144,15 @@ def arm_oof(arm_dir: Path, y: np.ndarray, composers: np.ndarray,
                 f"{arm_dir}/emb_fold{f}.npz row order does not match "
                 f"features37's seg_id order; the comparison would be unpaired")
         emb_by_fold[f] = fold_data["embeddings"]
-    return oof_tau_per_fold(emb_by_fold, y, composers, n_folds, seed)
+    return emb_by_fold
+
+
+def arm_oof(arm_dir: Path, y: np.ndarray, composers: np.ndarray,
+            seg_ids: list, n_folds: int = N_FOLDS, seed: int = SEED
+            ) -> np.ndarray:
+    """Pooled OOF predictions for one arm dir, on ft_eval's exact protocol."""
+    return oof_tau_per_fold(load_arm(arm_dir, seg_ids, n_folds),
+                             y, composers, n_folds, seed)
 
 
 def score(sweep_root: Path, baseline: str, data_root: Path | None,
