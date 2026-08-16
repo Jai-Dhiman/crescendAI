@@ -43,22 +43,18 @@ Decisions, deviations, and tradeoffs made during build. Read this before running
    file, not in Task 10's own file list). Fixed with an explicit `if (parsed.type !== "chunk_bar_map")
    throw` narrowing guard.
 
-## Known, accepted limitation (not fixed — out of budget, documented instead)
+## Known, accepted limitation — RESOLVED 2026-08-16
 
 `apps/api/src/do/session-brain.marks.test.ts` (Task 1's Group 0 end-to-end harness) and
-`apps/api/src/do/session-brain.review-failure.test.ts` (Task 17) both use a real `WebSocketPair` +
-`runDurableObjectAlarm` + Durable Object storage in the same `runInDurableObject` callback — a
-combination that triggers a `@cloudflare/vitest-pool-workers` framework bug ("Isolated storage failed" /
-"Cannot perform I/O on behalf of a different Durable Object") at teardown, documented at
-https://developers.cloudflare.com/workers/testing/vitest-integration/known-issues/#isolated-storage.
-This is NOT an application bug: verified independently three times via temporary diagnostic logging
-(Task 16, Task 17, and this session's own manual runs) that the actual behavior — mark emission, review
-event, baseline persist, and the loud `review(verdict: null)` failure path — is correct. The crash is a
-pre-existing defect in the plan's own literal Task-1 test code (present from its very first commit,
-before any implementation existed), not something introduced by any later task. It causes 1 of 112
-workerd-pool test files to report a runtime crash rather than a clean pass in `bun run test -- --run`.
-Recommended follow-up: replace the real `WebSocketPair` with a registered-but-fake-transport pattern, or
-pin/downgrade `@cloudflare/vitest-pool-workers`, or file an upstream issue.
+`apps/api/src/do/session-brain.review-failure.test.ts` (Task 17) crashed at teardown ("Isolated
+storage failed" inside `updateStackedStorage`). Root cause was NOT a framework bug but the tests
+nesting `runDurableObjectAlarm(stub)` inside a `runInDurableObject(stub, ...)` callback, which
+corrupts the vitest-pool-workers isolated-storage stack. Fixed by moving the alarm run between
+`runInDurableObject` calls. The crash had also been masking two real test defects: the marks test
+sent `chunk_ready` from a fake WebSocket, so mark events (which reply to the sender socket) never
+reached the asserted client (fixed: messages now arrive on the real accepted `server` socket), and
+the review-failure test never scheduled an alarm, so `runDurableObjectAlarm` was a no-op (fixed:
+explicit `setAlarm`). Both files now pass cleanly, assertions live.
 
 ## Flagged, intentionally deferred (not fixed)
 
