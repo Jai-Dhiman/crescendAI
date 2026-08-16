@@ -115,4 +115,37 @@ describe("usePracticeSession — review event (#162)", () => {
 			{ atSeconds: 45, reason: "insufficient_notes" },
 		]);
 	});
+
+	it("clears the previous session's review state when a new session starts", async () => {
+		const { result } = renderHook(() => usePracticeSession());
+
+		await act(async () => {
+			await result.current.start();
+		});
+		await waitFor(() => expect(result.current.state).toBe("recording"));
+
+		act(() => {
+			socket.onmessage?.({
+				data: JSON.stringify({
+					type: "review",
+					verdict: "Old verdict from session one.",
+					carry_forward: "Old carry-forward.",
+					no_comment_zones: [{ atSeconds: 45, reason: "insufficient_notes" }],
+				}),
+			} as MessageEvent);
+		});
+		expect(result.current.verdict).toBe("Old verdict from session one.");
+
+		// A second start() must not leak session one's review into session two:
+		// AppPractice keeps this hook mounted across start -> review -> start,
+		// and a stale "ready" verdict would display before session two's
+		// review event arrives (or forever, if it fails).
+		await act(async () => {
+			await result.current.start();
+		});
+
+		expect(result.current.verdict).toBeNull();
+		expect(result.current.carryForward).toBeNull();
+		expect(result.current.noCommentZones).toEqual([]);
+	});
 });

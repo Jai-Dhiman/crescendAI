@@ -439,6 +439,9 @@ export function usePracticeSession(
 			setElapsedSeconds(0);
 			setObservations([]);
 			setMarks([]);
+			setVerdict(null);
+			setCarryForward(null);
+			setNoCommentZones([]);
 			setLatestScores(null);
 			setSummary(null);
 			setError(null);
