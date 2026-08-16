@@ -217,6 +217,9 @@ describe("chunk_bar_map WebSocket message", () => {
 
 		const parsed = wsOutgoingMessageSchema.parse(barMapMsg);
 		expect(parsed.type).toBe("chunk_bar_map");
+		if (parsed.type !== "chunk_bar_map") {
+			throw new Error("expected chunk_bar_map");
+		}
 		expect(parsed.chunk_index).toBe(2);
 		expect(parsed.bar_min).toBe(5);
 		expect(parsed.bar_max).toBe(9);
