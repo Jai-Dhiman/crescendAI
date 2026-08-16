@@ -25,7 +25,7 @@ interface PracticeModeProps {
 	/** Ends the session for real. The only exit from this full-screen surface;
 	 * unlike SessionEndedBanner's resume, this is terminal. */
 	onStop: () => void;
-	/** Defaults to "practice" so every existing caller (AppChat, the
+	/** Defaults to "practice" so every existing caller (routes/app.tsx, the
 	 * /practice-preview harness) that never passes this is unaffected. */
 	phase?: "practice" | "review";
 	sessionId?: string;
@@ -44,8 +44,8 @@ interface PracticeModeProps {
  * The orchestrator: the one component that knows all four practice
  * sub-surfaces exist. Everything it delegates to (ScoreStand, PieceLessMode,
  * ConfirmPieceChip, SessionEndedBanner) takes plain props and touches
- * neither the WS nor the session hook directly -- AppChat is the only place
- * that wires usePracticeSession's live state into these props.
+ * neither the WS nor the session hook directly -- routes/app.tsx is the only
+ * place that wires usePracticeSession's live state into these props.
  *
  * The stop control is rendered here, not inside ScoreStand/PieceLessMode/
  * SessionEndedBanner, so it is guaranteed present across every ladder state

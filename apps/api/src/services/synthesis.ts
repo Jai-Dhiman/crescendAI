@@ -8,7 +8,7 @@ import type { Dimension } from "../lib/dims";
 import { DIMS_6 } from "../lib/dims";
 import type { Db } from "../lib/types";
 import type { SessionAccumulator } from "./accumulator";
-import type { InlineComponent } from "./tool-processor";
+import type { InlineComponent } from "./inline-component";
 
 // SCALER_MEAN defaults from the Rust stop classifier (same values)
 const SCALER_MEAN: Record<Dimension, number> = {

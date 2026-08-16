@@ -10,7 +10,7 @@ mod corpus 'corpus.just'
 default:
     @just --list
 
-# Start all dev services (MuQ + AMT + API + Web)
+# Start all dev services (AMT + API + Web)
 dev:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -19,20 +19,13 @@ dev:
     echo "Starting CrescendAI dev environment..."
     echo ""
 
-    just muq &
     just amt &
     just api &
     just web &
     wait
 
-# Start MuQ inference server (quality scoring, port 8000)
-# Note: uv run (without python) triggers PEP 723 inline dependency resolution
-# Checkpoint override: real ablation/optimized_weights heads are absent locally;
-# point at the r32 sweep folds so all 4 heads load.
-muq:
-    cd apps/inference && uv run muq/muq_local_server.py --checkpoint-dir ../../model/data/checkpoints/a1_max_sweep/A1max_r32_L7-12_ls0.1
-
 # Start Transkun inference server (transcription, port 8001)
+# Note: uv run (without python) triggers PEP 723 inline dependency resolution
 amt:
     cd apps/inference && uv run amt/amt_local_server.py --port 8001
 
@@ -44,7 +37,7 @@ api:
 web:
     cd apps/web && bun run dev
 
-# Start without inference (web + API only, uses production HF endpoints)
+# Start without inference (web + API only)
 dev-light:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -55,23 +48,6 @@ dev-light:
     echo "  Web:  http://localhost:3000"
     echo ""
 
-    just api &
-    just web &
-    wait
-
-# Start MuQ only (no AMT transcription, faster startup for scores-only testing)
-dev-muq:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    trap 'kill 0' EXIT
-
-    echo "Starting CrescendAI (MuQ + API + Web, no AMT)..."
-    echo "  MuQ:  http://localhost:8000"
-    echo "  API:  http://localhost:8787"
-    echo "  Web:  http://localhost:3000"
-    echo ""
-
-    just muq &
     just api &
     just web &
     wait
@@ -277,24 +253,12 @@ migrate-generate:
 migrate-prod:
     cd apps/api && bun run migrate
 
-# --- E2E UI Session Test (issue #68) ---
-
-# Drive one real recording through the live local stack (MuQ+AMT -> glm V6 synthesis)
-# and verify the synthesis renders correctly in the web UI via Playwright.
-# Requires: just dev (or just dev-muq) + just seed-fingerprint already running.
-# Default recording: model/data/evals/practice_eval/nocturne_op9no2/audio/_aySCutsVVQ.wav
-e2e-ui-session recording=("model/data/evals/practice_eval/nocturne_op9no2/audio/_aySCutsVVQ.wav") piece="nocturne_op9no2":
-    cd apps/evals && uv run python -m e2e_ui_session \
-        --recording "../../{{recording}}" \
-        --piece-slug "{{piece}}" \
-        --screenshot /tmp/e2e-ui-session.png
-
 # --- E2E Pipeline Eval ---
 
 # Run full E2E pipeline eval (cache -> pipeline -> analyze)
 eval-e2e: eval-cache eval-pipeline eval-analyze
 
-# Generate missing inference cache for T5 corpus (requires just muq + just amt running)
+# Generate missing inference cache for T5 corpus (requires just amt running)
 eval-cache:
     cd apps/evals && uv run python -m inference.eval_runner --auto-t5
 
@@ -317,26 +281,6 @@ test-playbook-shape:
 # Compile apps/shared/teacher-style/playbook.yaml -> apps/api/src/lib/playbook.json
 compile-playbook:
     uv run --with pyyaml python apps/shared/scripts/compile_playbook.py
-
-# Check that all Swift files under apps/ios/ are registered in project.pbxproj
-check-ios:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    pbxproj="apps/ios/CrescendAI.xcodeproj/project.pbxproj"
-    missing=()
-    while IFS= read -r f; do
-        name=$(basename "$f")
-        if ! grep -qF "/* $name */" "$pbxproj"; then
-            missing+=("$f")
-        fi
-    done < <(find apps/ios/CrescendAI apps/ios/CrescendAITests -name "*.swift")
-    if [ ${#missing[@]} -eq 0 ]; then
-        echo "OK: all Swift files are registered in project.pbxproj"
-    else
-        echo "ERROR: the following Swift files are on disk but not in project.pbxproj:"
-        for f in "${missing[@]}"; do echo "  $f"; done
-        exit 1
-    fi
 
 # CI sync check: fail if compiled JSON is stale
 check-playbook-sync:
@@ -451,9 +395,3 @@ exercise-routing-eval-smoke:
 exercise-routing-ratchet:
     cd apps/evals && uv run python -m pipeline.exercise_routing.ratchet_baseline
 
-# Full visible-browser E2E eval: seed canary facts, drive a real session,
-# open headed Chrome, assert synthesis + memory recall via scripted chat.
-# Requires: just dev (API:8787, Web:3000, MuQ:8000), just seed-fingerprint.
-# Use --reply-timeout 180000 on a cold Workers AI stack (glm cold-start >90s).
-e2e-full-session *args:
-    cd apps/evals && uv run python e2e_full_session.py --reply-timeout 180000 {{args}}

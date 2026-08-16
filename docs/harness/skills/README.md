@@ -27,7 +27,7 @@ High-level orchestrators. Run multiple molecules. One compound per hook (event o
 
 **Reliability ceiling:** compounds spanning more than 8-10 molecules hit their own reliability failure mode. Keep them tight.
 
-**Examples:** `session-synthesis` (OnSessionEnd), `live-practice-companion` (continuous during recording), `weekly-review` (OnWeeklyReview), `piece-onboarding` (OnPieceDetected first-time).
+**Examples:** `session-synthesis` (OnSessionEnd), `weekly-review` (OnWeeklyReview), `piece-onboarding` (OnPieceDetected first-time).
 
 ---
 

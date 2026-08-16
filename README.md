@@ -9,7 +9,7 @@
 
 **A teacher for every pianist.**
 
-Practice companion for evidence-backed piano feedback. The current inference path combines a frozen MuQ checkpoint with separately trained A1-Max heads for six research scores, plus Transkun transcription and symbolic score alignment. The V6 harness turns those signals into one actionable observation and preserves uncertainty rather than treating any model score as ground truth.
+Score-first practice companion for evidence-backed piano feedback. The app is silent while you play; at natural pauses it places marks on the score, and a session review delivers one verdict plus consolidated marks. The pipeline is Transkun transcription first, then piece resolution, offline score alignment, MPM-style per-bar feature extraction, and MoonBeam-839M symbolic scoring behind baseline-gated marks.
 
 ## Historical Model Benchmark
 
@@ -17,7 +17,7 @@ Practice companion for evidence-backed piano feedback. The current inference pat
 
 | Encoder | Type | Pairwise Accuracy | Notes |
 |---------|------|-------------------|-------|
-| A1-Max (4-fold ensemble) | Audio | 79.85% | Historical clean-fold training result; the current loader serves stock MuQ plus the saved heads, not the fine-tuned backbone |
+| A1-Max (4-fold ensemble) | Audio | 79.85% | Historical clean-fold training result from the arXiv paper's MuQ pipeline; MuQ no longer runs in the app request path |
 
 > **Fold integrity note:** Earlier results (80.8%, S2 GNN 71.3%) were computed with leaked folds where segments from the same piece appeared in both train and val splits. Those numbers are invalid. All current results use piece-stratified CV only.
 
@@ -26,61 +26,58 @@ Practice companion for evidence-backed piano feedback. The current inference pat
 ## Architecture
 
 ```
-+-------------------+       +-------------------+
-|    iOS App        |       |    Web App         |
-|  (SwiftUI,        |       |  (TanStack Start,  |
-|   AVAudioEngine)  |       |   MediaRecorder)   |
-+--------+----------+       +---------+----------+
-         |                             |
-         |  15s audio chunks (HTTPS)   |
-         +----------+    +------------+
-                    |    |
-                    v    v
-         +----------------------------+
-         |  Cloudflare Workers         |
-         |  api.crescend.ai            |
-         |  (TypeScript / Hono)        |
-         |                             |
-         |  /api/practice/chunk        |
-         |  /api/chat/send (SSE)       |
-         |  /api/auth/*                |
-         |  /api/sync                  |
-         +--+------+------+------+----+
-            |      |      |      |
-            v      v      v      v
-      +-------+ +------+ +------+ +----+
-      | HF    | | CF   | | AI   | | PG |
-      | Endpt | | Cont-| | Gate-| | R2 |
-      | (MuQ  | | ainer| | way  | | DO |
-      | A1Max)| | (AMT)| |(LLMs)| |    |
-      +-------+ +------+ +------+ +----+
++-------------------+
+|    Web App         |
+|  (TanStack Start,  |
+|   MediaRecorder)   |
++---------+----------+
+          |
+          |  15s audio chunks (HTTPS + WebSocket)
+          v
++----------------------------+
+|  Cloudflare Workers         |
+|  api.crescend.ai            |
+|  (TypeScript / Hono)        |
+|                             |
+|  /api/practice/*            |
+|  /api/auth/*                |
+|  /api/sync                  |
++--+---------+---------+-----+
+   |         |         |
+   v         v         v
++------+ +--------+ +--------+
+| CF   | | AI     | | PG, R2 |
+| Cont-| | Gate-  | | DO     |
+| ainer| | way    | |        |
+| (AMT)| | (LLMs) | |        |
++------+ +--------+ +--------+
 ```
 
 | Component | Details |
 |-----------|---------|
-| Audio scoring | A1-Max inference code loads the frozen `OpenMuQ/MuQ-large-msd-iter` checkpoint plus four trained heads |
-| AMT | Transkun transcription service in `apps/inference/amt/`; production deployment remains deferred |
-| iOS app | SwiftUI, AVAudioEngine, SwiftData (local-first) |
-| Web app | TanStack Start (`crescend.ai`) -- chat, recording, real-time observations via WebSocket |
-| API backend | TypeScript/Hono on Cloudflare Workers (`api.crescend.ai`) -- inference proxy, SessionBrain DO, two-stage LLM pipeline, score following |
-| LLM pipeline | V6 two-phase harness on Workers AI, with Anthropic retained as a selectable provider. Post-session synthesis runs through SessionBrain. |
-| Score following | Transkun notes aligned against a known score; #133 is validating the follower on real audio before it becomes the trusted ruler |
+| Transcription (AMT) | Transkun transcription service in `apps/inference/amt/` (CF Containers) |
+| Scoring | MPM-style per-bar features + MoonBeam-839M symbolic scoring behind baseline-gated marks (mock scorer until the MoonBeam head ships) |
+| Web app | TanStack Start (`crescend.ai`) -- digital music stand, marks at pauses, session review |
+| API backend | TypeScript/Hono on Cloudflare Workers (`api.crescend.ai`) -- SessionBrain DO, mark gating, score following |
+| Session synthesis | V6 harness on Workers AI produces the session verdict + carry-forward through SessionBrain |
+| Score following | Transkun notes aligned against a known score (#133 validated the follower on real audio) |
 | Storage | PlanetScale Postgres + Drizzle ORM (via Hyperdrive), R2 (audio chunks), Durable Objects (practice sessions + WebSocket) |
 | Auth | better-auth -- Sign in with Apple + Google |
 
 ## Project Structure
 
 ```
-apps/ios/          Native iOS app (SwiftUI, AVAudioEngine, cloud inference)
 apps/api/          TypeScript/Hono API Worker (Cloudflare Workers)
 apps/web/          TanStack Start web practice companion (React, Tailwind CSS v4)
-apps/inference/    HuggingFace inference handler (MuQ) + AMT server (CF Containers)
-evals/             E2E pipeline evaluation infrastructure (teaching quality, synthesis eval)
+apps/inference/    AMT (Transkun) server (CF Containers)
+apps/evals/        E2E pipeline evaluation infrastructure
 model/             Research pipelines, evaluation harnesses, and historical MuQ/Aria experiments
 docs/              Architecture and documentation
   docs/apps/       Apps layer (status, product vision, pipeline, memory, exercises, UI)
   docs/model/      ML layer (research timeline, data, taxonomy, encoders, north star)
 ```
+
+The native iOS app was removed 2026-08-16 (pre-pivot chat-first code); it will be rebuilt against the score-first product after the web beta. History lives in git before `apps/ios` deletion.
 
 ## Documentation
 
@@ -90,10 +87,10 @@ See [docs/architecture.md](docs/architecture.md) for the full system diagram and
 |------|-------------|----------|
 | Architecture | [docs/architecture.md](docs/architecture.md) | System diagram, cross-cutting concerns (auth, sync, observability) |
 | Product vision | [docs/apps/01-product-vision.md](docs/apps/01-product-vision.md) | Target user, interaction model, UX principles |
-| Pipeline | [docs/apps/02-pipeline.md](docs/apps/02-pipeline.md) | Full audio-to-observation pipeline (STOP, subagent, teacher, score following) |
-| Student memory | [docs/apps/03-memory-system.md](docs/apps/03-memory-system.md) | Two-clock model, observations, synthesized facts |
-| Exercises | [docs/apps/04-exercises.md](docs/apps/04-exercises.md) | Exercise database, focus mode |
-| UI system | [docs/apps/05-ui-system.md](docs/apps/05-ui-system.md) | Chat interface, on-demand components |
+| Pipeline | [docs/apps/02-pipeline.md](docs/apps/02-pipeline.md) | Audio-to-mark pipeline (Transkun, alignment, MPM features, scoring) |
+| Student memory | [docs/apps/03-memory-system.md](docs/apps/03-memory-system.md) | Two-clock model, marks, synthesized facts |
+| Exercises | [docs/apps/04-exercises.md](docs/apps/04-exercises.md) | Exercise database, drill routing |
+| UI system | [docs/apps/05-ui-system.md](docs/apps/05-ui-system.md) | Score-first surfaces, mark system |
 | ML research | [docs/model/00-research-timeline.md](docs/model/00-research-timeline.md) | Research roadmap, encoder results, key decisions |
 | Training data | [docs/model/01-data.md](docs/model/01-data.md) | PercePiano, Competition, MAESTRO datasets |
 | Taxonomy | [docs/model/02-teacher-grounded-taxonomy.md](docs/model/02-teacher-grounded-taxonomy.md) | 19 PercePiano dims to 6 teacher-grounded dims |
@@ -106,21 +103,14 @@ Install [just](https://github.com/casey/just): `brew install just`
 
 | Command | What it starts |
 |---------|----------------|
-| `just dev` | All 4 services: MuQ (8000) + AMT (8001) + API (8787) + Web (3000) |
-| `just dev-muq` | MuQ + API + Web (no AMT, faster startup) |
-| `just dev-light` | API + Web only (uses production HF endpoints) |
-| `just muq` / `just amt` / `just api` / `just web` | Individual services |
+| `just dev` | All 3 services: AMT (8001) + API (8787) + Web (3000) |
+| `just dev-light` | API + Web only |
+| `just amt` / `just api` / `just web` | Individual services |
 | `just fingerprint` | Generate N-gram index + rerank features from score library |
 | `just test-model` / `just test-api` / `just check-api` | Tests and type checks |
 | `just deploy-api` | Deploy API worker to production |
 | `just migrate-generate` / `just migrate-prod` | Drizzle migrations (generate SQL / apply to prod) |
 | `just eval-e2e` | Full E2E pipeline eval (cache + pipeline + analyze) |
-
-### iOS App
-
-```bash
-open apps/ios/CrescendAI.xcodeproj
-```
 
 ### Training Pipeline
 

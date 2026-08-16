@@ -210,7 +210,7 @@ export function usePracticeSession(
 		wsRef.current = null;
 		// Landmine: this nulls sessionId at the exact moment synthesis/session_summary arrives (see handleWsMessage), so any live-review surface reading sessionId from that handler sees null -- future wiring (#162) must capture the id before cleanup() runs.
 		sessionIdRef.current = null;
-		// NOTE: conversationIdRef is NOT reset here -- AppChat reads it
+		// NOTE: conversationIdRef is NOT reset here -- callers read it
 		// after cleanup to navigate to the conversation. It's reset in start().
 		chunkIndexRef.current = 0;
 		reconnectAttemptsRef.current = 0;
@@ -439,6 +439,9 @@ export function usePracticeSession(
 			setElapsedSeconds(0);
 			setObservations([]);
 			setMarks([]);
+			setVerdict(null);
+			setCarryForward(null);
+			setNoCommentZones([]);
 			setLatestScores(null);
 			setSummary(null);
 			setError(null);

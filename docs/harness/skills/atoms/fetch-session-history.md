@@ -2,7 +2,7 @@
 name: fetch-session-history
 tier: atom
 description: |
-  Fetches a student's prior SynthesisArtifacts and aggregated DiagnosisArtifacts within a date window. fires when weekly-review needs longitudinal context. fires when session-synthesis populates recurring_pattern. fires when piece-onboarding compares to past piece onboardings. fires when live-practice-companion checks for repeating issues across recent sessions. fires when fetch-similar-past-observation needs broader scope. does NOT fire across students. does NOT call other skills.
+  Fetches a student's prior SynthesisArtifacts and aggregated DiagnosisArtifacts within a date window. fires when weekly-review needs longitudinal context. fires when session-synthesis populates recurring_pattern. fires when piece-onboarding compares to past piece onboardings. fires when fetch-similar-past-observation needs broader scope. does NOT fire across students. does NOT call other skills.
 dimensions: [dynamics, timing, pedaling, articulation, phrasing, interpretation]
 reads:
   signals: 'student session store: SynthesisArtifacts and DiagnosisArtifacts indexed by (student_id, created_at)'

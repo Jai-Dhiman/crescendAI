@@ -7,7 +7,7 @@ import type { SegmentLoopArtifact } from "../harness/artifacts/segment-loop";
 import { DIMS_6 } from "../lib/dims";
 import { ConflictError, NotFoundError, ValidationError } from "../lib/errors";
 import type { Db } from "../lib/types";
-import type { InlineComponent } from "./tool-processor";
+import type { InlineComponent } from "./inline-component";
 
 type SegmentLoopStatus = (typeof SEGMENT_LOOP_STATUSES)[number];
 

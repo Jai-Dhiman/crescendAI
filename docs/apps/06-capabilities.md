@@ -2,7 +2,7 @@
 
 > Status: 2026-08-04 -- Seven core capabilities defined. Quality targets set for beta and north star. This doc owns targets; for current measured state see `docs/apps/07-evaluation.md`.
 >
-> **Status update (2026-08-04, score-first redesign -- epic #154):** The chat surface is removed as the delivery mechanism. Session Synthesis (#4) and Exercise Generation (#5) below still describe the pre-redesign chat/WebSocket delivery and inline artifact cards; under the redesign the delivery objects are marks on the score/timeline, a session verdict, and one carry-forward (post-session review, #159), with exercises launching as "drills" from a mark (#158) instead of a `create_exercise` chat tool call. Chat survives only as passage-scoped ask threads on marks (#161). The MuQ references in capabilities #1/#3/#6 reflect the pipeline being retargeted under #162 (Transkun AMT -> alignment -> MPM features -> MoonBeam-839M); see `docs/apps/02-pipeline.md` and `docs/apps/05-ui-system.md` for the target shape.
+> **Status update (2026-08-16, score-first redesign shipped -- epics #154/#162, cleanup #164):** The chat surface has been removed as the delivery mechanism -- the web chat UI, the chat-container artifact system, and the API chat routes are deleted. Session Synthesis (#4) and Exercise Generation (#5) below are rewritten for the current delivery objects: marks on the score/timeline, a session verdict, and one carry-forward (post-session review, #159), with exercises launching as "drills" from a mark (#158) instead of a `create_exercise` chat tool call. Chat survives only as future passage-scoped ask threads on marks (#161, unbuilt). MuQ has been removed from the request path; capabilities #1/#3/#6 and the dependency diagram now describe the current pipeline (Transkun AMT -> alignment -> MPM features -> MoonBeam-839M, currently a deterministic mock scorer, #162); see `docs/apps/02-pipeline.md` and `docs/apps/05-ui-system.md` for the full shape.
 
 CrescendAI's teaching pipeline is built from seven capabilities. Each converts raw audio into progressively richer understanding of what the student played and what they should work on. They compose into a single user-facing experience: the student plays, the system listens, and at session end the teacher gives one cohesive, specific, actionable response.
 
@@ -46,8 +46,9 @@ Code complete and merged to main (2026-03-22). N-gram index + rerank features co
 
 ### Key Files
 
-- `apps/api/src/practice/piece_identify.rs` -- N-gram + rerank + DTW pipeline
-- `apps/api/src/practice/score_context.rs` -- Score/reference loading from R2
+- `apps/api/src/wasm/piece-identify/src/{identify.rs,gate.rs,chroma.rs,text_match.rs}` -- N-gram + rerank + DTW pipeline (Rust/WASM)
+- `apps/api/src/services/wasm-bridge.ts` -- TS bridge into the piece-identify WASM module
+- `apps/api/src/services/scores.ts` -- Score/reference loading from R2
 - `apps/inference/amt/transcription.py` -- Transkun-backed endpoint handler
 - `apps/inference/amt/transkun_cli.py` -- shared isolated Transkun runner and MIDI parser
 
@@ -91,8 +92,8 @@ Implemented with heuristic blind-spot ranking. The dedup window (3) and positive
 
 ### Key Files
 
-- `apps/api/src/services/teaching_moments.rs` -- Selection algorithm
-- `apps/api/src/practice/accumulator.rs` -- SessionAccumulator and top_moments()
+- `apps/api/src/wasm/score-analysis/src/teaching_moments.rs` -- Selection algorithm (Rust/WASM)
+- `apps/api/src/services/accumulator.ts` -- SessionAccumulator and topMoments()
 
 ---
 
@@ -139,7 +140,7 @@ Implemented with heuristic thresholds (Dice 0.6, bar overlap 0.5, 4-chunk window
 
 ### Key Files
 
-- `apps/api/src/practice/practice_mode.rs` -- State machine, repetition detection, observation policy
+- `apps/api/src/services/practice-mode.ts` -- State machine, repetition detection, observation policy
 
 ---
 
@@ -147,50 +148,49 @@ Implemented with heuristic thresholds (Dice 0.6, bar overlap 0.5, 4-chunk window
 
 ### What It Does
 
-The core deliverable. Student finishes playing. Within 3 seconds, they see a cohesive 3-6 sentence response from their teacher:
+The core deliverable. Student stops playing. At session review (`docs/apps/05-ui-system.md`) they see: one teacher verdict sentence (qualitative, no numbers, no dimension scores), the session's marks consolidated on the score or timeline, and one carry-forward -- a single next-session focus. There is no multi-sentence chat paragraph; each mark carries its own MPM-grounded evidence, available on tap, and the verdict is the one place prose ties the session together.
 
-> "You spent most of this session on the B section of Fur Elise -- good instinct, that's where the piece gets tricky. Your pedaling cleaned up noticeably between your first and fourth time through bars 20-28; the bass line is much clearer now. The dynamic contrast in the A section could use attention next time -- you're hovering around mezzo-forte throughout, but the score asks for pianissimo at bar 9. Try playing just the right hand melody from bars 9-15 at a true pianissimo before adding the left hand back in."
-
-Everything upstream exists to make this paragraph specific, accurate, and useful.
+Everything upstream exists to make the verdict, the marks, and the carry-forward specific, accurate, and useful.
 
 ### Inputs / Outputs
 
 - **In:** `SessionAccumulator` (teaching moments with deviations/bar_ranges, mode transitions with dwell times, drilling records with first/final scores, timeline events), piece context (composer/title/score data), student baselines, student memory (optional)
-- **Out:** 3-6 sentence natural language synthesis + optional exercise artifact via tool_use
+- **Out:** one verdict sentence + the session's consolidated marks + one carry-forward (the `synthesizeV6` contract; no chat prose, no artifact cards)
 - **Depends on:** All upstream capabilities
 
 ### How It Works
 
-1. `build_synthesis_prompt()` constructs structured JSON from the accumulator: session duration, practice pattern (modes/transitions), top teaching moments (up to 8, selected by `top_moments()`), drilling progress, baselines, piece context
-2. Single teacher LLM call (model ID in wrangler.toml) with `SESSION_SYNTHESIS_SYSTEM` prompt. No subagent stage -- the structured accumulator IS the analysis.
-3. Teacher LLM narrates the data in warm, specific, actionable language. Optionally invokes `create_exercise` tool.
-4. Synthesis persisted to D1 messages table. Accumulated moments persisted to observations table.
-5. Delivered via WebSocket as `{ type: "synthesis" }` event.
+1. The accumulator (`apps/api/src/services/accumulator.ts`) builds structured session state: session duration, practice pattern (modes/transitions), top teaching moments (up to 8, selected by `topMoments()`), drilling progress, baselines, piece context.
+2. `synthesizeV6()` (`apps/api/src/services/teacher.ts`) makes the teacher LLM call (model ID in wrangler.toml) against this structured state -- still a single call, no subagent stage, the accumulator IS the analysis.
+3. The teacher LLM's output is the verdict sentence plus the consolidated mark set plus one carry-forward -- not narrated prose, and no `create_exercise`-style tool invocation (drills are proposed via `prescribe_exercise`, see Exercise Generation below).
+4. Persisted to D1 (session/observations tables) via `apps/api/src/services/synthesis.ts`. Delivered to the client as the review-state payload, not a WebSocket `synthesis` chat event.
+5. Failure is loud: a synthesis failure renders an explicit retry state, never a blank screen and never a fabricated verdict.
 
 ### Quality Targets
 
 | Metric | Beta | North Star |
 |--------|------|------------|
-| Musical grounding (references specific passage/bars) | > 70% | > 90% |
-| Actionability (concrete practice strategy) | > 75% | > 90% |
+| Musical grounding (marks/verdict reference specific passage/bars) | > 70% | > 90% |
+| Actionability (carry-forward is a concrete practice strategy) | > 75% | > 90% |
 | Differentiation (different feedback for different students) | substantive difference across skill levels | personalized to individual learning arc |
 | Skill calibration (language matches level) | appropriate for bucket | adapted to individual |
-| Coherence (reads as one thought, not checklist) | > 85% | > 95% |
+| Coherence (verdict reads as one thought) | > 85% | > 95% |
 | Drilling acknowledgment (when drilling occurred) | > 85% | > 95% |
-| Bar reference accuracy (matches DTW output) | > 75% | > 90% |
+| Bar reference accuracy (mark anchors match alignment output) | > 75% | > 90% |
 | Piece context delta (with vs without piece ID) | measured | minimized (good feedback even without piece) |
-| Conciseness | 3-8 sentences | 3-6 sentences |
+| Conciseness | verdict is one sentence | one sentence |
 
 ### Current State
 
-Fully implemented: accumulator, synthesis prompt, LLM call, persistence, WebSocket delivery, deferred recovery. Current measured state: see docs/apps/07-evaluation.md (this doc owns targets, 07 owns results). The system prompt includes calibration guidance (R2~0.5, deviation 0.1 is noise, 0.2+ is meaningful) but we don't know if the teacher follows it.
+The pipeline (accumulator, marks, verdict, carry-forward, D1 persistence) shipped under #157/#158/#162; the pre-pivot chat/WebSocket synthesis paragraph and the `create_exercise` tool are gone. Current measured state: see docs/apps/07-evaluation.md (this doc owns targets, 07 owns results; the judge prompts there still target chat prose and need recalibration against the verdict+marks contract). Calibration guidance (R2~0.5, deviation 0.1 is noise, 0.2+ is meaningful) carries over to the new contract but has not been re-validated against it.
 
 ### Key Files
 
-- `apps/api/src/practice/synthesis.rs` -- Prompt builder, LLM call, persistence
-- `apps/api/src/practice/accumulator.rs` -- SessionAccumulator struct and accumulation logic
-- `apps/api/src/services/prompts.rs` -- SESSION_SYNTHESIS_SYSTEM prompt
-- `apps/api/src/practice/session_finalization.rs` -- Synthesis trigger and safety net
+- `apps/api/src/services/teacher.ts` -- `synthesizeV6`, teacher LLM call
+- `apps/api/src/services/accumulator.ts` -- SessionAccumulator and accumulation logic
+- `apps/api/src/services/synthesis.ts` -- Persistence (messages/observations)
+- `apps/api/src/services/prompts.ts` -- Synthesis system prompt, `prescribe_exercise` tool definition
+- `apps/api/src/do/session-brain.ts` -- Synthesis trigger (`finalizeSession`) and safety net
 
 ---
 
@@ -198,27 +198,23 @@ Fully implemented: accumulator, synthesis prompt, LLM call, persistence, WebSock
 
 ### What It Does
 
-After identifying that pedaling in bars 20-24 is the key issue, the teacher optionally offers a targeted exercise:
-
-> "Try this: Take just bars 20-24, left hand only with pedal. Lift and re-depress the sustain pedal on each new bass note. Listen for the moment the previous harmony clears before the new one sounds. Then add the right hand back in."
-
-Exercises are grounded in the student's actual piece and passage, target the identified weakness, and give a concrete physical action. They appear inline in the chat as expandable artifact cards.
+After identifying that pedaling in bars 20-24 is the key issue, the teacher optionally prescribes a targeted drill. Drills are grounded in the student's actual piece and passage, target the identified weakness, and give a concrete physical action -- either the student's own passage looped at reduced tempo (`own_passage_loop`) or a matched catalog primitive (`corpus_drill`, see `docs/apps/04-exercises.md`). Drills launch from a mark on the score or session timeline ("work on this"), not from a chat message; there is no `exercise_set` chat artifact card.
 
 ### Inputs / Outputs
 
-- **In:** Teaching moment (dimension + passage), exercise catalog (curated entries from D1), synthesis context
-- **Out:** `create_exercise` tool call with `{ source_passage, target_skill, exercises[] }` or no tool call (text-only synthesis)
+- **In:** Teaching moment / mark (dimension + passage), exercise catalog (curated entries from D1), synthesis context
+- **Out:** `prescribe_exercise` tool call emitting an `ExerciseRoutingDecision` (`own_passage_loop | corpus_drill`) or no tool call
 - **Depends on:** Teaching moment selection (which dimension/passage), piece context (which piece/bars)
 
 ### How It Works
 
-The teacher LLM has access to the `create_exercise` tool via provider tool_use (`tool_choice: "auto"`). The teacher decides autonomously whether an exercise would help more than verbal guidance.
+The teacher LLM has access to the `prescribe_exercise` tool via provider tool_use (`tool_choice: "auto"`). The teacher decides autonomously whether a drill would help more than the verdict alone.
 
 When invoked:
-1. Teacher specifies `source_passage`, `target_skill`, and 1-3 exercise steps
-2. System checks if a curated catalog exercise matches the dimension
-3. If no catalog match, the teacher's generated exercise is persisted to the exercises table
-4. Exercise rendered as `exercise_set` artifact in the chat
+1. Teacher emits an `ExerciseRoutingDecision`: `target_dimension`, `bar_range`, `tempo_factor`, and (for `corpus_drill`) a selected primitive
+2. `own_passage_loop` needs no catalog lookup -- it loops the student's own passage
+3. `corpus_drill` resolves a primitive from the exercise catalog via FILTER -> RANK -> ADAPT (`docs/apps/04-exercises.md`)
+4. The decision is persisted to `pending_exercises` and surfaced as a "work on this" entry from the relevant mark, not rendered in a chat thread
 
 ### Quality Targets
 
@@ -233,13 +229,15 @@ When invoked:
 
 ### Current State
 
-Tool defined in prompts.rs. Catalog seeded with 25 curated exercises in migration `0004_exercises.sql` (6 beginner, 10 intermediate, 9 advanced; all 6 dimensions covered). Exercise assignment/completion endpoints implemented and tested (18 tests). Focus mode (multi-exercise guided sequences) deferred to Phase 3. Tool invocation frequency and quality never tested.
+`ExerciseRoutingDecision` (`own_passage_loop | corpus_drill`) shipped and superseded the free-text `create_exercise` tool (#29); FILTER/ADAPT shipped, RANK built but not wired (see `docs/apps/04-exercises.md` for the full status ladder). Exercise assignment/completion endpoints implemented and tested. Drill launch now happens from a mark rather than inline chat (#158); Focus mode (multi-exercise guided sequences) remains deferred and unbuilt. Tool invocation frequency and quality against the mark-launched contract have not been re-measured since the redesign.
 
 ### Key Files
 
-- `apps/api/src/services/exercises.rs` -- Catalog, assignment, completion endpoints
-- `apps/api/src/services/prompts.rs` -- `exercise_tool_definition()`, teacher prompt with catalog
-- `apps/api/src/services/ask.rs` -- `process_exercise_tool_call()`
+- `apps/api/src/services/exercises.ts` -- Catalog, assignment, completion endpoints
+- `apps/api/src/services/corpus-drill.ts` -- `corpus_drill` primitive selection and score-clip assembly
+- `apps/api/src/services/pending-exercise.ts` -- `pending_exercises` persistence
+- `apps/api/src/services/prompts.ts` -- `prescribe_exercise` tool definition, teacher prompt with catalog
+- `apps/api/src/harness/artifacts/exercise-routing.ts` -- `ExerciseRoutingDecision` type and validation
 
 ---
 
@@ -261,7 +259,7 @@ When the system says "bars 20-24," those are actually the bars the student was p
 
 **Tier 2 (absolute MIDI, no score):** When piece is unidentified or DTW confidence is low. Analyzes AMT MIDI features directly: velocity contour, inter-onset intervals, pedal density. No bar references, but still provides dimensional analysis.
 
-**Tier 3 (scores only):** When AMT fails entirely. Only MuQ 6-dim scores available. No MIDI analysis. Teaching moments based purely on score deviations from baseline.
+**Tier 3 (scores only):** When AMT fails entirely. Only the 6-dim scoring output is available (Transkun/MPM -> MoonBeam-839M, currently the deterministic mock scorer, #162). No MIDI analysis. Teaching moments based purely on score deviations from baseline.
 
 Cross-chunk continuity: follower state carries the last bar position forward, so consecutive chunks produce monotonically advancing bar numbers during run-throughs.
 
@@ -281,9 +279,9 @@ DTW score follower implemented with cross-chunk state. Bar analysis produces per
 
 ### Key Files
 
-- `apps/api/src/practice/score_follower.rs` -- DTW alignment, cross-chunk state
-- `apps/api/src/practice/analysis.rs` -- Bar-level dimensional analysis, tier logic
-- `apps/api/src/practice/score_context.rs` -- Score/reference loading from R2
+- `apps/api/src/wasm/score-analysis/src/{chroma_dtw.rs,note_align.rs,bar_analysis.rs}` -- DTW alignment, cross-chunk state, bar-level dimensional analysis, tier logic (Rust/WASM)
+- `apps/api/src/services/bar-analysis-facts.ts` -- TS-side bar analysis fact building
+- `apps/api/src/services/scores.ts` -- Score/reference loading from R2
 
 ---
 
@@ -300,17 +298,17 @@ AMT Transcription
   +---> [6] Score Following <-------- Score MIDI
   |       (bar alignment, tier analysis)
   |
-MuQ Scores
+MPM Features -> 6-dim Scores (mock scorer now; MoonBeam-839M when the head ships, #162)
   |
   +---> [2] Teaching Moment Selection <--- Student Baselines
           |       (deviation-magnitude gate)    (from Memory/D1)
           v
         SessionAccumulator
           |
-          +---> [4] Session Synthesis <--- Piece Context, Drilling Records
-          |       |
+          +---> [4] Session Synthesis (verdict + marks + carry-forward)
+          |       |     <--- Piece Context, Drilling Records
           |       v
-          +---> [5] Exercise Generation (via tool_use)
+          +---> [5] Exercise Generation (prescribe_exercise -> mark "work on this")
 ```
 
 Failures cascade downward. If AMT transcription is poor, piece ID fails, score following has no score to follow, and synthesis loses all musical grounding. If no chunk falls below baseline, no corrective teaching moments accumulate (a positive moment is surfaced instead). The eval must test each layer independently AND the full cascade.

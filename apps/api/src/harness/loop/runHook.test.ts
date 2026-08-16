@@ -93,7 +93,7 @@ describe("runHook OnSessionEnd", () => {
 
 	it("yields phase_error and stops if hook is unbound", async () => {
 		const events: HookEvent<unknown>[] = [];
-		for await (const ev of runHook("OnChatMessage" as const, HOOK_CTX)) {
+		for await (const ev of runHook("OnStop" as const, HOOK_CTX)) {
 			events.push(ev);
 		}
 		expect(events).toHaveLength(1);
