@@ -1,24 +1,22 @@
 # CrescendAI System Architecture
 
-**"A teacher for every pianist."** Multi-platform (iOS + web) practice companion that evaluates musical expression from audio -- not note accuracy -- and delivers one actionable observation per session.
+**"A teacher for every pianist."** A web practice companion (iOS to be rebuilt score-first after web beta) that evaluates musical expression from audio -- not note accuracy -- and delivers score-first marks, a session verdict, and one carry-forward per session.
 
-> **Redesign in flight (epic #154, 2026-08-04):** This doc largely describes the pre-redesign chat-first system and its MuQ/HF-endpoint scoring path, which are being replaced. The target: delivery is score-first (marks on the score/timeline, a session verdict, one carry-forward; chat survives only as passage-scoped ask threads on marks -- see `docs/apps/05-ui-system.md`), and the model path retargets to Transkun AMT -> piece resolution -> alignment -> MPM-style per-bar features -> MoonBeam-839M scoring, with MuQ removed (see `docs/apps/02-pipeline.md`). Sections below are updated where they assert current-and-permanent chat delivery or MuQ scoring; the diagram and platform/cost history remain as a record of the system being replaced.
+> **Redesign in flight (epic #154, 2026-08-04):** The chat-first system and its MuQ/HF-endpoint scoring path have been replaced. Current: delivery is score-first (marks on the score/timeline, a session verdict, one carry-forward; chat survives only as passage-scoped ask threads on marks -- see `docs/apps/05-ui-system.md`), and the model path is Transkun AMT -> piece resolution -> alignment -> MPM-style per-bar features -> MoonBeam-839M scoring (a deterministic mock scorer until the MoonBeam head ships), with MuQ removed (see `docs/apps/02-pipeline.md`). Sections below are updated where they asserted permanent chat delivery or MuQ scoring; the diagram and platform/cost history remain as a record of the system being replaced.
 
 ---
 
 ## System Diagram
 
 ```
-+-------------------+       +-------------------+
-|    iOS App        |       |    Web App         |
-|  (SwiftUI,       |       |  (TanStack Start,  |
-|   AVAudioEngine)  |       |   MediaRecorder)   |
-+--------+----------+       +---------+----------+
-         |                             |
-         |  15s audio chunks (HTTPS)   |
-         +----------+    +------------+
-                    |    |
-                    v    v
++-------------------+
+|    Web App         |
+|  (TanStack Start,  |
+|   MediaRecorder)   |
++---------+----------+
+          |
+          |  15s audio chunks (HTTPS)
+          v
          +----------------------------+
          |  Cloudflare Workers         |
          |  api.crescend.ai            |
@@ -26,30 +24,31 @@
          |   Rust WASM for compute)    |
          |                             |
          |  /api/practice/chunk        |
-         |  /api/chat                  |
          |  /api/auth                  |
          |  /api/sync                  |
          +--+------+------+------+----+
             |      |      |      |
             v      v      v      v
       +-------+ +-----+ +--------+ +--------+
-      | HF    | | WkAI| | Teacher| |Postgres|
-      | Endpt | | API | | LLM    | | (Hyper-|
-      | (MuQ  | | sub-| | (wrang-| |  drive)|
-      | A1-Max)| | agent| | ler.   | | R2, DO |
-      |       | |     | | toml)  | |        |
+      |Transkun| | WkAI| | Teacher| |Postgres|
+      | AMT +  | | API | | LLM    | | (Hyper-|
+      | mock/  | | sub-| | (wrang-| |  drive)|
+      |MoonBeam| | agent| | ler.   | | R2, DO |
+      |scorer  | |     | | toml)  | |        |
       +-------+ +-----+ +--------+ +--------+
 ```
 
-Both platforms upload 15-second audio chunks to the shared API worker. The worker orchestrates cloud inference (HF endpoint), teaching moment selection (deviation-magnitude gate), and a two-stage LLM pipeline (a Workers AI subagent for analysis, then the teacher model for delivery). Model IDs live in `apps/api/wrangler.toml` (`TEACHER_MODEL`, overridable per-provider) and drift -- do not hardcode them here. iOS receives observations on-demand ("How was that?"); web pushes them in real time via WebSocket.
+The web app uploads 15-second audio chunks to the API worker. The worker orchestrates the Transkun AMT -> piece resolution -> alignment -> MPM feature -> scoring pipeline, teaching moment / mark selection (deviation-magnitude gate, baseline-gated), and a two-stage LLM pipeline (a Workers AI subagent for analysis, then the teacher model for the session verdict). Model IDs live in `apps/api/wrangler.toml` (`TEACHER_MODEL`, overridable per-provider) and drift -- do not hardcode them here. Marks land on the score/timeline during pauses; the session verdict and carry-forward are delivered at session review (see `docs/apps/05-ui-system.md`).
+
+**iOS.** The pre-pivot iOS app (SwiftUI, chat-first) was deleted 2026-08-16 (#164); iOS will be rebuilt score-first from git history after web beta validates the product.
 
 ### Platform Strategy (CEO Review 2026-03-19)
 
-**Web-first.** The web app ships to beta users first -- it is furthest along, fastest to iterate (no App Store review), and shareable via URL for growth. iOS follows after web beta validates the product.
+**Web-first.** The web app ships to beta users first -- it is furthest along, fastest to iterate (no App Store review), and shareable via URL for growth. iOS is rebuilt score-first after web beta validates the product (see note above; the original "iOS follows web beta" rationale still holds, iOS itself no longer exists in the tree).
 
 **Session intelligence.** The Durable Object that manages web practice sessions is extended to serve as the "session brain" -- a practice mode state machine (warming up / drilling / running through / winding down) with mode-aware observation pacing.
 
-**Unified artifact system (historical, superseded by #154/#164).** Rich components (exercises, score highlights, references) rendered as artifacts in the chat -- inline by default, expandable to viewport on demand -- with the teacher LLM declaring artifacts via tool use. The chat-container artifact system is being removed; the score-first design delivers marks, a session verdict, and drills instead. See `docs/apps/05-ui-system.md`.
+**Unified artifact system (historical, superseded by #154/#164).** Rich components (exercises, score highlights, references) used to render as artifacts in the chat -- inline by default, expandable to viewport on demand -- with the teacher LLM declaring artifacts via tool use. The chat-container artifact system, the web chat UI, and the API chat routes were removed 2026-08-16 (#164); the score-first design delivers marks, a session verdict, and drills instead. See `docs/apps/05-ui-system.md`.
 
 **Tiered monetization.** Free (daily/weekly limits) / $5 Plus / $20 Pro / $50 Max. Free tier is the growth engine. Inference cost reduction to ~$1/session is part of the model v2 track.
 
@@ -89,10 +88,10 @@ Entry point: [`docs/apps/01-product-vision.md`](apps/01-product-vision.md) | Pip
 
 | Platform | Stack | Key Paths | Notes |
 |----------|-------|-----------|-------|
-| iOS | SwiftUI, AVAudioEngine, SwiftData | `apps/ios/` | On-demand observations, local-first persistence. **Follows web beta.** |
-| Web | TanStack Start, React, Tailwind CSS v4 | `apps/web/` | Real-time observations via WebSocket; delivery retargeting from chat to score-first marks under #154. **Beta-first platform.** |
-| API | TypeScript/Hono on Cloudflare Workers (Rust WASM for compute-heavy modules) | `apps/api/` | Single worker: inference proxy, LLM pipeline, auth, sync |
-| Inference | PyTorch, HF Inference Endpoint | `apps/inference/`, `model/` | A1-Max 4-fold ensemble, 6-dim scores |
+| iOS | (deleted 2026-08-16, #164) | -- | Pre-pivot chat-first app removed. Rebuilt score-first from git history after web beta. |
+| Web | TanStack Start, React, Tailwind CSS v4 | `apps/web/` | Score-first delivery: marks on the score/timeline, session verdict, carry-forward (#154/#162). **Beta-first platform.** |
+| API | TypeScript/Hono on Cloudflare Workers (Rust WASM for compute-heavy modules) | `apps/api/` | Single worker: AMT/scoring pipeline, LLM pipeline, auth, sync |
+| Inference | Transkun AMT + MPM features + MoonBeam-839M (mock scorer until the head ships) | `apps/inference/`, `model/` | See `docs/apps/02-pipeline.md`; MuQ removed from the request path (#162) |
 
 ---
 
@@ -100,11 +99,11 @@ Entry point: [`docs/apps/01-product-vision.md`](apps/01-product-vision.md) | Pip
 
 ### Auth
 
-Sign in with Apple and Google Sign In on both platforms. The API worker validates the Apple ID token and issues a session JWT stored in iOS Keychain (native) or cookies (web). Apple provides a stable user ID and relay email for future communication. Required by App Store for account-based features.
+Sign in with Apple and Google Sign In. The API worker validates the Apple ID token and issues a session JWT stored in cookies (web). Apple provides a stable user ID and relay email for future communication. When iOS is rebuilt, the session JWT is expected to move to iOS Keychain there, as it did pre-pivot.
 
 ### Sync
 
-Local-first on iOS: all student data and sessions live in SwiftData on-device. The phone is authoritative. The server database stores copies for cross-platform backup and web access. Sync is conflict-free -- the phone pushes deltas (new sessions, updated baselines) to the server after each session. The server is authoritative only for exercise updates. On web, the server database is the primary data store.
+On web, the server database is the primary and authoritative data store; there is no client-side cache to reconcile. (Historical: the pre-pivot iOS app was local-first -- SwiftData on-device, phone authoritative, conflict-free delta push to the server after each session, server authoritative only for exercise updates. iOS was deleted 2026-08-16, #164; this local-first sync design is expected to be revisited, not assumed unchanged, when iOS is rebuilt score-first.)
 
 **Sync response payload:** The `POST /api/sync` response includes server-to-client updates:
 
@@ -122,11 +121,11 @@ Local-first on iOS: all student data and sessions live in SwiftData on-device. T
 }
 ```
 
-The `exerciseUpdates` array contains exercises added or modified since the client's last sync. iOS caches exercises in SwiftData and queries locally first; new exercises arrive via this response. The server is authoritative for exercise content. See `04-exercises.md` for the exercise schema.
+The `exerciseUpdates` array contains exercises added or modified since the client's last sync. The server is authoritative for exercise content. See `04-exercises.md` for the exercise schema.
 
 ### Observability
 
-Error tracking via Sentry across all three surfaces. iOS uses `sentry-cocoa` SPM (crash reporting, error capture, breadcrumbs). Web uses `@sentry/react` (React ErrorBoundary, API errors, WebSocket errors). The API worker uses the `@sentry/cloudflare` SDK (`Sentry.captureException`, traces, breadcrumbs) with structured JSON logging. Cloudflare Workers built-in analytics covers API health and latency. Sentry org: `crescendai`, projects: `crescendai-api`, `crescendai-web`, `crescendai-ios`.
+Error tracking via Sentry. Web uses `@sentry/react` (React ErrorBoundary, API errors, WebSocket errors). The API worker uses the `@sentry/cloudflare` SDK (`Sentry.captureException`, traces, breadcrumbs) with structured JSON logging. Cloudflare Workers built-in analytics covers API health and latency. Sentry org: `crescendai`, projects: `crescendai-api`, `crescendai-web` (the `crescendai-ios` project is dormant since iOS was deleted 2026-08-16, #164).
 
 ---
 
@@ -138,15 +137,15 @@ why the system is shaped the way it is, so a choice is not silently re-litigated
 
 | Decision | Chosen | Rationale |
 |---|---|---|
-| Cloud-only inference | HF endpoint for both platforms | Eliminates Core ML conversion, single deployment path, instant model updates. Trade-off: network required for scoring. |
+| Cloud-only inference (SERVING PATH SUPERSEDED by #162) | HF endpoint (MuQ) at decision time; now Transkun AMT + MPM features + MoonBeam-839M, all server-side | Eliminates Core ML conversion, single deployment path, instant model updates. Trade-off: network required for scoring. The "cloud-only, no on-device inference" principle stands; the specific HF/MuQ endpoint was retired with MuQ (#162). |
 | Two-stage LLM pipeline | Separate analysis model from delivery model | Analysis wants fast and cheap; delivery wants voice quality. Different tasks, different models. Current model IDs live in `wrangler.toml` and drift — do not hardcode them in docs. |
 | Multi-provider over single gateway | Workers AI + Anthropic via CF AI Gateway | Co-located inference for the analysis stage; native prompt caching for the teacher. Since #172 (Aug 2026 unification): Workers AI runs on the unified `AI` binding / unified REST API (`apps/api/src/lib/ai-gateway.ts`); Anthropic stays on the provider-native gateway URL because BYOK keys are not supported through the unified binding. |
-| Local-first data (iOS) | SwiftData on-device, server for backup/sync | Practice works without internet (except the LLM call). Phone is authoritative, so there is no conflict resolution. |
+| Local-first data (iOS) (HISTORICAL — iOS deleted #164) | SwiftData on-device, server for backup/sync | Practice works without internet (except the LLM call). Phone is authoritative, so there is no conflict resolution. Decision record for the pre-pivot app; revisit when iOS is rebuilt score-first, don't assume unchanged. |
 | Scores as reasoning inputs | Not a report card | The model is ~80% pairwise accurate. Value is in the analysis and the teacher's delivery, not raw numbers. Consequence: raw dimension scores are never sent to the client (see `buildObservationPayload`, #143). |
 | Chat-first UI (SUPERSEDED by #154) | Text default, components on-demand | Mirrors real teaching. Most observations are conversational; rich components only when a visual or interactive aid adds pedagogical value. Replaced by score-first delivery (marks + verdict + carry-forward, chat scoped to passage asks); see `docs/apps/05-ui-system.md`. |
 | Piece identification | AMT fingerprint + graceful unknown | Unknown pieces still get audio-quality feedback, without bar numbers. Ask piece identity *after* the first observation, not before. Piece ID enriches but never gates. |
 | Memory without vector search | Structured SQL queries, bi-temporal facts | The domain is narrow (6 dimensions, known ontology, low volume). No graph DB, no embeddings. |
-| Platform strategy | Web-first, iOS follows | Web is furthest along, fastest to iterate, and gives a shareable URL. iOS catches up after beta validation. |
+| Platform strategy | Web-first, iOS rebuilt after | Web is furthest along, fastest to iterate, and gives a shareable URL. iOS was deleted 2026-08-16 (#164) and is rebuilt score-first from git history after web beta validation, rather than catching up in place. |
 | Session intelligence | Durable Object as session brain | Practice-mode state machine (warming/drilling/running/winding) with mode-aware observation pacing. A single-threaded DO holds all session state. |
 | Artifact system (SUPERSEDED by #154/#164) | Unified container (inline to expanded) | One `<Artifact>` component renders every rich content type. Lives in chat, expands to viewport on demand. The teacher declares artifacts via tool_use. Chat-container artifacts are removed under #164; exercise/segment-loop machinery survives as "drills" launched from marks. |
 | First session | Zero-config | Sign in, play anything, get an observation. Degrades gracefully when the piece is unknown. |
@@ -169,8 +168,7 @@ having real users.
 ## Getting Started
 
 ```bash
-# iOS app
-open apps/ios/CrescendAI.xcodeproj
+# iOS app deleted 2026-08-16 (#164); rebuilt from git history after web beta
 
 # Web app (crescend.ai)
 cd apps/web && bun install && bun run dev

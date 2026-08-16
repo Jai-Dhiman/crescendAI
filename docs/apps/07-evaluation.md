@@ -2,7 +2,7 @@
 
 > Status: 2026-04-27 -- Eval harness v4 shipped: cluster-based teacher voice injection wired into both prod synthesis (`prompts.ts`) and eval (`run_eval.py`) via `shared/teacher-style/playbook.yaml` single source of truth; 4-condition signal ablation harness implemented (`apps/evals/teaching_knowledge/ablation/`); 8x5 atomic-skill rubric matrix implemented (`apps/evals/shared/judge_atomic.py`). Original seven-capability eval design unchanged.
 >
-> **Status update (2026-08-04, score-first redesign -- epic #154):** The chat surface this doc's synthesis/exercise evals assume is removed as the delivery mechanism; marks, a session verdict, and review are the delivery objects being evaluated going forward (#159). The V6 synthesis harness itself survives, but its output contract changes from chat prose to one verdict sentence + consolidated marks + one carry-forward, grounded in MPM evidence (#162). MuQ references below (inference cache, signal ablation) describe the pipeline being retargeted to Transkun AMT -> alignment -> MPM features -> MoonBeam-839M; this eval methodology and the T5 corpus stand and are not being deleted -- the signal sources they exercise are changing under #162, not the eval design itself.
+> **Status update (2026-08-16, score-first redesign shipped -- epics #154/#162, cleanup #164):** The chat surface this doc's synthesis/exercise evals assumed is removed as the delivery mechanism (the web chat UI, chat routes, and the two chat e2e harnesses `e2e_full_session.py`/`e2e_ui_session.py` are deleted); marks, a session verdict, and review are the delivery objects evaluated going forward (#159). The V6 synthesis harness itself survives, but its output contract changes from chat prose to one verdict sentence + consolidated marks + one carry-forward, grounded in MPM evidence (#162). The judge prompts in the Session Synthesis Eval section and its appendix below still target chat prose and need recalibration against the new contract -- they are marked accordingly rather than rewritten from scratch, since the underlying criteria (grounding, actionability, calibration, coherence) still apply, just to a verdict sentence instead of a paragraph. MuQ references below (inference cache, signal ablation) describe the pipeline retargeted to Transkun AMT -> alignment -> MPM features -> MoonBeam-839M (currently a deterministic mock scorer); this eval methodology and the T5 corpus stand and are not being deleted -- the signal sources they exercise changed under #162, not the eval design itself.
 
 This document defines how to evaluate each of the seven capabilities described in `06-capabilities.md`. For each capability, we describe:
 
@@ -372,6 +372,8 @@ Answer: YES or NO, with a one-sentence justification.
 
 ## 4. Session Synthesis Eval
 
+> **Output contract changed under #162.** Everywhere below that says "synthesis" or "synthesis text," the production output is now one verdict sentence + the session's consolidated marks + one carry-forward, not a 3-6 sentence chat paragraph. The eval architecture (route through the production accumulation path, two-pass piece_query design, LLM-judge-per-criterion methodology) is unchanged and still applies -- point the judge at the verdict sentence (plus, where a criterion is about a specific mark rather than the session as a whole, at that mark's evidence text) instead of the old synthesis paragraph. The criteria themselves (grounding, actionability, calibration, coherence, drilling acknowledgment, score accuracy) still hold. The judge prompts in the Aggregate/Differentiation sections and in the Appendix below are NOT rewritten here -- they need a recalibration pass against the new contract (verdict sentence length, marks instead of inline bar-by-bar prose) before they can be trusted, not a wholesale rewrite of what they test.
+
 ### Ideal Eval
 
 **Data:** 200+ sessions with expert piano teacher reviews. Each expert listens to the same recording the system heard, then:
@@ -563,7 +565,7 @@ before promotion.
 ### Prerequisites
 
 1. **Inference cache populated:** MuQ + AMT cached for all 361 T5 recordings
-2. **API running locally:** `just dev-light` or `just dev-muq` with wrangler dev
+2. **API running locally:** `just dev-light` or `just dev` with wrangler dev (`dev-muq` was removed with MuQ, #162)
 3. **Ground truth mapping:** T5 piece titles mapped to `pieces` table IDs
 4. **Cache integrity check:** Verify no recording_id collisions in cache loader
 
@@ -616,6 +618,8 @@ The memory system eval found sigma ~0.036 across 3 runs -- similar variance expe
 ---
 
 ## Appendix: Judge Prompt Templates
+
+> **Needs recalibration, not rewritten wholesale (#162).** These prompts were written against the pre-pivot multi-sentence chat synthesis and still say `[synthesis_text]`. The production artifact they should now be pointed at is the verdict sentence (plus consolidated marks, plus the carry-forward) from the marks/verdict contract in `docs/apps/05-ui-system.md`. The criteria each prompt tests (grounding, actionability, calibration, coherence) still apply to a verdict sentence; the prompts are kept as-is below as the starting point for that recalibration rather than invented fresh, since the underlying judgment task has not changed, only the length and shape of what is being judged.
 
 ### Synthesis: Musical Grounding
 ```
