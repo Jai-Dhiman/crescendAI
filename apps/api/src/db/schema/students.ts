@@ -1,4 +1,11 @@
-import { integer, pgTable, real, text, timestamp } from "drizzle-orm/pg-core";
+import {
+	integer,
+	jsonb,
+	pgTable,
+	real,
+	text,
+	timestamp,
+} from "drizzle-orm/pg-core";
 
 export const studentProfiles = pgTable("student_profiles", {
 	studentId: text("student_id").primaryKey(),
@@ -11,6 +18,7 @@ export const studentProfiles = pgTable("student_profiles", {
 	baselineInterpretation: real("baseline_interpretation"),
 	baselineSessionCount: integer("baseline_session_count").notNull().default(0),
 	explicitGoals: text("explicit_goals"),
+	baselineState: jsonb("baseline_state"),
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.notNull()
 		.defaultNow(),
