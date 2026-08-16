@@ -60,6 +60,12 @@ workerd-pool test files to report a runtime crash rather than a clean pass in `b
 Recommended follow-up: replace the real `WebSocketPair` with a registered-but-fake-transport pattern, or
 pin/downgrade `@cloudflare/vitest-pool-workers`, or file an upstream issue.
 
+## Flagged, intentionally deferred (not fixed)
+
+`muq_scores`/`EnrichedChunk` naming is stale post-MuQ-removal (#162) but is left as-is: the rename
+ripples into harness code (molecules, atoms, grounded-digest, `passage-manifest.ts`, `teacher.ts`, and
+their tests) well beyond #162's scope. Deferred to a follow-up issue rather than fixed here.
+
 ## Incident (no data lost, but process violation)
 
 Two implementer subagents ran `git stash pop` in this shared worktree for their own investigative
