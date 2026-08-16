@@ -7,7 +7,7 @@ import {
 	TAXONOMY_GLYPH,
 	TAXONOMY_LABEL,
 } from "../lib/mark";
-import { DIMENSION_LABELS } from "../lib/mock-session";
+import { DIMENSION_LABELS } from "../lib/dimension";
 
 interface MarkGlyphProps {
 	mark: Mark;

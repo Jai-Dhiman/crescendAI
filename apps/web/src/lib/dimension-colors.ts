@@ -1,4 +1,4 @@
-import type { Dimension } from "./mock-session";
+import type { Dimension } from "./dimension";
 
 /**
  * One dimension-to-color mapping, used everywhere a score dimension needs a

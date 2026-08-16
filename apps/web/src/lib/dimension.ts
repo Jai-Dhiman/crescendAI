@@ -1,12 +1,3 @@
-import type { ObservationEvent } from "./practice-api";
-
-export interface MockSessionData {
-	piece: string;
-	section: string;
-	durationSeconds: number;
-	observations: ObservationEvent[];
-}
-
 export type Dimension =
 	| "dynamics"
 	| "timing"

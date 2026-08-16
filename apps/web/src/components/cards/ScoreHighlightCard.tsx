@@ -1,15 +1,11 @@
-import { ArrowsOut } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { DIMENSION_COLOR_VAR } from "../../lib/dimension-colors";
 import { scoreRenderer } from "../../lib/score-renderer";
 import type { ScoreHighlightConfig } from "../../lib/types";
-import { useScorePanelStore } from "../../stores/score-panel";
 import { ClipSvg } from "../ClipSvg";
 
 interface ScoreHighlightCardProps {
 	config: ScoreHighlightConfig;
-	onExpand?: () => void;
-	artifactId?: string;
 }
 
 type RenderState = "loading" | "rendered" | "error";
@@ -21,13 +17,9 @@ interface LoadedClip {
 	annotation?: string;
 }
 
-export function ScoreHighlightCard({
-	config,
-	onExpand,
-}: ScoreHighlightCardProps) {
+export function ScoreHighlightCard({ config }: ScoreHighlightCardProps) {
 	const [renderState, setRenderState] = useState<RenderState>("loading");
 	const [clips, setClips] = useState<LoadedClip[]>([]);
-	const openHighlight = useScorePanelStore((s) => s.openHighlight);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: highlights array identity is not stable; JSON.stringify produces a stable change signal
 	useEffect(() => {
@@ -115,19 +107,6 @@ export function ScoreHighlightCard({
 							? "1 annotation"
 							: `${config.highlights.length} annotations`}
 					</span>
-					{onExpand && (
-						<button
-							type="button"
-							onClick={() => {
-								openHighlight(config);
-								onExpand?.();
-							}}
-							className="w-6 h-6 flex items-center justify-center rounded text-ink-tertiary hover:text-ink-primary hover:bg-surface-raised transition-colors"
-							aria-label="Expand score highlight"
-						>
-							<ArrowsOut size={13} />
-						</button>
-					)}
 				</div>
 
 				{config.highlights.map((h) => {
