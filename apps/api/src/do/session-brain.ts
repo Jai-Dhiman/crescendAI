@@ -65,7 +65,6 @@ import { type SynthesisInput, synthesizeV6 } from "../services/teacher";
 import type { InlineComponent } from "../services/tool-processor";
 import type {
 	ChunkAnalysis,
-	ChunkNoteResult,
 	NoteAlignment,
 	PerfNote,
 	PerfPedalEvent,
@@ -303,10 +302,6 @@ export function nextSynthesisAlarmDelayMs(opts: {
 
 /** Audio chunk length in milliseconds (15s per scored chunk). */
 const CHUNK_MS = 15000;
-// Tier-1 note matching tolerance (score-time seconds): how far a warped perf-note
-// onset may sit from a notated score-note onset to count as the same note. Generous
-// because timing here is coarse/directional (the bar-MEAN deviation is what matters).
-const TIER1_ONSET_WINDOW_S = 0.15;
 
 /**
  * Compute session duration from the number of scored chunks rather than
@@ -798,13 +793,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 			0.5, 0.5, 0.5, 0.5, 0.5, 0.5,
 		];
 
-		// Tier-1 (chroma-driven) alignment is dormant pending Task 13's structural
-		// removal (#162) — MuQ was its only chroma producer, so these stay null/0
-		// and the tier-1 branch below always falls through to Tier 2.
-		const chromaBytes: Uint8Array | null = null;
-		const chromaFrames = 0;
-		const chromaFrameRateHz = 0;
-
 		if (isNoCommentZone) {
 			currentState.noCommentZones.push({
 				chunkIndex: index,
@@ -843,7 +831,10 @@ export class SessionBrain extends DurableObject<Bindings> {
 			}
 		}
 
-		// 6b. Bar analysis: align chunk + analyze (WASM; skip gracefully if not built)
+		// 6b. Bar analysis: Tier-2 (absolute MIDI) unconditionally. The chroma-driven
+		// Tier-1 branch is removed with MuQ (#162) — its chroma input no longer exists.
+		// The WASM aligner (alignChunkNotes/alignChunkChroma, #64) stays in the tree,
+		// dormant, for the follower issue that restores bar anchoring.
 		let chunkAnalysisTier = 3;
 		let chunkBarRange: [number, number] | null = null;
 		let chunkAnalysis: ChunkAnalysis | null = null;
@@ -852,105 +843,18 @@ export class SessionBrain extends DurableObject<Bindings> {
 
 		if (perfNotes.length > 0) {
 			try {
-				const scoreCtx = currentState.pieceIdentification
-					? await this.loadScoreContext(
-							currentState.pieceIdentification.pieceId,
-						)
-					: null;
-
-				if (scoreCtx !== null) {
-					// Tier-1 producer: chroma-align the chunk AND derive per-note onset/
-					// duration deviations vs the notated score (supersedes the bar-only
-					// alignChunkChroma — one chroma pass yields both alignments and
-					// bar_per_frame for cursor following).
-					const noteResult: ChunkNoteResult | null =
-						chromaBytes !== null && chromaFrameRateHz > 0
-							? (() => {
-									try {
-										return wasm.alignChunkNotes(
-											chromaBytes,
-											chromaFrames,
-											perfNotes,
-											scoreCtx.score.bars,
-											chromaFrameRateHz,
-											5.0,
-											index,
-											TIER1_ONSET_WINDOW_S,
-										);
-									} catch (e) {
-										console.log(
-											JSON.stringify({
-												level: "warn",
-												message: "alignChunkNotes failed",
-												error: e instanceof Error ? e.message : String(e),
-											}),
-										);
-										return null;
-									}
-								})()
-							: null;
-
-					if (noteResult !== null && noteResult.bar_map.alignments.length > 0) {
-						// Tier 1: score+reference deviations reach the teacher.
-						const { bar_map } = noteResult;
-						chunkBarRange = [bar_map.bar_start, bar_map.bar_end];
-						barMapAlignments.push(...bar_map.alignments);
-						const analysis1 = wasm.analyzeTier1(
-							bar_map,
-							perfNotes,
-							perfPedal,
-							scoresArray,
-							scoreCtx,
-						);
-						chunkAnalysis = analysis1;
-						chunkAnalysisTier = 1;
-
-						// Bar map for client cursor following (separate message, after
-						// the initial chunk_processed scores send).
-						this.sendWs(ws, {
-							type: "chunk_bar_map",
-							chunk_index: index,
-							bar_min: bar_map.bar_start,
-							bar_max: bar_map.bar_end,
-							bar_per_frame: noteResult.bar_per_frame,
-						});
-					} else {
-						// Alignment failed or matched no notes: fall back to Tier 2
-						// (absolute MIDI), preserving graceful degradation.
-						const analysis2 = wasm.analyzeTier2(
-							perfNotes,
-							perfPedal,
-							scoresArray,
-						);
-						chunkAnalysis = analysis2;
-						chunkAnalysisTier = analysis2.tier;
-						const barStr = analysis2.bar_range;
-						if (barStr !== null) {
-							const parts = barStr.split("-").map(Number);
-							if (
-								parts.length === 2 &&
-								parts[0] !== undefined &&
-								parts[1] !== undefined
-							) {
-								chunkBarRange = [parts[0], parts[1]];
-							}
-						}
-					}
-				} else {
-					// No score context: Tier 2 (MIDI only)
-					const analysis = wasm.analyzeTier2(perfNotes, perfPedal, scoresArray);
-					chunkAnalysis = analysis;
-					chunkAnalysisTier = analysis.tier;
-					const barStr = analysis.bar_range;
-					if (barStr !== null) {
-						const parts = barStr.split("-").map(Number);
-						if (
-							parts.length === 2 &&
-							parts[0] !== undefined &&
-							parts[1] !== undefined
-						) {
-							chunkBarRange = [parts[0], parts[1]];
-						}
+				const analysis = wasm.analyzeTier2(perfNotes, perfPedal, scoresArray);
+				chunkAnalysis = analysis;
+				chunkAnalysisTier = analysis.tier;
+				const barStr = analysis.bar_range;
+				if (barStr !== null) {
+					const parts = barStr.split("-").map(Number);
+					if (
+						parts.length === 2 &&
+						parts[0] !== undefined &&
+						parts[1] !== undefined
+					) {
+						chunkBarRange = [parts[0], parts[1]];
 					}
 				}
 			} catch (err) {
