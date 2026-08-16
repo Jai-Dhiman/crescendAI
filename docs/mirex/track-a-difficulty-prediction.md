@@ -16,6 +16,7 @@
 | 37 hand features, RidgeCV, **supervision-matched** (~4,000 train rows) | 0.8068 | +0.0032 `noise` |
 | MoonBeam-839M **frozen**, mean-pool + RidgeCV | 0.8281 | +0.0213 |
 | **MoonBeam-839M LoRA fine-tuned** | **0.8395** | **+0.0113 SIG** vs frozen |
+| LoRA fine-tuned, **5-adapter prediction ensemble** | **0.8445** | **+0.0051 SIG** vs single-adapter (composer-clean only on the fold diagonal — see 2026-08-15 lever-3 entry) |
 
 The two claims to report: **+0.0325 CI95[+0.0201,+0.0455] vs the supervision-matched hand-feature baseline**, and **+0.0113 CI95[+0.0035,+0.0191] vs frozen MoonBeam** (winning 5 of 5 folds independently). Both survive paired bootstrap. Full-corpus composer-disjoint anchors under the *other* protocol (`tk_ablation.py`, LightGBM + GroupKFold, n=5,798): 37 features 0.7929, +32 Transkun-unlocked features 0.7988. **Those levels are not comparable to the 0.80–0.84 figures above** — different model class, different folds, different n.
 
@@ -92,7 +93,7 @@ Recorded because the gap is larger than it looks, and none of it is cosmetic.
 
 1. **Train the final model on all 5,798 pieces** instead of a fold's ~3,900. Required for submission anyway; ~$2 of A100.
 2. **Sweep the input window length.** The one explicitly-recorded unexplored lever, inherited from the dropped Track B: *feature window granularity, not head architecture, was the lever* — mean-pooling three 10s windows beat a single 30s chunk by +3.1pp, retroactively exposing an apparent "frozen wall" as a `CHUNK_SECONDS=30` under-resolution artifact. Pooling *operator* did not matter; window *length* did. Our fine-tune trains on single random 1024-token windows and evaluates on full-piece mean-pool, and that mismatch has never been swept. CPU-only, free.
-3. **Ensemble the 5 existing adapters** at inference. Free; also yields a variance estimate.
+3. **Ensemble the 5 existing adapters** at inference. ~~Free; also yields a variance estimate.~~ **MEASURED 2026-08-15: accepted gain +0.0051 SIG (see decision log). Folds into lever 1: train the final model as an ensemble of ~5 runs.**
 4. **Auxiliary multi-task on `period`.** The captains got 0.77 → 0.78 from exactly this; the labels are already on disk.
 5. **Scale the LoRA** — beyond the top 5 layers, larger rank, more epochs, or a full fine-tune. Unknown payoff, ~$10–50, trivially parallel.
 6. **Add an audio branch (multimodal).** Worth ~+0.01 in the captains' hands, and worth more than that as a *hedge*: if the synthesized-audio measurement shows transcription degrading, a path that bypasses Transkun stops being a marginal gain and becomes the fix. Decide after that measurement, not before.
@@ -283,3 +284,17 @@ Recorded because the gap is larger than it looks, and none of it is cosmetic.
   - **Design fact for any future window work:** measure the note-count distribution first. W=4096 was dropped ex ante because it would differ from 2048 on only 89 pieces — unresolvable at these margins.
   - **Device effect isolated as a by-product:** CPU re-extraction at W=1024 reproduces the stored A100 embeddings to ~1e-6 relative distance and the anchor tau-c 0.8395 EXACTLY (paired delta +0.0000). #166's up-to-+0.0435 CPU/GPU score divergence is therefore Transkun-side (transcription), not the MoonBeam forward pass. The owed tau-c-from-GPU-transcriptions check remains owed; this narrows where it can come from.
   - **Consequence:** extraction stays at config `max_len=1024` for the submission. The w2048 direction may be revisited for free alongside the adapter-ensemble lever (same embeddings, one more arm) after any retrain, but it is not promoted.
+- **2026-08-15 (#168, S3 lever 3) — ADAPTER ENSEMBLE MEASURED: an ACCEPTED gain, the first since the LoRA fine-tune itself.** Combining the five existing fold adapters at inference beats single-adapter eval: prediction-mean tau-c **0.8445**, paired **+0.0051 CI95[+0.0019,+0.0082]** vs the CPU-w1024 baseline (0.8395, re-verified reproducing the anchor exactly, delta +0.0000). No retraining, no new extraction (reuses `window_sweep/w1024/`'s five fold matrices), $0. The design was **pre-registered on #168 before any ensemble number was computed**: primary = prediction-mean; secondary = embedding-mean (exploratory); verdict = paired bootstrap CI95 excluding zero.
+
+  | arm | tau-c | vs baseline (paired, CI95) |
+  |---|---|---|
+  | baseline (adapter f on fold f) | 0.8395 | — |
+  | **pred-mean of 5 adapters (PRIMARY)** | **0.8445** | **+0.0051 [+0.0019,+0.0082] SIG** |
+  | emb-mean of 5 adapters (secondary) | 0.8440 | +0.0046 [+0.0016,+0.0078] SIG |
+
+  - **The stored per-fold ridge heads are LEAKY for ensembling and were not reused.** Head g was fit on all rows except fold g's test set, so fold f's (f ≠ g) test pieces sit inside head g's training rows. The clean construction refits: for fold f and adapter g, fit RidgeCV on fold-f train rows of adapter-g embeddings, predict fold-f test rows, average over g — 25 fits, all OOF. Anyone re-running "average the 5 heads' outputs" without refitting is measuring train-on-test.
+  - **Variance estimate (the second deliverable):** each adapter alone across all folds — 0.8448, 0.8386, 0.8367, 0.8414, 0.8432; range 0.0081, std 0.0033. The fold adapters are close substitutes, not lottery tickets, and the ensemble gain (+0.0051) is of the same order as the spread — consistent with variance averaging, not with any adapter holding unique signal.
+  - **Adapter 0 alone (0.8448) matches the ensemble (0.8445) — do NOT promote it.** Picking the best single adapter after seeing five numbers is post-hoc selection with n=5; the pre-registered primary is the ensemble, and only its CI is a verdict.
+  - **Contamination caveat (pre-registered, carried by the verdict):** piece-level clean everywhere (option D excluded all 900 eval pieces from every adapter's training pool), but composer-level clean only on the (f, f) diagonal — adapter g ≠ f may have trained on non-eval pieces by a fold-f test composer. The baseline is composer-clean by construction; the ensemble is not. The eval set is 900 distinct composers (disjointness vacuous at eval level, 2026-08-06 entry), so the exposure is via shared-composer *training* pieces only.
+  - **Submission implication:** the final submission model trains on all 5,798 pieces (lever 1 of the open-levers list), which dissolves *these* five adapters — but this result now motivates training the final model as an ensemble of ~5 seeds/subsamples rather than one run (~$10 of A100 instead of ~$2). Inference cost: embedding extraction ×5 (~2.2s → ~11s/piece on CPU); transcription, the dominant cost, is shared.
+  - *Harness:* `adapter_ensemble.py` + 5 tests (262 green). Pinned as tests: identical adapters collapse both ensembles to the baseline exactly, and each single adapter's fold-g block equals the baseline's fold-g block (the refit-not-reuse guard).
