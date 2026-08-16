@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { loadBaselineState } from "./baseline-store";
+import { loadBaselineState, saveBaselineState } from "./baseline-store";
+import { initialBaselineState } from "./student-baseline";
 
 describe("loadBaselineState", () => {
 	it("returns null when the student has no row", async () => {
@@ -20,5 +21,47 @@ describe("loadBaselineState", () => {
 		};
 		const result = await loadBaselineState(fakeDb as never, "stu-1");
 		expect(result).toBeNull();
+	});
+
+	it("throws ValidationError when the stored shape is corrupt", async () => {
+		const fakeDb = {
+			query: {
+				studentProfiles: {
+					findFirst: async () => ({
+						studentId: "stu-1",
+						baselineState: { not: "a baseline state" },
+					}),
+				},
+			},
+		};
+		await expect(loadBaselineState(fakeDb as never, "stu-1")).rejects.toThrow(
+			/corrupt baseline_state/,
+		);
+	});
+});
+
+describe("saveBaselineState", () => {
+	it("inserts studentId and baselineState via onConflictDoUpdate", async () => {
+		const state = initialBaselineState();
+		const calls: { values?: unknown; conflictSet?: unknown } = {};
+		const fakeDb = {
+			insert: () => ({
+				values: (v: unknown) => {
+					calls.values = v;
+					return {
+						onConflictDoUpdate: (opts: { set: unknown }) => {
+							calls.conflictSet = opts.set;
+							return Promise.resolve();
+						},
+					};
+				},
+			}),
+		};
+		await saveBaselineState(fakeDb as never, "stu-1", state);
+		expect(calls.values).toMatchObject({
+			studentId: "stu-1",
+			baselineState: state,
+		});
+		expect(calls.conflictSet).toMatchObject({ baselineState: state });
 	});
 });
