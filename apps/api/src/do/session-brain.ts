@@ -1860,27 +1860,34 @@ export class SessionBrain extends DurableObject<Bindings> {
 				);
 			}
 
-			if (validationError !== null) {
+			if (validationError !== null || artifact === null) {
 				console.error(
 					JSON.stringify({
 						level: "error",
-						message: "v6 validation_error",
+						message:
+							validationError !== null
+								? "v6 validation_error"
+								: "v6 produced no artifact",
 						error: validationError,
 						sessionId: state.sessionId,
 					}),
 				);
+				if (!state.isEvalSession) {
+					const sockets = this.ctx.getWebSockets();
+					const failurePayload = {
+						type: "review" as const,
+						verdict: null,
+						carry_forward: null,
+						no_comment_zones: state.noCommentZones.map((z) => ({
+							atSeconds: z.chunkIndex * (CHUNK_MS / 1000),
+							reason: z.reason,
+						})),
+					};
+					for (const sock of sockets) {
+						this.sendWs(sock, failurePayload);
+					}
+				}
 				return; // leave needsSynthesis=true for retry
-			}
-
-			if (artifact === null) {
-				console.error(
-					JSON.stringify({
-						level: "error",
-						message: "v6 produced no artifact",
-						sessionId: state.sessionId,
-					}),
-				);
-				return;
 			}
 
 			const loopComponents = artifact.assigned_loops.map((ref) =>
@@ -2049,6 +2056,21 @@ export class SessionBrain extends DurableObject<Bindings> {
 					error: error.message,
 				}),
 			);
+			if (!state.isEvalSession) {
+				const sockets = this.ctx.getWebSockets();
+				const failurePayload = {
+					type: "review" as const,
+					verdict: null,
+					carry_forward: null,
+					no_comment_zones: state.noCommentZones.map((z) => ({
+						atSeconds: z.chunkIndex * (CHUNK_MS / 1000),
+						reason: z.reason,
+					})),
+				};
+				for (const sock of sockets) {
+					this.sendWs(sock, failurePayload);
+				}
+			}
 			// synthesisCompleted stays true (no duplicate), but needsSynthesis in DB stays true
 			// so the deferred /synthesize endpoint can retry via the DO
 		}
