@@ -60,7 +60,7 @@ export const sessionStateSchema = z.object({
 	markBaseline: BaselineStateSchema.nullable().default(null),
 	markBaselineLoaded: z.boolean().default(false),
 	sessionSamples: z.record(z.string(), z.array(z.number())).default({}),
-	emittedMarks: z.array(z.string()).default([]),
+	emittedMarks: z.array(z.enum(DIMS_6)).default([]),
 	noCommentZones: z
 		.array(z.object({ chunkIndex: z.number().int(), reason: z.string() }))
 		.default([]),

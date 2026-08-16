@@ -869,7 +869,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 				sessionSamples: currentState.sessionSamples as Partial<
 					Record<Dimension, number[]>
 				>,
-				emittedDimensions: new Set(currentState.emittedMarks as Dimension[]),
+				emittedDimensions: new Set(currentState.emittedMarks),
 				firePersistence: DEFAULT_BASELINE_CONFIG.firePersistence,
 			});
 
