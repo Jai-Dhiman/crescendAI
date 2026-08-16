@@ -17,12 +17,11 @@ vi.mock("../services/inference", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../services/inference")>();
 	return {
 		...actual,
-		callMuqEndpoint: vi.fn(),
 		callAmtEndpoint: vi.fn(),
 	};
 });
 
-import { callAmtEndpoint, callMuqEndpoint } from "../services/inference";
+import { callAmtEndpoint } from "../services/inference";
 import type { SessionBrain } from "./session-brain";
 import { createInitialState, type SessionState } from "./session-brain.schema";
 
@@ -33,31 +32,21 @@ declare module "cloudflare:test" {
 	}
 }
 
-const muqMock = callMuqEndpoint as unknown as Mock;
 const amtMock = callAmtEndpoint as unknown as Mock;
 
 const tick = () => new Promise((r) => setTimeout(r, 10));
 
-const okMuq = async () => {
-	await tick();
-	return {
-		scores: {
-			dynamics: 0.5,
-			timing: 0.5,
-			pedaling: 0.5,
-			articulation: 0.5,
-			phrasing: 0.5,
-			interpretation: 0.5,
-		},
-		confidences: null,
-		chromaBytes: null,
-		chromaFrames: 0,
-		chromaFrameRateHz: 0,
-	};
-};
 const okAmt = async () => {
 	await tick();
-	return { notes: [], pedalEvents: [] };
+	return {
+		notes: Array.from({ length: 10 }, (_, i) => ({
+			pitch: 60,
+			onset: i * 0.3,
+			offset: i * 0.3 + 0.2,
+			velocity: 70,
+		})),
+		pedalEvents: [],
+	};
 };
 
 // no-op WebSocket stub: handleChunkReady only calls ws.send / ws.close.
@@ -73,6 +62,7 @@ async function seed(storage: DurableObjectStorage): Promise<void> {
 	s.baselinesLoaded = true; // skip Hyperdrive baseline query
 	s.baselines = null; // skip teaching-moment selection
 	s.pieceLocked = true; // skip piece identification
+	s.markBaselineLoaded = true; // skip Hyperdrive mark-baseline query (finalizeChunk)
 	// Neutralize synthesis: lifecycle scenarios drain to a +1ms alarm that would otherwise fire
 	// runSynthesisAndPersist (LLM + DB). This canary verifies DO chunk accounting, not synthesis,
 	// so a fired alarm no-ops (alarm() returns early when both are already set).
@@ -104,7 +94,6 @@ describe("SessionBrain chunk_ready canary — DO robustness across situations", 
 				await storage.deleteAlarm();
 			};
 			// ── Scenario 1: high concurrency (12 chunks) — every chunk persists, counter drains ──
-			muqMock.mockImplementation(okMuq);
 			amtMock.mockImplementation(okAmt);
 			{
 				const N = 12;
@@ -162,10 +151,10 @@ describe("SessionBrain chunk_ready canary — DO robustness across situations", 
 				});
 			}
 
-			// ── Scenario 4: all-MuQ-failure concurrent — counter drains, no partial scoredChunks ──
-			muqMock.mockImplementation(async () => {
+			// ── Scenario 4: all-AMT-failure concurrent — counter drains, every chunk a no-comment zone ──
+			amtMock.mockImplementation(async () => {
 				await tick();
-				throw new Error("MuQ down");
+				throw new Error("AMT down");
 			});
 			{
 				const N = 5;
@@ -180,9 +169,14 @@ describe("SessionBrain chunk_ready canary — DO robustness across situations", 
 					).toBe(0);
 					expect(st.chunksInFlight, "failures still decrement").toBe(0);
 					expect(st.inferenceFailures, "every failure counted").toBe(N);
+					expect(
+						(st as unknown as { noCommentZones: unknown[] }).noCommentZones
+							.length,
+						"every AMT failure is a no-comment zone",
+					).toBe(N);
 				});
 			}
-			muqMock.mockImplementation(okMuq); // restore for remaining scenarios
+			amtMock.mockImplementation(okAmt); // restore for remaining scenarios
 
 			// ── Scenario 5: missing-R2 chunks interleaved with good ones — good ones persist ──
 			{
