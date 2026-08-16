@@ -294,6 +294,11 @@ lint-api:
 lint-web:
     cd apps/web && bun run lint
 
+# Lint Rust WASM crates (clippy; lint levels live in each crate's Cargo.toml [lints])
+lint-rust:
+    cd apps/api/src/wasm/piece-identify && cargo clippy --all-targets
+    cd apps/api/src/wasm/score-analysis && cargo clippy --all-targets
+
 # Deterministic checks for the mechanical rules in docs/standards/rules.json
 check-standards:
     python3 scripts/standards_check.py --all

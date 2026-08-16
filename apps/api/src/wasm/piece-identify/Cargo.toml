@@ -15,3 +15,20 @@ serde_json = "1"
 [profile.release]
 opt-level = "s"
 lto = true
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+unreachable = "deny"
+rc_mutex = "deny"
+mem_forget = "deny"
+dbg_macro = "deny"
+print_stdout = "warn"
+clone_on_copy = "deny"
+needless_collect = "warn"

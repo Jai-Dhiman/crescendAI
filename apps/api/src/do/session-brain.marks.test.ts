@@ -1,12 +1,11 @@
 /// <reference types="@cloudflare/vitest-pool-workers" />
 
-// NOTE: this file crashes at vitest-pool-workers teardown ("Isolated storage
-// failed" inside updateStackedStorage) when it combines a real WebSocketPair,
-// runDurableObjectAlarm, and DO storage in one runInDurableObject callback --
-// a known vitest-pool-workers framework issue, not a bug in the test or the
-// code under test. The test bodies themselves run to completion and pass; the
-// crash happens after assertions finish, during isolated-storage cleanup. See
-// docs/implementation/2026-08-15-pipeline-retarget-marks-notes.md for detail.
+// NOTE: never call runDurableObjectAlarm(stub) nested inside a
+// runInDurableObject(stub, ...) callback. Nesting the two runner control calls
+// on the same stub corrupts vitest-pool-workers' isolated-storage stack and
+// crashes the whole file at teardown ("Isolated storage failed" inside
+// updateStackedStorage) -- and the crash masks assertion results, so the test
+// can silently rot. Run the alarm between runInDurableObject calls instead.
 
 import {
 	env,
@@ -123,8 +122,6 @@ declare module "cloudflare:test" {
 	}
 }
 
-const fakeWs = { send() {}, close() {} } as unknown as WebSocket;
-
 describe("pipeline retarget: marks + review end-to-end (#162)", () => {
 	it("drives a session from chunk_ready through end_session and observes a mark, one review, and a persisted baseline", async () => {
 		for (let i = 0; i < 8; i++) {
@@ -153,17 +150,22 @@ describe("pipeline retarget: marks + review end-to-end (#162)", () => {
 
 			for (let i = 0; i < 8; i++) {
 				await instance.webSocketMessage(
-					fakeWs,
+					server,
 					JSON.stringify({ type: "chunk_ready", index: i, r2Key: `e2e-${i}` }),
 				);
 			}
 
 			await instance.webSocketMessage(
-				fakeWs,
+				server,
 				JSON.stringify({ type: "end_session" }),
 			);
-			await runDurableObjectAlarm(stub);
 
+			await new Promise((resolve) => setTimeout(resolve, 20));
+		});
+
+		await runDurableObjectAlarm(stub);
+
+		await runInDurableObject(stub, async (_instance: SessionBrain, state) => {
 			await new Promise((resolve) => setTimeout(resolve, 20));
 			await state.storage.deleteAlarm();
 		});

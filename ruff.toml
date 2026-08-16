@@ -1,0 +1,17 @@
+# Repo-level ruff policy for Python outside model/ (scripts/, apps/evals/).
+# model/pyproject.toml carries its own copy (ruff: nearest config wins).
+# Rule ids map to docs/standards/PY_STYLE.md; enforcement is changed-lines-only
+# via scripts/lint_changed.py, so legacy violations stay advisory (#174).
+target-version = "py311"
+exclude = [".git", ".venv", "__pycache__", ".worktrees", "node_modules"]
+
+[lint]
+select = ["E", "F", "W", "I", "B", "BLE", "TRY", "RET", "ARG", "PTH", "RUF", "NPY"]
+ignore = [
+    "TRY003", # deliberate style: explicit inline raise messages (PY_STYLE.md section 5)
+]
+
+[lint.per-file-ignores]
+# tests: unused fixture args, broad excepts in harnesses, bare open() on fixtures
+"**/tests/**" = ["ARG001", "ARG002", "ARG005", "BLE001", "PTH123"]
+"**/test_*.py" = ["ARG001", "ARG002", "ARG005", "BLE001", "PTH123"]

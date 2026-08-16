@@ -100,6 +100,8 @@ fn score_frame_per_audio_frame_length_equals_n_audio_when_rates_differ() {
     let n_audio: usize = 10;
     let mut audio = vec![0.0_f32; 12 * n_audio];
     // All frames strongly C
+    // erasing_op: the pc*n_audio+af index formula stays literal for clarity (pc=0)
+    #[allow(clippy::erasing_op)]
     for af in 0..n_audio {
         audio[0 * n_audio + af] = 1.0;
     }
