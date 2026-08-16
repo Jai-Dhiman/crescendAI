@@ -99,6 +99,8 @@ def main():
                     help="attempt at most N downloads (smoke)")
     ap.add_argument("--prior-failures-first", action="store_true",
                     help="order the 191 refetch_report.json failures ahead of the rest")
+    ap.add_argument("--exclude-prior-failures", action="store_true",
+                    help="skip the 191 refetch_report.json failures entirely")
     args = ap.parse_args()
 
     data = args.data_dir
@@ -107,10 +109,13 @@ def main():
     missing = json.loads((data / "missing.json").read_text())
 
     todo = [m for m in missing if not (tk_dir / f"{m['seg_id']}.mid").exists()]
-    if args.prior_failures_first:
+    if args.prior_failures_first or args.exclude_prior_failures:
         prior = {f["seg_id"] for f in json.loads(
             (data / "refetch_report.json").read_text())["failures"]}
-        todo.sort(key=lambda m: m["seg_id"] not in prior)
+        if args.exclude_prior_failures:
+            todo = [m for m in todo if m["seg_id"] not in prior]
+        else:
+            todo.sort(key=lambda m: m["seg_id"] not in prior)
     if args.limit:
         todo = todo[: args.limit]
     print(f"{len(todo)} pieces to recover (of {len(missing)} missing); "
