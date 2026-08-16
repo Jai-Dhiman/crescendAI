@@ -29,7 +29,6 @@ export interface Bindings {
 	TEACHER_PROVIDER?: string;
 	TEACHER_MODEL?: string;
 	CLOUDFLARE_API_TOKEN: string;
-	MUQ_ENDPOINT: string;
 	AMT_ENDPOINT: string;
 	SESSION_BRAIN: DurableObjectNamespace;
 	ALLOW_EVAL_STUDENT_OVERRIDE: string;

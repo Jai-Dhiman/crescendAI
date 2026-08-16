@@ -296,8 +296,8 @@ export function nextSynthesisAlarmDelayMs(opts: {
 	return opts.idleWindowMs;
 }
 
-/** MuQ audio chunk length in milliseconds (15s per scored chunk). */
-const MUQ_CHUNK_MS = 15000;
+/** Audio chunk length in milliseconds (15s per scored chunk). */
+const CHUNK_MS = 15000;
 // Tier-1 note matching tolerance (score-time seconds): how far a warped perf-note
 // onset may sit from a notated score-note onset to count as the same note. Generous
 // because timing here is coarse/directional (the bar-MEAN deviation is what matters).
@@ -309,7 +309,7 @@ const TIER1_ONSET_WINDOW_S = 0.15;
  * the same millisecond, so the stamp-based calc rounded to 0 minutes.
  */
 export function computeSessionDurationMs(scoredChunkCount: number): number {
-	return scoredChunkCount * MUQ_CHUNK_MS;
+	return scoredChunkCount * CHUNK_MS;
 }
 
 /**
