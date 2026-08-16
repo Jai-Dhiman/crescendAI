@@ -651,6 +651,11 @@ import type { AppType } from "@crescendai/api";
 ## 12. What NOT to Do
 
 - **[TS-TYPE-001]** (MUST) Do not use `any`. Use `unknown` and narrow with Zod or type guards.
+- **[TS-TYPE-002]** (MUST) Do not chain type assertions (`x as unknown as T`) without a
+  `// SAFETY: <checked invariant>` comment on the same or preceding line. A chained assertion
+  fabricates type evidence; the comment must say what actually guarantees the shape (a Zod
+  parse, a WASM ABI contract, a readonly-tuple-to-enum bridge). Prefer fixing the source type
+  so the cast disappears. Test files are exempt.
 - **[TS-HONO-004]** (MUST) Do not store request-scoped data in module-level variables.
 - **[TS-HONO-003]** (MUST) Do not destructure CF service bindings from `c.env`.
 - **[TS-LOG-001]** (MUST) Do not use `console.log` with plain strings in production.

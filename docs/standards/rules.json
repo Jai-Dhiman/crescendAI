@@ -228,6 +228,14 @@
       "scope": ["apps/api/src/**"],
       "status": "enforced"
     },
+    "TS-TYPE-002": {
+      "level": "MUST",
+      "text": "A chained type assertion (`as unknown as T`) MUST carry a `SAFETY:` comment on the same or preceding line stating the invariant that makes the cast sound; test files are exempt. Prefer fixing the source type so the cast disappears.",
+      "source": "apps/api/TS_STYLE.md#12",
+      "scope": ["apps/api/src/**"],
+      "status": "approved",
+      "check": "chained_assertion_safety"
+    },
     "TS-FILE-001": {
       "level": "SHOULD",
       "text": "Files SHOULD be kebab-case and route modules SHOULD use a named {xxxRoutes} export, not a default export.",

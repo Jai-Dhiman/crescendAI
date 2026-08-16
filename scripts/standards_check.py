@@ -369,12 +369,55 @@ def check_rules_index_sync(_files: list[Path], rules: dict) -> list[Finding]:
     return findings
 
 
+CHAINED_ASSERTION_RE = re.compile(r"\bas\s+unknown\s+as\b")
+CHAINED_ASSERTION_SCOPE = "apps/api/src/"
+
+
+def check_chained_assertion_safety(files: list[Path], rules: dict) -> list[Finding]:
+    """A chained assertion fabricates type evidence; a SAFETY comment names the
+    real guarantee (Zod parse, WASM ABI contract, tuple-to-enum bridge) or the
+    cast should not exist. Test files launder types freely by design and are
+    exempt, matching the rule text."""
+    rule = rules["TS-TYPE-002"]
+    findings = []
+    for path in files:
+        rel = path.relative_to(REPO_ROOT).as_posix()
+        if not rel.startswith(CHAINED_ASSERTION_SCOPE):
+            continue
+        if path.suffix not in (".ts", ".tsx") or rel.endswith(
+            (".test.ts", ".test.tsx")
+        ):
+            continue
+        lines = read_lines(path)
+        for i, line in enumerate(lines, 1):
+            m = CHAINED_ASSERTION_RE.search(line)
+            if not m or in_prose(line, m.start()):
+                continue
+            prev = lines[i - 2] if i >= 2 else ""
+            if "SAFETY:" in line or "SAFETY:" in prev:
+                continue
+            findings.append(
+                Finding(
+                    "TS-TYPE-002",
+                    rule["level"],
+                    rel,
+                    i,
+                    line,
+                    "`as unknown as` needs a `// SAFETY: <checked invariant>` "
+                    "comment on this or the preceding line -- or fix the source "
+                    "type so the cast disappears.",
+                )
+            )
+    return findings
+
+
 CHECKS = {
     "bare_migrate": check_bare_migrate,
     "uv_run_isolation": check_uv_run_isolation,
     "cwd_relative_defaults": check_cwd_relative_defaults,
     "rules_index_sync": check_rules_index_sync,
     "reference_calibration": check_reference_calibration,
+    "chained_assertion_safety": check_chained_assertion_safety,
 }
 
 
