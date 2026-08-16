@@ -3,12 +3,11 @@ import { expect, test } from "vitest";
 
 const FINAL_COMPOUNDS = [
 	{ name: "session-synthesis", hook: "OnSessionEnd" },
-	{ name: "live-practice-companion", hook: "OnRecordingActive" },
 	{ name: "weekly-review", hook: "OnWeeklyReview" },
 	{ name: "piece-onboarding", hook: "OnPieceDetected" },
 ];
 
-test("compounds/README.md lists all 4 final compounds with their hooks", async () => {
+test("compounds/README.md lists all 3 final compounds with their hooks", async () => {
 	const content = await readFile(
 		"docs/harness/skills/compounds/README.md",
 		"utf8",

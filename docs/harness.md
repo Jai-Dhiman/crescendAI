@@ -2,7 +2,7 @@
 
 Anchor doc for CrescendAI's middle system -- everything between the model outputs and the student's screen. Parallel to `docs/architecture.md` (system-level view) and `docs/model/00-research-timeline.md` (model-level view).
 
-> **Status (2026-08-04):** The runtime-consumed catalog contains 14 atoms, 7 registered molecules, and 4 compounds. Typed Zod artifact contracts and the catalog validator live in `apps/api/src/harness/`. The former Qwen training program is historical; the catalog now serves the provider-agnostic V6 harness and its evaluations.
+> **Status (2026-08-04):** The runtime-consumed catalog contains 14 atoms, 7 registered molecules, and 3 compounds (live-practice-companion removed 2026-08-16, #164). Typed Zod artifact contracts and the catalog validator live in `apps/api/src/harness/`. The former Qwen training program is historical; the catalog now serves the provider-agnostic V6 harness and its evaluations.
 
 > **Redesign in flight (epic #154, #162 pipeline retarget, 2026-08-04):** The score-first redesign changes the V6 synthesis output contract from chat prose to one verdict sentence + consolidated marks + one carry-forward, all grounded in MPM evidence; chat survives only as passage-scoped ask threads attached to marks. The model stream is also retargeting: MuQ is being removed in favor of Transkun AMT -> alignment -> MPM-style per-bar features -> MoonBeam-839M scoring. This doc's durable primitives and V6 loop mechanics are largely unaffected; see `docs/apps/05-ui-system.md` and `docs/apps/02-pipeline.md` for the target delivery and pipeline shape.
 
@@ -59,12 +59,12 @@ Same code runs prod and eval. Playbook.yaml style injection wired everywhere. Si
 **Tier:** NOW. P0 beta blocker.
 
 ### V5 -- Skills (Atoms / Molecules / Compounds)
-Three-tier skill catalog. 14 atoms, 7 registered molecules, 4 compounds. Each has YAML frontmatter, 5 required body sections, and a typed artifact output contract. Three Zod artifact schemas (`DiagnosisArtifact`, `ExerciseArtifact`, `SynthesisArtifact`) live in `apps/api/src/harness/artifacts/`. The validator enforces frontmatter, body sections, and cross-file dependencies. Doc home: `docs/harness/skills/`.
+Three-tier skill catalog. 14 atoms, 7 registered molecules, 3 compounds. Each has YAML frontmatter, 5 required body sections, and a typed artifact output contract. Three Zod artifact schemas (`DiagnosisArtifact`, `ExerciseArtifact`, `SynthesisArtifact`) live in `apps/api/src/harness/artifacts/`. The validator enforces frontmatter, body sections, and cross-file dependencies. Doc home: `docs/harness/skills/`.
 **Tier:** SHIPPED (2026-04-26). Current work is production/eval parity under #28.
 
 ### V6 -- Agent Loop & Orchestration
 Teacher loop with deferred tool loading, NLAH contracts, event hooks + middleware hooks. Writes stay single-threaded: skills contribute intelligence, one teacher path writes. Providers remain replaceable behind capability and evaluation gates. Doc home: `docs/apps/02-pipeline.md` (Target section).
-**Tier:** Core loop SHIPPED (2026-04-29) -- two-phase compound loop, `compound-registry` with `OnSessionEnd` + `OnChatMessage` bindings, V6 is the only synthesis path (flag deleted in #28). NEXT: capability-router across providers, deferred tool loading, remaining hooks (`OnWeeklyReview`, `OnPieceDetected`).
+**Tier:** Core loop SHIPPED (2026-04-29) -- two-phase compound loop, `compound-registry` with the `OnSessionEnd` binding (`OnChatMessage` removed with the chat path, #164), V6 is the only synthesis path (flag deleted in #28). NEXT: capability-router across providers, deferred tool loading, remaining hooks (`OnWeeklyReview`, `OnPieceDetected`).
 
 ### V7 -- Student Memory / Personalization
 Typed per-student memory (baseline, recurring_issue, preference, repertoire, goal, breakthrough) with MIA-style multidim retrieval. `STUDENT.md` index per student. Doc home: `docs/apps/03-memory-system.md`.
@@ -72,7 +72,7 @@ Typed per-student memory (baseline, recurring_issue, preference, repertoire, goa
 
 ### V8 -- Action, Artifacts, Client
 Artifacts as NLAH durable outputs. Direct-action tools that interrupt playthrough and restructure practice (the answer to the Score Following wiki's 90%-playthrough finding). iOS + web as thin clients over the same harness. Doc home: `docs/apps/04-exercises.md`, `docs/apps/05-ui-system.md`.
-**Tier:** V8a SHIPPED (2026-04-29). `assign_segment_loop` is live as the first action atom: `segment_loops` DB table, lifecycle service (accept/decline/dismiss/increment), routes at `/api/segment-loops`, `ASSIGN_SEGMENT_LOOP_TOOL` registered in both OnChatMessage and OnSessionEnd bindings, `PassageLoopDetector` in DO for inbound detection, web `SegmentLoopArtifactCard` with pending/active/completed states. `SynthesisArtifact` carries `assigned_loops` refs; synthesis and chat paths both create durable loop rows. LATER: iOS native loop UI; further action atoms (`render_annotation`, `schedule_followup_interrupt`).
+**Tier:** V8a SHIPPED (2026-04-29). `assign_segment_loop` is live as the first action atom: `segment_loops` DB table, lifecycle service (accept/decline/dismiss/increment), routes at `/api/segment-loops`, `ASSIGN_SEGMENT_LOOP_TOOL` registered in the OnSessionEnd binding (the OnChatMessage binding was removed with the chat path, #164), `PassageLoopDetector` in DO for inbound detection, `SynthesisArtifact` carries `assigned_loops` refs; synthesis creates durable loop rows (the web `SegmentLoopArtifactCard` chat surface was deleted in #164). LATER: iOS native loop UI; further action atoms (`render_annotation`, `schedule_followup_interrupt`).
 
 ---
 
