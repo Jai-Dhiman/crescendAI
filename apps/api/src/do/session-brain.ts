@@ -15,7 +15,10 @@ import {
 	SessionAccumulator,
 } from "../services/accumulator";
 import { buildBarAnalysisFacts } from "../services/bar-analysis-facts";
-import { loadBaselineState } from "../services/baseline-store";
+import {
+	loadBaselineState,
+	saveBaselineState,
+} from "../services/baseline-store";
 import { callAmtEndpoint } from "../services/inference";
 import { proposeMarks } from "../services/mark-gate";
 import { evidenceFor, extractMpmFeatures } from "../services/mpm-features";
@@ -30,7 +33,11 @@ import {
 	incrementAttempts,
 	toLoopComponent,
 } from "../services/segment-loops";
-import { DEFAULT_BASELINE_CONFIG } from "../services/student-baseline";
+import {
+	DEFAULT_BASELINE_CONFIG,
+	initialBaselineState,
+	updateBaseline,
+} from "../services/student-baseline";
 import {
 	clearNeedsSynthesis,
 	loadBaselinesFromDb,
@@ -1919,16 +1926,58 @@ export class SessionBrain extends DurableObject<Bindings> {
 				loopComponents,
 				pendingComponent,
 			);
-			const wsPayloadWithEval =
-				evalContext !== null
-					? {
-							...wsPayload,
-							eval_context: buildEvalContext(evalContext, artifact),
-						}
-					: wsPayload;
 			const sockets = this.ctx.getWebSockets();
-			for (const sock of sockets) {
-				this.sendWs(sock, wsPayloadWithEval);
+
+			if (state.isEvalSession) {
+				const wsPayloadWithEval =
+					evalContext !== null
+						? {
+								...wsPayload,
+								eval_context: buildEvalContext(evalContext, artifact),
+							}
+						: wsPayload;
+				for (const sock of sockets) {
+					this.sendWs(sock, wsPayloadWithEval);
+				}
+			} else {
+				const reviewPayload = {
+					type: "review" as const,
+					verdict: artifact.headline,
+					carry_forward: artifact.next_session_focus,
+					no_comment_zones: state.noCommentZones.map((z) => ({
+						atSeconds: z.chunkIndex * (CHUNK_MS / 1000),
+						reason: z.reason,
+					})),
+				};
+				for (const sock of sockets) {
+					this.sendWs(sock, reviewPayload);
+				}
+			}
+
+			try {
+				const hasSamples = Object.values(state.sessionSamples).some(
+					(samples) => (samples?.length ?? 0) > 0,
+				);
+				if (hasSamples) {
+					const priorBaseline = state.markBaseline ?? initialBaselineState();
+					const foldedBaseline = updateBaseline(priorBaseline, {
+						timestamp: new Date().toISOString(),
+						scores: state.sessionSamples as Partial<
+							Record<Dimension, number[]>
+						>,
+					});
+					await saveBaselineState(db, state.studentId, foldedBaseline);
+				}
+			} catch (err) {
+				const error = err as Error;
+				console.error(
+					JSON.stringify({
+						level: "error",
+						message: "baseline fold/persist failed",
+						sessionId: state.sessionId,
+						error: error.message,
+					}),
+				);
 			}
 
 			if (state.conversationId !== null) {
