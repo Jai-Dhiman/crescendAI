@@ -10,6 +10,7 @@ import type {
 } from "../lib/practice-api";
 import { practiceApi } from "../lib/practice-api";
 import { Sentry } from "../lib/sentry";
+import type { NoCommentZone } from "../lib/session-review";
 import type { RichMessage, SegmentLoopConfig } from "../lib/types";
 import { useAudioActivity } from "./useAudioActivity";
 import { useNetworkStatus } from "./useDom";
@@ -45,6 +46,9 @@ export interface UsePracticeSessionReturn {
 	elapsedSeconds: number;
 	observations: ObservationEvent[];
 	marks: Mark[];
+	verdict: string | null;
+	carryForward: string | null;
+	noCommentZones: NoCommentZone[];
 	latestScores: DimScores | null;
 	summary: string | null;
 	error: string | null;
@@ -79,6 +83,9 @@ export function usePracticeSession(
 	const [elapsedSeconds, setElapsedSeconds] = useState(0);
 	const [observations, setObservations] = useState<ObservationEvent[]>([]);
 	const [marks, setMarks] = useState<Mark[]>([]);
+	const [verdict, setVerdict] = useState<string | null>(null);
+	const [carryForward, setCarryForward] = useState<string | null>(null);
+	const [noCommentZones, setNoCommentZones] = useState<NoCommentZone[]>([]);
 	const [latestScores, setLatestScores] = useState<DimScores | null>(null);
 	const [summary, setSummary] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -316,6 +323,12 @@ export function usePracticeSession(
 					break;
 				case "mark": {
 					setMarks((prev) => [...prev, data.mark]);
+					break;
+				}
+				case "review": {
+					setVerdict(data.verdict);
+					setCarryForward(data.carry_forward);
+					setNoCommentZones(data.no_comment_zones);
 					break;
 				}
 				case "segment_loop_status": {
@@ -745,6 +758,9 @@ export function usePracticeSession(
 		elapsedSeconds,
 		observations,
 		marks,
+		verdict,
+		carryForward,
+		noCommentZones,
 		latestScores,
 		summary,
 		error,
