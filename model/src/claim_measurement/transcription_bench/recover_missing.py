@@ -101,6 +101,8 @@ def main():
                     help="order the 191 refetch_report.json failures ahead of the rest")
     ap.add_argument("--exclude-prior-failures", action="store_true",
                     help="skip the 191 refetch_report.json failures entirely")
+    ap.add_argument("--shuffle-seed", type=int, default=None,
+                    help="shuffle todo with this seed (unbiased --limit samples)")
     args = ap.parse_args()
 
     data = args.data_dir
@@ -116,6 +118,8 @@ def main():
             todo = [m for m in todo if m["seg_id"] not in prior]
         else:
             todo.sort(key=lambda m: m["seg_id"] not in prior)
+    if args.shuffle_seed is not None:
+        random.Random(args.shuffle_seed).shuffle(todo)
     if args.limit:
         todo = todo[: args.limit]
     print(f"{len(todo)} pieces to recover (of {len(missing)} missing); "
