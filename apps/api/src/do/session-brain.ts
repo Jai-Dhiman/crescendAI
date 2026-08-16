@@ -72,8 +72,8 @@ export function toPastDiagnosisRecord(row: {
 	};
 }
 
+import type { InlineComponent } from "../services/inline-component";
 import { type SynthesisInput, synthesizeV6 } from "../services/teacher";
-import type { InlineComponent } from "../services/tool-processor";
 import type {
 	ChunkAnalysis,
 	NoteAlignment,

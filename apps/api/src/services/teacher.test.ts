@@ -2,23 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
 import type { HookEvent } from "../harness/loop/types";
 import type { ServiceContext } from "../lib/types";
+import type { InlineComponent } from "./inline-component";
 import type { SynthesisInput, TeacherEvent } from "./teacher";
 import {
-	chatV6,
 	parseAnthropicStream,
 	parseOpenAIStream,
 	stripAnalysis,
 	synthesizeV6,
 } from "./teacher";
-import type { InlineComponent } from "./tool-processor";
-
-vi.mock("./llm", async (importOriginal) => {
-	const actual = (await importOriginal()) as Record<string, unknown>;
-	return { ...actual, callAnthropicStream: vi.fn() };
-});
-vi.mock("./memory", () => ({
-	buildMemoryContext: vi.fn().mockResolvedValue(""),
-}));
 
 // ---------------------------------------------------------------------------
 // Helpers for building fake SSE streams
@@ -706,55 +697,6 @@ describe("synthesizeV6 adapter", () => {
 		expect(
 			(events[2] as { type: "artifact"; value: SynthesisArtifact }).value,
 		).toEqual(V6_VALID_ARTIFACT);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// Test: chatV6 through harness path
-// ---------------------------------------------------------------------------
-
-function makeSSEStream(text: string): ReadableStream {
-	const encoder = new TextEncoder();
-	const sseText = [
-		`event: content_block_start\ndata: {"index":0,"content_block":{"type":"text"}}\n\n`,
-		`event: content_block_delta\ndata: {"index":0,"delta":{"type":"text_delta","text":${JSON.stringify(text)}}}\n\n`,
-		`event: content_block_stop\ndata: {"index":0}\n\n`,
-		`event: message_delta\ndata: {"delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":1}}\n\n`,
-		`event: message_stop\ndata: {}\n\n`,
-	].join("");
-	return new ReadableStream({
-		start(controller) {
-			controller.enqueue(encoder.encode(sseText));
-			controller.close();
-		},
-	});
-}
-
-const stubCtx = {
-	// Pin to the Anthropic provider so chatV6 uses the mocked callAnthropicStream;
-	// without this, routeModel() falls to the Workers AI path and callWorkersAIStream
-	// throws ConfigError (no CLOUDFLARE_ACCOUNT_ID in this stub env).
-	env: { TEACHER_PROVIDER: "anthropic" } as never,
-	db: {} as never,
-} as unknown as ServiceContext;
-
-describe("chatV6", () => {
-	it("yields delta and done events through the harness path", async () => {
-		const { callAnthropicStream } = await import("./llm");
-		vi.mocked(callAnthropicStream).mockResolvedValue(makeSSEStream("Hi"));
-
-		const events = [];
-		for await (const e of chatV6(
-			stubCtx,
-			"student1",
-			[{ role: "user", content: "hello" }],
-			"",
-		)) {
-			events.push(e);
-		}
-
-		expect(events.some((e) => e.type === "delta")).toBe(true);
-		expect(events.at(-1)?.type).toBe("done");
 	});
 });
 

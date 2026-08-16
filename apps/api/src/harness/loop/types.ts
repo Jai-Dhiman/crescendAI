@@ -5,8 +5,7 @@ export type HookKind =
 	| "OnPieceDetected"
 	| "OnBarRegression"
 	| "OnSessionEnd"
-	| "OnWeeklyReview"
-	| "OnChatMessage";
+	| "OnWeeklyReview";
 
 export interface ToolDefinition {
 	name: string;

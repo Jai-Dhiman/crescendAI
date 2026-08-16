@@ -1,4 +1,3 @@
-import { TOOL_REGISTRY } from "../../services/tool-processor";
 import { SynthesisArtifactSchema } from "../artifacts/synthesis";
 import { ASSIGN_SEGMENT_LOOP_TOOL } from "../atoms/assign-segment-loop";
 import { extractBarRangeSignals } from "../skills/atoms/extract-bar-range-signals";
@@ -24,27 +23,6 @@ const REGISTRY: Map<HookKind, CompoundBinding> = new Map([
 			phases: 2 as const,
 			artifactSchema: SynthesisArtifactSchema,
 			artifactToolName: "write_synthesis_artifact",
-		},
-	],
-	[
-		"OnChatMessage" as const,
-		{
-			compoundName: "chat-response",
-			procedurePrompt: "",
-			tools: [
-				...Object.values(TOOL_REGISTRY).map((t) => ({
-					name: t.name,
-					description: t.description,
-					input_schema: t.anthropicSchema.input_schema as Record<
-						string,
-						unknown
-					>,
-					invoke: async (_input: unknown): Promise<unknown> => ({}),
-				})),
-				ASSIGN_SEGMENT_LOOP_TOOL,
-			],
-			mode: "streaming" as const,
-			phases: 1 as const,
 		},
 	],
 ]);
