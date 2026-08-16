@@ -581,8 +581,12 @@ mod tests {
         // Row-major 12 x 2: pc=0 is row 0; all other rows near zero.
         // Each column is L2-normalised so we set pc=0 to 1.0 and rest to 0.0.
         let mut audio_f32 = vec![0.0_f32; 12 * 2];
-        audio_f32[0 * 2 + 0] = 1.0; // pc=0, af=0
-        audio_f32[0 * 2 + 1] = 1.0; // pc=0, af=1
+        // erasing_op: the pc*n_frames+af index formula stays literal for clarity (pc=0)
+        #[allow(clippy::erasing_op, clippy::identity_op)]
+        {
+            audio_f32[0 * 2 + 0] = 1.0; // pc=0, af=0
+            audio_f32[0 * 2 + 1] = 1.0; // pc=0, af=1
+        }
 
         // frame_rate=10 Hz, decim_hz=10 Hz (1:1 so bar_per_frame has 2 entries).
         let result = chroma_dtw_native(&audio_f32, 2, &[bar], 10.0, 10.0, -1, 0, 0);

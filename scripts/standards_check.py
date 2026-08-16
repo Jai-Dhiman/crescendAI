@@ -20,7 +20,6 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RULES_PATH = REPO_ROOT / "docs" / "standards" / "rules.json"
-TS_STYLE_PATH = REPO_ROOT / "apps" / "api" / "TS_STYLE.md"
 
 TEXT_SUFFIXES = {
     ".md", ".py", ".ts", ".tsx", ".js", ".sh",
@@ -334,38 +333,58 @@ def check_reference_calibration(_files: list[Path], rules: dict) -> list[Finding
     return findings
 
 
-SLUG_RE = re.compile(r"\[(TS-[A-Z]+-\d{3})\]")
+SLUG_RE = re.compile(r"\[((?:[A-Z][A-Z0-9]*-)+\d{3})\]")
 
 
 def check_rules_index_sync(_files: list[Path], rules: dict) -> list[Finding]:
-    """Every TS-* rule must be defined in TS_STYLE.md, and vice versa."""
-    declared = {rid for rid in rules if rid.startswith("TS-")}
-    in_doc = set(SLUG_RE.findall(TS_STYLE_PATH.read_text(encoding="utf-8")))
+    """Every rule sourced from a *_STYLE.md doc must be marked there, and
+    every [ID] marker in a style doc must exist in rules.json."""
+    by_doc: dict[str, set[str]] = {}
+    for rid, rule in rules.items():
+        doc = rule.get("source", "").split("#")[0]
+        if doc.endswith("_STYLE.md"):
+            by_doc.setdefault(doc, set()).add(rid)
     findings = []
-    for rid in sorted(declared - in_doc):
-        findings.append(
-            Finding(
-                "META-001",
-                "MUST",
-                "docs/standards/rules.json",
-                0,
-                rid,
-                f"{rid} is in rules.json but has no [{rid}] marker "
-                "in apps/api/TS_STYLE.md.",
+    for doc, declared in sorted(by_doc.items()):
+        doc_path = REPO_ROOT / doc
+        if not doc_path.is_file():
+            findings.append(
+                Finding(
+                    "META-001",
+                    "MUST",
+                    doc,
+                    0,
+                    "(missing)",
+                    f"{len(declared)} rule(s) cite {doc} as their source but "
+                    "the file does not exist.",
+                )
             )
-        )
-    for rid in sorted(in_doc - declared):
-        findings.append(
-            Finding(
-                "META-001",
-                "MUST",
-                "apps/api/TS_STYLE.md",
-                0,
-                rid,
-                f"{rid} is marked in TS_STYLE.md but missing from "
-                "docs/standards/rules.json.",
+            continue
+        in_doc = set(SLUG_RE.findall(doc_path.read_text(encoding="utf-8")))
+        for rid in sorted(declared - in_doc):
+            findings.append(
+                Finding(
+                    "META-001",
+                    "MUST",
+                    "docs/standards/rules.json",
+                    0,
+                    rid,
+                    f"{rid} is in rules.json but has no [{rid}] marker "
+                    f"in {doc}.",
+                )
             )
-        )
+        for rid in sorted(in_doc - set(rules)):
+            findings.append(
+                Finding(
+                    "META-001",
+                    "MUST",
+                    doc,
+                    0,
+                    rid,
+                    f"{rid} is marked in {doc} but missing from "
+                    "docs/standards/rules.json.",
+                )
+            )
     return findings
 
 
