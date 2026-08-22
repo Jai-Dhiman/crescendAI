@@ -139,6 +139,8 @@ def main():
                 if (wav_dir / f"{m['seg_id']}.wav").exists():
                     stats["queued"] += 1
                     q.put((wav_dir / f"{m['seg_id']}.wav", m["grade"]))
+                if i % 20 == 0 or i == len(todo):
+                    print(f"  progress {i}/{len(todo)} {dict(stats)}", flush=True)
                 continue
             ok, reason, hit_network = _download(m, wav_dir, args.cookies_from_browser)
             _log(report_path, seg_id=m["seg_id"], grade=m["grade"], stage="download",
@@ -153,6 +155,9 @@ def main():
                 print(f"  progress {i}/{len(todo)} {dict(stats)}", flush=True)
             if hit_network and i < len(todo):
                 time.sleep(random.uniform(args.sleep_min, args.sleep_max))
+        while not q.empty():
+            time.sleep(60)
+            print(f"  transcribing, ~{q.qsize()} queued {dict(stats)}", flush=True)
         for _ in range(args.tk_workers):
             q.put(None)
     print(f"done: {dict(stats)} -> report {report_path}", flush=True)
