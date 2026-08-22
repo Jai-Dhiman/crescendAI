@@ -103,6 +103,8 @@ def main():
                     help="skip the 191 refetch_report.json failures entirely")
     ap.add_argument("--shuffle-seed", type=int, default=None,
                     help="shuffle todo with this seed (unbiased --limit samples)")
+    ap.add_argument("--transcribe-only", action="store_true",
+                    help="skip all downloads; transcribe on-disk WAVs that lack a MIDI")
     args = ap.parse_args()
 
     data = args.data_dir
@@ -133,6 +135,11 @@ def main():
         for _ in range(args.tk_workers):
             ex.submit(_tk_worker, q, tk_dir, report_path, stats)
         for i, m in enumerate(todo, 1):
+            if args.transcribe_only:
+                if (wav_dir / f"{m['seg_id']}.wav").exists():
+                    stats["queued"] += 1
+                    q.put((wav_dir / f"{m['seg_id']}.wav", m["grade"]))
+                continue
             ok, reason, hit_network = _download(m, wav_dir, args.cookies_from_browser)
             _log(report_path, seg_id=m["seg_id"], grade=m["grade"], stage="download",
                  ok=ok, video_id=m["video_id"], reason=None if ok else reason)
