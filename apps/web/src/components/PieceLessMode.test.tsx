@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { Mark } from "../lib/mark";
 import { resolveAnchor } from "../lib/mark";
@@ -31,5 +31,28 @@ describe("PieceLessMode", () => {
 		expect(
 			screen.getByRole("button", { name: /Needs work: Pedaling/i }),
 		).toBeInTheDocument();
+	});
+
+	it("uses renderDetail instead of MarkDetail when provided", () => {
+		render(
+			<PieceLessMode
+				marks={marks}
+				durationSeconds={90}
+				elapsedSeconds={65}
+				isRecording={true}
+				renderDetail={(mark, onClose) => (
+					<button
+						type="button"
+						data-testid={`custom-${mark.id}`}
+						onClick={onClose}
+					>
+						custom
+					</button>
+				)}
+			/>,
+		);
+
+		fireEvent.click(screen.getByLabelText(/Needs work: Pedaling, 0:30/));
+		expect(screen.getByTestId("custom-m1")).toBeInTheDocument();
 	});
 });

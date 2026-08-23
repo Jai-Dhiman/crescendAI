@@ -2,7 +2,7 @@ import { pendingExercises } from "../db/schema/exercises";
 import type { ExerciseRoutingDecision } from "../harness/artifacts/exercise-routing";
 import { InferenceError } from "../lib/errors";
 import type { Db } from "../lib/types";
-import type { InlineComponent } from "./tool-processor";
+import type { InlineComponent } from "./inline-component";
 
 export type PendingExercise = {
 	exerciseId: string; // = pending_exercises.id (the row PK)

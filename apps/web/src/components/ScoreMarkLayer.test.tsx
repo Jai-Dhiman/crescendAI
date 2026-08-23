@@ -1,10 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { createRef } from "react";
+import { type ComponentProps, createRef } from "react";
 import { describe, expect, it } from "vitest";
 import { FIXTURE_BARS, FIXTURE_MARKS } from "../test-utils/mark-fixtures";
 import { ScoreMarkLayer } from "./ScoreMarkLayer";
 
-function renderLayer() {
+function renderLayer(
+	overrides: Partial<ComponentProps<typeof ScoreMarkLayer>> = {},
+) {
 	const ref = createRef<HTMLDivElement>();
 	// Bar 88's element is deliberately absent: it models a bar on a page the
 	// overlay is not currently showing.
@@ -18,6 +20,7 @@ function renderLayer() {
 				containerRef={ref}
 				bars={FIXTURE_BARS}
 				marks={FIXTURE_MARKS}
+				{...overrides}
 			/>
 		</div>,
 	);
@@ -65,5 +68,22 @@ describe("ScoreMarkLayer", () => {
 		expect(
 			screen.queryByText(/pedal held through the bass change/),
 		).not.toBeInTheDocument();
+	});
+
+	it("uses renderDetail instead of MarkDetail when provided", () => {
+		renderLayer({
+			renderDetail: (mark, onClose) => (
+				<button
+					type="button"
+					data-testid={`custom-detail-${mark.id}`}
+					onClick={onClose}
+				>
+					custom
+				</button>
+			),
+		});
+
+		fireEvent.click(screen.getByLabelText(/Needs work: Pedaling, bars 5-6/));
+		expect(screen.getByTestId("custom-detail-m1")).toBeInTheDocument();
 	});
 });

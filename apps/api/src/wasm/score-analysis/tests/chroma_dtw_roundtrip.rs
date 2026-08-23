@@ -1,5 +1,9 @@
 // apps/api/src/wasm/score-analysis/tests/chroma_dtw_roundtrip.rs
 //
+// panic/unwrap/expect: fixture-loading helpers in an integration test; clippy's
+// allow-*-in-tests config does not reach non-#[test] fns here (rust-clippy #9612).
+#![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
+//
 // Cargo integration test: loads committed binary fixtures and asserts
 // align_chunk_chroma_native returns sane bar ranges.
 //

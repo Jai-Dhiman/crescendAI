@@ -5,7 +5,6 @@ import {
 	SessionAccumulator,
 } from "../services/accumulator";
 import { buildBarAnalysisFacts } from "../services/bar-analysis-facts";
-import { parseMuqResponse } from "../services/inference";
 import {
 	buildPendingExerciseComponent,
 	type PendingExercise,
@@ -144,64 +143,6 @@ describe("buildV6WsPayload", () => {
 	});
 });
 
-describe("parseMuqResponse chroma extraction", () => {
-	it("returns chromaBytes=null when response has no chroma_b64", () => {
-		const raw = {
-			predictions: {
-				dynamics: 0.6,
-				timing: 0.7,
-				pedaling: 0.5,
-				articulation: 0.8,
-				phrasing: 0.65,
-				interpretation: 0.72,
-			},
-		};
-		const result = parseMuqResponse(raw);
-		expect(result.chromaBytes).toBeNull();
-		expect(result.chromaFrames).toBe(0);
-	});
-
-	it("returns decoded chromaBytes when chroma_b64 present", () => {
-		const nFrames = 5;
-		const buf = new Uint8Array(12 * nFrames * 4).fill(127);
-		const b64 = btoa(String.fromCharCode(...buf));
-		const raw = {
-			predictions: {
-				dynamics: 0.6,
-				timing: 0.7,
-				pedaling: 0.5,
-				articulation: 0.8,
-				phrasing: 0.65,
-				interpretation: 0.72,
-			},
-			chroma_b64: b64,
-			chroma_frames: nFrames,
-			chroma_frame_rate_hz: 50.0,
-		};
-		const result = parseMuqResponse(raw);
-		expect(result.chromaBytes).not.toBeNull();
-		expect(result.chromaBytes!.byteLength).toBe(12 * nFrames * 4);
-		expect(result.chromaFrames).toBe(nFrames);
-		expect(result.chromaFrameRateHz).toBe(50.0);
-	});
-
-	it("throws InferenceError when MuQ response missing a dimension", () => {
-		const raw = {
-			predictions: {
-				dynamics: 0.6,
-				// timing missing
-				pedaling: 0.5,
-				articulation: 0.8,
-				phrasing: 0.65,
-				interpretation: 0.72,
-			},
-		};
-		expect(() =>
-			parseMuqResponse(raw as Parameters<typeof parseMuqResponse>[0]),
-		).toThrow("MuQ response missing dimensions: timing");
-	});
-});
-
 describe("chunk_bar_map WebSocket message", () => {
 	it("DO sends chunk_bar_map message with correct shape after successful chroma alignment", () => {
 		const barMapMsg = {
@@ -217,6 +158,9 @@ describe("chunk_bar_map WebSocket message", () => {
 
 		const parsed = wsOutgoingMessageSchema.parse(barMapMsg);
 		expect(parsed.type).toBe("chunk_bar_map");
+		if (parsed.type !== "chunk_bar_map") {
+			throw new Error("expected chunk_bar_map");
+		}
 		expect(parsed.chunk_index).toBe(2);
 		expect(parsed.bar_min).toBe(5);
 		expect(parsed.bar_max).toBe(9);

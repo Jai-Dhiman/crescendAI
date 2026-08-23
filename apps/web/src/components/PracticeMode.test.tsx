@@ -3,6 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AUTO_STOP_SILENCE_MS } from "../lib/pause-state";
 import { PracticeMode } from "./PracticeMode";
 
+vi.mock("./SessionReview", () => ({
+	SessionReview: (props: { pieceId: string | null }) => (
+		<div
+			data-testid="session-review-stub"
+			data-piece-id={props.pieceId ?? "none"}
+		/>
+	),
+}));
+
 vi.mock("../lib/score-renderer", () => ({
 	scoreRenderer: {
 		load: vi.fn().mockResolvedValue({
@@ -130,5 +139,30 @@ describe("PracticeMode", () => {
 		expect(screen.getByText(/Session ended/i)).toBeInTheDocument();
 		fireEvent.click(screen.getByRole("button", { name: /stop recording/i }));
 		expect(onStop).toHaveBeenCalledTimes(2);
+	});
+
+	it("renders SessionReview and a Done button in review phase", () => {
+		const onExitReview = vi.fn();
+		render(
+			<PracticeMode
+				userPickedPieceId={null}
+				confidentGuess={null}
+				marks={[]}
+				elapsedSeconds={90}
+				isPlaying={false}
+				isRecording={false}
+				onStop={() => {}}
+				phase="review"
+				onExitReview={onExitReview}
+			/>,
+		);
+
+		expect(screen.getByTestId("session-review-stub")).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: /stop recording/i }),
+		).not.toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: /done/i }));
+		expect(onExitReview).toHaveBeenCalledTimes(1);
 	});
 });

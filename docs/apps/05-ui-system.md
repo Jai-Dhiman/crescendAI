@@ -243,9 +243,10 @@ conversation.
 - Warm dark is **derived from the same token table** (one table, two value
   columns), auto-selected by time of day with manual override. It is not a
   second bespoke design; it gets polish only after light is proven in use.
-- Token source of truth: `apps/web/src/styles/app.css` `@theme`. The iOS
-  token set (`apps/ios/.../DesignSystem/Tokens/`) mirrors it by hand — drift
-  risk noted in #156.
+- Token source of truth: `apps/web/src/styles/app.css` `@theme`. Tokens live
+  only here until iOS is rebuilt (the pre-pivot iOS app, including its
+  hand-mirrored token set, was deleted 2026-08-16, #164); a new iOS token set
+  will need its own drift-tracking plan when that work starts.
 
 **Shipped in #156 (2026-08-05).** Durable decisions, recorded here because the
 design spec was deleted at merge:

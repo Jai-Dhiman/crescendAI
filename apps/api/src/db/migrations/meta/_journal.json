@@ -36,6 +36,13 @@
       "when": 1749600000000,
       "tag": "0004_pending_exercises_routing",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786851266558,
+      "tag": "0005_worried_famine",
+      "breakpoints": true
     }
   ]
 }

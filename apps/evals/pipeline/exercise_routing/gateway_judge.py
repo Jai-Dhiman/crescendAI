@@ -1,11 +1,10 @@
-"""Workers-AI judge client over the authenticated CF AI Gateway.
+"""Workers-AI judge client over the unified CF AI control plane.
 
-The shared teaching_knowledge.LLMClient targets the legacy `crescendai-background`
-gateway with only an Authorization header; that gateway now rejects with a 401
-AiGatewayError. The production worker (api/src/harness/loop/gateway-client.ts)
-instead uses the authenticated `crescendai` gateway, which requires BOTH:
-  - cf-aig-authorization: Bearer <AI_GATEWAY_TOKEN>  (gateway auth)
-  - Authorization:        Bearer <CLOUDFLARE_API_TOKEN>  (workers-ai upstream)
+The production worker (api/src/harness/loop/gateway-client.ts) calls Workers AI
+through the unified AI REST API on api.cloudflare.com, authenticated with the
+standard Authorization header and routed to the `crescendai` gateway with
+cf-aig-gateway-id. (cf-aig-authorization only applies to the provider-native
+gateway.ai.cloudflare.com endpoints.)
 
 This client mirrors that exactly so the relevance judge reaches the same gateway
 the product uses. It is self-contained (no LLMClient dependency) and satisfies
@@ -19,6 +18,9 @@ from pathlib import Path
 import requests
 
 DEFAULT_JUDGE_MODEL = "@cf/google/gemma-4-26b-a4b-it"
+# Non-secret routing defaults, overridable via env; only the token is required.
+DEFAULT_CF_ACCOUNT_ID = "5df63f40beeab277db407f1ecbd6e1ec"
+DEFAULT_GATEWAY_ID = "crescendai"
 _DEV_VARS = Path(__file__).resolve().parents[3] / "api" / ".dev.vars"
 
 
@@ -46,13 +48,16 @@ def _require(name: str) -> str:
 
 
 class WorkersAiGatewayJudge:
-    """JudgeClient over the authenticated workers-ai gateway endpoint."""
+    """JudgeClient over the unified AI REST endpoint."""
 
     def __init__(self, model: str | None = None):
         self.model = model or DEFAULT_JUDGE_MODEL
-        endpoint = _require("AI_GATEWAY_ENDPOINT").rstrip("/")
-        self._url = f"{endpoint}/workers-ai/v1/chat/completions"
-        self._gateway_token = _require("AI_GATEWAY_TOKEN")
+        account_id = _dev_var("CLOUDFLARE_ACCOUNT_ID") or DEFAULT_CF_ACCOUNT_ID
+        self._url = (
+            f"https://api.cloudflare.com/client/v4/accounts/"
+            f"{account_id}/ai/v1/chat/completions"
+        )
+        self._gateway_id = _dev_var("AI_GATEWAY_ID") or DEFAULT_GATEWAY_ID
         self._cf_token = _require("CLOUDFLARE_API_TOKEN")
 
     def complete(self, *, user: str, system: str, max_tokens: int) -> str:
@@ -64,8 +69,8 @@ class WorkersAiGatewayJudge:
         resp = requests.post(
             self._url,
             headers={
-                "cf-aig-authorization": f"Bearer {self._gateway_token}",
                 "Authorization": f"Bearer {self._cf_token}",
+                "cf-aig-gateway-id": self._gateway_id,
                 "Content-Type": "application/json",
             },
             json={"model": self.model, "max_tokens": max_tokens, "messages": messages},

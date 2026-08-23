@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useMetronome } from "../hooks/useMetronome";
 import type { Mark } from "../lib/mark";
 import { SessionTimelineStrip } from "./SessionTimelineStrip";
@@ -7,6 +8,7 @@ interface PieceLessModeProps {
 	durationSeconds: number;
 	elapsedSeconds: number;
 	isRecording: boolean;
+	renderDetail?: (mark: Mark, onClose: () => void) => ReactNode;
 }
 
 function formatElapsed(totalSeconds: number): string {
@@ -26,6 +28,7 @@ export function PieceLessMode({
 	durationSeconds,
 	elapsedSeconds,
 	isRecording,
+	renderDetail,
 }: PieceLessModeProps) {
 	const metronome = useMetronome();
 
@@ -47,7 +50,11 @@ export function PieceLessMode({
 				</button>
 			</div>
 			<div className="w-full max-w-2xl">
-				<SessionTimelineStrip durationSeconds={durationSeconds} marks={marks} />
+				<SessionTimelineStrip
+					durationSeconds={durationSeconds}
+					marks={marks}
+					renderDetail={renderDetail}
+				/>
 			</div>
 		</div>
 	);

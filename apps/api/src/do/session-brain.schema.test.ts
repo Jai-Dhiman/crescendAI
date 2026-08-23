@@ -1,6 +1,10 @@
 // apps/api/src/do/session-brain.schema.test.ts
 import { describe, expect, it } from "vitest";
-import { createInitialState, sessionStateSchema } from "./session-brain.schema";
+import {
+	createInitialState,
+	sessionStateSchema,
+	wsOutgoingMessageSchema,
+} from "./session-brain.schema";
 
 describe("sessionStateSchema followerState removal", () => {
 	it("parsed state does not include followerState property", () => {
@@ -52,5 +56,43 @@ describe("identificationNoteBuffer state field", () => {
 		delete raw.identificationNoteBuffer;
 		const parsed = sessionStateSchema.parse(raw);
 		expect(parsed.identificationNoteBuffer).toEqual([]);
+	});
+});
+
+describe("createInitialState — pipeline retarget fields (#162)", () => {
+	it("seeds markBaseline null, markBaselineLoaded false, empty samples/marks/zones", () => {
+		const state = createInitialState("sess", "stud", null);
+		expect(state.markBaseline).toBeNull();
+		expect(state.markBaselineLoaded).toBe(false);
+		expect(state.sessionSamples).toEqual({});
+		expect(state.emittedMarks).toEqual([]);
+		expect(state.noCommentZones).toEqual([]);
+	});
+});
+
+describe("wsOutgoingMessageSchema — mark and review (#162)", () => {
+	it("accepts a valid mark payload", () => {
+		const msg = {
+			type: "mark",
+			mark: {
+				id: "sess-dynamics-7",
+				anchor: { type: "timestamp", atSeconds: 105 },
+				taxonomy: "needs_work",
+				dimension: "dynamics",
+				evidence: "velocity range 60, mean 40",
+				lifecycle: "active",
+			},
+		};
+		expect(() => wsOutgoingMessageSchema.parse(msg)).not.toThrow();
+	});
+
+	it("accepts a valid review payload with null verdict on synthesis failure", () => {
+		const msg = {
+			type: "review",
+			verdict: null,
+			carry_forward: null,
+			no_comment_zones: [{ atSeconds: 30, reason: "insufficient_notes" }],
+		};
+		expect(() => wsOutgoingMessageSchema.parse(msg)).not.toThrow();
 	});
 });

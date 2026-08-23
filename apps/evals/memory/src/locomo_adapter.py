@@ -49,7 +49,7 @@ def _retry_on_rate_limit(fn, max_retries: int = 5, base_delay: float = 5.0):
 DATA_DIR = Path(__file__).parents[1] / "data"
 _DEV_VARS_PATH = Path(__file__).parents[3] / "api" / ".dev.vars"
 DEFAULT_CF_ACCOUNT_ID = "5df63f40beeab277db407f1ecbd6e1ec"
-DEFAULT_GATEWAY_ID = "crescendai-background"
+DEFAULT_GATEWAY_ID = "crescendai"
 _WORKERS_AI_MODEL = "@cf/google/gemma-4-26b-a4b-it"
 
 API_BASE = os.environ.get("API_BASE", "http://localhost:8787")
@@ -556,8 +556,8 @@ def _answer_question(question: str, context: str) -> str:
     account_id = os.environ.get("CF_ACCOUNT_ID", DEFAULT_CF_ACCOUNT_ID)
     gateway_id = os.environ.get("CF_GATEWAY_ID", DEFAULT_GATEWAY_ID)
     url = (
-        f"https://gateway.ai.cloudflare.com/v1/"
-        f"{account_id}/{gateway_id}/workers-ai/v1/chat/completions"
+        f"https://api.cloudflare.com/client/v4/accounts/"
+        f"{account_id}/ai/v1/chat/completions"
     )
     user_content = f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
 
@@ -566,6 +566,7 @@ def _answer_question(question: str, context: str) -> str:
             url,
             headers={
                 "Authorization": f"Bearer {token}",
+                "cf-aig-gateway-id": gateway_id,
                 "Content-Type": "application/json",
             },
             json={

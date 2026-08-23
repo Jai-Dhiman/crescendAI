@@ -26,7 +26,7 @@ import requests
 # Cloudflare account ID from wrangler.toml
 # (See apps/api/wrangler.toml for the canonical source)
 DEFAULT_CF_ACCOUNT_ID = "5df63f40beeab277db407f1ecbd6e1ec"
-DEFAULT_GATEWAY_ID = "crescendai-background"
+DEFAULT_GATEWAY_ID = "crescendai"
 
 # Model defaults per task type
 MODELS = {
@@ -159,8 +159,8 @@ class LLMClient:
             self._account_id = os.environ.get("CF_ACCOUNT_ID", DEFAULT_CF_ACCOUNT_ID)
             self._gateway_id = os.environ.get("CF_GATEWAY_ID", DEFAULT_GATEWAY_ID)
             self._base_url = (
-                f"https://gateway.ai.cloudflare.com/v1/"
-                f"{self._account_id}/{self._gateway_id}/workers-ai/v1/chat/completions"
+                f"https://api.cloudflare.com/client/v4/accounts/"
+                f"{self._account_id}/ai/v1/chat/completions"
             )
         elif provider == "anthropic":
             import anthropic
@@ -203,6 +203,7 @@ class LLMClient:
             self._base_url,
             headers={
                 "Authorization": f"Bearer {self._cf_token}",
+                "cf-aig-gateway-id": self._gateway_id,
                 "Content-Type": "application/json",
             },
             json=payload,

@@ -8,10 +8,7 @@ import { errorHandler } from "./middleware/error-handler";
 import { structuredLogger } from "./middleware/logger";
 import { sentryMiddleware } from "./middleware/sentry";
 import { authRoutes } from "./routes/auth";
-import { chatRoutes } from "./routes/chat";
-import { conversationsRoutes } from "./routes/conversations";
 import { exercisesRoutes } from "./routes/exercises";
-import { goalsRoutes } from "./routes/goals";
 import { healthRoutes } from "./routes/health";
 import { practiceRoutes } from "./routes/practice";
 import { scoresRoutes } from "./routes/scores";
@@ -45,12 +42,9 @@ const routes = app
 	.route("/api/waitlist", waitlistRoutes)
 	.route("/api/scores", scoresRoutes)
 	.route("/api/exercises", exercisesRoutes)
-	.route("/api/conversations", conversationsRoutes)
 	.route("/api/segment-loops", segmentLoopsRoutes)
 	.route("/api/sync", syncRoutes)
-	.route("/api/chat", chatRoutes)
 	.route("/api/practice", practiceRoutes)
-	.route("/api/extract-goals", goalsRoutes)
 	.route("/api/sessions", sessionsRoutes);
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));

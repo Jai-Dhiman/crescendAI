@@ -95,7 +95,14 @@ handler only logs free-text composer/title instead of yielding a catalog
 
 ### 4. Offline alignment
 
-Chroma-DTW alignment maps chunks to bars, lagging real playing by seconds.
+**Deferred to a follower issue (#162 STATE 2026-08-15).** Chroma-DTW
+alignment maps chunks to bars, lagging real playing by seconds — but its
+only input was MuQ's chroma output, which is removed with MuQ. Every
+session runs the existing Tier-2 path; marks carry timestamp anchors until
+the follower issue (entry criteria: #119 HMM matcher + #160) restores bar
+anchoring behind the unchanged `BarMap` contract. The WASM aligner
+(`alignChunkNotes`/`alignChunkChroma`, #64) stays in the tree, dormant.
+
 The follower is an **offline orientation tool** — it decides where marks and
 the review cursor land; it never drives a live cursor. Bar anchoring is
 gated on per-passage alignment quality: shaky alignment degrades the anchor
@@ -131,6 +138,13 @@ on the same passage, paced to at most one mark per pause. Cold-start
 sessions use cohort priors with exploratory framing — the cold-start path is
 the same code path as the baseline-unavailable fallback.
 
+The session pipeline reads and writes the `student_profiles.baseline_state`
+jsonb column exclusively (added #162 Task 8). The six flat legacy columns
+(`baseline_dynamics`, `baseline_timing`, etc.) are still written by
+`services/sync.ts` for the iOS/client sync path, but session-brain.ts's own
+pipeline never writes them — treat them as dead weight from this pipeline's
+perspective, not a second source of truth to reconcile.
+
 ### 8. Synthesis (V6 harness)
 
 The V6 hook-driven compound loop (`docs/harness.md`) remains the synthesis
@@ -161,11 +175,16 @@ comparison), audio-native teacher (no-comment zones shrink).
 
 ## Open Questions
 
-1. **MoonBeam serving.** Local vs. hosted inference for the encoder; cost
-   and latency envelope per session (resolve in #162).
-2. **Transcription confidence signal.** What Transkun exposes (or what
-   proxy — note density sanity, alignment residual) defines a no-comment
-   zone (resolve in #162).
+1. **MoonBeam serving — RESOLVED 2026-08-15 (#162).** Not yet decided for a
+   real head: this issue ships a deterministic pure-TS mock scorer
+   (`apps/api/src/services/scoring.ts`) behind the exact interface the
+   future MoonBeam container call will implement. The serving decision
+   (local Docker container on the `apps/inference/amt` pattern) is deferred
+   until the real head exists.
+2. **Transcription confidence signal — RESOLVED 2026-08-15 (#162).** Note
+   density is the proxy: fewer than `MIN_NOTES_FOR_COMMENT = 10` transcribed
+   notes (or an AMT failure) makes a chunk a no-comment zone — no mark, no
+   MPM claim, excluded from baseline updates, disclosed in the review.
 3. **Pause threshold.** 20s mark-delivery / 60s auto-stop are starting
    values, config-tunable.
 4. **Per-session cost.** Re-measure once MoonBeam serving is decided; the

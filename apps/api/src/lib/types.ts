@@ -18,12 +18,17 @@ export interface Bindings {
 	GOOGLE_CLIENT_SECRET: string;
 	SENTRY_DSN: string;
 	HF_INFERENCE_ENDPOINT: string;
+	AI: Ai;
+	// Anthropic is reached through the provider-native gateway URL: BYOK keys are
+	// not usable through the unified AI binding, so this plumbing stays.
 	AI_GATEWAY_ENDPOINT: string;
 	AI_GATEWAY_TOKEN: string;
+	// Unified Workers AI / AI Gateway control plane (2026-08-07).
+	CLOUDFLARE_ACCOUNT_ID: string;
+	AI_GATEWAY_ID: string;
 	TEACHER_PROVIDER?: string;
 	TEACHER_MODEL?: string;
 	CLOUDFLARE_API_TOKEN: string;
-	MUQ_ENDPOINT: string;
 	AMT_ENDPOINT: string;
 	SESSION_BRAIN: DurableObjectNamespace;
 	ALLOW_EVAL_STUDENT_OVERRIDE: string;

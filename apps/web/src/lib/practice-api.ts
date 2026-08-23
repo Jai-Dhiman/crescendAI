@@ -1,5 +1,6 @@
 import { API_BASE, WS_BASE } from "./config";
 import type { Mark } from "./mark";
+import type { NoCommentZone } from "./session-review";
 import type { InlineComponent } from "./types";
 
 export interface PracticeStartResponse {
@@ -85,6 +86,12 @@ export type PracticeWsEvent =
 	  }
 	| { type: "piece_set"; query: string }
 	| { type: "mark"; mark: Mark }
+	| {
+			type: "review";
+			verdict: string | null;
+			carry_forward: string | null;
+			no_comment_zones: NoCommentZone[];
+	  }
 	| ModeChangeEvent
 	| { type: "error"; message: string }
 	| {

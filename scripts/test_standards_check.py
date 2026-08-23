@@ -24,6 +24,7 @@ RULES = {
     "OPS-002": {"level": "MUST"},
     "PY-001": {"level": "MUST"},
     "RES-001": {"level": "MUST"},
+    "TS-TYPE-002": {"level": "MUST"},
 }
 
 
@@ -68,6 +69,56 @@ def test_uv_run_without_no_project_inside_a_project_is_flagged(tmp_repo_file):
     )
     findings = sc.check_uv_run_isolation([f], RULES)
     assert [x.rule_id for x in findings] == ["OPS-002"]
+
+
+def test_chained_assertion_without_safety_comment_is_flagged(tmp_repo_file):
+    f = tmp_repo_file(
+        "apps/api/src/_tmp_standards/cast.ts",
+        "const user = input as unknown as User;\n",
+    )
+    findings = sc.check_chained_assertion_safety([f], RULES)
+    assert [x.rule_id for x in findings] == ["TS-TYPE-002"]
+
+
+def test_chained_assertion_with_preceding_safety_comment_is_clean(tmp_repo_file):
+    f = tmp_repo_file(
+        "apps/api/src/_tmp_standards/cast.ts",
+        "// SAFETY: parseUser validated the shape before branding it.\n"
+        "const user = input as unknown as User;\n",
+    )
+    assert sc.check_chained_assertion_safety([f], RULES) == []
+
+
+def test_chained_assertion_with_same_line_safety_comment_is_clean(tmp_repo_file):
+    f = tmp_repo_file(
+        "apps/api/src/_tmp_standards/cast.ts",
+        "const user = input as unknown as User; // SAFETY: zod-parsed above\n",
+    )
+    assert sc.check_chained_assertion_safety([f], RULES) == []
+
+
+def test_chained_assertion_in_a_test_file_is_exempt(tmp_repo_file):
+    f = tmp_repo_file(
+        "apps/api/src/_tmp_standards/cast.test.ts",
+        "const stub = {} as unknown as SessionBrain;\n",
+    )
+    assert sc.check_chained_assertion_safety([f], RULES) == []
+
+
+def test_chained_assertion_outside_api_src_is_out_of_scope(tmp_repo_file):
+    f = tmp_repo_file(
+        "apps/web/src/_tmp_standards/cast.ts",
+        "const user = input as unknown as User;\n",
+    )
+    assert sc.check_chained_assertion_safety([f], RULES) == []
+
+
+def test_prose_mentioning_the_chained_cast_is_not_flagged(tmp_repo_file):
+    f = tmp_repo_file(
+        "apps/api/src/_tmp_standards/cast.ts",
+        "// never write `as unknown as` without justification\n",
+    )
+    assert sc.check_chained_assertion_safety([f], RULES) == []
 
 
 def test_uv_run_with_no_project_is_clean(tmp_repo_file):

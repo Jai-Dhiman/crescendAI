@@ -1,5 +1,4 @@
 import { describe, expect, it, test } from "vitest";
-import { TOOL_REGISTRY } from "../../services/tool-processor";
 import { SynthesisArtifactSchema } from "../artifacts/synthesis";
 import { ALL_MOLECULES } from "../skills/molecules";
 import { getCompoundBinding } from "./compound-registry";
@@ -14,23 +13,6 @@ describe("compound-registry", () => {
 		expect(binding?.tools).toHaveLength(ALL_MOLECULES.length + 2);
 		const names = binding!.tools.map((t) => t.name);
 		expect(new Set(names).size).toBe(names.length);
-		expect(names).toContain("assign_segment_loop");
-	});
-
-	it("returns a streaming binding for OnChatMessage with prescribe_exercise tool", () => {
-		const binding = getCompoundBinding("OnChatMessage");
-		expect(binding).toBeDefined();
-		expect(binding?.compoundName).toBe("chat-response");
-		expect(binding?.mode).toBe("streaming");
-		expect(binding?.phases).toBe(1);
-		expect(binding!.tools.length).toBeGreaterThanOrEqual(
-			Object.values(TOOL_REGISTRY).length + 1,
-		);
-		const names = binding!.tools.map((t) => t.name);
-		expect(new Set(names).size).toBe(names.length);
-		expect(names).toContain("prescribe_exercise");
-		expect(names).not.toContain("create_exercise");
-		expect(names).toContain("search_catalog");
 		expect(names).toContain("assign_segment_loop");
 	});
 

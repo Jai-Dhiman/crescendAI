@@ -1,4 +1,4 @@
-import type { Dimension } from "./mock-session";
+import type { Dimension } from "./dimension";
 
 /**
  * The brand is not exported. `resolveAnchor` is therefore the only function in
