@@ -74,7 +74,7 @@ Recorded because the gap is larger than it looks, and none of it is cosmetic.
 | **CIPI** (Ramoneda 2024) | MusicXML piano scores | 652 scores, 9-level Henle | zenodo.org/records/8037327 |
 | **Mikrokosmos-difficulty** (Ramoneda 2022) | piano difficulty | Bartók Mikrokosmos | github.com/PRamoneda/Mikrokosmos-difficulty |
 
-**On disk:** 5,798 Transkun MIDIs of 7,901 PSyllabus pieces (73%) and 1,233 WAVs. The ~2,100 gap is **yt-dlp bot detection, not unavailable videos** — the refetch run saw zero failures in its first 626 attempts, then 191 consecutive. Recovering it is a data-expansion lever, not a dead end. The missing audio is **not in R2**; do not search there again.
+**On disk:** 7,665 Transkun MIDIs of 7,901 PSyllabus pieces (97.0%) and 1,233 WAVs. The #169 recovery (completed 2026-08-23) recovered 1,867 of the 2,103 then-missing pieces (88.8% yield, +32% train data over the prior 5,798) via paced, cookie-authenticated yt-dlp + local-CPU Transkun (`transcription_bench/recover_missing.py`; per-piece log in `recover_report.jsonl`). The remaining **236 are permanently gone from YouTube** (186 removed, 48 private, 2 geo-blocked) — with valid cookies these errors are ground truth, so this is the ceiling; do not re-attempt. Yield declines mildly with grade (98% at grades 0–2 → ~83–86% at 7–10) but grade 10 gained the most in absolute terms (+324). The missing audio is **not in R2**; do not search there again.
 
 **Corpus composition (measured 2026-08-06 from `new_clean_data.json`'s `period` field):**
 
