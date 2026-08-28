@@ -280,8 +280,7 @@ timers.
 | `apps/api/src/routes/repertoire.test.ts` | auth gating + body shape | New |
 | `apps/api/src/routes/practice.ts` | `POST /start` accepts + persists `pieceId` | Modify |
 | `apps/api/src/routes/practice.test.ts` | unknown `pieceId` rejected | Modify |
-| `apps/api/src/routes/segment-loops.ts` | `GET /?pieceId=` open drills | Modify |
-| `apps/api/src/services/segment-loops.ts` | `listOpenLoopsForPiece` | Modify |
+| `apps/api/src/services/segment-loops.ts` | `listOpenLoopsForPiece`, consumed by `listPieceHistory` (no new route -- open drills ride along on `GET /api/repertoire/:pieceId`) | Modify |
 | `apps/api/src/index.ts` | mount `/api/repertoire` | Modify |
 | `apps/web/src/lib/piece-search.ts` | `searchPieces` | New |
 | `apps/web/src/lib/piece-search.test.ts` | ranking + normalization | New |
@@ -479,7 +478,6 @@ export interface PieceSummary {
 `GET /api/repertoire` -> `200 { entries: RepertoireEntry[] }`, `401` unauthenticated.
 `GET /api/repertoire/:pieceId` -> `200 PieceHistory`, `401` unauthenticated, `404` for a piece not in the catalog.
 `POST /api/practice/start` body -> `{ conversationId?: string; pieceId?: string }`, `404` for a `pieceId` not in the catalog.
-`GET /api/segment-loops?pieceId=<id>` -> `200 { loops: OpenDrill[] }`, `401` unauthenticated.
 
 ---
 
