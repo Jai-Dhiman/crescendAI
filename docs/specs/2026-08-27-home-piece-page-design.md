@@ -240,7 +240,9 @@ timers.
      sessions, and all three lifecycle states are present in the DOM.
 
 - **Automated check:**
-  `cd apps/api && bun run test` and `cd apps/web && bun run test`.
+  `cd apps/api && bun run test` and `cd apps/web && bun run test`, plus
+  `cd apps/web && bun run test:a11y` as the WEB-A11Y-004 gate (enforced), and
+  `bun run lint` / `bun run typecheck` in both apps.
   Point 4 is assertable in jsdom because `MarkGlyph` writes
   `data-lifecycle={mark.lifecycle}` onto the button and the opacity onto
   `data-testid="mark-lifecycle-dot"` -- both queryable without a real browser.
@@ -251,6 +253,12 @@ timers.
   two dated sessions of lifecycle-progressing marks, written and asserted
   before any surface consumes it. It is what makes the success criterion a
   test rather than a judgement call.
+
+- **Contrast gate:** `bun run test:a11y` (real-browser axe) must pass. It is
+  the only place `color-contrast` is checkable -- jsdom skips the rule
+  entirely, so the jsdom suites above make no contrast claim. The design
+  avoids introducing new token pairs specifically so this gate stays green
+  without new cases (see Style Guide Conformance, WEB-A11Y-004).
 
 - **Manual verification step** (cannot be automated here): #158's deferred
   live click-through. Start the stack, sign in, pick a piece from home,
@@ -282,6 +290,8 @@ timers.
 | `apps/web/src/lib/piece-page-fixtures.ts` | 2 sessions of lifecycle-varied marks | New |
 | `apps/web/src/lib/piece-page-fixtures.test.ts` | fixture invariants | New |
 | `apps/web/src/lib/api.ts` | `api.repertoire.*`, `api.scores.list` | Modify |
+| `apps/web/src/hooks/useRepertoire.ts` | `repertoireQueryOptions`, `pieceHistoryQueryOptions` (WEB-QUERY-001) | New |
+| `apps/web/src/hooks/usePieceCatalog.ts` | `pieceCatalogQueryOptions` (WEB-QUERY-001) | New |
 | `apps/web/src/components/RepertoireCard.tsx` | one card | New |
 | `apps/web/src/components/AddPieceSearch.tsx` | library search + pick | New |
 | `apps/web/src/components/PieceSessionHistory.tsx` | session list for a piece | New |
@@ -294,6 +304,112 @@ timers.
 | `apps/web/src/hooks/usePracticeSession.ts` | expose `confidentGuess` | Modify |
 | `apps/web/src/hooks/usePracticeSession.piece.test.ts` | `piece_identified` -> guess | New |
 | `apps/web/src/routes/practice-preview.tsx` | unchanged; listed to confirm it is NOT touched | — |
+
+---
+
+## Style Guide Conformance
+
+Checked against `apps/web/WEB_STYLE.md` and `apps/api/TS_STYLE.md`, with rule
+status read from `docs/standards/rules.json`. Only rules this feature can
+actually violate are listed; each states what the implementation must do.
+
+### Enforced (blocking) rules
+
+- **[WEB-QUERY-002]** (MUST, enforced) Server state never enters zustand.
+  Repertoire, piece history, and catalog results live in react-query only.
+  The single piece of client state this feature has -- the add-piece search
+  query string -- is component-local `useState`, and the picked piece lives in
+  the URL, not a store.
+- **[WEB-STATE-003]** (MUST, enforced) No new `createContext`. None is added;
+  every value reaches its consumer by prop or by route param.
+- **[WEB-A11Y-001]** (MUST, enforced) Any motion respects
+  `prefers-reduced-motion`. **This feature adds no animation at all** -- cards,
+  search results, and the piece page are static. If a later change adds
+  motion, this rule reactivates.
+- **[WEB-A11Y-004]** (MUST, enforced) New colour/token pairs must pass WCAG AA
+  in a real browser via `bun run test:a11y`; jsdom axe skips `color-contrast`,
+  so a green `bun run test` proves nothing about it.
+  **Resolution:** the new surfaces are restricted to token pairs already in
+  use on shipped surfaces -- `surface-page`, `surface-raised`, `ink-primary`,
+  `ink-secondary`, `ink-tertiary`, `border-subtle`, `accent`/`on-accent`,
+  `danger`, exactly as `routes/app.tsx`, `ScoreStand`, and `MarkGlyph` already
+  pair them. No new pair is introduced, so the rule's trigger condition is not
+  met. `bun run test:a11y` is still run as a release gate (see Verification).
+  A task that reaches for a token pairing outside that list must extend
+  `tests/a11y.spec.ts` instead of inventing one. `/app` is reachable in the
+  a11y preview build (`.env.production` sets `VITE_AUTH_MODE=waitlist`, so
+  `app.tsx`'s `beforeLoad` returns early), so extending coverage is possible
+  if it becomes necessary.
+
+### Approved (advisory, surfaces as P2)
+
+- **[WEB-QUERY-001]** (MUST) Query keys come from a shared factory, never
+  string-literal arrays at call sites. This repo's established form is an
+  exported `queryOptions` object whose `.queryKey` every call site references
+  -- `authQueryOptions` in `hooks/useAuth.ts`, read by `lib/auth.tsx`,
+  `routes/index.tsx`, and `routes/signin.tsx`. This feature follows it exactly
+  with a new `hooks/useRepertoire.ts` exporting `repertoireQueryOptions` and
+  `pieceHistoryQueryOptions(pieceId)`, plus `pieceCatalogQueryOptions` in
+  `hooks/usePieceCatalog.ts`. **No route or component writes a `queryKey`
+  literal.**
+- **[WEB-STATE-001]** (MUST) No `useEffect` + `useState` to derive what is a
+  pure function of in-scope state. `searchPieces(pieces, query)` is called
+  **during render**. An effect that mirrors results into state would be the
+  textbook violation and is explicitly forbidden by the tasks.
+- **[WEB-STATE-002]** (SHOULD) Default is *no* memoization; `useMemo` requires
+  a downstream dependency-array consumer or a measured perf need. `searchPieces`
+  is therefore called bare, **not** wrapped in `useMemo`. Neither condition
+  holds: nothing downstream takes it as a dependency, and the catalog slice is
+  small.
+- **[WEB-ERR-001]** (MUST) A caught API error re-throws, sets a caller-visible
+  error state, or reports to Sentry -- never a silent `[]`. This is already
+  the design: `lib/api.ts`'s `request()` captures to Sentry and throws
+  `ApiError`, and home renders an explicit error state rather than an empty
+  list (Open Questions).
+- **[WEB-UI-001]** (MUST) No `any` in props or handlers; concrete DOM/React
+  event types.
+- **[WEB-UI-002]** (MUST) No Tailwind arbitrary bracket values where a
+  `@theme` token exists. The full token set is `surface-page/raised/sunken`,
+  `ink-primary/secondary/tertiary`, `border-subtle/strong`, `accent`,
+  `on-accent`, `score-canvas`, `danger`, `warn`.
+- **[WEB-A11Y-003]** (MUST) Interactive targets have at least a 32px hit area;
+  icons inside them are `aria-hidden` and never the sole accessible label.
+  Applies to the repertoire card (the whole card is the target), each search
+  result, and "Just play".
+- **[WEB-COMPONENT-001]** (SHOULD) Components over ~300 non-test lines get
+  split. All three new leaves are far below it.
+- **[WEB-COMPONENT-002]** (MUST) No prop no current caller passes; no
+  prop-count creep past ~6-8. `RepertoireCard` takes 2 props (`entry`,
+  `now`), `AddPieceSearch` 1 (`onPick`), `PieceSessionHistory` 1 (`sessions`).
+
+### Proposed (recorded, never reported)
+
+- **[WEB-ROUTE-001]** (SHOULD, *proposed*) Loaders only seed the query cache
+  via the same shared query options the component subscribes to. Status is
+  `proposed`, so it is not reportable -- but the design complies anyway: no
+  data loader is added, and every surface subscribes with `useQuery`.
+  `app.tsx`'s existing `beforeLoad` is an auth guard, not a data source, and
+  is unchanged.
+
+### API side (`apps/api/TS_STYLE.md`)
+
+- **[TS-HONO-001]** (MUST) Validators and handler chained in one expression.
+- **[TS-HONO-002]** (MUST) `.route()` calls chained so `AppType` keeps route
+  info -- `/api/repertoire` is appended to the existing chain in `index.ts`,
+  not registered separately.
+- **[TS-HONO-005]** (MUST) Validation via the existing `lib/validate.ts`
+  wrapper, which already returns JSON errors.
+- **[TS-ERR-001/002]** (MUST) `services/repertoire.ts` throws `NotFoundError`
+  and never imports `HTTPException` or returns status codes.
+- **[TS-SVC-001/002]** (MUST) Services take `ServiceContext`, stay stateless.
+- **[TS-DB-003]** (MUST) `db/migrations/` is drizzle-kit generated and never
+  hand-edited -- the migration is produced by `bun run generate`, and its
+  final filename is whatever drizzle-kit assigns.
+- **[TS-DB-004]** (SHOULD) Index naming `idx_{table}_{columns}` ->
+  `idx_sessions_student_piece`.
+- **[TS-FILE-001]** (SHOULD) `kebab-case.ts`; the route module exports a named
+  `{ repertoireRoutes }`, not a default.
+- **[TS-TYPE-001]** (MUST) No `any`.
 
 ---
 
