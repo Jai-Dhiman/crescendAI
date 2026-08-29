@@ -2701,15 +2701,41 @@ export const Route = createFileRoute("/app/")({
 - [ ] **Step 4: Run test -- verify it PASSES**
 
 ```bash
-cd apps/web && bun run test src/routes/ && bun run typecheck
+cd apps/web && bun run test src/routes/
 ```
-Expected: PASS across every route suite, typecheck clean.
+Expected: PASS across every route suite. (Vitest runs with the
+`tanstackStart()` plugin disabled and imports `./app.practice` directly, so
+this step does not depend on `routeTree.gen.ts`.)
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Regenerate the route tree**
+
+`createFileRoute("/app/practice")` type-checks only against paths TanStack
+Router has already generated into `apps/web/src/routeTree.gen.ts`. That file
+is produced by the `tanstackStart()` Vite plugin (`apps/web/vite.config.ts`),
+not by a standalone CLI -- this repo has no `tsr`/router-cli binary. Running
+the app's own build invokes that plugin and regenerates the file as a build
+side effect (verified empirically in this worktree: adding a throwaway route
+and running this command updated `routeTree.gen.ts` to include it).
 
 ```bash
-git add apps/web/src/routes/app.tsx apps/web/src/routes/app.index.tsx apps/web/src/routes/app.practice.tsx apps/web/src/routes/app.practice.test.tsx && git commit -m "refactor(web): /app becomes a layout; practice stand moves to /app/practice"
+cd apps/web && bun run build
 ```
+Expected: build succeeds; `git diff apps/web/src/routeTree.gen.ts` shows the
+new `/app/practice` route added.
+
+- [ ] **Step 6: Commit the route file with the regenerated route tree**
+
+```bash
+git add apps/web/src/routes/app.tsx apps/web/src/routes/app.index.tsx apps/web/src/routes/app.practice.tsx apps/web/src/routes/app.practice.test.tsx apps/web/src/routeTree.gen.ts && git commit -m "refactor(web): /app becomes a layout; practice stand moves to /app/practice"
+```
+
+- [ ] **Step 7: Typecheck**
+
+```bash
+cd apps/web && bun run typecheck
+```
+Expected: typecheck clean (this depends on the regenerated
+`routeTree.gen.ts` from Step 5 -- do not run this before Step 5/6).
 
 ---
 
@@ -3276,15 +3302,42 @@ export function AppPiecePage({ pieceId }: AppPiecePageProps) {
 - [ ] **Step 4: Run test -- verify it PASSES**
 
 ```bash
-cd apps/web && bun run test src/routes/ && bun run typecheck
+cd apps/web && bun run test src/routes/
 ```
-Expected: PASS, typecheck clean.
+Expected: PASS. (Vitest runs with the `tanstackStart()` plugin disabled and
+imports the route module directly, so this step does not depend on
+`routeTree.gen.ts`.)
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Regenerate the route tree**
+
+`createFileRoute("/app/piece/$pieceId")` type-checks only against paths
+TanStack Router has already generated into `apps/web/src/routeTree.gen.ts`.
+That file is produced by the `tanstackStart()` Vite plugin
+(`apps/web/vite.config.ts`), not by a standalone CLI -- this repo has no
+`tsr`/router-cli binary. Running the app's own build invokes that plugin and
+regenerates the file as a build side effect (verified empirically in this
+worktree: adding a throwaway route and running this command updated
+`routeTree.gen.ts` to include it; see Task 15 Step 5).
 
 ```bash
-git add apps/web/src/routes/app.piece.\$pieceId.tsx apps/web/src/routes/app.piece.test.tsx && git commit -m "feat(web): piece page shows marks aging across sessions with history and drills"
+cd apps/web && bun run build
 ```
+Expected: build succeeds; `git diff apps/web/src/routeTree.gen.ts` shows the
+new `/app/piece/$pieceId` route added.
+
+- [ ] **Step 6: Commit the route file with the regenerated route tree**
+
+```bash
+git add apps/web/src/routes/app.piece.\$pieceId.tsx apps/web/src/routes/app.piece.test.tsx apps/web/src/routeTree.gen.ts && git commit -m "feat(web): piece page shows marks aging across sessions with history and drills"
+```
+
+- [ ] **Step 7: Typecheck**
+
+```bash
+cd apps/web && bun run typecheck
+```
+Expected: typecheck clean (this depends on the regenerated
+`routeTree.gen.ts` from Step 5 -- do not run this before Step 5/6).
 
 ---
 
@@ -3320,3 +3373,231 @@ Transkun path.
    any open drills.
 
 Record the outcome as a `STATE:` comment on #160.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise Challenge.** The three gaps in the Problem section are each verified
+directly against the tree: `apps/web/src/routes/app.tsx` today hardcodes
+`userPickedPieceId={null}` / `confidentGuess={null}` (confirmed by reading the
+file), `apps/web/src/hooks/usePracticeSession.ts:312-320` `console.log`s the
+`piece_identified` event and discards `data.pieceId` (confirmed), and
+`apps/api/src/db/schema/sessions.ts` has no `pieceId` column today (confirmed).
+This is real, load-bearing pain, not a proxy problem: without it `/app` cannot
+show a repertoire from real data and the ladder's top two rungs are dead code.
+No simpler framing was found that gets the same outcome with less surface.
+
+**Scope Check.** The plan matches the spec closely; no drift found. The
+hardest problem — making the write path (`sessions.piece_id`) and the ladder
+wiring (`confidentGuess`) real, not just adding UI over fixtures — is
+attacked directly in Tasks 4, 7, 9, 14, not deferred. The plan explicitly
+defers mark persistence and bar-anchored marks to a follow-up, which is the
+correct cut: those require alignment work out of scope here. 17 tasks / ~20
+files is large but each file is one deep module or one thin leaf; the
+File Structure table's own depth ratings hold up under inspection (verified
+directly, see Architecture below).
+
+**Twelve-Month Alignment.**
+```
+CURRENT STATE                     THIS PLAN                        12-MONTH IDEAL
+/app is one button; every        sessions carry piece_id;         Every session is piece-aware;
+session is pieceless; ladder's   home + piece page render real    marks persist and the piece
+top two rungs unreachable;       data; ladder's user-picked and   page shows a true cross-session
+marks are DO-only, ephemeral.    confirm-chip rungs reachable.    view without fixtures.
+```
+Moves toward the ideal without foreclosing it: `openMarkCount: number | null`
+and the fixture-sourced piece-page marks are both named exit ramps for the
+mark-persistence follow-up (one service line, one import swap), not
+one-way doors.
+
+**Alternatives Check.** The spec does not enumerate rejected alternatives
+(e.g., storing piece identity on `conversations` instead of `sessions`, or
+computing repertoire client-side from existing session-list endpoints). Given
+`piece_id` already exists on `segment_loops`/`diagnosis_artifacts`/
+`pending_exercises` (confirmed in `apps/api/src/db/schema/`), putting it on
+`sessions` too is the obviously consistent choice and likely didn't need
+alternatives spelled out, but the spec should say so explicitly for a future
+reader.
+
+### Engineering Pass
+
+**Architecture.** Traced end to end and it holds up against the real code:
+
+```
+POST /api/practice/start {pieceId?}
+   -> validate against pieces (db.query.pieces.findFirst)  [404 if absent]
+   -> insert sessions {..., pieceId}
+GET /api/repertoire
+   -> listRepertoire: join sessions+pieces where pieceId is not null
+   -> buildRepertoire (pure): group, count, latest, sort desc
+GET /api/repertoire/:pieceId
+   -> listPieceHistory: pieces lookup [404 NotFoundError] + sessions + listOpenLoopsForPiece
+/app (layout, Outlet) -> /app/ (Home, useQuery(repertoireQueryOptions))
+                       -> /app/practice?pieceId= (AppPractice, reads search param)
+                       -> /app/piece/$pieceId (AppPiecePage, useQuery(pieceHistoryQueryOptions))
+```
+All schema/column names used (`sessions.pieceId`, `segmentLoops.barsStart`,
+`barsEnd`, `dimension`, `requiredCorrect`, `attemptsCompleted`, `status`,
+`createdAt`, `pieces.pieceId/composer/title`) were checked against the actual
+Drizzle schemas and match exactly. `errorHandler` maps `NotFoundError` -> 404
+and `HTTPException` -> its own response, confirmed in
+`apps/api/src/middleware/error-handler.ts`; `requireAuth` throws
+`HTTPException(401, ...)`, confirmed in `apps/api/src/middleware/auth-session.ts`.
+No SQL/shell/prompt injection surface: all identifiers are Drizzle-typed
+columns, `pieceId` is validated against the catalog before it is ever stored
+or interpolated into a query.
+
+**Module Depth Audit.**
+- `buildRepertoire`/`listRepertoire`/`listPieceHistory`
+  (`apps/api/src/services/repertoire.ts`): interface = 3 functions, ~10 fields
+  of types; hides a join, a grouping pass, a null-policy, and drill
+  aggregation. DEEP, confirmed.
+- `searchPieces` (`apps/web/src/lib/piece-search.ts`): 1 function; hides
+  normalization, dual-field matching, prefix/substring ranking, capping.
+  DEEP, confirmed.
+- `describeArc` (`apps/web/src/lib/learning-arc.ts`): 1 function; hides every
+  relative-date branch. DEEP, confirmed.
+- `listOpenLoopsForPiece` (`apps/api/src/services/segment-loops.ts`): thin
+  wrapper over one `select().where().orderBy()` — closer to SHALLOW than the
+  other three, but justified: it is the one Drizzle-chain boundary the test
+  suite's stub technique can reach, and it is reused by `listPieceHistory`.
+  Acceptable.
+- `RepertoireCard`/`AddPieceSearch`/`PieceSessionHistory`: SHALLOW by design,
+  as the plan itself states, and correctly so — logic is extracted into the
+  deep modules above.
+
+**Code Quality.** No `catch(e)` / broad-exception patterns introduced. No
+`any`. `[WEB-ERR-001]` is honored: `api.repertoire.*`/`api.scores.list` never
+catch-and-return `[]`; `AppHome`/`AppPiecePage` render `isError` explicitly.
+One drift from `[WEB-STATE-002]`'s spirit worth flagging under Presumption
+Inventory below (`AppHome`'s `now = new Date()` computed fresh every render,
+not memoized — acceptable per the plan's own "no measured perf need" rule,
+but every render creates a new `Date`, which slightly undercuts
+`RepertoireCard`'s `now` prop being presented as an injected/testable clock;
+harmless in practice).
+
+**Test Philosophy.** Every test in the plan exercises a public
+interface (`buildRepertoire(rows)`, `searchPieces(pieces, query)`, HTTP routes
+via `.request()`, rendered components via Testing Library queries). Route
+tests mock the *service module* (`vi.spyOn(repertoireService, ...)`), which is
+this codebase's established, already-shipped pattern (confirmed: identical to
+`exercises.test.ts`'s approach per the spec) — an external-enough boundary for
+a route test, not an internal collaborator of the unit under test. No shape-
+only tests found; every assertion checks behavior (ordering, filtering,
+fallback strings, 404 mapping).
+
+**Vertical Slice Audit.** All 17 tasks follow one-test -> one-implementation
+-> one-commit. No task writes multiple tests before any implementation, no
+task defers implementation to a later task. Clean.
+
+**Test Coverage Gaps.**
+```
+[+] apps/api/src/services/repertoire.ts
+    ├── buildRepertoire()
+    │   ├── [TESTED] ★★★ empty input, grouping, most-recent-wins-any-order, ordering, openMarkCount null — Task 6
+    │   └── [GAP]    two pieces with an identical lastPracticedAt (tie-break undefined — see Presumption Inventory)
+    ├── listRepertoire()
+    │   └── [GAP]    no test at all (only buildRepertoire and listPieceHistory are tested; the join+filter half of listRepertoire has zero coverage — see BLOCKER below)
+    └── listPieceHistory()
+        ├── [TESTED] ★★  happy path (sessions + drills) — Task 7
+        └── [TESTED] ★★  NotFoundError for missing piece — Task 7
+
+[+] apps/api/src/routes/practice.ts (/start)
+    ├── [TESTED] ★★ stores pieceId — Task 9
+    ├── [TESTED] ★★ 404s an unknown pieceId, does not store — Task 9
+    └── [TESTED] ★★ still starts a pieceless session — Task 9
+
+[+] apps/web/src/routes/app.practice.tsx / app.piece.$pieceId.tsx
+    └── [GAP] neither route's `Route.validateSearch` / `Route.useParams` wiring is exercised by a route-level test — both test files render the exported plain component (`AppPractice`, `AppPiecePage`) directly, never the `Route` object itself, so a mistake in `validateSearch`'s search-param plumbing (e.g. wrong key) would not be caught by these tests. Low severity: the same gap exists for every route in this codebase already (`routes/index.tsx` pattern), so this is consistent with, not worse than, existing coverage.
+```
+
+**Failure Modes.**
+- `POST /api/practice/start`: if the `pieces.findFirst` lookup throws (DB
+  blip), the whole request 500s before the `sessions` insert — visible via
+  `errorHandler`'s catch-all `console.error`, not silent. Acceptable.
+- `GET /api/repertoire`/`GET /api/repertoire/:pieceId`: failure surfaces as a
+  thrown error -> `errorHandler` -> JSON error response; the web client's
+  `request()` throws `ApiError`, and `useQuery`'s `isError` renders an
+  explicit message. No silent empty-list path — this was checked directly and
+  the design note in the spec (`apps/CLAUDE.md`'s "no client-side fallbacks
+  hiding failures") is honored.
+- Migration (Task 4): applying `bun run migrate` against local Postgres is a
+  single DDL statement (`ADD COLUMN` + index); if it fails partway the task's
+  own verification step (`psql \d sessions`) would catch it before commit.
+  No partial-state risk beyond what Postgres's own DDL transaction already
+  covers.
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `createFileRoute("/app/practice")` and `createFileRoute("/app/piece/$pieceId")` will typecheck against the current `FileRoutesByPath` types without any regeneration step | **RISKY** | Verified: `createFileRoute<TFilePath extends keyof FileRoutesByPath>` (`@tanstack/react-router/dist/esm/fileRoute.d.ts`) constrains the path argument to keys already present in the generated `apps/web/src/routeTree.gen.ts`, which currently has no `/app/practice` or `/app/piece/$pieceId` entries. The router-plugin (`tanstackStart()`) that regenerates this file is explicitly disabled during `vitest` (`!isTest && tanstackStart()` in `vite.config.ts`) and is not invoked by bare `tsc` (`bun run typecheck`). `routeTree.gen.ts` is a tracked, committed file (confirmed via `git log`), not a build artifact regenerated transparently by `tsc`. See BLOCKER below. |
+| `db.query.pieces.findFirst` is available on the `Db` type the way `db.query.conversations.findFirst` already is | SAFE | `Db = PostgresJsDatabase<typeof schema>` and `schema` re-exports `pieces` from `catalog.ts`; Drizzle's relational query builder exposes every schema-exported table under `db.query.<exportName>`. No existing call site uses `db.query.pieces` yet, but the mechanism is identical to the already-used `db.query.conversations`. |
+| `Object.keys(sessions)` includes `pieceId` and `sessions.pieceId.notNull` is a real boolean property | SAFE | Verified against `drizzle-orm/column.d.ts` (`notNull: boolean` on the column's public type) and an identical existing pattern in `segment-loops.test.ts`. |
+| GET `/api/scores` returns `{ pieces: [...] }` with `pieceId`/`composer`/`title` and needs no auth | SAFE | Confirmed by reading `apps/api/src/routes/scores.ts` and `services/scores.ts` directly. |
+| `PracticeMode` accepts `confidentGuess: ConfidentGuess | null` (non-optional) and `userPickedPieceId: string | null` | SAFE | Confirmed against `apps/web/src/components/PracticeMode.tsx`'s actual prop interface. |
+| The `piece_identified` WS event already carries `pieceId`, `composer`, `title`, `confidence` exactly as `ConfidentGuess` needs | SAFE | Confirmed in `apps/web/src/lib/practice-api.ts`'s event union and `apps/api/src/do/session-brain.ts`'s emit site — fields match exactly. |
+| `resolvePieceLadderState` already owns guess-vs-pick precedence, so the hook needn't duplicate it | SAFE | Confirmed: `resolvePieceLadderState` in `piece-ladder.ts` is a pure 3-line precedence function; Task 14 does not reimplement it. |
+| Two pieces practiced in the same session-collapsing pass with an identical `lastPracticedAt` millisecond sort deterministically | VALIDATE | `buildRepertoire`'s `Array.prototype.sort` on `String#localeCompare` of equal ISO strings is stable in modern JS engines (spec-guaranteed since ES2019), so ties fall back to Map insertion order — deterministic but untested and not documented as intentional. Low real-world likelihood (sub-ms same-piece ties across *different* pieces), not worth blocking on. |
+| `bun run generate` (Task 4) will pick up the schema edit alone and not require a preceding `drizzle-kit` config check | VALIDATE | Not independently re-verified against the actual `drizzle.config.ts` in this pass; the task's own step 4 verification (`psql \d sessions`) catches a failure before commit regardless, so risk is contained to wasted time, not a silent bad state. |
+
+### Summary
+[BLOCKER] count: 1
+[RISK]    count: 2
+[QUESTION] count: 1
+
+**[BLOCKER]** (confidence: 8/10) — Task 15 (`app.practice.tsx`, path
+`/app/practice`) and Task 17 (`app.piece.$pieceId.tsx`, path
+`/app/piece/$pieceId`) both call `createFileRoute("<new path>")` against paths
+that do not exist yet in the checked-in, type-generating
+`apps/web/src/routeTree.gen.ts`. `createFileRoute`'s type signature
+(`TFilePath extends keyof FileRoutesByPath`) will reject an unrecognized path
+literal at compile time. The router-plugin that regenerates this file
+(`tanstackStart()` in `vite.config.ts`) is disabled under `vitest`
+(`!isTest && tanstackStart()`) and is never invoked by `bun run typecheck`
+(bare `tsc`), so neither Task 15's nor Task 17's own "Step 4: run test --
+verify it PASSES, ... && bun run typecheck" will produce a green typecheck
+without an explicit, currently-missing step to regenerate and commit
+`routeTree.gen.ts` (e.g. running `bun run dev`/`bun run build` once, or the
+project's `tsr generate` equivalent, before the typecheck gate). **Fix:** add
+an explicit sub-step to Task 15 and Task 17 — after creating each new route
+file, run the router codegen (confirm the exact command from
+`apps/web/package.json`/`vite.config.ts`; none of the existing scripts name
+it explicitly, which itself should be resolved) and commit the regenerated
+`routeTree.gen.ts` alongside the route file, before running `bun run
+typecheck`.
+
+**[RISK]** (confidence: 5/10) — `listRepertoire` (the join+filter half of
+`apps/api/src/services/repertoire.ts`) has no test of its own; only its pure
+downstream (`buildRepertoire`) and its sibling (`listPieceHistory`) are
+tested. A mistake in the join condition or the `isNotNull(sessions.pieceId)`
+filter (e.g. an accidental `leftJoin` admitting piece-less rows, or a typo'd
+column) would not be caught by any test in this plan. Watch during Task 7's
+review; fallback is acceptable given the codebase's stated inability to stub
+a `select().from().innerJoin()` chain without a live Postgres — but this
+should at minimum be called out as an accepted gap, not left implicit.
+
+**[RISK]** (confidence: 4/10) — `apps/web/src/routes/app.practice.tsx` and
+`app.piece.$pieceId.tsx`'s test files render the exported plain component
+directly and never exercise the `Route` object's `validateSearch`/`useParams`
+wiring, so a bug in the search-param or route-param plumbing itself would
+ship untested. Consistent with the rest of the codebase's existing route-test
+pattern, so not a regression, but worth a manual click-through check
+specifically for `?pieceId=` surviving the round trip (the plan's manual
+verification step 3 does cover this at a high level).
+
+**[QUESTION]** — No alternative to "add `piece_id` on `sessions`" is recorded
+in the spec (e.g., deriving repertoire from `segment_loops`/
+`diagnosis_artifacts`, which already carry `pieceId`, instead of adding a new
+column). The chosen design is very likely correct — sessions are the only
+table with one row per practice session and per-piece timestamps — but the
+spec should say why those other tables were rejected for a future reader,
+per the CEO-pass Alternatives Check above.
+
+VERDICT: NEEDS_REWORK — Task 15 and Task 17 must add an explicit routeTree
+regeneration step (and commit the regenerated `routeTree.gen.ts`) before
+their `bun run typecheck` gates, or `createFileRoute` will not compile
+against the new `/app/practice` and `/app/piece/$pieceId` paths.
