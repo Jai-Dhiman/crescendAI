@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
 	SEGMENT_LOOP_STATUSES,
 	segmentLoops,
@@ -214,6 +214,49 @@ export async function incrementAttempts(
 		})
 		.where(eq(segmentLoops.id, id));
 	return { attemptsCompleted: newCount, completedNow };
+}
+
+/** One drill the student has not finished, as the piece page shows it. */
+export interface OpenDrill {
+	id: string;
+	barsStart: number;
+	barsEnd: number;
+	dimension: string | null;
+	requiredCorrect: number;
+	attemptsCompleted: number;
+}
+
+/**
+ * Every unfinished drill for one piece. Distinct from findActiveForPiece,
+ * which answers "is a drill running right now" and is capped at one row:
+ * the piece page lists work still outstanding, so it includes `pending`
+ * (offered, not yet accepted) alongside `active`.
+ */
+export async function listOpenLoopsForPiece(
+	db: Db,
+	studentId: string,
+	pieceId: string,
+): Promise<OpenDrill[]> {
+	const rows = await db
+		.select({
+			id: segmentLoops.id,
+			barsStart: segmentLoops.barsStart,
+			barsEnd: segmentLoops.barsEnd,
+			dimension: segmentLoops.dimension,
+			requiredCorrect: segmentLoops.requiredCorrect,
+			attemptsCompleted: segmentLoops.attemptsCompleted,
+		})
+		.from(segmentLoops)
+		.where(
+			and(
+				eq(segmentLoops.studentId, studentId),
+				eq(segmentLoops.pieceId, pieceId),
+				inArray(segmentLoops.status, ["pending", "active"]),
+			),
+		)
+		.orderBy(asc(segmentLoops.createdAt));
+
+	return rows;
 }
 
 export function toLoopComponent(
