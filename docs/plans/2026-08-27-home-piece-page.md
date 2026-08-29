@@ -3597,7 +3597,18 @@ table with one row per practice session and per-piece timestamps — but the
 spec should say why those other tables were rejected for a future reader,
 per the CEO-pass Alternatives Check above.
 
-VERDICT: NEEDS_REWORK — Task 15 and Task 17 must add an explicit routeTree
-regeneration step (and commit the regenerated `routeTree.gen.ts`) before
-their `bun run typecheck` gates, or `createFileRoute` will not compile
-against the new `/app/practice` and `/app/piece/$pieceId` paths.
+### Blocker resolution (commit 55ff3f90)
+
+The single BLOCKER above was addressed in the plan body before build: Task 15
+and Task 17 each gained an explicit **Step 5: Regenerate the route tree**
+(`cd apps/web && bun run build`, which invokes the `tanstackStart()` Vite
+plugin), a **Step 6** that commits the regenerated `routeTree.gen.ts` alongside
+the route file, and a **Step 7** that runs `bun run typecheck` only after that
+regeneration. The two RISKs are accepted and carried into build as documented
+gaps: `listRepertoire` has no direct test (no way to stub an `innerJoin` chain
+without live Postgres), and neither new route's `validateSearch`/`useParams`
+wiring is exercised by a route-level test (consistent with every existing route
+in this codebase; covered by the manual click-through instead).
+
+VERDICT: PROCEED_WITH_CAUTION — blocker discharged; the two RISKs above are
+accepted, documented gaps, not blockers.
