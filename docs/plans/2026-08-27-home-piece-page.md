@@ -94,7 +94,7 @@ so the piece page's "marks aging across >= 2 sessions" criterion is assertable.
 - Create: `apps/web/src/lib/piece-page-fixtures.ts`
 - Test: `apps/web/src/lib/piece-page-fixtures.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // apps/web/src/lib/piece-page-fixtures.test.ts
@@ -150,14 +150,14 @@ describe("piece page fixtures", () => {
 });
 ```
 
-- [ ] **Step 2: Run test -- verify it FAILS**
+- [x] **Step 2: Run test -- verify it FAILS**
 
 ```bash
 cd apps/web && bun run test src/lib/piece-page-fixtures.test.ts
 ```
 Expected: FAIL -- `Failed to resolve import "./piece-page-fixtures"`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 ```typescript
 // apps/web/src/lib/piece-page-fixtures.ts
@@ -260,14 +260,14 @@ export const PIECE_PAGE_MARKS_SPAN_SECONDS: number = Math.max(
 );
 ```
 
-- [ ] **Step 4: Run test -- verify it PASSES**
+- [x] **Step 4: Run test -- verify it PASSES**
 
 ```bash
 cd apps/web && bun run test src/lib/piece-page-fixtures.test.ts
 ```
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/lib/piece-page-fixtures.ts apps/web/src/lib/piece-page-fixtures.test.ts && git commit -m "test(web): piece-page fixtures with marks aging across two sessions"
