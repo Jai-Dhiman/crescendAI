@@ -43,6 +43,13 @@
       "when": 1786851266558,
       "tag": "0005_worried_famine",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787978853219,
+      "tag": "0006_cheerful_black_bolt",
+      "breakpoints": true
     }
   ]
 }
