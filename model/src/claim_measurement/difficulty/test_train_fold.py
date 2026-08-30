@@ -337,12 +337,20 @@ def test_main_requires_bundle_dir_or_bundle_repo(tmp_path):
 def test_main_uploads_adapter_and_embeddings_when_output_repo_is_set(tmp_path):
     """--output-repo must trigger the injected uploader with the out-dir and
     repo id -- without this, an HF Jobs container's local disk (and the $13
-    of GPU time that filled it) is discarded when the container exits."""
+    of GPU time that filled it) is discarded when the container exits.
+
+    Two uploads are required, and the FIRST must land before extraction: #168
+    lost five runs killed mid-extraction, each discarding a finished adapter
+    that was already on the container's disk. The call-time directory contents
+    are what pin the ordering -- asserting two calls alone would still pass if
+    both fired at the very end.
+    """
     out_dir = tmp_path / "fold0"
     calls = []
 
     def fake_uploader(uploaded_out_dir, repo_id):
-        calls.append((uploaded_out_dir, repo_id))
+        calls.append((uploaded_out_dir, repo_id,
+                      sorted(q.name for q in uploaded_out_dir.iterdir())))
 
     exit_code = main(
         _fold0_args(tmp_path, out_dir, extra=(
@@ -353,7 +361,13 @@ def test_main_uploads_adapter_and_embeddings_when_output_repo_is_set(tmp_path):
     )
 
     assert exit_code == 0
-    assert calls == [(out_dir, "jaidhiman/phase1-lora-fold0")]
+    assert len(calls) == 2
+    assert [c[:2] for c in calls] == [(out_dir, "jaidhiman/phase1-lora-fold0")] * 2
+    # first upload: adapter only, extraction has not run yet
+    assert calls[0][2] == ["adapter"]
+    # second upload: the embeddings are now present alongside it
+    assert "adapter" in calls[1][2]
+    assert any(n.endswith(".npz") for n in calls[1][2])
 
 
 def test_main_does_not_upload_when_output_repo_is_not_set(tmp_path):
