@@ -10,6 +10,7 @@ import { requireAuth } from "../middleware/auth-session";
 
 const startBodySchema = z.object({
 	conversationId: z.string().uuid().optional(),
+	pieceId: z.string().min(1).optional(),
 });
 
 const chunkQuerySchema = z.object({
@@ -85,9 +86,21 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 			conversationId = conv.id;
 		}
 
+		// Validated against the catalog rather than trusted: a session row
+		// pointing at a piece the catalog lacks would produce a repertoire entry
+		// with no composer or title, forcing buildRepertoire to invent one or
+		// drop the row. Rejecting here means it never has to decide.
+		if (body.pieceId) {
+			const pieceId = body.pieceId;
+			const piece = await db.query.pieces.findFirst({
+				where: (p, { eq: e }) => e(p.pieceId, pieceId),
+			});
+			if (!piece) throw new NotFoundError("piece", pieceId);
+		}
+
 		const [session] = await db
 			.insert(sessions)
-			.values({ studentId, conversationId })
+			.values({ studentId, conversationId, pieceId: body.pieceId })
 			.returning({ id: sessions.id });
 
 		await db.insert(messages).values({
