@@ -56,7 +56,7 @@ export function AppHome() {
 			</section>
 
 			<section className="flex flex-col gap-3">
-				<h2 className="font-display text-body text-ink-secondary">
+				<h2 className="font-display text-body-md text-ink-secondary">
 					Add a piece
 				</h2>
 				{catalog.isError ? (

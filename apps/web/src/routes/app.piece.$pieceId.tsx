@@ -86,7 +86,7 @@ export function AppPiecePage({ pieceId }: AppPiecePageProps) {
 			 * top of an early one.
 			 */}
 			<section className="flex flex-col gap-2">
-				<h2 className="font-display text-body text-ink-secondary">
+				<h2 className="font-display text-body-md text-ink-secondary">
 					Marks across sessions
 				</h2>
 				<SessionTimelineStrip
@@ -106,12 +106,14 @@ export function AppPiecePage({ pieceId }: AppPiecePageProps) {
 			</button>
 
 			<section className="flex flex-col gap-2">
-				<h2 className="font-display text-body text-ink-secondary">Sessions</h2>
+				<h2 className="font-display text-body-md text-ink-secondary">
+					Sessions
+				</h2>
 				<PieceSessionHistory sessions={history.data?.sessions ?? []} />
 			</section>
 
 			<section className="flex flex-col gap-2">
-				<h2 className="font-display text-body text-ink-secondary">
+				<h2 className="font-display text-body-md text-ink-secondary">
 					Open drills
 				</h2>
 				{history.data?.openDrills.length ? (
