@@ -1,5 +1,6 @@
 import { client } from "./api-client";
 import { API_BASE } from "./config";
+import type { PieceSummary } from "./piece-search";
 import { Sentry } from "./sentry";
 
 export class ApiError extends Error {
@@ -58,7 +59,52 @@ export interface AuthResult {
 	isNewUser: boolean;
 }
 
+export interface RepertoireEntry {
+	pieceId: string;
+	composer: string;
+	title: string;
+	sessionCount: number;
+	lastPracticedAt: string;
+	openMarkCount: number | null;
+}
+
+export interface PieceSessionSummary {
+	sessionId: string;
+	startedAt: string;
+	endedAt: string | null;
+}
+
+export interface OpenDrill {
+	id: string;
+	barsStart: number;
+	barsEnd: number;
+	dimension: string | null;
+	requiredCorrect: number;
+	attemptsCompleted: number;
+}
+
+export interface PieceHistory {
+	pieceId: string;
+	composer: string;
+	title: string;
+	sessions: PieceSessionSummary[];
+	openDrills: OpenDrill[];
+}
+
 export const api = {
+	repertoire: {
+		async list(): Promise<RepertoireEntry[]> {
+			const body = await request<{ entries: RepertoireEntry[] }>(
+				"/api/repertoire",
+			);
+			return body.entries;
+		},
+
+		async history(pieceId: string): Promise<PieceHistory> {
+			return request<PieceHistory>(`/api/repertoire/${pieceId}`);
+		},
+	},
+
 	auth: {
 		apple(
 			identityToken: string,
@@ -131,6 +177,11 @@ export const api = {
 	},
 
 	scores: {
+		async list(): Promise<PieceSummary[]> {
+			const body = await request<{ pieces: PieceSummary[] }>("/api/scores");
+			return body.pieces;
+		},
+
 		async getData(pieceId: string): Promise<ArrayBuffer> {
 			const res = await fetch(`${API_BASE}/api/scores/${pieceId}/data`, {
 				credentials: "include",
