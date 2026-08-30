@@ -25,7 +25,7 @@ export function RepertoireCard({ entry, now, onOpen }: RepertoireCardProps) {
 			// py-3 keeps the target well past the 32px minimum (WEB-A11Y-003).
 			className="flex w-full flex-col items-start gap-1 rounded-lg border border-border-subtle bg-surface-raised px-4 py-3 text-left"
 		>
-			<span className="font-display text-body text-ink-primary">
+			<span className="font-display text-body-md text-ink-primary">
 				{entry.title}
 			</span>
 			<span className="text-body-sm text-ink-secondary">{entry.composer}</span>
