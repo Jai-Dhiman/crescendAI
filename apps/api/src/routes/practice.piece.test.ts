@@ -6,9 +6,12 @@ import type { Bindings, Db, Variables } from "../lib/types";
 import { errorHandler } from "../middleware/error-handler";
 import { practiceRoutes } from "./practice";
 
-/** Records what was inserted into `sessions` so the test can assert on it. */
+/** Records what was inserted into `sessions`/`conversations` so the test can assert on it. */
 function makeDb(
-	captured: { values?: Record<string, unknown> },
+	captured: {
+		values?: Record<string, unknown>;
+		conversationValues?: Record<string, unknown>;
+	},
 	piece: unknown,
 ) {
 	return {
@@ -18,7 +21,9 @@ function makeDb(
 		},
 		insert: (table: PgTable) => ({
 			values: (v: Record<string, unknown>) => {
-				if (getTableName(table) === "sessions") captured.values = v;
+				const tableName = getTableName(table);
+				if (tableName === "sessions") captured.values = v;
+				if (tableName === "conversations") captured.conversationValues = v;
 				return {
 					returning: async () => [
 						{ id: "00000000-0000-0000-0000-0000000000aa" },
@@ -56,7 +61,10 @@ describe("POST /api/practice/start -- piece identity", () => {
 	});
 
 	it("rejects a pieceId the catalog does not have, rather than storing it", async () => {
-		const captured: { values?: Record<string, unknown> } = {};
+		const captured: {
+			values?: Record<string, unknown>;
+			conversationValues?: Record<string, unknown>;
+		} = {};
 		const db = makeDb(captured, undefined);
 
 		const res = await makeApp(db).request("/api/practice/start", {
@@ -67,6 +75,10 @@ describe("POST /api/practice/start -- piece identity", () => {
 
 		expect(res.status).toBe(404);
 		expect(captured.values).toBeUndefined();
+		// Regression: an invalid pieceId must be rejected BEFORE a new
+		// conversation is created, or a session-less, message-less
+		// conversation row is left orphaned in the database.
+		expect(captured.conversationValues).toBeUndefined();
 	});
 
 	it("still starts a pieceless session when no pieceId is sent", async () => {

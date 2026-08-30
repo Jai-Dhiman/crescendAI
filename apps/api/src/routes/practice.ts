@@ -67,6 +67,20 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 		const body = c.req.valid("json");
 		const db = c.var.db;
 
+		// Validated against the catalog rather than trusted: a session row
+		// pointing at a piece the catalog lacks would produce a repertoire entry
+		// with no composer or title, forcing buildRepertoire to invent one or
+		// drop the row. Rejecting here means it never has to decide. This must
+		// run before any conversation is created/looked up below, or an invalid
+		// pieceId would leave an orphaned conversation row with no session.
+		if (body.pieceId) {
+			const pieceId = body.pieceId;
+			const piece = await db.query.pieces.findFirst({
+				where: (p, { eq: e }) => e(p.pieceId, pieceId),
+			});
+			if (!piece) throw new NotFoundError("piece", pieceId);
+		}
+
 		let conversationId: string;
 
 		if (body.conversationId) {
@@ -84,18 +98,6 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 				.values({ studentId })
 				.returning({ id: conversations.id });
 			conversationId = conv.id;
-		}
-
-		// Validated against the catalog rather than trusted: a session row
-		// pointing at a piece the catalog lacks would produce a repertoire entry
-		// with no composer or title, forcing buildRepertoire to invent one or
-		// drop the row. Rejecting here means it never has to decide.
-		if (body.pieceId) {
-			const pieceId = body.pieceId;
-			const piece = await db.query.pieces.findFirst({
-				where: (p, { eq: e }) => e(p.pieceId, pieceId),
-			});
-			if (!piece) throw new NotFoundError("piece", pieceId);
 		}
 
 		const [session] = await db
