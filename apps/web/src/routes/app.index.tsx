@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-// The practice stand is rendered by the /app layout route (app.tsx).
-// This route exists only for TanStack Router's route matching.
+// Home renders here (#160, Task 16). app.tsx is the /app layout.
 export const Route = createFileRoute("/app/")({
 	component: () => null,
 });

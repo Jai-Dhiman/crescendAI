@@ -16,6 +16,7 @@ import { Route as PracticePreviewRouteImport } from './routes/practice-preview'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
+import { Route as AppPracticeRouteImport } from './routes/app.practice'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -52,6 +53,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppPracticeRoute = AppPracticeRouteImport.update({
+  id: '/practice',
+  path: '/practice',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/signin': typeof SigninRoute
   '/terms': typeof TermsRoute
+  '/app/practice': typeof AppPracticeRoute
   '/app/': typeof AppIndexRoute
 }
 export interface FileRoutesByTo {
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/signin': typeof SigninRoute
   '/terms': typeof TermsRoute
+  '/app/practice': typeof AppPracticeRoute
   '/app': typeof AppIndexRoute
 }
 export interface FileRoutesById {
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/signin': typeof SigninRoute
   '/terms': typeof TermsRoute
+  '/app/practice': typeof AppPracticeRoute
   '/app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
@@ -89,9 +98,17 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/signin'
     | '/terms'
+    | '/app/practice'
     | '/app/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/practice-preview' | '/privacy' | '/signin' | '/terms' | '/app'
+  to:
+    | '/'
+    | '/practice-preview'
+    | '/privacy'
+    | '/signin'
+    | '/terms'
+    | '/app/practice'
+    | '/app'
   id:
     | '__root__'
     | '/'
@@ -100,6 +117,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/signin'
     | '/terms'
+    | '/app/practice'
     | '/app/'
   fileRoutesById: FileRoutesById
 }
@@ -163,14 +181,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/practice': {
+      id: '/app/practice'
+      path: '/practice'
+      fullPath: '/app/practice'
+      preLoaderRoute: typeof AppPracticeRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
+  AppPracticeRoute: typeof AppPracticeRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppPracticeRoute: AppPracticeRoute,
   AppIndexRoute: AppIndexRoute,
 }
 
