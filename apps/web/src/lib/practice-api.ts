@@ -121,14 +121,19 @@ export type PracticeWsEvent =
 	  };
 
 export const practiceApi = {
-	async start(conversationId?: string): Promise<PracticeStartResponse> {
+	async start(
+		conversationId?: string,
+		pieceId?: string,
+	): Promise<PracticeStartResponse> {
+		const payload: { conversationId?: string; pieceId?: string } = {};
+		if (conversationId) payload.conversationId = conversationId;
+		if (pieceId) payload.pieceId = pieceId;
+		const hasBody = Object.keys(payload).length > 0;
 		const res = await fetch(`${API_BASE}/api/practice/start`, {
 			method: "POST",
 			credentials: "include",
-			headers: conversationId
-				? { "Content-Type": "application/json" }
-				: undefined,
-			body: conversationId ? JSON.stringify({ conversationId }) : undefined,
+			headers: hasBody ? { "Content-Type": "application/json" } : undefined,
+			body: hasBody ? JSON.stringify(payload) : undefined,
 		});
 		if (!res.ok) throw new Error(`Failed to start session: ${res.status}`);
 		return res.json();

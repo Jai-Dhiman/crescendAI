@@ -62,7 +62,7 @@ export interface UsePracticeSessionReturn {
 	energy: number;
 	analyserNode: AnalyserNode | null;
 	practiceMode: PracticeMode | null;
-	start: (conversationId?: string) => Promise<void>;
+	start: (conversationId?: string, pieceId?: string) => Promise<void>;
 	stop: () => void;
 	setPiece: (query: string) => void;
 	observationMessages: RichMessage[];
@@ -442,7 +442,7 @@ export function usePracticeSession(
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: isOnlineRef is read for its latest value at call time; depending on .current would recreate start() on every connectivity flap.
 	const start = useCallback(
-		async (conversationId?: string) => {
+		async (conversationId?: string, pieceId?: string) => {
 			setState("requesting-mic");
 			setElapsedSeconds(0);
 			setObservations([]);
@@ -490,7 +490,7 @@ export function usePracticeSession(
 			let sessionId: string;
 			try {
 				const { sessionId: sid, conversationId: convId } =
-					await practiceApi.start(conversationId);
+					await practiceApi.start(conversationId, pieceId);
 				sessionId = sid;
 				sessionIdRef.current = sid;
 				conversationIdRef.current = convId;

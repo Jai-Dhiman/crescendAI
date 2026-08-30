@@ -41,7 +41,7 @@ export function AppPractice({ pieceId }: AppPracticeProps) {
 
 	function handleStart() {
 		setView("practice");
-		void practice.start();
+		void practice.start(undefined, pieceId ?? undefined);
 	}
 
 	function handleStop() {
