@@ -17,6 +17,7 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppPracticeRouteImport } from './routes/app.practice'
+import { Route as AppPiecePieceIdRouteImport } from './routes/app.piece.$pieceId'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -58,6 +59,11 @@ const AppPracticeRoute = AppPracticeRouteImport.update({
   path: '/practice',
   getParentRoute: () => AppRoute,
 } as any)
+const AppPiecePieceIdRoute = AppPiecePieceIdRouteImport.update({
+  id: '/piece/$pieceId',
+  path: '/piece/$pieceId',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -68,6 +74,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/app/practice': typeof AppPracticeRoute
   '/app/': typeof AppIndexRoute
+  '/app/piece/$pieceId': typeof AppPiecePieceIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -77,6 +84,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/app/practice': typeof AppPracticeRoute
   '/app': typeof AppIndexRoute
+  '/app/piece/$pieceId': typeof AppPiecePieceIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -88,6 +96,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/app/practice': typeof AppPracticeRoute
   '/app/': typeof AppIndexRoute
+  '/app/piece/$pieceId': typeof AppPiecePieceIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -100,6 +109,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/app/practice'
     | '/app/'
+    | '/app/piece/$pieceId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/app/practice'
     | '/app'
+    | '/app/piece/$pieceId'
   id:
     | '__root__'
     | '/'
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/app/practice'
     | '/app/'
+    | '/app/piece/$pieceId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -188,17 +200,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPracticeRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/piece/$pieceId': {
+      id: '/app/piece/$pieceId'
+      path: '/piece/$pieceId'
+      fullPath: '/app/piece/$pieceId'
+      preLoaderRoute: typeof AppPiecePieceIdRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
   AppPracticeRoute: typeof AppPracticeRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppPiecePieceIdRoute: typeof AppPiecePieceIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppPracticeRoute: AppPracticeRoute,
   AppIndexRoute: AppIndexRoute,
+  AppPiecePieceIdRoute: AppPiecePieceIdRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
