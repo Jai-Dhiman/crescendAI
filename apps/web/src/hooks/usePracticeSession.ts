@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createLogger } from "../lib/logger";
 import type { Mark } from "../lib/mark";
 import { ObservationThrottle } from "../lib/observation-throttle";
+import type { ConfidentGuess } from "../lib/piece-ladder";
 import type {
 	DimScores,
 	ObservationEvent,
@@ -46,6 +47,7 @@ export interface UsePracticeSessionReturn {
 	elapsedSeconds: number;
 	observations: ObservationEvent[];
 	marks: Mark[];
+	confidentGuess: ConfidentGuess | null;
 	verdict: string | null;
 	carryForward: string | null;
 	noCommentZones: NoCommentZone[];
@@ -83,6 +85,9 @@ export function usePracticeSession(
 	const [elapsedSeconds, setElapsedSeconds] = useState(0);
 	const [observations, setObservations] = useState<ObservationEvent[]>([]);
 	const [marks, setMarks] = useState<Mark[]>([]);
+	const [confidentGuess, setConfidentGuess] = useState<ConfidentGuess | null>(
+		null,
+	);
 	const [verdict, setVerdict] = useState<string | null>(null);
 	const [carryForward, setCarryForward] = useState<string | null>(null);
 	const [noCommentZones, setNoCommentZones] = useState<NoCommentZone[]>([]);
@@ -310,13 +315,16 @@ export function usePracticeSession(
 					break;
 				}
 				case "piece_identified":
-					console.log(
-						JSON.stringify({
-							event: "piece_identified",
-							composer: data.composer,
-							title: data.title,
-						}),
-					);
+					// The event already carries exactly ConfidentGuess's four fields.
+					// The hook does NOT decide whether the guess wins --
+					// resolvePieceLadderState owns that precedence, and duplicating
+					// it here would give the codebase two copies of one policy.
+					setConfidentGuess({
+						pieceId: data.pieceId,
+						composer: data.composer,
+						title: data.title,
+						confidence: data.confidence,
+					});
 					break;
 				case "piece_set":
 					console.log("Piece context set:", data.query);
@@ -439,6 +447,7 @@ export function usePracticeSession(
 			setElapsedSeconds(0);
 			setObservations([]);
 			setMarks([]);
+			setConfidentGuess(null);
 			setVerdict(null);
 			setCarryForward(null);
 			setNoCommentZones([]);
@@ -761,6 +770,7 @@ export function usePracticeSession(
 		elapsedSeconds,
 		observations,
 		marks,
+		confidentGuess,
 		verdict,
 		carryForward,
 		noCommentZones,
