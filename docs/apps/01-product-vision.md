@@ -138,7 +138,7 @@ Three stages, one principle: the system does significant work to produce minimal
 | Transkun AMT + alignment | CARRIED FORWARD | #125 adoption; offline chroma-DTW; open-set piece-ID gate (#26) |
 | MoonBeam scoring + MPM extraction | NOT STARTED | #162 — replaces the retired MuQ HF-endpoint path |
 | Mark system + canvases | COMPLETE | #157 — the central contract |
-| Practice mode (music stand) | COMPLETE, wiring gaps remain | #158; piece-ladder `user-picked`/`confirm-chip` rungs unreachable from a live Record session until #160 wires `AppChat`/`usePracticeSession`; marks are WS-injected, not pipeline-fed, until #162 |
+| Practice mode (music stand) | COMPLETE, pending manual click-through | #158; home + piece page (#160) wires repertoire selection into `AppPractice`/`usePracticeSession.start`, unlocking the deferred piece-ladder rungs; merged, awaiting human click-through before issue closure; marks are WS-injected, not pipeline-fed, until #162 |
 | Session review | COMPLETE, pending manual click-through | #159 — promotes shipped play_passage machinery; verdict/marks/carry-forward review UI built and merged, gated on human click-through before issue closure |
 | Student baseline (dual EWMA) | NOT STARTED | #163 — supersedes the alpha=0.3 EMA baseline |
 | Session synthesis (V6 harness) | COMPLETE, output contract changing | verdict + marks + carry-forward (#162) |

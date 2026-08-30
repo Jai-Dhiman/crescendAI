@@ -164,13 +164,17 @@ design spec was deleted at merge:
 - The `/marks-preview` route is deleted; a dev-only `/practice-preview` route
   (renders null in production builds) is the harness for the with-piece
   ladder rungs and the real-browser mark-geometry tests.
-- **Deferred to #160:** the ladder's `user-picked` and `confirm-chip` rungs
-  are implemented and tested but **unreachable from a live Record session**
-  — `AppChat` hardcodes `userPickedPieceId={null}` / `confidentGuess={null}`,
-  and `usePracticeSession`'s `piece_identified` handler only console.logs
-  free-text composer/title rather than yielding a catalog `pieceId`. Until
-  #160 wires both, with-piece verification is only performable against
-  `/practice-preview`.
+- **Shipped in #160 (2026-08-30, pending manual click-through):** home page
+  (`/app`) lists repertoire and lets a user pick or add a piece;
+  `/app/piece/$pieceId` shows session history and open drills; `/app/practice`
+  reads `?pieceId=` and threads it through `usePracticeSession.start` into
+  `POST /api/practice/start`, so a session started from a picked piece now
+  carries that piece's id end-to-end. `usePracticeSession`'s
+  `piece_identified` handler yields a real `confidentGuess` instead of only
+  console-logging. The `user-picked` ladder rung is reachable from a live
+  Record session; `confirm-chip` reachability still depends on a real
+  `piece_identified` WS event, which remains manually injected until #162
+  wires an actual pipeline emitter.
 - **Deferred to #162:** no backend emits a `mark` WebSocket event yet; marks
   in practice mode are exercised via manually-injected WS messages, not a
   live pipeline.
