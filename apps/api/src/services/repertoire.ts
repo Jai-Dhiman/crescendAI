@@ -1,3 +1,11 @@
+import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { pieces } from "../db/schema/catalog";
+import { sessions } from "../db/schema/sessions";
+import { NotFoundError } from "../lib/errors";
+import type { ServiceContext } from "../lib/types";
+import type { OpenDrill } from "./segment-loops";
+import { listOpenLoopsForPiece } from "./segment-loops";
+
 /** One joined sessions-to-pieces row. The input to buildRepertoire. */
 export interface RepertoireRow {
 	pieceId: string;
@@ -64,4 +72,87 @@ export function buildRepertoire(
 	return [...byPiece.values()].sort((a, b) =>
 		b.lastPracticedAt.localeCompare(a.lastPracticedAt),
 	);
+}
+
+export interface PieceSessionSummary {
+	sessionId: string;
+	/** ISO 8601 */
+	startedAt: string;
+	/** ISO 8601, or null for a session that never ended cleanly. */
+	endedAt: string | null;
+}
+
+export interface PieceHistory {
+	pieceId: string;
+	composer: string;
+	title: string;
+	/** Most recent first. */
+	sessions: PieceSessionSummary[];
+	openDrills: OpenDrill[];
+}
+
+/**
+ * Every piece this student has practised. Sessions with a NULL piece_id --
+ * pieceless sessions, a permanent first-class state -- are excluded here
+ * rather than filtered downstream, so buildRepertoire never has to decide
+ * what an entry with no piece would even be.
+ */
+export async function listRepertoire(
+	ctx: ServiceContext,
+	studentId: string,
+): Promise<RepertoireEntry[]> {
+	const rows = await ctx.db
+		.select({
+			pieceId: pieces.pieceId,
+			composer: pieces.composer,
+			title: pieces.title,
+			startedAt: sessions.startedAt,
+		})
+		.from(sessions)
+		.innerJoin(pieces, eq(sessions.pieceId, pieces.pieceId))
+		.where(and(eq(sessions.studentId, studentId), isNotNull(sessions.pieceId)));
+
+	return buildRepertoire(rows);
+}
+
+export async function listPieceHistory(
+	ctx: ServiceContext,
+	studentId: string,
+	pieceId: string,
+): Promise<PieceHistory> {
+	const [piece] = await ctx.db
+		.select({
+			pieceId: pieces.pieceId,
+			composer: pieces.composer,
+			title: pieces.title,
+		})
+		.from(pieces)
+		.where(eq(pieces.pieceId, pieceId))
+		.limit(1);
+
+	if (!piece) throw new NotFoundError("piece", pieceId);
+
+	const rows = await ctx.db
+		.select({
+			sessionId: sessions.id,
+			startedAt: sessions.startedAt,
+			endedAt: sessions.endedAt,
+		})
+		.from(sessions)
+		.where(
+			and(eq(sessions.studentId, studentId), eq(sessions.pieceId, pieceId)),
+		)
+		.orderBy(desc(sessions.startedAt));
+
+	const openDrills = await listOpenLoopsForPiece(ctx.db, studentId, pieceId);
+
+	return {
+		...piece,
+		sessions: rows.map((r) => ({
+			sessionId: r.sessionId,
+			startedAt: r.startedAt.toISOString(),
+			endedAt: r.endedAt ? r.endedAt.toISOString() : null,
+		})),
+		openDrills,
+	};
 }
