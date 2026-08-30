@@ -167,3 +167,41 @@ clean (this resolves Task 16's isolated typecheck gap above). Full gates:
   `bun run typecheck` -- clean.
 
 Commit: 4dd67306
+
+## Code review fix: pieceId never reached the backend (P0)
+
+The spec (line 72-73) requires a session started from a piece to carry that
+piece's id for its whole life. The backend already accepted and validated
+`pieceId` on `POST /api/practice/start`, but the frontend never sent it:
+`AppPractice`'s `handleStart` called `practice.start()` with zero arguments,
+`usePracticeSession.start` never took a `pieceId` parameter, and
+`practiceApi.start` never put it in the POST body. Threaded `pieceId` through
+all three: `practiceApi.start(conversationId?, pieceId?)` builds a single
+JSON payload object from whichever of the two are present (instead of the
+old conversationId-only ternary), `usePracticeSession`'s `start` signature
+gained a second `pieceId?: string` parameter and forwards it, and
+`AppPractice.handleStart` now calls `practice.start(undefined, pieceId ??
+undefined)` using the `pieceId` already available from the `?pieceId=`
+search param. Added `apps/web/src/lib/practice-api.start.test.ts` asserting
+the fetch body contains `pieceId` when a piece was picked, omits it entirely
+when none was, and includes both `conversationId` and `pieceId` together.
+No other call sites of `practiceApi.start`/`practice.start` existed to
+update. `bun run test` (scoped) and `bun run typecheck` clean.
+
+Commit: 86b52612
+
+## Code review fix: `text-body` no-op Tailwind class (P1)
+
+`app.css` defines only `--text-body-lg/-md/-sm/-xs`; there is no bare
+`--text-body` token, so `className="text-body ..."` silently did nothing.
+This exact bug was already caught and fixed once on this branch in
+`RepertoireCard.tsx` (changed to `text-body-md`), but four more `<h2>`
+occurrences were introduced later: `app.index.tsx:59` and
+`app.piece.$pieceId.tsx:89,109,114`. Changed all four to `text-body-md` to
+match `RepertoireCard.tsx`. Grepped the full branch diff
+(`git diff $(git merge-base main HEAD) -- apps/web/src`) for any other bare
+`text-body`/`text-display`/`text-label` token usage; none found -- only
+already-suffixed classes (`text-body-md/-sm/-xs`) appear. `bun run
+typecheck` clean; scoped `bun run test` (`app.index`, `app.piece`) passed.
+
+Commit: cacbb4f3
