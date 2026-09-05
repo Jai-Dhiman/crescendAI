@@ -38,6 +38,8 @@ Chosen over the alternative of a separate `score_wav_ensemble` function: two sco
 <model-dir>/manifest.json                  provenance
 ```
 
+Member `<name>` is the **basename of the source artifact directory** (e.g. `s2026` from `.../alldata_s2026`), so provenance is readable off the layout and the sort order below is stable and meaningful. `--from-ensemble` rejects duplicate basenames rather than silently overwriting a member.
+
 The legacy layout (`<model-dir>/adapter/` + `<model-dir>/ridge_head.npz`) still loads, as a one-member ensemble. `discover_members` resolves both and is the single tested seam that knows the difference.
 
 Chosen over migrating everything to `members/`: the merged container, `runtime_probe.py`, and staged Hub bundles all use the legacy layout, and regressing a working submission path 26 days from the deadline to gain uniformity is a bad trade. The cost is one branch, confined to one function, covered by tests on both layouts.
