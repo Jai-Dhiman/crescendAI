@@ -186,6 +186,20 @@ def test_members_are_discovered_in_sorted_order(make_model_dir):
     assert members[0].head_path == model_dir / "members" / "s2026" / "ridge_head.npz"
 
 
+def test_a_legacy_single_adapter_directory_is_a_one_member_ensemble(make_model_dir):
+    """Every model directory the harness has produced before #175 uses the
+    legacy layout. `discover_members` must keep reading it as a one-member
+    ensemble so an un-migrated directory still scores through the same code
+    path as a K>1 one."""
+    model_dir = make_model_dir({"only": _head()}, layout="legacy")
+
+    members = discover_members(model_dir)
+
+    assert len(members) == 1
+    assert members[0].adapter_dir == model_dir / "adapter"
+    assert members[0].head_path == model_dir / "ridge_head.npz"
+
+
 # --------------------------------------------------------------------------
 # The seam: WAV -> transcribe -> MIDI -> embed -> head -> float.
 # --------------------------------------------------------------------------

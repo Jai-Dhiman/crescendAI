@@ -222,10 +222,18 @@ def discover_members(model_dir: Path) -> list:
     """
     model_dir = Path(model_dir)
     members_root = model_dir / MEMBERS_SUBDIR
-    return [MemberPaths(name=d.name, adapter_dir=d / ADAPTER_SUBDIR,
-                        head_path=d / HEAD_FILENAME)
-            for d in sorted(members_root.iterdir(), key=lambda p: p.name)
-            if d.is_dir()]
+    has_members = members_root.is_dir() and any(members_root.iterdir())
+    has_legacy = (model_dir / ADAPTER_SUBDIR).is_dir()
+
+    if has_members:
+        return [MemberPaths(name=d.name, adapter_dir=d / ADAPTER_SUBDIR,
+                            head_path=d / HEAD_FILENAME)
+                for d in sorted(members_root.iterdir(), key=lambda p: p.name)
+                if d.is_dir()]
+    if has_legacy:
+        return [MemberPaths(name=ADAPTER_SUBDIR,
+                            adapter_dir=model_dir / ADAPTER_SUBDIR,
+                            head_path=model_dir / HEAD_FILENAME)]
 
 
 def fit_ridge_head(X, y, fallback_score: float, alphas=ALPHAS) -> RidgeHead:
