@@ -52,10 +52,13 @@ def _require(path: Path, what: str) -> Path:
 
 
 def _validate_model_dir(model_dir: Path) -> None:
-    """Duplicated from score_wav.discover_members's two-layout contract: this
-    module deliberately does not import score_wav (that would drag in
-    peft/torch into a plain-stdlib script). Accepts either layout so a
-    missing model is caught in seconds, before the ~1.6GB copy starts."""
+    """Duplicated from score_wav.discover_members's two-layout contract,
+    including the both-layouts rejection: this module deliberately does not
+    import score_wav (that would drag in peft/torch into a plain-stdlib
+    script). Accepts either layout, and only one, so a missing or ambiguous
+    model is caught in seconds, before the ~1.6GB copy starts. Keep this in
+    sync with discover_members -- a drift here is exactly the failure it
+    exists to prevent, just moved later."""
     has_legacy = ((model_dir / "adapter" / "adapter_config.json").exists()
                   and (model_dir / "ridge_head.npz").exists())
     members_root = model_dir / "members"
@@ -64,6 +67,11 @@ def _validate_model_dir(model_dir: Path) -> None:
         and (d / "ridge_head.npz").exists()
         for d in members_root.iterdir() if d.is_dir())
 
+    if has_legacy and has_members:
+        raise ValueError(
+            f"{model_dir} holds both members/ and a legacy adapter/ -- "
+            f"preferring one silently would stage a model nobody chose. "
+            f"Remove the stale one.")
     if not (has_legacy or has_members):
         raise FileNotFoundError(
             f"{model_dir} holds no adapter: expected either a legacy "

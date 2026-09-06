@@ -97,3 +97,25 @@ def test_build_context_refuses_a_model_dir_with_neither_layout(tmp_path):
     assert "members" in message
     # Fails before any of the ~1.6GB is copied.
     assert not out_dir.exists()
+
+
+def test_build_context_refuses_a_model_dir_with_both_layouts(tmp_path):
+    stubs = _make_stub_tree(tmp_path)
+    model_dir = tmp_path / "model_dir"
+    (model_dir / "adapter").mkdir(parents=True)
+    (model_dir / "adapter" / "adapter_config.json").write_text("{}")
+    (model_dir / "ridge_head.npz").write_bytes(b"stub")
+    member_dir = model_dir / "members" / "s2026"
+    (member_dir / "adapter").mkdir(parents=True)
+    (member_dir / "adapter" / "adapter_config.json").write_text("{}")
+    (member_dir / "ridge_head.npz").write_bytes(b"stub")
+
+    out_dir = tmp_path / "out"
+    with pytest.raises(ValueError) as excinfo:
+        build_context(out_dir=out_dir, model_dir=model_dir, **stubs)
+
+    message = str(excinfo.value)
+    assert "adapter" in message
+    assert "members" in message
+    # Fails before any of the ~1.6GB is copied.
+    assert not out_dir.exists()
