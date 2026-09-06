@@ -135,7 +135,7 @@ def stage_probe_bundle(wav_dir: Path, head_dir: Path | None, module_dir: Path,
     if head_dirs is not None:
         for name, one_head_dir in head_dirs.items():
             _stage_one_head(one_head_dir, staging_dir / "head" / name)
-    else:
+    elif head_dir is not None:
         _stage_one_head(head_dir, staging_dir / "head")
 
     # The whole package, .py only: 46 modules and ~1.2MB of source, against
