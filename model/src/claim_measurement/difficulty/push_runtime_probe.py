@@ -172,8 +172,12 @@ def main(argv=None, uploader=None) -> int:
     )
     ap.add_argument("--wav-dir", type=Path, required=True,
                     help="directory of real recordings to pick the probe from")
-    ap.add_argument("--head-dir", type=Path, required=True,
-                    help="the submission model dir holding ridge_head.npz")
+    ap.add_argument("--head-dir", type=Path, action="append", required=True,
+                    help="the submission model dir holding ridge_head.npz. "
+                         "Repeatable: one per ensemble member. A single "
+                         "occurrence stages the legacy head/ layout; more "
+                         "than one stages head/<name>/ per member, named "
+                         "from each dir's basename")
     ap.add_argument("--staging-dir", type=Path, required=True)
     ap.add_argument("--repo-id", default="Jai-D/mirex-runtime-probe")
     ap.add_argument("--no-upload", action="store_true",
@@ -186,8 +190,14 @@ def main(argv=None, uploader=None) -> int:
     module_dir = Path(__file__).resolve().parent
     durations = wav_durations(args.wav_dir, sf.info)
     selection = select_probe_set(durations)
-    manifest = stage_probe_bundle(args.wav_dir, args.head_dir, module_dir,
-                                  args.staging_dir, selection)
+    if len(args.head_dir) == 1:
+        head_dir, head_dirs = args.head_dir[0], None
+    else:
+        head_dir = None
+        head_dirs = {d.name: d for d in args.head_dir}
+    manifest = stage_probe_bundle(args.wav_dir, head_dir, module_dir,
+                                  args.staging_dir, selection,
+                                  head_dirs=head_dirs)
 
     print(f"staged {len(selection)} probe WAVs, "
           f"{manifest['total_audio_s']:.0f}s of audio total")

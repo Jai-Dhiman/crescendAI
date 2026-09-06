@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from claim_measurement.difficulty.push_runtime_probe import (
+    main as push_runtime_probe_main,
     select_probe_set,
     stage_probe_bundle,
     wav_durations,
@@ -230,6 +231,66 @@ def test_staging_refuses_a_head_dir_without_a_ridge_head(tmp_path):
     with pytest.raises(FileNotFoundError, match="ridge_head.npz"):
         stage_probe_bundle(wav_dir, head_dir, _module_dir(), tmp_path / "s",
                            [{"wav": "a.wav", "seconds": 1.0, "target_s": 1.0}])
+
+
+def _real_wav_dir(tmp_path):
+    """A wav/ that `soundfile.info` can actually open -- the CLI path runs
+    real duration probing, not the injected fake used above."""
+    import soundfile as sf
+
+    d = tmp_path / "wav"
+    d.mkdir()
+    sf.write(str(d / "a.wav"), [0.0] * 100, 8000)
+    return d
+
+
+def test_cli_multi_head_dir_reaches_stage_probe_bundle_with_k_heads(tmp_path):
+    """Task 22 added head_dirs + _stage_one_head, but main() only ever built
+    a single --head-dir and passed it as `head_dir` -- the K-head path was
+    unreachable from the CLI. Repeated --head-dir must now stage
+    head/<name>/ per member."""
+    wav_dir = _real_wav_dir(tmp_path)
+    heads_root = tmp_path / "heads"
+    heads_root.mkdir()
+    heads = {}
+    for name in ("s2026", "s2027"):
+        d = heads_root / name
+        d.mkdir()
+        (d / "ridge_head.npz").write_bytes(name.encode())
+        (d / "manifest.json").write_text("{}")
+        heads[name] = d
+    staging_dir = tmp_path / "staged"
+
+    rc = push_runtime_probe_main([
+        "--wav-dir", str(wav_dir),
+        "--head-dir", str(heads["s2026"]),
+        "--head-dir", str(heads["s2027"]),
+        "--staging-dir", str(staging_dir),
+        "--no-upload",
+    ])
+
+    assert rc == 0
+    assert (staging_dir / "head" / "s2026" / "ridge_head.npz").read_bytes() == b"s2026"
+    assert (staging_dir / "head" / "s2027" / "ridge_head.npz").read_bytes() == b"s2027"
+
+
+def test_cli_single_head_dir_still_stages_the_legacy_layout(tmp_path):
+    """The pre-existing single-head invocation shape must keep working
+    unchanged -- one --head-dir stages head/ rather than head/<name>/."""
+    wav_dir = _real_wav_dir(tmp_path)
+    head_dir = _head_dir(tmp_path)
+    staging_dir = tmp_path / "staged"
+
+    rc = push_runtime_probe_main([
+        "--wav-dir", str(wav_dir),
+        "--head-dir", str(head_dir),
+        "--staging-dir", str(staging_dir),
+        "--no-upload",
+    ])
+
+    assert rc == 0
+    assert (staging_dir / "head" / "ridge_head.npz").exists()
+    assert not (staging_dir / "head" / head_dir.name).exists()
 
 
 # --------------------------------------------------------------------------
