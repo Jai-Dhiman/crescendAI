@@ -517,6 +517,31 @@ def test_load_scorer_binds_the_device_onto_the_transcriber(make_model_dir,
     assert seen["device"] == "cuda"
 
 
+def test_load_scorer_still_reads_a_legacy_model_directory(make_model_dir,
+                                                           monkeypatch):
+    """The regression guard on not breaking a working submission path:
+    discover_members returns one member, and build_ensemble_embedder is called
+    with exactly [model_dir / "adapter"]."""
+    from claim_measurement.difficulty import score_wav as sw
+
+    model_dir = make_model_dir({"only": _head(dim=4)}, layout="legacy")
+    seen = {}
+
+    def fake_embedder(adapter_dirs, *a, **k):  # noqa: ARG001
+        seen["adapter_dirs"] = list(adapter_dirs)
+        return lambda midi: np.zeros((1, 4))  # noqa: ARG005
+
+    monkeypatch.setattr(sw, "build_ensemble_embedder", fake_embedder)
+
+    scorer = sw.load_scorer(model_dir, checkpoint=model_dir, repo_root=model_dir,
+                            model_config=model_dir,
+                            transcribe=_fake_transcribe())
+    score, ok = scorer(model_dir / "any.wav")
+
+    assert ok and isinstance(score, float)
+    assert seen["adapter_dirs"] == [model_dir / "adapter"]
+
+
 # --------------------------------------------------------------------------
 # The isolated env, which is where three of this phase's launches died.
 # --------------------------------------------------------------------------
