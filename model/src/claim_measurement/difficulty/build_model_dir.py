@@ -64,6 +64,11 @@ def build_model_dir(out_dir: Path, adapter_src: Path, head, **provenance) -> Pat
     not symlinked: this directory is what goes into a container image, and a
     symlink into the research tree would resolve to nothing there."""
     out_dir = Path(out_dir)
+    # A stale members/ tree left behind while writing the legacy layout would
+    # make discover_members refuse the directory -- it holds both layouts.
+    stale_members = out_dir / MEMBERS_SUBDIR
+    if stale_members.exists():
+        shutil.rmtree(stale_members)
     adapter_dst = out_dir / ADAPTER_SUBDIR
     if adapter_dst.exists():
         shutil.rmtree(adapter_dst)

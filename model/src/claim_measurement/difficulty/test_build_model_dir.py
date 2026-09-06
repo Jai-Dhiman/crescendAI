@@ -304,3 +304,23 @@ def test_writing_members_clears_a_stale_legacy_adapter(tmp_path):
     assert not (out / ADAPTER_SUBDIR).exists()
     assert not (out / HEAD_FILENAME).exists()
     assert (out / MEMBERS_SUBDIR / "alldata_s2026").exists()
+
+
+def test_writing_the_legacy_layout_clears_a_stale_members_tree(tmp_path):
+    """The symmetric direction: build_model_dir must clear a stale members/
+    tree so the legacy layout it writes is not shadowed by an old ensemble."""
+    emb_path = tmp_path / "emb_fold0.npz"
+    _fold_npz(emb_path)
+    adapter_src = tmp_path / "src_adapter"
+    adapter_src.mkdir()
+    (adapter_src / "adapter_config.json").write_text("{}")
+    head = fit_head_from_fold_embeddings(emb_path)
+    out = tmp_path / "model"
+    stale_member_adapter = out / "members" / "stale_name" / "adapter"
+    stale_member_adapter.mkdir(parents=True)
+    (stale_member_adapter / "adapter_config.json").write_text("{}")
+    (out / "members" / "stale_name" / HEAD_FILENAME).write_bytes(b"stale")
+
+    build_model_dir(out, adapter_src, head, kind="test")
+
+    assert not (out / "members").exists()
