@@ -200,6 +200,15 @@ def test_a_legacy_single_adapter_directory_is_a_one_member_ensemble(make_model_d
     assert members[0].head_path == model_dir / "ridge_head.npz"
 
 
+def test_a_directory_with_neither_layout_fails_loudly(tmp_path):
+    """An empty or misbuilt model directory means the container image was
+    staged wrong. Returning an empty member list would make the ensemble
+    silently score nothing rather than telling the operator the build is
+    broken."""
+    with pytest.raises(FileNotFoundError, match="no adapter"):
+        discover_members(tmp_path)
+
+
 # --------------------------------------------------------------------------
 # The seam: WAV -> transcribe -> MIDI -> embed -> head -> float.
 # --------------------------------------------------------------------------

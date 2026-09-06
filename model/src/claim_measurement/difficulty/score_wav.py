@@ -234,6 +234,9 @@ def discover_members(model_dir: Path) -> list:
         return [MemberPaths(name=ADAPTER_SUBDIR,
                             adapter_dir=model_dir / ADAPTER_SUBDIR,
                             head_path=model_dir / HEAD_FILENAME)]
+    raise FileNotFoundError(
+        f"{model_dir} holds no adapter: expected {MEMBERS_SUBDIR}/<name>/ "
+        f"members or a legacy {ADAPTER_SUBDIR}/")
 
 
 def fit_ridge_head(X, y, fallback_score: float, alphas=ALPHAS) -> RidgeHead:
