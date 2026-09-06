@@ -32,8 +32,11 @@ test saying *why the behaviour matters*.
 4. Run the full suite: `cd model && uv run python -m pytest src/claim_measurement/difficulty/ -q --no-cov`
 5. Commit with the message given in the task.
 
-Baseline on this branch is **172 passed / 4 skipped**. Every task grows the
-passed count and shrinks it never.
+Baseline on this branch is **246 passed / 6 skipped**, measured 2026-09-05 by
+running the command above in this worktree. (Issue #175's STATE and revision 1
+of this plan both said 172/4; that number was stale. If your run does not start
+from 246/6, stop and say so rather than adjusting the target.) Every task grows
+the passed count and shrinks it never.
 
 ## Hard constraints (do not violate in any task)
 
@@ -990,7 +993,7 @@ ship on; the 24h/1-GPU clause is an exclusion criterion.
 ## Definition of done
 
 - `cd model && uv run python -m pytest src/claim_measurement/difficulty/ -q --no-cov`
-  is green, materially above 172 passing.
+  is green, materially above the 246-passing baseline.
 - `discover_members` is the only function in the tree that interprets layout.
 - A five-member image prints one deterministic float per WAV, and a legacy
   single-adapter directory still scores unchanged.
