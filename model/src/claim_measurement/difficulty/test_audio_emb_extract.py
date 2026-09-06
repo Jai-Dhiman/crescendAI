@@ -236,6 +236,28 @@ def test_switching_adapters_actually_changes_the_embedding(tmp_path):
         "both members produced the same embedding -- set_adapter did not switch")
 
 
+def test_ensemble_extraction_is_byte_identical_across_repeated_calls(tmp_path):
+    """The shipped path: extract_audio_embeddings calls embed() once per
+    piece, but the MIREX container may re-run a piece (retries, resumed
+    partial runs), and set_adapter must not leave dropout active on any
+    member -- otherwise repeated extraction of the SAME piece would be a
+    different random draw each time, exactly the P0 build_fold_embedder's
+    .eval() already guards against."""
+    dirs = [tmp_path / "a" / "adapter", tmp_path / "b" / "adapter"]
+    for d in dirs:
+        _save_fake_adapter(d, init_lora_weights=False)
+    midi_path = tmp_path / "piece.mid"
+    write_notes_midi(_NOTES, midi_path)
+    embed = build_ensemble_embedder(dirs, checkpoint=None, repo_root=None,
+                                    model_config=None,
+                                    loader_factory=_fake_loader_factory)
+
+    first, second, third = embed(midi_path), embed(midi_path), embed(midi_path)
+
+    np.testing.assert_array_equal(first, second)
+    np.testing.assert_array_equal(first, third)
+
+
 def test_peft_is_imported_only_after_the_loader_puts_the_fork_on_sys_path():
     """Ordering contract, asserted on the source because the order IS the
     contract: loader_factory installs the fork's PARTIAL vendored transformers
