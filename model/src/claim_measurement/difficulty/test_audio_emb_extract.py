@@ -11,6 +11,7 @@ import numpy as np
 import torch
 
 from claim_measurement.difficulty.audio_emb_extract import (
+    build_ensemble_embedder,
     build_fold_embedder,
     extract_audio_embeddings,
     fold_of_seg_ids,
@@ -143,17 +144,24 @@ def test_a_cached_piece_that_is_not_an_eval_piece_is_reported_not_dropped(tmp_pa
     assert "not an eval piece" in report.failed[0]
 
 
-def _save_fake_adapter(adapter_dir):
+def _save_fake_adapter(adapter_dir, init_lora_weights=True):
     from peft import LoraConfig, get_peft_model
 
     lora_config = LoraConfig(
         r=4, lora_alpha=8, lora_dropout=0.05,
         target_modules=["self_attn.q_proj", "self_attn.k_proj",
                         "self_attn.v_proj", "self_attn.o_proj",
-                        "mlp.gate_proj", "mlp.up_proj", "mlp.down_proj"])
+                        "mlp.gate_proj", "mlp.up_proj", "mlp.down_proj"],
+        init_lora_weights=init_lora_weights)
     peft_model = get_peft_model(_FakeOuter(hidden=4, n_layers=1, vocab=16),
                                 lora_config)
     peft_model.save_pretrained(str(adapter_dir))
+
+
+def _fake_loader_factory(checkpoint_path, repo_root, model_config):  # noqa: ARG001
+    return (_FakeOuter(hidden=4, n_layers=1, vocab=16),
+            lambda path: torch.arange(6) % 16,  # noqa: ARG005
+            4)
 
 
 def test_build_fold_embedder_extraction_is_byte_identical_across_repeated_calls(
@@ -168,20 +176,41 @@ def test_build_fold_embedder_extraction_is_byte_identical_across_repeated_calls(
     midi_path = tmp_path / "piece.mid"
     write_notes_midi(_NOTES, midi_path)
 
-    def fake_loader_factory(checkpoint_path, repo_root, model_config):
-        return (_FakeOuter(hidden=4, n_layers=1, vocab=16),
-                lambda path: torch.arange(6) % 16,
-                4)
-
     embed = build_fold_embedder(adapter_dir, checkpoint=None, repo_root=None,
                                 model_config=None,
-                                loader_factory=fake_loader_factory)
+                                loader_factory=_fake_loader_factory)
 
     first, second, third = embed(midi_path), embed(midi_path), embed(midi_path)
 
     assert first.shape == (4,)
     np.testing.assert_array_equal(first, second)
     np.testing.assert_array_equal(first, third)
+
+
+def test_the_base_backbone_is_loaded_once_for_all_members(tmp_path):
+    """The 839M base is a 1.6GB load; the MIREX container ensembles 5 adapters
+    over ONE resident base. Calling build_fold_embedder K times would load the
+    base K times -- both a memory problem and a startup-cost problem the
+    24h/1-GPU budget cannot absorb."""
+    dirs = [tmp_path / "s2026" / "adapter", tmp_path / "s2027" / "adapter"]
+    for d in dirs:
+        _save_fake_adapter(d)
+    midi_path = tmp_path / "piece.mid"
+    write_notes_midi(_NOTES, midi_path)
+    loads = []
+
+    def counting_loader(checkpoint_path, repo_root, model_config):  # noqa: ARG001
+        loads.append(checkpoint_path)
+        return (_FakeOuter(hidden=4, n_layers=1, vocab=16),
+                lambda path: torch.arange(6) % 16, 4)  # noqa: ARG005
+
+    embed = build_ensemble_embedder(dirs, checkpoint=None, repo_root=None,
+                                    model_config=None,
+                                    loader_factory=counting_loader)
+    vectors = embed(midi_path)
+
+    assert len(loads) == 1, f"the 839M base must load once, loaded {len(loads)}x"
+    assert vectors.shape == (2, 4)
 
 
 def test_peft_is_imported_only_after_the_loader_puts_the_fork_on_sys_path():

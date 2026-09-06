@@ -148,6 +148,59 @@ def build_fold_embedder(adapter_dir: Path, checkpoint: Path, repo_root: Path,
     return embed
 
 
+def build_ensemble_embedder(adapter_dirs, checkpoint: Path, repo_root: Path,
+                            model_config: Path, loader_factory=_real_loader,
+                            device=None, names=None):
+    """A `embed(midi_path) -> (K, D)` closure over ONE resident base backbone
+    with K LoRA adapters attached by name.
+
+    The base is 839M parameters (1.6GB); the adapters are 3.2M each. Calling
+    build_fold_embedder K times would load the base K times, which is both a
+    memory problem and a startup-cost problem the 24h/1-GPU budget cannot
+    absorb.
+
+    `names` carries the member basenames from discover_members so a peft error
+    names `alldata_s2029` rather than `m3`. Adapters are attached in the order
+    given -- discover_members sorts, and that order is part of the determinism
+    contract, so this function must not re-order.
+    """
+    adapter_dirs = [Path(d) for d in adapter_dirs]
+    names = list(names) if names is not None else [d.parent.name or f"m{i}"
+                                                   for i, d in enumerate(adapter_dirs)]
+
+    # Order is a contract, not a style choice -- see build_fold_embedder above.
+    base_model, tokenize, max_len = loader_factory(
+        checkpoint, repo_root=repo_root, model_config=model_config)
+    _stub_absent_transformers_models()
+    from peft import PeftModel
+
+    peft_model = PeftModel.from_pretrained(base_model, str(adapter_dirs[0]),
+                                           adapter_name=names[0])
+    for name, adapter_dir in zip(names[1:], adapter_dirs[1:], strict=True):
+        peft_model.load_adapter(str(adapter_dir), adapter_name=name)
+    # eval() is load-bearing: lora_dropout=0.05 is active in train mode and
+    # torch.no_grad() does NOT disable dropout, so without it every extraction
+    # is a fresh random draw.
+    peft_model.eval()
+    if device is not None:
+        peft_model.to(device)
+    transformer = peft_model.model.model  # inner LoRA-injected transformer
+
+    def embed(midi_path: Path) -> np.ndarray:
+        # Tokenised ONCE and reused across members: _extract_full_piece takes
+        # tokens, not a path, and does not mutate them (verified,
+        # train_fold.py:272-280), so the same tensor is safe to share.
+        tokens = tokenize(Path(midi_path))
+        rows = []
+        for name in names:
+            peft_model.set_adapter(name)
+            rows.append(_extract_full_piece(transformer, tokens, max_len,
+                                            device=device))
+        return np.stack(rows)
+
+    return embed
+
+
 @dataclass
 class AudioExtractionReport:
     ok: int = 0
