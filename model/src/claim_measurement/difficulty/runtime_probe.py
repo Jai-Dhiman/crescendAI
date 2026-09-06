@@ -52,7 +52,6 @@ import time
 from pathlib import Path
 
 BUNDLE_REPO = "Jai-D/phase1-lora-bundle"
-ADAPTER_REPO = "Jai-D/phase1-lora-alldata"
 ADAPTER_REPOS = [f"Jai-D/phase1-lora-7665-alldata-s{i}" for i in range(2026, 2031)]
 CHECKPOINT_REPO = "guozixunnicolas/moonbeam-midi-foundation-model"
 CHECKPOINT_FILE = "moonbeam_839M.pt"
