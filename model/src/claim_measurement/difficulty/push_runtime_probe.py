@@ -97,26 +97,44 @@ def select_probe_set(durations: list[tuple[str, float]],
     return chosen
 
 
-def stage_probe_bundle(wav_dir: Path, head_dir: Path, module_dir: Path,
-                       staging_dir: Path, selection: list[dict]) -> dict:
-    """Materialise wav/ + head/ + code/ + manifest.json. Returns the report."""
-    staging_dir = Path(staging_dir)
-    if staging_dir.exists():
-        shutil.rmtree(staging_dir)
-    (staging_dir / "wav").mkdir(parents=True)
-    (staging_dir / "head").mkdir()
-    (staging_dir / "code").mkdir()
-
-    for row in selection:
-        shutil.copy2(wav_dir / row["wav"], staging_dir / "wav" / row["wav"])
-
+def _stage_one_head(head_dir: Path, head_dest: Path) -> None:
+    """ridge_head.npz + manifest.json, copied from `head_dir` into
+    `head_dest`. Shared by the single-head and K-head layouts so neither can
+    drift out of sync with the other."""
+    head_dest.mkdir(parents=True)
     for name in ("ridge_head.npz", "manifest.json"):
         src = head_dir / name
         if not src.exists():
             raise FileNotFoundError(
                 f"the submission head is incomplete: {src} is missing. "
                 "Build it with build_model_dir.py before staging a probe.")
-        shutil.copy2(src, staging_dir / "head" / name)
+        shutil.copy2(src, head_dest / name)
+
+
+def stage_probe_bundle(wav_dir: Path, head_dir: Path | None, module_dir: Path,
+                       staging_dir: Path, selection: list[dict],
+                       head_dirs: dict[str, Path] | None = None) -> dict:
+    """Materialise wav/ + head/ + code/ + manifest.json. Returns the report.
+
+    `head_dir` (single) is the layout `test_staged_code_is_an_importable_
+    package_tree` pins and stays unchanged. `head_dirs`, given instead, stages
+    one `head/<name>/ridge_head.npz` per K-member ensemble entry -- pass
+    exactly one of the two.
+    """
+    staging_dir = Path(staging_dir)
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir)
+    (staging_dir / "wav").mkdir(parents=True)
+    (staging_dir / "code").mkdir()
+
+    for row in selection:
+        shutil.copy2(wav_dir / row["wav"], staging_dir / "wav" / row["wav"])
+
+    if head_dirs is not None:
+        for name, one_head_dir in head_dirs.items():
+            _stage_one_head(one_head_dir, staging_dir / "head" / name)
+    else:
+        _stage_one_head(head_dir, staging_dir / "head")
 
     # The whole package, .py only: 46 modules and ~1.2MB of source, against
     # which hand-listing an import closure is the more expensive option and

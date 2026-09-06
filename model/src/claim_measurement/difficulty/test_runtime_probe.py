@@ -152,6 +152,47 @@ def test_staged_code_is_an_importable_package_tree(tmp_path):
     assert json.loads((staged / "manifest.json").read_text())["items"] == selection
 
 
+def test_stage_probe_bundle_stages_k_named_heads(tmp_path):
+    """The K-member probe needs K heads staged as `head/<name>/ridge_head.npz`
+    -- one per ensemble member -- while the single-head call shape (pinned
+    above) is untouched."""
+    wav_dir = _wav_dir(tmp_path)
+    module_dir = _module_dir()
+    selection = [{"wav": "a.wav", "seconds": 42.0, "target_s": 30.0}]
+
+    heads = {}
+    for name in ("s2026", "s2027"):
+        d = tmp_path / f"head_{name}"
+        d.mkdir()
+        (d / "ridge_head.npz").write_bytes(name.encode())
+        (d / "manifest.json").write_text("{}")
+        heads[name] = d
+
+    staged = tmp_path / "staged_multi"
+    stage_probe_bundle(wav_dir, None, module_dir, staged, selection,
+                       head_dirs=heads)
+
+    assert (staged / "head" / "s2026" / "ridge_head.npz").read_bytes() == b"s2026"
+    assert (staged / "head" / "s2027" / "ridge_head.npz").read_bytes() == b"s2027"
+
+
+def test_stage_probe_bundle_refuses_a_named_head_without_a_ridge_head(tmp_path):
+    wav_dir = _wav_dir(tmp_path)
+    module_dir = _module_dir()
+    selection = [{"wav": "a.wav", "seconds": 1.0, "target_s": 1.0}]
+
+    good = tmp_path / "head_good"
+    good.mkdir()
+    (good / "ridge_head.npz").write_bytes(b"")
+    (good / "manifest.json").write_text("{}")
+    bad = tmp_path / "head_bad"
+    bad.mkdir()
+
+    with pytest.raises(FileNotFoundError, match=r"ridge_head\.npz"):
+        stage_probe_bundle(wav_dir, None, module_dir, tmp_path / "s2",
+                           selection, head_dirs={"good": good, "bad": bad})
+
+
 def test_staging_refuses_a_head_dir_without_a_ridge_head(tmp_path):
     """An adapter with no head is not a model. Staging one would spend GPU
     time to find that out."""
