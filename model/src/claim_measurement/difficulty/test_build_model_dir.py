@@ -256,3 +256,28 @@ def test_two_members_with_the_same_basename_are_refused(tmp_path):
         build_ensemble_model_dir([artifact_a, artifact_b], out)
 
     assert not out.exists()
+
+
+def test_a_staged_ensemble_directory_loads_as_one_head(tmp_path):
+    """The end of the vertical slice: what the builder writes is exactly what
+    load_scorer reads."""
+    from claim_measurement.difficulty.build_model_dir import (
+        build_ensemble_model_dir,
+    )
+    from claim_measurement.difficulty.score_wav import (
+        EnsembleHead,
+        discover_members,
+    )
+
+    # Same seed for both members so their grades share a median -- otherwise
+    # EnsembleHead.from_members' fallback-mismatch guard fires for a reason
+    # unrelated to what this test pins.
+    artifact1 = _member_artifact(tmp_path, "alldata_s2026", seed=0)
+    artifact2 = _member_artifact(tmp_path, "alldata_s2027", seed=0)
+    out = tmp_path / "model"
+
+    build_ensemble_model_dir([artifact1, artifact2], out)
+
+    members = discover_members(out)
+    head = EnsembleHead.from_members([read_ridge_head(m.head_path) for m in members])
+    assert head.n_members == 2
