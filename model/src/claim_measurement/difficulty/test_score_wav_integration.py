@@ -225,6 +225,10 @@ _ENSEMBLE_MEMBER_DIRS = [_cached_adapter_artifact_dir(r) for r in _ENSEMBLE_REPO
 _ENSEMBLE_MISSING_REPOS = [
     r for r, d in zip(_ENSEMBLE_REPOS, _ENSEMBLE_MEMBER_DIRS, strict=True)
     if d is None]
+# The skipif below guarantees this is the full list whenever the test runs, but
+# the guard is a decorator and cannot narrow the Optional for a type checker.
+# Filtering here states the invariant in the code rather than in a comment.
+_ENSEMBLE_CACHED_DIRS = [d for d in _ENSEMBLE_MEMBER_DIRS if d is not None]
 
 
 @pytest.mark.skipif(
@@ -254,7 +258,7 @@ def test_the_two_member_ensemble_score_is_the_mean_of_its_members(tmp_path):
 
     single_dirs = []
     single_scores = []
-    for i, artifact_dir in enumerate(_ENSEMBLE_MEMBER_DIRS):
+    for i, artifact_dir in enumerate(_ENSEMBLE_CACHED_DIRS):
         out_dir = tmp_path / f"single_{i}"
         _build_all_data(artifact_dir, out_dir)
         single_dirs.append(out_dir)
@@ -269,7 +273,7 @@ def test_the_two_member_ensemble_score_is_the_mean_of_its_members(tmp_path):
         f"names")
 
     ensemble_dir = tmp_path / "ensemble"
-    _build_ensemble(_ENSEMBLE_MEMBER_DIRS, ensemble_dir)
+    _build_ensemble(_ENSEMBLE_CACHED_DIRS, ensemble_dir)
     ensemble_score = _score(_HELD_OUT_WAV, tmp_path / "ensemble.tsv",
                             model_dir=ensemble_dir)
 
