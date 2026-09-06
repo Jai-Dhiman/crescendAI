@@ -149,6 +149,16 @@ def test_one_member_is_an_ensemble_of_one_not_a_separate_code_path():
     assert ensemble.fallback_score == head.fallback_score
 
 
+def test_members_whose_fallback_disagrees_are_refused():
+    """fallback_score is a property of the training pool a head was fit on
+    (docstring on RidgeHead). Members with different fallbacks were fit on
+    different pools, which means the directory mixes artifacts from different
+    runs -- silently averaging them would score through a model nobody
+    actually trained."""
+    with pytest.raises(ValueError, match="fallback"):
+        EnsembleHead.from_members([_head(fallback=5.0), _head(fallback=6.0)])
+
+
 # --------------------------------------------------------------------------
 # The seam: WAV -> transcribe -> MIDI -> embed -> head -> float.
 # --------------------------------------------------------------------------

@@ -164,7 +164,14 @@ class EnsembleHead:
 
     @classmethod
     def from_members(cls, heads) -> "EnsembleHead":
-        return cls(members=tuple(heads))
+        heads = tuple(heads)
+        fallbacks = {float(h.fallback_score) for h in heads}
+        if len(fallbacks) != 1:
+            raise ValueError(
+                f"member heads disagree on fallback_score ({sorted(fallbacks)}) "
+                f"-- they were fit on different training pools, so this "
+                f"directory mixes artifacts and must not be scored")
+        return cls(members=heads)
 
     @property
     def n_members(self) -> int:
