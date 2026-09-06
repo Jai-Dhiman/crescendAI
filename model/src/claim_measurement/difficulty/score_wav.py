@@ -225,6 +225,11 @@ def discover_members(model_dir: Path) -> list:
     has_members = members_root.is_dir() and any(members_root.iterdir())
     has_legacy = (model_dir / ADAPTER_SUBDIR).is_dir()
 
+    if has_members and has_legacy:
+        raise ValueError(
+            f"{model_dir} holds both {MEMBERS_SUBDIR}/ and a legacy "
+            f"{ADAPTER_SUBDIR}/ -- preferring one silently would score through "
+            f"a model nobody chose. Remove the stale one.")
     if has_members:
         return [MemberPaths(name=d.name, adapter_dir=d / ADAPTER_SUBDIR,
                             head_path=d / HEAD_FILENAME)

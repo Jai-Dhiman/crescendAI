@@ -209,6 +209,18 @@ def test_a_directory_with_neither_layout_fails_loudly(tmp_path):
         discover_members(tmp_path)
 
 
+def test_a_directory_holding_both_layouts_is_refused(make_model_dir, tmp_path):
+    """A directory that has both a members/ tree and a stale legacy adapter is
+    ambiguous about which model is the real one. Silently preferring one layout
+    would score through a model nobody chose, so this must refuse rather than
+    guess."""
+    model_dir = make_model_dir({"s2026": _head()}, root=tmp_path / "mixed")
+    make_model_dir({"stale": _head()}, layout="legacy", root=tmp_path / "mixed")
+
+    with pytest.raises(ValueError, match="both"):
+        discover_members(model_dir)
+
+
 # --------------------------------------------------------------------------
 # The seam: WAV -> transcribe -> MIDI -> embed -> head -> float.
 # --------------------------------------------------------------------------
