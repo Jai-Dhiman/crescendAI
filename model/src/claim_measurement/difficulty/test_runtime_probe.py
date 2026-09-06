@@ -17,6 +17,7 @@ from claim_measurement.difficulty.push_runtime_probe import (
     wav_durations,
 )
 from claim_measurement.difficulty.runtime_probe import (
+    assemble_ensemble_model_dir,
     assemble_model_dir,
     build_transcriber,
     fit_runtime,
@@ -248,3 +249,26 @@ def test_assemble_model_dir_joins_the_two_hub_halves(tmp_path):
 
     assert (dest / "adapter" / "adapter_config.json").exists()
     assert (dest / "ridge_head.npz").read_bytes() == b"npz"
+
+
+def test_assemble_ensemble_model_dir_builds_the_members_layout(tmp_path):
+    """The K-member probe needs the same `members/<name>/...` layout
+    `discover_members` (score_wav.py) reads, built from K separate Hub
+    adapter/head halves rather than one."""
+    names = ["s2026", "s2027"]
+    members = []
+    for name in names:
+        adapter_src = tmp_path / f"hub_adapter_{name}"
+        (adapter_src / "adapter").mkdir(parents=True)
+        (adapter_src / "adapter" / "adapter_config.json").write_text("{}")
+        head_src = tmp_path / f"hub_head_{name}"
+        head_src.mkdir()
+        (head_src / "ridge_head.npz").write_bytes(name.encode())
+        (head_src / "manifest.json").write_text("{}")
+        members.append((name, adapter_src, head_src))
+
+    dest = assemble_ensemble_model_dir(members, tmp_path / "ensemble_model")
+
+    assert (dest / "members" / "s2026" / "adapter"
+            / "adapter_config.json").exists()
+    assert (dest / "members" / "s2027" / "ridge_head.npz").read_bytes() == b"s2027"

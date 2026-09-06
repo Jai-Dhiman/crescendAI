@@ -123,6 +123,15 @@ def build_transcriber(probe_dir: Path, device: str):
     return functools.partial(transkun_cli.transcribe_wav, device=device)
 
 
+def _copy_member(adapter_dir: Path, head_dir: Path, dest: Path) -> None:
+    """One member's adapter/ + ridge_head.npz/manifest.json, copied into
+    `dest`. Shared by the legacy single-adapter layout and the K-member
+    `members/` layout so the two never drift apart."""
+    shutil.copytree(adapter_dir / "adapter", dest / "adapter")
+    for name in ("ridge_head.npz", "manifest.json"):
+        shutil.copy2(head_dir / name, dest / name)
+
+
 def assemble_model_dir(adapter_dir: Path, head_dir: Path, dest: Path) -> Path:
     """load_scorer wants ONE directory holding `adapter/` + `ridge_head.npz`.
 
@@ -130,14 +139,37 @@ def assemble_model_dir(adapter_dir: Path, head_dir: Path, dest: Path) -> Path:
     repo, the head is 46KB that exists only in the checkout -- so they are
     joined here rather than by re-uploading one into the other's repo, which
     would make two copies of the adapter that can drift apart.
+
+    This is the K=1 (legacy) layout, pinned by
+    `test_assemble_model_dir_joins_the_two_hub_halves` -- the K=1 probe is the
+    baseline every ensemble measurement is compared against, so its shape must
+    not change. See `assemble_ensemble_model_dir` for K>1.
     """
     dest = Path(dest)
     if dest.exists():
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
-    shutil.copytree(adapter_dir / "adapter", dest / "adapter")
-    for name in ("ridge_head.npz", "manifest.json"):
-        shutil.copy2(head_dir / name, dest / name)
+    _copy_member(adapter_dir, head_dir, dest)
+    return dest
+
+
+def assemble_ensemble_model_dir(
+    members: list[tuple[str, Path, Path]], dest: Path
+) -> Path:
+    """The K-member counterpart of `assemble_model_dir`: writes
+    `<dest>/members/<name>/adapter` + `ridge_head.npz` for each
+    `(name, adapter_dir, head_dir)` in `members`, matching the layout
+    `discover_members` (score_wav.py) reads for K>1.
+    """
+    dest = Path(dest)
+    if dest.exists():
+        shutil.rmtree(dest)
+    members_root = dest / "members"
+    members_root.mkdir(parents=True)
+    for name, adapter_dir, head_dir in members:
+        member_dest = members_root / name
+        member_dest.mkdir(parents=True)
+        _copy_member(adapter_dir, head_dir, member_dest)
     return dest
 
 
