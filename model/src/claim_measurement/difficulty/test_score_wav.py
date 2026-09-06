@@ -331,6 +331,16 @@ def test_a_wav_is_transcribed_once_no_matter_how_many_members(tmp_path):
     assert score == pytest.approx((1.0 + 3.0) / 2)
 
 
+def test_a_non_finite_entry_in_any_member_row_is_a_failure(tmp_path):
+    wav = tmp_path / "piece.wav"
+    wav.write_bytes(b"")
+    bad = np.array([[1.0, 0.0, 0.0, 0.0], [np.nan, 0.0, 0.0, 0.0]])
+    head = EnsembleHead.from_members([_head(), _head()])
+
+    with pytest.raises(ValueError, match="non-finite"):
+        score_wav(wav, _fake_transcribe(), lambda _p: bad, head)
+
+
 # --------------------------------------------------------------------------
 # The failure-policy INVERSION -- container-only. >5% item failures excludes
 # the submission from ranking, so a raise here costs the whole submission.
