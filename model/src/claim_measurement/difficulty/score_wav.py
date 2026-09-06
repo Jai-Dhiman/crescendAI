@@ -187,6 +187,11 @@ class EnsembleHead:
 
     def predict(self, vectors) -> float:
         vectors = np.asarray(vectors, dtype=np.float64)
+        if vectors.ndim != 2 or vectors.shape[0] != self.n_members:
+            raise ValueError(
+                f"expected a ({self.n_members}, {self.n_features}) matrix for "
+                f"{self.n_members} members, got shape {vectors.shape} -- the "
+                f"embedder and the heads were built from different member lists")
         # A list comprehension in member order, then one np.mean. Float addition
         # is not associative, so this order is part of #166's determinism
         # criterion -- do not reorder or vectorise into a different summation.

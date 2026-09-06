@@ -159,6 +159,17 @@ def test_members_whose_fallback_disagrees_are_refused():
         EnsembleHead.from_members([_head(fallback=5.0), _head(fallback=6.0)])
 
 
+def test_a_vector_matrix_of_the_wrong_shape_is_refused():
+    """predict() zips members against rows positionally; a mismatched matrix
+    means the embedder produced a different number of member embeddings than
+    the ensemble has heads -- a build-time wiring bug, not a data problem, and
+    it must fail loudly rather than silently truncate via zip."""
+    ensemble = EnsembleHead.from_members([_head(), _head()])
+
+    with pytest.raises(ValueError, match="2 members"):
+        ensemble.predict(np.zeros((3, 4)))
+
+
 # --------------------------------------------------------------------------
 # The seam: WAV -> transcribe -> MIDI -> embed -> head -> float.
 # --------------------------------------------------------------------------
