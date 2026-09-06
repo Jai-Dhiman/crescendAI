@@ -133,6 +133,22 @@ def test_the_ensemble_score_is_the_mean_of_its_members_own_predictions():
     assert ensemble.n_members == 3
 
 
+def test_one_member_is_an_ensemble_of_one_not_a_separate_code_path():
+    """#175's design has no single-vs-ensemble branch: a legacy one-adapter
+    model directory is just an EnsembleHead with one member. If this ever
+    stopped matching plain RidgeHead.predict, the two code paths would have
+    drifted apart and the legacy container would score differently from what
+    was measured."""
+    head = _head(coef=2.0)
+    vector = np.array([[1.0, 1.0, 0.0, 0.0]])
+
+    ensemble = EnsembleHead.from_members([head])
+
+    assert ensemble.n_members == 1
+    assert ensemble.predict(vector) == pytest.approx(head.predict(vector[0]))
+    assert ensemble.fallback_score == head.fallback_score
+
+
 # --------------------------------------------------------------------------
 # The seam: WAV -> transcribe -> MIDI -> embed -> head -> float.
 # --------------------------------------------------------------------------
