@@ -176,6 +176,31 @@ def test_stage_probe_bundle_stages_k_named_heads(tmp_path):
     assert (staged / "head" / "s2027" / "ridge_head.npz").read_bytes() == b"s2027"
 
 
+def test_stage_probe_bundle_refuses_neither_head_source_given(tmp_path):
+    """Both None used to fall through to `_stage_one_head(None, ...)`, which
+    fails with `TypeError: unsupported operand type(s) for /: 'NoneType' and
+    'str'` -- a caller mistake reported as an internal crash instead of a
+    clear contract violation."""
+    wav_dir = _wav_dir(tmp_path)
+    selection = [{"wav": "a.wav", "seconds": 1.0, "target_s": 1.0}]
+
+    with pytest.raises(ValueError, match="exactly one of"):
+        stage_probe_bundle(wav_dir, None, _module_dir(), tmp_path / "s",
+                           selection)
+
+
+def test_stage_probe_bundle_refuses_both_head_sources_given(tmp_path):
+    """Passing both is as ambiguous as passing neither -- the docstring says
+    "exactly one", and the check must catch this direction too."""
+    wav_dir = _wav_dir(tmp_path)
+    head_dir = _head_dir(tmp_path)
+    selection = [{"wav": "a.wav", "seconds": 1.0, "target_s": 1.0}]
+
+    with pytest.raises(ValueError, match="exactly one of"):
+        stage_probe_bundle(wav_dir, head_dir, _module_dir(), tmp_path / "s",
+                           selection, head_dirs={"x": head_dir})
+
+
 def test_stage_probe_bundle_refuses_a_named_head_without_a_ridge_head(tmp_path):
     wav_dir = _wav_dir(tmp_path)
     module_dir = _module_dir()

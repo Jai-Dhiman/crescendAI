@@ -121,6 +121,8 @@ def stage_probe_bundle(wav_dir: Path, head_dir: Path | None, module_dir: Path,
     one `head/<name>/ridge_head.npz` per K-member ensemble entry -- pass
     exactly one of the two.
     """
+    if (head_dir is None) == (head_dirs is None):
+        raise ValueError("pass exactly one of head_dir or head_dirs")
     staging_dir = Path(staging_dir)
     if staging_dir.exists():
         shutil.rmtree(staging_dir)
