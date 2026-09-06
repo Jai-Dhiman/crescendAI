@@ -324,3 +324,41 @@ def test_writing_the_legacy_layout_clears_a_stale_members_tree(tmp_path):
     build_model_dir(out, adapter_src, head, kind="test")
 
     assert not (out / "members").exists()
+
+
+def test_from_ensemble_cli_writes_a_manifest_disclosing_member_count(tmp_path):
+    """MIREX 2026 makes training-data size, model size, and compute a
+    mandatory disclosure -- a five-member ensemble is five times the
+    inference compute, so the manifest must make K visible."""
+    from claim_measurement.difficulty.build_model_dir import main
+
+    artifact1 = _member_artifact(tmp_path, "alldata_s2026", seed=0)
+    artifact2 = _member_artifact(tmp_path, "alldata_s2027", seed=0)
+    out = tmp_path / "model"
+
+    assert main([
+        "--from-ensemble", str(artifact1),
+        "--from-ensemble", str(artifact2),
+        "--out-dir", str(out),
+    ]) == 0
+
+    manifest = json.loads((out / MANIFEST_FILENAME).read_text())
+    assert manifest["n_members"] == 2
+    assert "train-on-test" in manifest["warning"]
+
+
+def test_from_ensemble_still_participates_in_the_three_way_mutual_exclusion(tmp_path):
+    """Exactly one of --from-fold, --from-all-data, --from-ensemble may be
+    given -- not zero, not two-or-more."""
+    import pytest
+
+    from claim_measurement.difficulty.build_model_dir import main
+
+    artifact1 = _member_artifact(tmp_path, "alldata_s2026", seed=0)
+
+    with pytest.raises(SystemExit):
+        main([
+            "--from-fold", "0",
+            "--from-ensemble", str(artifact1),
+            "--out-dir", str(tmp_path / "model"),
+        ])

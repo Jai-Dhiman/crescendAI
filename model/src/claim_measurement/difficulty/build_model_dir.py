@@ -17,8 +17,12 @@ end-to-end seam can be executed before the all-data model is trained.
 trained on all 5,798 pieces, with no exclusions, because the MIREX test set is
 disjoint from PSyllabus by construction.
 
-**Neither directory may be used to report a tau-c.** Per #104: the recipe is
-validated on folds; a model directory is a deployment of that recipe.
+**`--from-ensemble DIR`** (repeatable, #175) stages K such all-data artifacts
+as `<model-dir>/members/<name>/` and scores as their mean (`EnsembleHead`).
+
+**None of these directories may be used to report a tau-c.** Per #104: the
+recipe is validated on folds; a model directory is a deployment of that
+recipe.
 
     cd model && uv run python -m claim_measurement.difficulty.build_model_dir \\
         --from-fold 0 \\
@@ -165,6 +169,49 @@ def build_ensemble_model_dir(member_artifact_dirs: list, out_dir: Path,
     return out_dir
 
 
+ENSEMBLE_WARNING = (
+    "No tau-c may be reported from this directory: every labelled piece is "
+    "in its training set, so any evaluation is train-on-test. The recipe was "
+    "validated on folds; see #104.")
+
+
+def _build_ensemble(member_artifact_dirs: list, out_dir: Path) -> int:
+    """The ensemble SUBMISSION directory: K all-data members, scored as their
+    mean. The top-level manifest discloses K -- MIREX 2026 makes compute a
+    mandatory disclosure, and a K-member ensemble is K times the inference
+    compute."""
+    out_dir = Path(out_dir)
+    build_ensemble_model_dir(
+        member_artifact_dirs, out_dir,
+        kind="SUBMISSION ensemble member -- trained on all pool pieces, "
+             "nothing held out",
+        fold=ALL_DATA_FOLD, held_out_pieces=0, warning=ENSEMBLE_WARNING)
+
+    from claim_measurement.difficulty.score_wav import read_ridge_head
+
+    member_names = sorted(Path(d).name for d in member_artifact_dirs)
+    members_info = []
+    for name in member_names:
+        head = read_ridge_head(out_dir / MEMBERS_SUBDIR / name / HEAD_FILENAME)
+        members_info.append({
+            "name": name,
+            "fallback_score": head.fallback_score,
+            "embedding_dim": head.n_features,
+        })
+
+    write_manifest(
+        out_dir,
+        kind="SUBMISSION ensemble -- trained on all pool pieces, nothing "
+             "held out",
+        n_members=len(member_names),
+        members=members_info,
+        warning=ENSEMBLE_WARNING)
+
+    print(f"wrote {out_dir}: SUBMISSION ensemble of {len(member_names)} "
+          f"members {member_names}")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -174,14 +221,24 @@ def main(argv=None) -> int:
         "--from-all-data", type=Path, default=None,
         help="build the SUBMISSION directory from a fold-99 artifact dir "
              "(adapter/ + emb_fold99.npz from the all-data training run)")
+    ap.add_argument(
+        "--from-ensemble", type=Path, action="append", default=None,
+        help="build the ensemble SUBMISSION directory from K all-data "
+             "artifact dirs (repeatable)")
     ap.add_argument("--fold-emb-dir", type=Path, default=None)
     ap.add_argument("--out-dir", type=Path, required=True)
     ap.add_argument("--data-root", type=Path, default=None)
     ap.add_argument("--features37-dir", type=Path, default=None)
     args = ap.parse_args(argv)
 
-    if (args.from_fold is None) == (args.from_all_data is None):
-        ap.error("pass exactly one of --from-fold or --from-all-data")
+    n_sources = sum(x is not None for x in
+                    (args.from_fold, args.from_all_data, args.from_ensemble))
+    if n_sources != 1:
+        ap.error("pass exactly one of --from-fold, --from-all-data, or "
+                 "--from-ensemble")
+
+    if args.from_ensemble is not None:
+        return _build_ensemble(args.from_ensemble, args.out_dir)
 
     if args.from_all_data is not None:
         return _build_all_data(args.from_all_data, args.out_dir)
