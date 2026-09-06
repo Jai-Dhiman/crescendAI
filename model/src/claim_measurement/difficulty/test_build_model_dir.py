@@ -281,3 +281,26 @@ def test_a_staged_ensemble_directory_loads_as_one_head(tmp_path):
     members = discover_members(out)
     head = EnsembleHead.from_members([read_ridge_head(m.head_path) for m in members])
     assert head.n_members == 2
+
+
+def test_writing_members_clears_a_stale_legacy_adapter(tmp_path):
+    """discover_members refuses a directory holding both layouts -- leaving
+    the stale legacy behind would make the freshly-built ensemble directory
+    instantly unusable."""
+    from claim_measurement.difficulty.build_model_dir import (
+        build_ensemble_model_dir,
+    )
+    from claim_measurement.difficulty.score_wav import MEMBERS_SUBDIR
+
+    artifact1 = _member_artifact(tmp_path, "alldata_s2026", seed=0)
+    artifact2 = _member_artifact(tmp_path, "alldata_s2027", seed=0)
+    out = tmp_path / "model"
+    (out / ADAPTER_SUBDIR).mkdir(parents=True)
+    (out / ADAPTER_SUBDIR / "adapter_config.json").write_text("{}")
+    (out / HEAD_FILENAME).write_bytes(b"stale")
+
+    build_ensemble_model_dir([artifact1, artifact2], out)
+
+    assert not (out / ADAPTER_SUBDIR).exists()
+    assert not (out / HEAD_FILENAME).exists()
+    assert (out / MEMBERS_SUBDIR / "alldata_s2026").exists()

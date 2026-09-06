@@ -138,6 +138,15 @@ def build_ensemble_model_dir(member_artifact_dirs: list, out_dir: Path,
                 f"{len(names) - 1}-member ensemble labelled {len(names)}")
         seen.add(name)
 
+    # A stale legacy adapter left behind while writing members/ would make
+    # discover_members refuse the directory -- it holds both layouts.
+    legacy_adapter = out_dir / ADAPTER_SUBDIR
+    if legacy_adapter.exists():
+        shutil.rmtree(legacy_adapter)
+    legacy_head = out_dir / HEAD_FILENAME
+    if legacy_head.exists():
+        legacy_head.unlink()
+
     for member_dir in member_artifact_dirs:
         emb_path = member_dir / f"emb_fold{ALL_DATA_FOLD}.npz"
         if not emb_path.exists():
