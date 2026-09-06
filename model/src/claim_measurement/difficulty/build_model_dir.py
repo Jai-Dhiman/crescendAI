@@ -39,6 +39,7 @@ from claim_measurement.difficulty.fold_plan import ALL_DATA_FOLD
 from claim_measurement.difficulty.score_wav import (
     ADAPTER_SUBDIR,
     HEAD_FILENAME,
+    MEMBERS_SUBDIR,
     fit_head_from_fold_embeddings,
     write_manifest,
     write_ridge_head,
@@ -110,6 +111,34 @@ def _build_all_data(artifact_dir: Path, out_dir: Path) -> int:
           f"on {n_rows} rows with no exclusions, dim={head.n_features}, "
           f"fallback={head.fallback_score}")
     return 0
+
+
+def build_ensemble_model_dir(member_artifact_dirs: list, out_dir: Path,
+                             **provenance) -> Path:
+    """Stage K all-data artifacts as ensemble members under one out_dir.
+
+    Each source dir is shaped like `_build_all_data`'s input --
+    `emb_fold{ALL_DATA_FOLD}.npz` + `adapter/` -- and per #168 every member is
+    trained on the identical all-data pool with no exclusions, so each head is
+    fit the same way `_build_all_data` fits its one head. `build_model_dir` is
+    reused per member (pointed at `out_dir/members/<name>`) rather than
+    reimplemented, to keep the copy-not-symlink discipline shared with the
+    single-adapter path.
+    """
+    out_dir = Path(out_dir)
+    member_artifact_dirs = [Path(d) for d in member_artifact_dirs]
+
+    for member_dir in member_artifact_dirs:
+        emb_path = member_dir / f"emb_fold{ALL_DATA_FOLD}.npz"
+        if not emb_path.exists():
+            raise FileNotFoundError(
+                f"{emb_path} does not exist -- --from-ensemble expects each "
+                f"member's fold-{ALL_DATA_FOLD} training run's output dir")
+        head = fit_head_from_fold_embeddings(emb_path, exclude_seg_ids=None)
+        member_out = out_dir / MEMBERS_SUBDIR / member_dir.name
+        build_model_dir(member_out, member_dir / ADAPTER_SUBDIR, head, **provenance)
+
+    return out_dir
 
 
 def main(argv=None) -> int:

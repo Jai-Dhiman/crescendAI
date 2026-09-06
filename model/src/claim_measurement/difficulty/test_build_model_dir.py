@@ -197,3 +197,42 @@ def test_a_fold_artifact_dir_passed_to_the_submission_path_is_refused(tmp_path):
 
     with pytest.raises(FileNotFoundError, match="emb_fold99.npz"):
         _build_all_data(artifact, tmp_path / "model")
+
+
+# --------------------------------------------------------------------------
+# The ensemble directory: K all-data members staged under one out_dir.
+# --------------------------------------------------------------------------
+
+
+def _member_artifact(root, name, seed=0):
+    """One member's all-data artifact dir: emb_fold99.npz + a stub adapter."""
+    from claim_measurement.difficulty.fold_plan import ALL_DATA_FOLD
+
+    artifact = root / name
+    artifact.mkdir(parents=True)
+    _fold_npz(artifact / f"emb_fold{ALL_DATA_FOLD}.npz", seed=seed)
+    adapter = artifact / ADAPTER_SUBDIR
+    adapter.mkdir()
+    (adapter / "adapter_config.json").write_text("{}")
+    return artifact
+
+
+def test_each_member_is_staged_under_its_source_directory_basename(tmp_path):
+    """Each of the K source artifact dirs becomes one members/<name>/ under
+    out_dir, with its own head fit on its own all-data rows -- reusing
+    build_model_dir's copy-not-symlink discipline per member."""
+    from claim_measurement.difficulty.build_model_dir import (
+        build_ensemble_model_dir,
+    )
+    from claim_measurement.difficulty.score_wav import MEMBERS_SUBDIR
+
+    artifact1 = _member_artifact(tmp_path, "alldata_s2026", seed=0)
+    artifact2 = _member_artifact(tmp_path, "alldata_s2027", seed=0)
+    out = tmp_path / "model"
+
+    build_ensemble_model_dir([artifact1, artifact2], out)
+
+    for name in ("alldata_s2026", "alldata_s2027"):
+        member_dir = out / MEMBERS_SUBDIR / name
+        assert (member_dir / ADAPTER_SUBDIR / "adapter_config.json").exists()
+        assert (member_dir / HEAD_FILENAME).exists()
