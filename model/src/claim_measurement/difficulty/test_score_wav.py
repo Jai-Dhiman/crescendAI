@@ -453,7 +453,8 @@ def test_load_scorer_rejects_an_unknown_failure_mode(tmp_path):
                     model_config=None, on_failure="fallbcak")
 
 
-def test_load_scorer_binds_the_device_onto_the_transcriber(tmp_path, monkeypatch):
+def test_load_scorer_binds_the_device_onto_the_transcriber(make_model_dir,
+                                                            monkeypatch):
     """--device must reach Transkun, not only the MoonBeam forward pass.
 
     transkun_cli shells out to an isolated env, so a device set on the caller's
@@ -471,17 +472,15 @@ def test_load_scorer_binds_the_device_onto_the_transcriber(tmp_path, monkeypatch
         seen["device"] = device
         return _NOTES, []
 
-    x, y = _training_data(dim=4)
-    head = fit_ridge_head(x, y, fallback_score=float(np.median(y)))
-    monkeypatch.setattr(sw, "read_ridge_head", lambda p: head)
+    model_dir = make_model_dir({"only": _head(dim=4)}, layout="legacy")
     monkeypatch.setattr(sw, "build_fold_embedder",
                         lambda *a, **k: (lambda notes: np.zeros(4)))
     monkeypatch.setattr(realaudio_check, "_import_transcribe_wav",
                         lambda: _fake_transcribe_wav)
 
-    scorer = sw.load_scorer(tmp_path, checkpoint=tmp_path, repo_root=tmp_path,
-                            model_config=tmp_path, device="cuda")
-    score, ok = scorer(tmp_path / "any.wav")
+    scorer = sw.load_scorer(model_dir, checkpoint=model_dir, repo_root=model_dir,
+                            model_config=model_dir, device="cuda")
+    score, ok = scorer(model_dir / "any.wav")
 
     assert ok and isinstance(score, float)
     assert seen["device"] == "cuda"
