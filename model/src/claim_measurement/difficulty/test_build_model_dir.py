@@ -236,3 +236,23 @@ def test_each_member_is_staged_under_its_source_directory_basename(tmp_path):
         member_dir = out / MEMBERS_SUBDIR / name
         assert (member_dir / ADAPTER_SUBDIR / "adapter_config.json").exists()
         assert (member_dir / HEAD_FILENAME).exists()
+
+
+def test_two_members_with_the_same_basename_are_refused(tmp_path):
+    """Silently overwriting one member with the other would ship a
+    four-member ensemble labelled five -- refuse before any files are
+    copied."""
+    import pytest
+
+    from claim_measurement.difficulty.build_model_dir import (
+        build_ensemble_model_dir,
+    )
+
+    artifact_a = _member_artifact(tmp_path / "a", "alldata_s2026", seed=0)
+    artifact_b = _member_artifact(tmp_path / "b", "alldata_s2026", seed=1)
+    out = tmp_path / "model"
+
+    with pytest.raises(ValueError, match="alldata_s2026"):
+        build_ensemble_model_dir([artifact_a, artifact_b], out)
+
+    assert not out.exists()

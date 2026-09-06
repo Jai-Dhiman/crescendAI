@@ -128,6 +128,16 @@ def build_ensemble_model_dir(member_artifact_dirs: list, out_dir: Path,
     out_dir = Path(out_dir)
     member_artifact_dirs = [Path(d) for d in member_artifact_dirs]
 
+    names = [d.name for d in member_artifact_dirs]
+    seen = set()
+    for name in names:
+        if name in seen:
+            raise ValueError(
+                f"two ensemble members share the basename {name!r} -- "
+                f"silently overwriting one with the other would ship a "
+                f"{len(names) - 1}-member ensemble labelled {len(names)}")
+        seen.add(name)
+
     for member_dir in member_artifact_dirs:
         emb_path = member_dir / f"emb_fold{ALL_DATA_FOLD}.npz"
         if not emb_path.exists():
