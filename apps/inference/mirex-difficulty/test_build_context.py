@@ -10,6 +10,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from build_context import CODE_FILES, DOCKER_FILES, build_context
@@ -79,3 +81,19 @@ def test_build_context_still_accepts_a_legacy_model_dir(tmp_path):
     assert report["out_dir"] == str(out_dir)
     assert (out_dir / "model" / "adapter" / "adapter_config.json").exists()
     assert (out_dir / "model" / "ridge_head.npz").exists()
+
+
+def test_build_context_refuses_a_model_dir_with_neither_layout(tmp_path):
+    stubs = _make_stub_tree(tmp_path)
+    model_dir = tmp_path / "model_dir"
+    model_dir.mkdir()
+
+    out_dir = tmp_path / "out"
+    with pytest.raises(FileNotFoundError) as excinfo:
+        build_context(out_dir=out_dir, model_dir=model_dir, **stubs)
+
+    message = str(excinfo.value)
+    assert "adapter" in message
+    assert "members" in message
+    # Fails before any of the ~1.6GB is copied.
+    assert not out_dir.exists()

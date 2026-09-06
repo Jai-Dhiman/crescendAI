@@ -92,9 +92,10 @@ RUN uv run --no-project --script \
     && echo "moonbeam env warm"
 
 # --- the model ------------------------------------------------------------
-# adapter/ + ridge_head.npz + manifest.json, plus the fork and checkpoint the
-# backbone loads against. The 1.6GB checkpoint is baked in rather than fetched:
-# a judged run must not depend on the Hub being reachable.
+# Either layout: legacy adapter/ + ridge_head.npz (K=1), or members/<name>/
+# adapter + ridge_head.npz for each of K ensemble members -- plus the fork and
+# checkpoint the backbone loads against. The 1.6GB checkpoint is baked in
+# rather than fetched: a judged run must not depend on the Hub being reachable.
 COPY model/    /app/model/
 COPY moonbeam/ /app/moonbeam/
 
