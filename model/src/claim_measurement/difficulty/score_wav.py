@@ -109,8 +109,19 @@ from claim_measurement.difficulty.audio_emb_extract import (  # noqa: E402
 ALPHAS = np.logspace(-1, 5, 25)
 
 ADAPTER_SUBDIR = "adapter"
+MEMBERS_SUBDIR = "members"
 HEAD_FILENAME = "ridge_head.npz"
 MANIFEST_FILENAME = "manifest.json"
+
+
+@dataclass(frozen=True)
+class MemberPaths:
+    """Where one ensemble member's on-disk artifacts live, before anything is
+    loaded off disk."""
+
+    name: str
+    adapter_dir: Path
+    head_path: Path
 
 
 # --------------------------------------------------------------------------
@@ -197,6 +208,24 @@ class EnsembleHead:
         # criterion -- do not reorder or vectorise into a different summation.
         return float(np.mean([h.predict(v)
                               for h, v in zip(self.members, vectors, strict=True)]))
+
+
+def discover_members(model_dir: Path) -> list:
+    """The ONE function that knows there are two on-disk layouts.
+
+        <model-dir>/members/<name>/adapter + ridge_head.npz   (K members)
+        <model-dir>/adapter + ridge_head.npz                  (legacy, K=1)
+
+    Sorted by name, because float addition is not associative and the mean over
+    members therefore depends on summation order -- two container runs must
+    reproduce bit-identically (#166).
+    """
+    model_dir = Path(model_dir)
+    members_root = model_dir / MEMBERS_SUBDIR
+    return [MemberPaths(name=d.name, adapter_dir=d / ADAPTER_SUBDIR,
+                        head_path=d / HEAD_FILENAME)
+            for d in sorted(members_root.iterdir(), key=lambda p: p.name)
+            if d.is_dir()]
 
 
 def fit_ridge_head(X, y, fallback_score: float, alphas=ALPHAS) -> RidgeHead:

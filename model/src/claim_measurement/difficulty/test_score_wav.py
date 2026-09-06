@@ -17,6 +17,7 @@ from claim_measurement.difficulty.score_wav import (
     ALPHAS,
     EnsembleHead,
     RidgeHead,
+    discover_members,
     fit_ridge_head,
     read_ridge_head,
     score_wav,
@@ -168,6 +169,21 @@ def test_a_vector_matrix_of_the_wrong_shape_is_refused():
 
     with pytest.raises(ValueError, match="2 members"):
         ensemble.predict(np.zeros((3, 4)))
+
+
+def test_members_are_discovered_in_sorted_order(make_model_dir):
+    """Float addition is not associative, so the mean over members depends on
+    summation order. Sorting by name (not directory-listing order, which is
+    filesystem-dependent) is what makes two container runs reproduce
+    bit-identically -- #166's determinism criterion."""
+    model_dir = make_model_dir({"s2030": _head(), "s2026": _head(),
+                                "s2028": _head()})
+
+    members = discover_members(model_dir)
+
+    assert [m.name for m in members] == ["s2026", "s2028", "s2030"]
+    assert members[0].adapter_dir == model_dir / "members" / "s2026" / "adapter"
+    assert members[0].head_path == model_dir / "members" / "s2026" / "ridge_head.npz"
 
 
 # --------------------------------------------------------------------------
