@@ -17,6 +17,8 @@ from claim_measurement.difficulty.push_runtime_probe import (
     wav_durations,
 )
 from claim_measurement.difficulty.runtime_probe import (
+    ADAPTER_REPOS,
+    _resolve_adapter_dirs,
     assemble_ensemble_model_dir,
     assemble_model_dir,
     build_transcriber,
@@ -272,3 +274,33 @@ def test_assemble_ensemble_model_dir_builds_the_members_layout(tmp_path):
     assert (dest / "members" / "s2026" / "adapter"
             / "adapter_config.json").exists()
     assert (dest / "members" / "s2027" / "ridge_head.npz").read_bytes() == b"s2027"
+
+
+def test_resolve_adapter_dirs_snapshots_all_five_repos_when_none_given():
+    """No --adapter-dir means the offline trio was not used, so all five
+    ensemble repos must be resolved off the Hub -- one snapshot call per
+    repo, matching ADAPTER_REPOS."""
+    calls = []
+
+    def fake_snapshot(repo, **kwargs):
+        calls.append((repo, kwargs))
+        return f"/cache/{repo.replace('/', '_')}"
+
+    resolved = _resolve_adapter_dirs(None, snapshot_fn=fake_snapshot)
+
+    assert [repo for repo, _ in calls] == ADAPTER_REPOS
+    assert len(resolved) == 5
+    assert resolved[0][0] == "phase1-lora-7665-alldata-s2026"
+    assert resolved[0][1] == Path("/cache/Jai-D_phase1-lora-7665-alldata-s2026")
+
+
+def test_resolve_adapter_dirs_uses_local_dirs_directly_without_a_snapshot():
+    """The offline trio must skip the Hub entirely -- a probe rehearsed
+    locally cannot depend on network access."""
+    def _forbidden(*_args, **_kwargs):
+        raise AssertionError("must not snapshot when --adapter-dir is given")
+
+    resolved = _resolve_adapter_dirs(
+        [Path("/local/a"), Path("/local/b")], snapshot_fn=_forbidden)
+
+    assert resolved == [("a", Path("/local/a")), ("b", Path("/local/b"))]

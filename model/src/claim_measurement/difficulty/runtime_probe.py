@@ -53,8 +53,29 @@ from pathlib import Path
 
 BUNDLE_REPO = "Jai-D/phase1-lora-bundle"
 ADAPTER_REPO = "Jai-D/phase1-lora-alldata"
+ADAPTER_REPOS = [f"Jai-D/phase1-lora-7665-alldata-s{i}" for i in range(2026, 2031)]
 CHECKPOINT_REPO = "guozixunnicolas/moonbeam-midi-foundation-model"
 CHECKPOINT_FILE = "moonbeam_839M.pt"
+
+
+def _resolve_adapter_dirs(adapter_dir_args, repos=ADAPTER_REPOS,
+                          snapshot_fn=None) -> list[tuple[str, Path]]:
+    """[(name, adapter_dir)] for the K ensemble members.
+
+    `adapter_dir_args` given (the offline trio) means those local dirs are
+    used directly and the Hub is never touched -- a probe rehearsed locally
+    cannot depend on network access. Otherwise each of `repos` is snapshotted,
+    one adapter per member, matching the K-member `members/` layout
+    `assemble_ensemble_model_dir` writes.
+    """
+    if adapter_dir_args:
+        return [(Path(d).name, Path(d)) for d in adapter_dir_args]
+    if snapshot_fn is None:
+        from huggingface_hub import snapshot_download
+        snapshot_fn = snapshot_download
+    return [(repo.rsplit("/", 1)[-1],
+             Path(snapshot_fn(repo, allow_patterns=["adapter/**"])))
+            for repo in repos]
 
 
 def fit_runtime(rows: list[dict]) -> dict:
@@ -193,8 +214,9 @@ def main(argv=None) -> int:
     # environment plumbing rather than on anything they were measuring, so the
     # whole path is rehearsable on CPU against local files first. Any of these
     # given skips the corresponding download.
-    ap.add_argument("--adapter-dir", type=Path, default=None,
-                    help="local dir holding adapter/, instead of the Hub repo")
+    ap.add_argument("--adapter-dir", type=Path, action="append", default=None,
+                    help="local dir holding adapter/, instead of the Hub "
+                         "repo. Repeatable: one per ensemble member")
     ap.add_argument("--repo-root", type=Path, default=None,
                     help="local MoonBeam fork checkout, instead of the bundle")
     ap.add_argument("--checkpoint", type=Path, default=None,
@@ -217,15 +239,24 @@ def main(argv=None) -> int:
         repo_root = Path(snapshot_download(
             BUNDLE_REPO, repo_type="dataset",
             allow_patterns=["moonbeam_repo/**"])) / "moonbeam_repo"
-    adapter_dir = (args.adapter_dir if args.adapter_dir is not None
-                   else Path(snapshot_download(ADAPTER_REPO,
-                                               allow_patterns=["adapter/**"])))
+    members = _resolve_adapter_dirs(args.adapter_dir,
+                                     snapshot_fn=snapshot_download)
     checkpoint = (args.checkpoint if args.checkpoint is not None
                   else Path(hf_hub_download(CHECKPOINT_REPO, CHECKPOINT_FILE)))
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    model_dir = assemble_model_dir(adapter_dir, probe_dir / "head",
-                                   args.out_dir / "model")
+    # The probe's single `head/` is shared across every member here: staging
+    # K per-member heads is push_runtime_probe.py's concern (#175 Task 22),
+    # not this measurement job's.
+    if len(members) == 1:
+        _, adapter_dir = members[0]
+        model_dir = assemble_model_dir(adapter_dir, probe_dir / "head",
+                                       args.out_dir / "model")
+    else:
+        model_dir = assemble_ensemble_model_dir(
+            [(name, adapter_dir, probe_dir / "head")
+             for name, adapter_dir in members],
+            args.out_dir / "model")
 
     from claim_measurement.difficulty.score_wav import load_scorer
 
