@@ -51,14 +51,34 @@ def _require(path: Path, what: str) -> Path:
     return path
 
 
+def _validate_model_dir(model_dir: Path) -> None:
+    """Duplicated from score_wav.discover_members's two-layout contract: this
+    module deliberately does not import score_wav (that would drag in
+    peft/torch into a plain-stdlib script). Accepts either layout so a
+    missing model is caught in seconds, before the ~1.6GB copy starts."""
+    has_legacy = ((model_dir / "adapter" / "adapter_config.json").exists()
+                  and (model_dir / "ridge_head.npz").exists())
+    members_root = model_dir / "members"
+    has_members = members_root.is_dir() and any(
+        (d / "adapter" / "adapter_config.json").exists()
+        and (d / "ridge_head.npz").exists()
+        for d in members_root.iterdir() if d.is_dir())
+
+    if not (has_legacy or has_members):
+        raise FileNotFoundError(
+            f"{model_dir} holds no adapter: expected either a legacy "
+            f"adapter/adapter_config.json + ridge_head.npz, or "
+            f"members/<name>/adapter/adapter_config.json + "
+            f"members/<name>/ridge_head.npz for at least one member")
+
+
 def build_context(out_dir: Path, difficulty_dir: Path, amt_dir: Path,
                   model_dir: Path, moonbeam_dir: Path, here: Path) -> dict:
     """Copy the context and return a small report. Every input is checked
     before anything is written, so a missing artifact fails in seconds rather
     than after copying 1.6GB."""
     out_dir = Path(out_dir)
-    _require(model_dir / "ridge_head.npz", "the ridge head")
-    _require(model_dir / "adapter" / "adapter_config.json", "the LoRA adapter")
+    _validate_model_dir(model_dir)
     _require(moonbeam_dir / "moonbeam_839M.pt", "the MoonBeam checkpoint")
     _require(moonbeam_dir / "repo" / "src" / "llama_recipes" / "configs"
              / "model_config.json", "the MoonBeam fork's 839M model config")
