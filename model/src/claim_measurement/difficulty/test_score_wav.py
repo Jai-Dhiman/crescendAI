@@ -15,6 +15,8 @@ import pytest
 
 from claim_measurement.difficulty.score_wav import (
     ALPHAS,
+    EnsembleHead,
+    RidgeHead,
     fit_ridge_head,
     read_ridge_head,
     score_wav,
@@ -34,6 +36,12 @@ def _training_data(n=120, dim=8, seed=0):
     X = rng.normal(size=(n, dim))
     y = X @ rng.normal(size=dim) + rng.normal(scale=0.1, size=n)
     return X, y
+
+
+def _head(dim=4, coef=1.0, fallback=5.0):
+    return RidgeHead(mean=np.zeros(dim), scale=np.ones(dim),
+                     coef=np.full(dim, coef), intercept=0.0,
+                     fallback_score=fallback)
 
 
 # --------------------------------------------------------------------------
@@ -104,6 +112,25 @@ def test_a_constant_feature_does_not_divide_by_zero():
 
     assert np.all(head.scale > 0)
     assert np.isfinite(head.predict(X[0]))
+
+
+# --------------------------------------------------------------------------
+# The ensemble: K RidgeHeads, scored as the mean of their predictions.
+# --------------------------------------------------------------------------
+
+
+def test_the_ensemble_score_is_the_mean_of_its_members_own_predictions():
+    """A #175 ensemble is not one shared head fit on pooled embeddings -- it is
+    K independently-fit heads, each scoring its own member's embedding, and the
+    ensemble score is the plain mean of those K numbers."""
+    heads = [_head(coef=1.0), _head(coef=2.0), _head(coef=3.0)]
+    vectors = np.array([[1.0, 0.0, 0.0, 0.0]] * 3)
+
+    ensemble = EnsembleHead.from_members(heads)
+
+    individually = [h.predict(v) for h, v in zip(heads, vectors, strict=True)]
+    assert ensemble.predict(vectors) == pytest.approx(float(np.mean(individually)))
+    assert ensemble.n_members == 3
 
 
 # --------------------------------------------------------------------------

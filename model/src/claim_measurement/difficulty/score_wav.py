@@ -149,6 +149,44 @@ class RidgeHead:
         return float(z @ self.coef + self.intercept)
 
 
+@dataclass(frozen=True)
+class EnsembleHead:
+    """K RidgeHeads, scored as the mean of their predictions.
+
+    K=1 is an EnsembleHead with one member, so `score_wav` has no
+    single-vs-ensemble branch -- the only code that interprets layout is
+    `discover_members`. Two scoring paths would mean the single-adapter path is
+    the tested one and the ensemble path is the one that ships, which is how a
+    submission-day divergence happens.
+    """
+
+    members: tuple
+
+    @classmethod
+    def from_members(cls, heads) -> "EnsembleHead":
+        return cls(members=tuple(heads))
+
+    @property
+    def n_members(self) -> int:
+        return len(self.members)
+
+    @property
+    def n_features(self) -> int:
+        return self.members[0].n_features
+
+    @property
+    def fallback_score(self) -> float:
+        return float(self.members[0].fallback_score)
+
+    def predict(self, vectors) -> float:
+        vectors = np.asarray(vectors, dtype=np.float64)
+        # A list comprehension in member order, then one np.mean. Float addition
+        # is not associative, so this order is part of #166's determinism
+        # criterion -- do not reorder or vectorise into a different summation.
+        return float(np.mean([h.predict(v)
+                              for h, v in zip(self.members, vectors, strict=True)]))
+
+
 def fit_ridge_head(X, y, fallback_score: float, alphas=ALPHAS) -> RidgeHead:
     """Fit the deployable head exactly as `ft_eval.oof_tau_per_fold` fits its
     per-fold ones -- same scaler, same RidgeCV, same alpha grid -- then flatten
