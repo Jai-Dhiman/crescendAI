@@ -70,9 +70,12 @@ which inject the transcriber and the embedder and never touch the fork.
 
 ## Model directory layout
 
-    <model-dir>/adapter/        the peft LoRA adapter (config + safetensors)
-    <model-dir>/ridge_head.npz  mean, scale, coef, intercept, fallback_score
-    <model-dir>/manifest.json   provenance: what trained it, what fit the head
+    <model-dir>/members/<name>/adapter + ridge_head.npz    (K-member ensemble)
+    <model-dir>/adapter + ridge_head.npz                   (legacy, one adapter)
+    <model-dir>/manifest.json                              provenance
+
+`discover_members` is the one function that knows both layouts exist; a legacy
+directory is an EnsembleHead with a single member, not a separate code path.
 
 Nothing here reports a tau-c. Per #104: the recipe is validated on folds; a
 model directory is a deployment of that recipe, and a number measured on one is
@@ -100,6 +103,7 @@ if _SRC_ROOT not in sys.path:
     sys.path.insert(0, _SRC_ROOT)
 
 from claim_measurement.difficulty.audio_emb_extract import (  # noqa: E402
+    build_ensemble_embedder,
     build_fold_embedder,
     write_notes_midi,
 )
@@ -289,16 +293,19 @@ def read_ridge_head(path: Path) -> RidgeHead:
 # --------------------------------------------------------------------------
 
 
-def score_wav(wav_path, transcribe, embed, head: RidgeHead) -> float:
+def score_wav(wav_path, transcribe, embed, head) -> float:
     """One WAV in, one real-valued difficulty score out.
 
     Raises on any failure -- this is the honest primitive. The container calls
     `score_wav_or_fallback` instead; see the module docstring for why that
     inversion is confined to the container.
 
-    `transcribe(wav_path) -> (notes, pedals)` and `embed(midi_path) -> vector`
+    `transcribe(wav_path) -> (notes, pedals)` and `embed(midi_path) -> vectors`
     are injected so the fast test suite never needs Transkun, the 1.6GB
     checkpoint, or the isolated env. `load_scorer` wires the real ones.
+    `head` is a `RidgeHead` or an `EnsembleHead` -- both duck-type `.predict()`
+    and `.fallback_score`, and `embed` returns a matching 1-D vector or a
+    (K, D) matrix.
     """
     wav_path = Path(wav_path)
     notes, _pedals = transcribe(wav_path)
@@ -315,10 +322,10 @@ def score_wav(wav_path, transcribe, embed, head: RidgeHead) -> float:
     with tempfile.TemporaryDirectory() as tmp:
         midi_path = Path(tmp) / "piece.mid"
         write_notes_midi(notes, midi_path)
-        vector = embed(midi_path)
+        vectors = embed(midi_path)
 
-    vector = np.asarray(vector, dtype=np.float64).reshape(-1)
-    if not np.all(np.isfinite(vector)):
+    vectors = np.asarray(vectors, dtype=np.float64)
+    if not np.all(np.isfinite(vectors)):
         # Deliberately NOT nan_to_num'd. ft_eval nan_to_num's features37
         # because hand features are legitimately undefined sometimes; a
         # non-finite MoonBeam embedding means the backbone produced garbage,
@@ -326,15 +333,15 @@ def score_wav(wav_path, transcribe, embed, head: RidgeHead) -> float:
         # pass.
         raise ValueError(
             f"{wav_path} produced a non-finite embedding "
-            f"({int((~np.isfinite(vector)).sum())} of {vector.size} entries)")
+            f"({int((~np.isfinite(vectors)).sum())} of {vectors.size} entries)")
 
-    score = head.predict(vector)
+    score = head.predict(vectors)
     if not math.isfinite(score):
         raise ValueError(f"{wav_path} produced a non-finite score: {score!r}")
     return score
 
 
-def score_wav_or_fallback(wav_path, transcribe, embed, head: RidgeHead,
+def score_wav_or_fallback(wav_path, transcribe, embed, head,
                           log=None) -> tuple[float, bool]:
     """The container's entry point. Returns `(score, ok)`; never raises.
 
@@ -362,20 +369,24 @@ def load_scorer(model_dir: Path, checkpoint: Path, repo_root: Path,
     plausible-looking median score and we ship the bug. `"fallback"` is the
     submission-day setting the >5% clause requires.
 
-    The 839M backbone and the LoRA adapter are loaded ONCE and closed over --
-    reloading per item would dominate the 24h budget. `build_fold_embedder` is
-    reused rather than reimplemented: it owns the loader -> stub -> peft import
-    order (peft binds transformers at import, so a wrong order silently skips
-    the model stubs) and the `.eval()` that keeps `lora_dropout=0.05` from
-    making every score a fresh random draw.
+    The 839M backbone is loaded ONCE and all K adapters `discover_members`
+    finds attach to that single resident base and are closed over -- reloading
+    per item, or per member, would dominate the 24h budget.
+    `build_ensemble_embedder` is reused rather than reimplemented: it owns the
+    loader -> stub -> peft import order (peft binds transformers at import, so
+    a wrong order silently skips the model stubs) and the `.eval()` that keeps
+    `lora_dropout=0.05` from making every score a fresh random draw.
     """
     if on_failure not in ("raise", "fallback"):
         raise ValueError(
             f"on_failure must be 'raise' or 'fallback', got {on_failure!r}")
     model_dir = Path(model_dir)
-    head = read_ridge_head(model_dir / HEAD_FILENAME)
-    embed = build_fold_embedder(model_dir / ADAPTER_SUBDIR, checkpoint,
-                                repo_root, model_config, device=device)
+    members = discover_members(model_dir)
+    head = EnsembleHead.from_members(
+        [read_ridge_head(m.head_path) for m in members])
+    embed = build_ensemble_embedder(
+        [m.adapter_dir for m in members], checkpoint, repo_root, model_config,
+        device=device, names=[m.name for m in members])
     if transcribe is None:
         from claim_measurement.difficulty.realaudio_check import (
             _import_transcribe_wav,

@@ -310,6 +310,27 @@ def test_scoring_the_same_wav_twice_gives_a_bit_identical_score(tmp_path):
     assert first == second
 
 
+def test_a_wav_is_transcribed_once_no_matter_how_many_members(tmp_path):
+    """Transcription owns the linear runtime term (0.036x realtime).
+    Transcribing per member would be a ~5x regression on the dominant cost and
+    put the 24h/1-GPU exclusion clause in play."""
+    wav = tmp_path / "piece.wav"
+    wav.write_bytes(b"")
+    calls, embed_calls = [], []
+
+    def embed(midi_path):
+        embed_calls.append(midi_path)
+        return np.array([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]])
+
+    head = EnsembleHead.from_members([_head(coef=1.0), _head(coef=3.0)])
+
+    score = score_wav(wav, _fake_transcribe(calls), embed, head)
+
+    assert len(calls) == 1, "one WAV, one transcription"
+    assert len(embed_calls) == 1, "one WAV, one embed call for all members"
+    assert score == pytest.approx((1.0 + 3.0) / 2)
+
+
 # --------------------------------------------------------------------------
 # The failure-policy INVERSION -- container-only. >5% item failures excludes
 # the submission from ranking, so a raise here costs the whole submission.
@@ -473,8 +494,8 @@ def test_load_scorer_binds_the_device_onto_the_transcriber(make_model_dir,
         return _NOTES, []
 
     model_dir = make_model_dir({"only": _head(dim=4)}, layout="legacy")
-    monkeypatch.setattr(sw, "build_fold_embedder",
-                        lambda *a, **k: (lambda notes: np.zeros(4)))
+    monkeypatch.setattr(sw, "build_ensemble_embedder",
+                        lambda *a, **k: (lambda notes: np.zeros((1, 4))))  # noqa: ARG005
     monkeypatch.setattr(realaudio_check, "_import_transcribe_wav",
                         lambda: _fake_transcribe_wav)
 
