@@ -24,6 +24,7 @@ from claim_measurement.difficulty.runtime_probe import (
     assemble_model_dir,
     build_transcriber,
     fit_runtime,
+    member_head_dirs,
     project_budget,
 )
 
@@ -401,6 +402,31 @@ def test_assemble_ensemble_model_dir_builds_the_members_layout(tmp_path):
     assert (dest / "members" / "s2026" / "adapter"
             / "adapter_config.json").exists()
     assert (dest / "members" / "s2027" / "ridge_head.npz").read_bytes() == b"s2027"
+
+
+def test_member_head_dirs_reads_the_named_layout_not_a_shared_flat_head(
+        tmp_path):
+    """`main()` used to pass `probe_dir / "head"` for every K>1 member --
+    the legacy K=1 flat layout -- while `push_runtime_probe.py` stages
+    `head/<name>/` whenever it is given more than one `--head-dir`. Rehearsing
+    #175 Task 24 locally (build_model_dir -> push_runtime_probe --no-upload ->
+    runtime_probe --adapter-dir x5) hit this directly: the flat path does not
+    exist for K>1, so the job would crash on file copy before scoring a single
+    item -- a paid GPU job burned on plumbing, exactly what the offline
+    rehearsal exists to catch."""
+    probe_dir = tmp_path / "probe"
+    (probe_dir / "head" / "s2026").mkdir(parents=True)
+    (probe_dir / "head" / "s2027").mkdir(parents=True)
+
+    members = [("s2026", tmp_path / "adapter_s2026"),
+              ("s2027", tmp_path / "adapter_s2027")]
+
+    resolved = member_head_dirs(probe_dir, members)
+
+    assert resolved == [
+        ("s2026", tmp_path / "adapter_s2026", probe_dir / "head" / "s2026"),
+        ("s2027", tmp_path / "adapter_s2027", probe_dir / "head" / "s2027"),
+    ]
 
 
 def test_resolve_adapter_dirs_snapshots_all_five_repos_when_none_given():

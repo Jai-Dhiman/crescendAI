@@ -143,6 +143,23 @@ def build_transcriber(probe_dir: Path, device: str):
     return functools.partial(transkun_cli.transcribe_wav, device=device)
 
 
+def member_head_dirs(probe_dir: Path,
+                     members: list[tuple[str, Path]]) -> list[tuple[str, Path, Path]]:
+    """[(name, adapter_dir, head_dir)] for K>1 members.
+
+    `push_runtime_probe.py` stages one `probe_dir/head/<name>/` per member
+    whenever it is given more than one `--head-dir` -- each member was fit on
+    its OWN run's embeddings and never pooled, so there is no single shared
+    head to fall back to. A caller that used `probe_dir/head` for every
+    member here would either crash on file copy (the named subdirectories are
+    not there) or, if a flat `head/` happened to exist too, silently score
+    every member through one arbitrary member's ridge head instead of its
+    own -- caught rehearsing #175 Task 24 locally before it could burn a paid
+    GPU job."""
+    return [(name, adapter_dir, probe_dir / "head" / name)
+            for name, adapter_dir in members]
+
+
 def _copy_member(adapter_dir: Path, head_dir: Path, dest: Path) -> None:
     """One member's adapter/ + ridge_head.npz/manifest.json, copied into
     `dest`. Shared by the legacy single-adapter layout and the K-member
@@ -244,18 +261,19 @@ def main(argv=None) -> int:
                   else Path(hf_hub_download(CHECKPOINT_REPO, CHECKPOINT_FILE)))
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    # The probe's single `head/` is shared across every member here: staging
-    # K per-member heads is push_runtime_probe.py's concern (#175 Task 22),
-    # not this measurement job's.
+    # K==1 keeps the legacy flat `head/` layout `assemble_model_dir` expects.
+    # K>1 must read `head/<name>/`, matching what push_runtime_probe.py
+    # stages when given more than one `--head-dir` -- each member was fit on
+    # its OWN run's embeddings, never pooled, so sharing one flat `head/`
+    # across all K members would silently score every member through one
+    # arbitrary member's ridge head instead of failing loudly.
     if len(members) == 1:
         _, adapter_dir = members[0]
         model_dir = assemble_model_dir(adapter_dir, probe_dir / "head",
                                        args.out_dir / "model")
     else:
         model_dir = assemble_ensemble_model_dir(
-            [(name, adapter_dir, probe_dir / "head")
-             for name, adapter_dir in members],
-            args.out_dir / "model")
+            member_head_dirs(probe_dir, members), args.out_dir / "model")
 
     from claim_measurement.difficulty.score_wav import load_scorer
 
