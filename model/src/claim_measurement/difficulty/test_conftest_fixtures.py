@@ -19,3 +19,11 @@ def test_the_fixture_writes_a_readable_two_member_directory(make_model_dir):
         assert (member / "adapter" / "adapter_config.json").exists()
         np.testing.assert_array_equal(
             read_ridge_head(member / "ridge_head.npz").coef, np.full(4, expected))
+
+
+def test_the_fixture_can_also_write_the_legacy_single_adapter_layout(make_model_dir):
+    model_dir = make_model_dir({"only": _head()}, layout="legacy")
+
+    assert (model_dir / "adapter" / "adapter_config.json").exists()
+    assert (model_dir / "ridge_head.npz").exists()
+    assert not (model_dir / "members").exists()
