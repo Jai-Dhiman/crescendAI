@@ -213,6 +213,29 @@ def test_the_base_backbone_is_loaded_once_for_all_members(tmp_path):
     assert vectors.shape == (2, 4)
 
 
+def test_switching_adapters_actually_changes_the_embedding(tmp_path):
+    """A pinning test: if set_adapter silently no-ops, every ensemble member
+    would score identically and the ensemble would be a single model wearing
+    a costume. init_lora_weights=False gives non-zero B matrices (PEFT's
+    default zeros B, making every adapter a mathematical identity transform),
+    so two differently-seeded adapters must diverge if switching works."""
+    dirs = [tmp_path / "a" / "adapter", tmp_path / "b" / "adapter"]
+    for seed, d in enumerate(dirs):
+        torch.manual_seed(seed)
+        _save_fake_adapter(d, init_lora_weights=False)  # non-zero B matrices
+
+    midi_path = tmp_path / "piece.mid"
+    write_notes_midi(_NOTES, midi_path)
+    embed = build_ensemble_embedder(dirs, checkpoint=None, repo_root=None,
+                                    model_config=None,
+                                    loader_factory=_fake_loader_factory)
+
+    vectors = embed(midi_path)
+
+    assert not np.allclose(vectors[0], vectors[1]), (
+        "both members produced the same embedding -- set_adapter did not switch")
+
+
 def test_peft_is_imported_only_after_the_loader_puts_the_fork_on_sys_path():
     """Ordering contract, asserted on the source because the order IS the
     contract: loader_factory installs the fork's PARTIAL vendored transformers
