@@ -326,6 +326,36 @@ def test_writing_the_legacy_layout_clears_a_stale_members_tree(tmp_path):
     assert not (out / "members").exists()
 
 
+def test_rebuilding_with_fewer_members_drops_the_stale_ones(tmp_path):
+    """Rebuilding an ensemble with a smaller (or renamed) member set must not
+    leave prior members/<name>/ dirs behind -- discover_members walks the
+    whole members/ tree, so a stale leftover from an earlier, possibly
+    different training run would silently rejoin the ensemble. That ships a
+    plausible-looking "3-member" directory that is actually mixing in two
+    members nobody asked for."""
+    from claim_measurement.difficulty.build_model_dir import (
+        build_ensemble_model_dir,
+    )
+    from claim_measurement.difficulty.score_wav import MEMBERS_SUBDIR
+
+    out = tmp_path / "model"
+    stale_names = ["s2026", "s2027", "s2028", "s2029", "s2030"]
+    stale_artifacts = [
+        _member_artifact(tmp_path / "stale", name, seed=0) for name in stale_names
+    ]
+    build_ensemble_model_dir(stale_artifacts, out)
+    assert {p.name for p in (out / MEMBERS_SUBDIR).iterdir()} == set(stale_names)
+
+    fresh_artifacts = [
+        _member_artifact(tmp_path / "fresh", name, seed=1)
+        for name in ("s2026", "s2027", "s2028")
+    ]
+    build_ensemble_model_dir(fresh_artifacts, out)
+
+    assert {p.name for p in (out / MEMBERS_SUBDIR).iterdir()} == {
+        "s2026", "s2027", "s2028"}
+
+
 def test_from_ensemble_cli_writes_a_manifest_disclosing_member_count(tmp_path):
     """MIREX 2026 makes training-data size, model size, and compute a
     mandatory disclosure -- a five-member ensemble is five times the

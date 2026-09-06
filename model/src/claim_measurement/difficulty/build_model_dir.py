@@ -156,6 +156,13 @@ def build_ensemble_model_dir(member_artifact_dirs: list, out_dir: Path,
     if legacy_head.exists():
         legacy_head.unlink()
 
+    # A stale members/ tree from a prior build with a different (e.g.
+    # smaller, or renamed) member set would leave old member dirs behind --
+    # discover_members would silently fold them back into the "new" ensemble.
+    members_root = out_dir / MEMBERS_SUBDIR
+    if members_root.exists():
+        shutil.rmtree(members_root)
+
     for member_dir in member_artifact_dirs:
         emb_path = member_dir / f"emb_fold{ALL_DATA_FOLD}.npz"
         if not emb_path.exists():
