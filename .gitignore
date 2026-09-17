@@ -195,3 +195,11 @@ paper/
 .codex/
 AGENTS.md
 CLAUDE.md
+
+# ISMIR LaTeX build artifacts for the MIREX technical report (#171). The .tex
+# and the final .pdf are tracked; the intermediates are not.
+docs/mirex/technical-report/*.aux
+docs/mirex/technical-report/*.log
+docs/mirex/technical-report/*.out
+docs/mirex/technical-report/*.bbl
+docs/mirex/technical-report/*.blg

@@ -44,7 +44,12 @@
 # rather than PyPI. UV_OFFLINE=1 at runtime turns a cache miss into a loud
 # failure instead of a silent network call that may hang against the 24h budget.
 
-FROM python:3.12-slim AS runtime
+# PINNED, not `python:3.12-slim`. That tag is a floating alias: it pointed at
+# Debian 12 (bookworm) and now resolves to Debian 13 (trixie), so an unpinned
+# base means the OS this README declares can change under a rebuild, and the
+# submission image is not reproducible. Verified against docker-library's
+# official-images manifest on 2026-09-17: `3.12-slim` == `3.12.14-slim-trixie`.
+FROM python:3.12.14-slim-trixie AS runtime
 
 # build-essential is required, not defensive: transkun depends on `ncls`, which
 # ships no wheel for every platform and falls back to compiling from source.
