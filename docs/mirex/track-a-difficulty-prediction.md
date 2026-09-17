@@ -67,7 +67,7 @@ Recorded because the gap is larger than it looks, and none of it is cosmetic.
 
 | | MIREX | Us, today |
 |---|---|---|
-| Model | one submitted container (OUR paraphrase — the contract constrains the OUTPUT to one float, NOT the system to one model; ensembles are unrestricted, verified 2026-09-06) | **5 per-fold LoRA adapters + 5 per-fold ridge heads** — no single deployable model exists |
+| Model | one submitted container (OUR paraphrase — the contract constrains the OUTPUT to one float, NOT the system to one model; ensembles are unrestricted, verified 2026-09-06) | **5 per-fold LoRA adapters + 5 per-fold ridge heads, wired into a deployable K=5 prediction-mean ensemble model directory (#175)** |
 | Interface | `WAV path → float`, in Docker | research harness reading a pre-transcribed MIDI cache; **no `predict(wav)` anywhere in the repo** |
 | Test set | fixed, private, new repertoire | 5-fold CV *inside* PSyllabus |
 | Audio per piece | 1 human + 1 fixed-soundfont synthesis | 1 YouTube recording; the manifest has 7,901 keys / 7,901 recordings, **max 1 each** |
