@@ -107,11 +107,19 @@ ENV MIREX_MODEL_CONFIG=/app/moonbeam/repo/src/llama_recipes/configs/model_config
 # set, which an 839M CPU forward pass per piece does not fit. Override with
 # `-e MIREX_DEVICE=cpu` to exercise the container on a machine without a GPU.
 ENV MIREX_DEVICE=cuda
-# raise while the system is still being built -- a fallback here turns a real
-# bug into a plausible-looking median score and we ship the bug. Flip to
-# `fallback` for the actual submission, when the contract's >5%-of-items
-# exclusion clause dominates. The integration suite covers both.
-ENV MIREX_ON_FAILURE=raise
+# fallback, and this is the ONE place the repo's loud-failure rule inverts.
+# Everywhere else a silent fallback hides a bug; here the contract excludes any
+# submission "failing on >5% of items" from ranking, so an uncaught exception on
+# a handful of test pieces costs the entire submission. The fallback is loud but
+# not fatal: it emits the corpus median and logs SCORE_FAILURE to stderr, so a
+# real problem is still visible in the judge's log.
+#
+# This was `raise` for as long as the system was being built. It flipped for the
+# submission image (#171) rather than on submission day, so that the rebuild and
+# the container suite exercise the configuration that actually ships. Override
+# with `-e MIREX_ON_FAILURE=raise` when debugging -- that is what the container
+# tests do to prove a real failure is still reachable.
+ENV MIREX_ON_FAILURE=fallback
 # A cache miss must fail loudly rather than silently reaching PyPI mid-run.
 ENV UV_OFFLINE=1
 
@@ -119,5 +127,9 @@ COPY predict.sh /app/predict.sh
 RUN chmod +x /app/predict.sh
 
 # The standardised interface: `docker run <image> /path/to/piece.wav` prints one
-# real-valued score on stdout and nothing else.
+# real-valued score on stdout and nothing else. predict.sh also accepts several
+# paths, a directory, `--wav-list <file>`, a list on stdin (`-`), and
+# `--format csv` for '<path>,<score>' output -- the task page specifies the
+# contract but not the calling convention, and a container that cannot be
+# invoked is excluded from ranking. See predict.sh's header.
 ENTRYPOINT ["/app/predict.sh"]

@@ -87,25 +87,48 @@ def test_batching_returns_one_score_per_input_in_order():
     assert all(-5.0 < float(s) < 20.0 for s in scores)
 
 
-def test_the_container_defaults_to_failing_loudly():
-    """The image ships MIREX_ON_FAILURE=raise while the system is still being
-    built: a fallback would turn a real bug into a plausible median score. This
-    asserts the DEFAULT baked into the image, so a later flip is deliberate."""
+def test_the_container_defaults_to_a_loud_but_non_fatal_fallback():
+    """The image ships MIREX_ON_FAILURE=fallback (#171). This asserts the
+    DEFAULT baked in, because it is the one setting where the repo's
+    loud-failure rule inverts: the contract excludes any submission "failing on
+    >5% of items", so a single uncaught exception can cost the submission. Loud
+    but non-fatal -- a median score on stdout, SCORE_FAILURE on stderr."""
     result = subprocess.run(
         ["docker", "run", "--rm", "-e", "MIREX_DEVICE=cpu",
          "-v", f"{WAV_DIR}:/wav:ro", IMAGE, "/wav/does_not_exist.wav"],
         capture_output=True, text=True, timeout=TIMEOUT_S)
 
-    assert result.returncode != 0, "the shipped default must not swallow failures"
-    assert result.stdout.strip() == "", "a failed item must print no score"
-
-
-def test_the_submission_day_flag_emits_a_fallback_score():
-    """Covered now so flipping MIREX_ON_FAILURE at the deadline -- when the
-    contract's >5%-of-items exclusion clause dominates -- is a one-word change
-    with a passing test behind it."""
-    result = _run(["/wav/does_not_exist.wav"], on_failure="fallback")
-
-    assert result.returncode == 0
+    assert result.returncode == 0, result.stderr[-3000:]
     assert float(result.stdout.strip()) == pytest.approx(5.0)
     assert "SCORE_FAILURE" in result.stderr, "the fallback must stay LOUD"
+
+
+def test_a_real_failure_is_still_reachable_for_debugging():
+    """The flip to fallback must not make genuine breakage unobservable: with
+    `-e MIREX_ON_FAILURE=raise` a bad item still aborts the run. Without this,
+    a wiring mistake during the final rebuild would read as a clean run of
+    median scores."""
+    result = _run(["/wav/does_not_exist.wav"], on_failure="raise")
+
+    assert result.returncode != 0
+    assert result.stdout.strip() == "", "a raised failure must print no score"
+
+
+def test_a_directory_of_wavs_is_accepted_as_one_invocation():
+    """#171: the invocation shape is unspecified by the task page and the
+    captains have not answered, so the container accepts a directory as well as
+    explicit paths. Batching in one invocation also matters for the 24h budget,
+    since every process start reloads the 839M backbone."""
+    n_wavs = len(list(WAV_DIR.glob("*.wav")))
+    if n_wavs < 2:
+        pytest.skip("need at least two WAVs to test directory input")
+
+    result = _run(["--format", "csv", "/wav"])
+
+    assert result.returncode == 0, result.stderr[-3000:]
+    lines = result.stdout.strip().split("\n")
+    assert len(lines) == n_wavs
+    for line in lines:
+        path, score = line.rsplit(",", 1)
+        assert path.startswith("/wav/")
+        assert -5.0 < float(score) < 20.0
