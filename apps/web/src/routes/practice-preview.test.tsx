@@ -27,4 +27,34 @@ describe("PracticePreview", () => {
 		render(<PracticePreview />);
 		expect(screen.getByTestId("session-timeline")).toBeInTheDocument();
 	});
+
+	it("renders the review-ready fixture section with the verdict and carry-forward", async () => {
+		vi.stubEnv("DEV", true);
+		const { PracticePreview } = await import("./practice-preview");
+		render(<PracticePreview />);
+
+		expect(
+			screen.getByTestId("practice-mode-review-preview"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText(/bass-blur from Tuesday is gone/),
+		).toBeInTheDocument();
+		expect(screen.getByText(/Start with bars 40-44/)).toBeInTheDocument();
+	});
+
+	it("renders the review-failed fixture section with an explicit retry state", async () => {
+		vi.stubEnv("DEV", true);
+		const { PracticePreview } = await import("./practice-preview");
+		render(<PracticePreview />);
+
+		expect(
+			screen.getByTestId("practice-mode-review-failed-preview"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText(/Couldn't put together a review this time/),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /try again/i }),
+		).toBeInTheDocument();
+	});
 });

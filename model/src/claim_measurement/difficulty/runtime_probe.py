@@ -52,9 +52,29 @@ import time
 from pathlib import Path
 
 BUNDLE_REPO = "Jai-D/phase1-lora-bundle"
-ADAPTER_REPO = "Jai-D/phase1-lora-alldata"
+ADAPTER_REPOS = [f"Jai-D/phase1-lora-7665-alldata-s{i}" for i in range(2026, 2031)]
 CHECKPOINT_REPO = "guozixunnicolas/moonbeam-midi-foundation-model"
 CHECKPOINT_FILE = "moonbeam_839M.pt"
+
+
+def _resolve_adapter_dirs(adapter_dir_args, repos=ADAPTER_REPOS,
+                          snapshot_fn=None) -> list[tuple[str, Path]]:
+    """[(name, adapter_dir)] for the K ensemble members.
+
+    `adapter_dir_args` given (the offline trio) means those local dirs are
+    used directly and the Hub is never touched -- a probe rehearsed locally
+    cannot depend on network access. Otherwise each of `repos` is snapshotted,
+    one adapter per member, matching the K-member `members/` layout
+    `assemble_ensemble_model_dir` writes.
+    """
+    if adapter_dir_args:
+        return [(Path(d).name, Path(d)) for d in adapter_dir_args]
+    if snapshot_fn is None:
+        from huggingface_hub import snapshot_download
+        snapshot_fn = snapshot_download
+    return [(repo.rsplit("/", 1)[-1],
+             Path(snapshot_fn(repo, allow_patterns=["adapter/**"])))
+            for repo in repos]
 
 
 def fit_runtime(rows: list[dict]) -> dict:
@@ -123,6 +143,32 @@ def build_transcriber(probe_dir: Path, device: str):
     return functools.partial(transkun_cli.transcribe_wav, device=device)
 
 
+def member_head_dirs(probe_dir: Path,
+                     members: list[tuple[str, Path]]) -> list[tuple[str, Path, Path]]:
+    """[(name, adapter_dir, head_dir)] for K>1 members.
+
+    `push_runtime_probe.py` stages one `probe_dir/head/<name>/` per member
+    whenever it is given more than one `--head-dir` -- each member was fit on
+    its OWN run's embeddings and never pooled, so there is no single shared
+    head to fall back to. A caller that used `probe_dir/head` for every
+    member here would either crash on file copy (the named subdirectories are
+    not there) or, if a flat `head/` happened to exist too, silently score
+    every member through one arbitrary member's ridge head instead of its
+    own -- caught rehearsing #175 Task 24 locally before it could burn a paid
+    GPU job."""
+    return [(name, adapter_dir, probe_dir / "head" / name)
+            for name, adapter_dir in members]
+
+
+def _copy_member(adapter_dir: Path, head_dir: Path, dest: Path) -> None:
+    """One member's adapter/ + ridge_head.npz/manifest.json, copied into
+    `dest`. Shared by the legacy single-adapter layout and the K-member
+    `members/` layout so the two never drift apart."""
+    shutil.copytree(adapter_dir / "adapter", dest / "adapter")
+    for name in ("ridge_head.npz", "manifest.json"):
+        shutil.copy2(head_dir / name, dest / name)
+
+
 def assemble_model_dir(adapter_dir: Path, head_dir: Path, dest: Path) -> Path:
     """load_scorer wants ONE directory holding `adapter/` + `ridge_head.npz`.
 
@@ -130,14 +176,37 @@ def assemble_model_dir(adapter_dir: Path, head_dir: Path, dest: Path) -> Path:
     repo, the head is 46KB that exists only in the checkout -- so they are
     joined here rather than by re-uploading one into the other's repo, which
     would make two copies of the adapter that can drift apart.
+
+    This is the K=1 (legacy) layout, pinned by
+    `test_assemble_model_dir_joins_the_two_hub_halves` -- the K=1 probe is the
+    baseline every ensemble measurement is compared against, so its shape must
+    not change. See `assemble_ensemble_model_dir` for K>1.
     """
     dest = Path(dest)
     if dest.exists():
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
-    shutil.copytree(adapter_dir / "adapter", dest / "adapter")
-    for name in ("ridge_head.npz", "manifest.json"):
-        shutil.copy2(head_dir / name, dest / name)
+    _copy_member(adapter_dir, head_dir, dest)
+    return dest
+
+
+def assemble_ensemble_model_dir(
+    members: list[tuple[str, Path, Path]], dest: Path
+) -> Path:
+    """The K-member counterpart of `assemble_model_dir`: writes
+    `<dest>/members/<name>/adapter` + `ridge_head.npz` for each
+    `(name, adapter_dir, head_dir)` in `members`, matching the layout
+    `discover_members` (score_wav.py) reads for K>1.
+    """
+    dest = Path(dest)
+    if dest.exists():
+        shutil.rmtree(dest)
+    members_root = dest / "members"
+    members_root.mkdir(parents=True)
+    for name, adapter_dir, head_dir in members:
+        member_dest = members_root / name
+        member_dest.mkdir(parents=True)
+        _copy_member(adapter_dir, head_dir, member_dest)
     return dest
 
 
@@ -161,8 +230,9 @@ def main(argv=None) -> int:
     # environment plumbing rather than on anything they were measuring, so the
     # whole path is rehearsable on CPU against local files first. Any of these
     # given skips the corresponding download.
-    ap.add_argument("--adapter-dir", type=Path, default=None,
-                    help="local dir holding adapter/, instead of the Hub repo")
+    ap.add_argument("--adapter-dir", type=Path, action="append", default=None,
+                    help="local dir holding adapter/, instead of the Hub "
+                         "repo. Repeatable: one per ensemble member")
     ap.add_argument("--repo-root", type=Path, default=None,
                     help="local MoonBeam fork checkout, instead of the bundle")
     ap.add_argument("--checkpoint", type=Path, default=None,
@@ -185,15 +255,25 @@ def main(argv=None) -> int:
         repo_root = Path(snapshot_download(
             BUNDLE_REPO, repo_type="dataset",
             allow_patterns=["moonbeam_repo/**"])) / "moonbeam_repo"
-    adapter_dir = (args.adapter_dir if args.adapter_dir is not None
-                   else Path(snapshot_download(ADAPTER_REPO,
-                                               allow_patterns=["adapter/**"])))
+    members = _resolve_adapter_dirs(args.adapter_dir,
+                                     snapshot_fn=snapshot_download)
     checkpoint = (args.checkpoint if args.checkpoint is not None
                   else Path(hf_hub_download(CHECKPOINT_REPO, CHECKPOINT_FILE)))
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    model_dir = assemble_model_dir(adapter_dir, probe_dir / "head",
-                                   args.out_dir / "model")
+    # K==1 keeps the legacy flat `head/` layout `assemble_model_dir` expects.
+    # K>1 must read `head/<name>/`, matching what push_runtime_probe.py
+    # stages when given more than one `--head-dir` -- each member was fit on
+    # its OWN run's embeddings, never pooled, so sharing one flat `head/`
+    # across all K members would silently score every member through one
+    # arbitrary member's ridge head instead of failing loudly.
+    if len(members) == 1:
+        _, adapter_dir = members[0]
+        model_dir = assemble_model_dir(adapter_dir, probe_dir / "head",
+                                       args.out_dir / "model")
+    else:
+        model_dir = assemble_ensemble_model_dir(
+            member_head_dirs(probe_dir, members), args.out_dir / "model")
 
     from claim_measurement.difficulty.score_wav import load_scorer
 

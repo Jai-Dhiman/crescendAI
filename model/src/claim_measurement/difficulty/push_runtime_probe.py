@@ -97,26 +97,46 @@ def select_probe_set(durations: list[tuple[str, float]],
     return chosen
 
 
-def stage_probe_bundle(wav_dir: Path, head_dir: Path, module_dir: Path,
-                       staging_dir: Path, selection: list[dict]) -> dict:
-    """Materialise wav/ + head/ + code/ + manifest.json. Returns the report."""
-    staging_dir = Path(staging_dir)
-    if staging_dir.exists():
-        shutil.rmtree(staging_dir)
-    (staging_dir / "wav").mkdir(parents=True)
-    (staging_dir / "head").mkdir()
-    (staging_dir / "code").mkdir()
-
-    for row in selection:
-        shutil.copy2(wav_dir / row["wav"], staging_dir / "wav" / row["wav"])
-
+def _stage_one_head(head_dir: Path, head_dest: Path) -> None:
+    """ridge_head.npz + manifest.json, copied from `head_dir` into
+    `head_dest`. Shared by the single-head and K-head layouts so neither can
+    drift out of sync with the other."""
+    head_dest.mkdir(parents=True)
     for name in ("ridge_head.npz", "manifest.json"):
         src = head_dir / name
         if not src.exists():
             raise FileNotFoundError(
                 f"the submission head is incomplete: {src} is missing. "
                 "Build it with build_model_dir.py before staging a probe.")
-        shutil.copy2(src, staging_dir / "head" / name)
+        shutil.copy2(src, head_dest / name)
+
+
+def stage_probe_bundle(wav_dir: Path, head_dir: Path | None, module_dir: Path,
+                       staging_dir: Path, selection: list[dict],
+                       head_dirs: dict[str, Path] | None = None) -> dict:
+    """Materialise wav/ + head/ + code/ + manifest.json. Returns the report.
+
+    `head_dir` (single) is the layout `test_staged_code_is_an_importable_
+    package_tree` pins and stays unchanged. `head_dirs`, given instead, stages
+    one `head/<name>/ridge_head.npz` per K-member ensemble entry -- pass
+    exactly one of the two.
+    """
+    if (head_dir is None) == (head_dirs is None):
+        raise ValueError("pass exactly one of head_dir or head_dirs")
+    staging_dir = Path(staging_dir)
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir)
+    (staging_dir / "wav").mkdir(parents=True)
+    (staging_dir / "code").mkdir()
+
+    for row in selection:
+        shutil.copy2(wav_dir / row["wav"], staging_dir / "wav" / row["wav"])
+
+    if head_dirs is not None:
+        for name, one_head_dir in head_dirs.items():
+            _stage_one_head(one_head_dir, staging_dir / "head" / name)
+    elif head_dir is not None:
+        _stage_one_head(head_dir, staging_dir / "head")
 
     # The whole package, .py only: 46 modules and ~1.2MB of source, against
     # which hand-listing an import closure is the more expensive option and
@@ -152,8 +172,12 @@ def main(argv=None, uploader=None) -> int:
     )
     ap.add_argument("--wav-dir", type=Path, required=True,
                     help="directory of real recordings to pick the probe from")
-    ap.add_argument("--head-dir", type=Path, required=True,
-                    help="the submission model dir holding ridge_head.npz")
+    ap.add_argument("--head-dir", type=Path, action="append", required=True,
+                    help="the submission model dir holding ridge_head.npz. "
+                         "Repeatable: one per ensemble member. A single "
+                         "occurrence stages the legacy head/ layout; more "
+                         "than one stages head/<name>/ per member, named "
+                         "from each dir's basename")
     ap.add_argument("--staging-dir", type=Path, required=True)
     ap.add_argument("--repo-id", default="Jai-D/mirex-runtime-probe")
     ap.add_argument("--no-upload", action="store_true",
@@ -166,8 +190,14 @@ def main(argv=None, uploader=None) -> int:
     module_dir = Path(__file__).resolve().parent
     durations = wav_durations(args.wav_dir, sf.info)
     selection = select_probe_set(durations)
-    manifest = stage_probe_bundle(args.wav_dir, args.head_dir, module_dir,
-                                  args.staging_dir, selection)
+    if len(args.head_dir) == 1:
+        head_dir, head_dirs = args.head_dir[0], None
+    else:
+        head_dir = None
+        head_dirs = {d.name: d for d in args.head_dir}
+    manifest = stage_probe_bundle(args.wav_dir, head_dir, module_dir,
+                                  args.staging_dir, selection,
+                                  head_dirs=head_dirs)
 
     print(f"staged {len(selection)} probe WAVs, "
           f"{manifest['total_audio_s']:.0f}s of audio total")

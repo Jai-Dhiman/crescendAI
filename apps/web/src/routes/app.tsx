@@ -1,10 +1,4 @@
-import {
-	createFileRoute,
-	Outlet,
-	redirect,
-	useRouterState,
-} from "@tanstack/react-router";
-import AppChat from "../components/AppChat";
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { authQueryOptions } from "../hooks/useAuth";
 import { queryClient } from "../lib/query-client";
 
@@ -24,14 +18,11 @@ export const Route = createFileRoute("/app")({
 	component: AppLayout,
 });
 
+/**
+ * The /app shell. Carries the auth guard for every child route -- home, the
+ * practice stand, and the piece page -- so the guard is written once rather
+ * than repeated per route.
+ */
 function AppLayout() {
-	const hasChildRoute = useRouterState({
-		select: (s) =>
-			s.matches.some(
-				(m) => m.routeId === "/app/chats" || m.routeId === "/app/sandbox",
-			),
-	});
-
-	if (hasChildRoute) return <Outlet />;
-	return <AppChat />;
+	return <Outlet />;
 }

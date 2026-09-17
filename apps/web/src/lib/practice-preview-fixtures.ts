@@ -1,5 +1,11 @@
 import type { Mark } from "../lib/mark";
 import { resolveAnchor } from "../lib/mark";
+import type {
+	CarryForward,
+	NoCommentZone,
+	VerdictState,
+	WsGap,
+} from "./session-review";
 
 // Ported from the deleted src/test-utils/mark-fixtures.ts (#157). Kept in a
 // leaf module with no component imports (unlike practice-preview.tsx itself,
@@ -46,4 +52,23 @@ export const FIXTURE_MARKS: readonly Mark[] = [
 		evidence: "the closing diminuendo flattened out early",
 		lifecycle: "active",
 	},
+];
+
+export const REVIEW_VERDICT_READY: VerdictState = {
+	status: "ready",
+	text: "That bass-blur from Tuesday is gone.",
+};
+
+export const REVIEW_VERDICT_FAILED: VerdictState = { status: "failed" };
+
+export const REVIEW_CARRY_FORWARD: CarryForward = {
+	text: "Start with bars 40-44 — the crescendo peaked early there.",
+};
+
+export const REVIEW_WS_GAPS: readonly WsGap[] = [
+	{ startSeconds: 210, endSeconds: 450 },
+];
+
+export const REVIEW_NO_COMMENT_ZONES: readonly NoCommentZone[] = [
+	{ atSeconds: 58, reason: "transcription confidence was too low here" },
 ];

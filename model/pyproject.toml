@@ -111,9 +111,23 @@ addopts = "-v --cov=src --cov-report=term-missing"
 
 [tool.ruff]
 target-version = "py311"
-select = ["E", "F", "W", "I"]
-ignore = []
 exclude = [".git", ".venv", "__pycache__", "build", "dist"]
+
+[tool.ruff.lint]
+# Rule ids map to docs/standards/PY_STYLE.md (PY-ERR-*, PY-00N).
+# Enforcement is changed-lines-only via scripts/lint_changed.py; legacy
+# violations stay advisory until swept (#174).
+select = ["E", "F", "W", "I", "B", "BLE", "TRY", "RET", "ARG", "PTH", "RUF", "NPY"]
+ignore = [
+    "TRY003", # deliberate style: explicit inline raise messages (PY_STYLE.md section 5)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# tests: unused fixture args, broad excepts in harnesses, bare open() on fixtures
+"tests/**" = ["ARG001", "ARG002", "ARG005", "BLE001", "PTH123"]
+# one-off CLI scripts and tools: argparse entry points carry unused args
+"scripts/**" = ["ARG001"]
+"tools/**" = ["PTH123"]
 
 [tool.mypy]
 python_version = "3.11"

@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { DIMENSION_LABELS } from "../lib/dimension";
 import { DIMENSION_COLOR_VAR } from "../lib/dimension-colors";
 import type { Mark } from "../lib/mark";
 import {
@@ -7,7 +8,6 @@ import {
 	TAXONOMY_GLYPH,
 	TAXONOMY_LABEL,
 } from "../lib/mark";
-import { DIMENSION_LABELS } from "../lib/mock-session";
 
 interface MarkGlyphProps {
 	mark: Mark;

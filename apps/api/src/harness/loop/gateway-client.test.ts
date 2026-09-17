@@ -7,6 +7,8 @@ import { callModel } from "./gateway-client";
 const BASE_ENV = {
 	AI_GATEWAY_ENDPOINT: "https://gw.example.com",
 	AI_GATEWAY_TOKEN: "gw-token-abc",
+	CLOUDFLARE_ACCOUNT_ID: "acct-123",
+	AI_GATEWAY_ID: "crescendai",
 	CLOUDFLARE_API_TOKEN: "cf-token-xyz",
 	TEACHER_PROVIDER: "anthropic",
 } as unknown as Bindings;
@@ -121,7 +123,7 @@ describe("callModel — workers-ai provider", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("POSTs to /workers-ai/v1/chat/completions with cf-aig-authorization + Authorization Bearer headers", async () => {
+	it("POSTs to the unified AI REST endpoint with cf-aig-gateway-id + Authorization Bearer headers", async () => {
 		fetchSpy.mockResolvedValueOnce(
 			new Response(JSON.stringify(WORKERS_AI_OPENAI_RESPONSE), { status: 200 }),
 		);
@@ -148,9 +150,11 @@ describe("callModel — workers-ai provider", () => {
 
 		expect(fetchSpy).toHaveBeenCalledOnce();
 		const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
-		expect(url).toBe("https://gw.example.com/workers-ai/v1/chat/completions");
+		expect(url).toBe(
+			"https://api.cloudflare.com/client/v4/accounts/acct-123/ai/v1/chat/completions",
+		);
 		const headers = init.headers as Record<string, string>;
-		expect(headers["cf-aig-authorization"]).toBe("Bearer gw-token-abc");
+		expect(headers["cf-aig-gateway-id"]).toBe("crescendai");
 		expect(headers.Authorization).toBe("Bearer cf-token-xyz");
 		expect(headers["Content-Type"]).toBe("application/json");
 		// Response is translated back to Anthropic shape

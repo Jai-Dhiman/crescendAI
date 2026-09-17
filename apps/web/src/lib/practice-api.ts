@@ -1,5 +1,6 @@
 import { API_BASE, WS_BASE } from "./config";
 import type { Mark } from "./mark";
+import type { NoCommentZone } from "./session-review";
 import type { InlineComponent } from "./types";
 
 export interface PracticeStartResponse {
@@ -85,6 +86,12 @@ export type PracticeWsEvent =
 	  }
 	| { type: "piece_set"; query: string }
 	| { type: "mark"; mark: Mark }
+	| {
+			type: "review";
+			verdict: string | null;
+			carry_forward: string | null;
+			no_comment_zones: NoCommentZone[];
+	  }
 	| ModeChangeEvent
 	| { type: "error"; message: string }
 	| {
@@ -114,14 +121,19 @@ export type PracticeWsEvent =
 	  };
 
 export const practiceApi = {
-	async start(conversationId?: string): Promise<PracticeStartResponse> {
+	async start(
+		conversationId?: string,
+		pieceId?: string,
+	): Promise<PracticeStartResponse> {
+		const payload: { conversationId?: string; pieceId?: string } = {};
+		if (conversationId) payload.conversationId = conversationId;
+		if (pieceId) payload.pieceId = pieceId;
+		const hasBody = Object.keys(payload).length > 0;
 		const res = await fetch(`${API_BASE}/api/practice/start`, {
 			method: "POST",
 			credentials: "include",
-			headers: conversationId
-				? { "Content-Type": "application/json" }
-				: undefined,
-			body: conversationId ? JSON.stringify({ conversationId }) : undefined,
+			headers: hasBody ? { "Content-Type": "application/json" } : undefined,
+			body: hasBody ? JSON.stringify(payload) : undefined,
 		});
 		if (!res.ok) throw new Error(`Failed to start session: ${res.status}`);
 		return res.json();

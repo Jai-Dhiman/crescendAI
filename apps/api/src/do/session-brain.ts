@@ -15,18 +15,29 @@ import {
 	SessionAccumulator,
 } from "../services/accumulator";
 import { buildBarAnalysisFacts } from "../services/bar-analysis-facts";
-import { applyConfidenceGate } from "../services/confidence_gate";
-import { callAmtEndpoint, callMuqEndpoint } from "../services/inference";
+import {
+	loadBaselineState,
+	saveBaselineState,
+} from "../services/baseline-store";
+import { callAmtEndpoint } from "../services/inference";
+import { proposeMarks } from "../services/mark-gate";
+import { evidenceFor, extractMpmFeatures } from "../services/mpm-features";
 import {
 	buildPendingExerciseComponent,
 	stageDominantExercise,
 } from "../services/pending-exercise";
 import { type ChunkSignal, ModeDetector } from "../services/practice-mode";
+import { scoreChunk } from "../services/scoring";
 import {
 	findActiveForPiece,
 	incrementAttempts,
 	toLoopComponent,
 } from "../services/segment-loops";
+import {
+	DEFAULT_BASELINE_CONFIG,
+	initialBaselineState,
+	updateBaseline,
+} from "../services/student-baseline";
 import {
 	clearNeedsSynthesis,
 	loadBaselinesFromDb,
@@ -61,11 +72,10 @@ export function toPastDiagnosisRecord(row: {
 	};
 }
 
+import type { InlineComponent } from "../services/inline-component";
 import { type SynthesisInput, synthesizeV6 } from "../services/teacher";
-import type { InlineComponent } from "../services/tool-processor";
 import type {
 	ChunkAnalysis,
-	ChunkNoteResult,
 	NoteAlignment,
 	PerfNote,
 	PerfPedalEvent,
@@ -215,6 +225,11 @@ const DEFAULT_LOOP_REQUIRED_CORRECT = 5;
 // How often to attempt teaching moment selection (every N chunks)
 const TEACHING_MOMENT_INTERVAL = 2;
 
+// Minimum transcribed notes before a chunk is comment-worthy. Transkun
+// exposes no confidence signal, so note density is the proxy (spec
+// docs/apps/02-pipeline.md open question 2).
+const MIN_NOTES_FOR_COMMENT = 10;
+
 export interface EnrichedChunk {
 	chunkIndex: number;
 	muq_scores: number[];
@@ -296,12 +311,8 @@ export function nextSynthesisAlarmDelayMs(opts: {
 	return opts.idleWindowMs;
 }
 
-/** MuQ audio chunk length in milliseconds (15s per scored chunk). */
-const MUQ_CHUNK_MS = 15000;
-// Tier-1 note matching tolerance (score-time seconds): how far a warped perf-note
-// onset may sit from a notated score-note onset to count as the same note. Generous
-// because timing here is coarse/directional (the bar-MEAN deviation is what matters).
-const TIER1_ONSET_WINDOW_S = 0.15;
+/** Audio chunk length in milliseconds (15s per scored chunk). */
+const CHUNK_MS = 15000;
 
 /**
  * Compute session duration from the number of scored chunks rather than
@@ -309,7 +320,7 @@ const TIER1_ONSET_WINDOW_S = 0.15;
  * the same millisecond, so the stamp-based calc rounded to 0 minutes.
  */
 export function computeSessionDurationMs(scoredChunkCount: number): number {
-	return scoredChunkCount * MUQ_CHUNK_MS;
+	return scoredChunkCount * CHUNK_MS;
 }
 
 /**
@@ -679,7 +690,10 @@ export class SessionBrain extends DurableObject<Bindings> {
 						r2Key,
 					}),
 				);
-				await this.decrementChunksInFlight();
+				await this.decrementChunksInFlight({
+					chunkIndex: index,
+					reason: "r2_not_found",
+				});
 				this.sendWs(ws, {
 					type: "chunk_processed",
 					index,
@@ -705,7 +719,10 @@ export class SessionBrain extends DurableObject<Bindings> {
 					error: error.message,
 				}),
 			);
-			await this.decrementChunksInFlight();
+			await this.decrementChunksInFlight({
+				chunkIndex: index,
+				reason: "r2_fetch_failed",
+			});
 			this.sendWs(ws, {
 				type: "chunk_processed",
 				index,
@@ -725,9 +742,9 @@ export class SessionBrain extends DurableObject<Bindings> {
 		const contextAudio = previousChunkAudio.get(this) ?? null;
 		previousChunkAudio.set(this, audioBytes);
 
-		// 3. Parallel inference — this is the major await; state may change during it
-		const [muqResult, amtResult] = await Promise.allSettled([
-			callMuqEndpoint(this.env, audioBytes),
+		// 3. Inference — this is the major await; state may change during it. MuQ is
+		// gone (#162): AMT (Transkun) is the only inference call on the request path.
+		const [amtResult] = await Promise.allSettled([
 			callAmtEndpoint(this.env, audioBytes, contextAudio),
 		]);
 
@@ -740,7 +757,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 		// blockConcurrencyWhile serializes ONLY this cheap post-inference section; the expensive
 		// inference ran outside the lock, so chunks still infer concurrently.
 		await this.ctx.blockConcurrencyWhile(() =>
-			this.finalizeChunk(ws, index, muqResult, amtResult),
+			this.finalizeChunk(ws, index, amtResult),
 		);
 	}
 
@@ -754,9 +771,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 	private async finalizeChunk(
 		ws: WebSocket,
 		index: number,
-		muqResult: PromiseSettledResult<
-			Awaited<ReturnType<typeof callMuqEndpoint>>
-		>,
 		amtResult: PromiseSettledResult<
 			Awaited<ReturnType<typeof callAmtEndpoint>>
 		>,
@@ -766,71 +780,10 @@ export class SessionBrain extends DurableObject<Bindings> {
 		// Decrement chunksInFlight (this chunk's inference is done)
 		currentState.chunksInFlight = Math.max(0, currentState.chunksInFlight - 1);
 
-		// 5. Process MuQ result — send chunk_processed immediately
-		if (muqResult.status === "rejected") {
-			console.error(
-				JSON.stringify({
-					level: "error",
-					message: "MuQ inference failed",
-					index,
-					error:
-						muqResult.reason instanceof Error
-							? muqResult.reason.message
-							: String(muqResult.reason),
-				}),
-			);
-			currentState.inferenceFailures++;
-			currentState.version++;
-			await this.writeState(currentState);
-			this.sendWs(ws, {
-				type: "chunk_processed",
-				index,
-				scores: {
-					dynamics: 0,
-					timing: 0,
-					pedaling: 0,
-					articulation: 0,
-					phrasing: 0,
-					interpretation: 0,
-				},
-			});
-			return;
-		}
-
-		const {
-			scores: muqScores,
-			confidences: muqConfidences,
-			chromaBytes,
-			chromaFrames,
-			chromaFrameRateHz,
-		} = muqResult.value;
-		const scoresArray: [number, number, number, number, number, number] = [
-			muqScores.dynamics,
-			muqScores.timing,
-			muqScores.pedaling,
-			muqScores.articulation,
-			muqScores.phrasing,
-			muqScores.interpretation,
-		];
-
-		this.sendWs(ws, {
-			type: "chunk_processed",
-			index,
-			scores: {
-				dynamics: muqScores.dynamics,
-				timing: muqScores.timing,
-				pedaling: muqScores.pedaling,
-				articulation: muqScores.articulation,
-				phrasing: muqScores.phrasing,
-				interpretation: muqScores.interpretation,
-			},
-		});
-
-		currentState.scoredChunks.push({ chunkIndex: index, scores: scoresArray });
-
-		// 6. Process AMT result (graceful degradation: AMT failure -> Tier 3)
+		// 5. Process AMT result (graceful degradation: AMT failure -> no-comment zone)
 		let perfNotes: PerfNote[] = [];
 		let perfPedal: PerfPedalEvent[] = [];
+		let amtFailed = false;
 
 		if (amtResult.status === "rejected") {
 			console.error(
@@ -845,12 +798,127 @@ export class SessionBrain extends DurableObject<Bindings> {
 				}),
 			);
 			currentState.inferenceFailures++;
+			amtFailed = true;
 		} else {
 			perfNotes = amtResult.value.notes;
 			perfPedal = amtResult.value.pedalEvents;
 		}
 
-		// 6b. Bar analysis: align chunk + analyze (WASM; skip gracefully if not built)
+		const isNoCommentZone =
+			amtFailed || perfNotes.length < MIN_NOTES_FOR_COMMENT;
+		let scoresArray: [number, number, number, number, number, number] = [
+			0.5, 0.5, 0.5, 0.5, 0.5, 0.5,
+		];
+
+		if (isNoCommentZone) {
+			currentState.noCommentZones.push({
+				chunkIndex: index,
+				reason: amtFailed ? "amt_rejected" : "insufficient_notes",
+			});
+			this.sendWs(ws, {
+				type: "chunk_processed",
+				index,
+				scores: {
+					dynamics: 0,
+					timing: 0,
+					pedaling: 0,
+					articulation: 0,
+					phrasing: 0,
+					interpretation: 0,
+				},
+			});
+		} else {
+			const scores = scoreChunk(perfNotes, perfPedal);
+			scoresArray = [
+				scores.dynamics,
+				scores.timing,
+				scores.pedaling,
+				scores.articulation,
+				scores.phrasing,
+				scores.interpretation,
+			];
+			this.sendWs(ws, { type: "chunk_processed", index, scores });
+			currentState.scoredChunks.push({
+				chunkIndex: index,
+				scores: scoresArray,
+			});
+			for (const dim of DIMS_6) {
+				const existing = currentState.sessionSamples[dim] ?? [];
+				currentState.sessionSamples[dim] = [...existing, scores[dim]];
+			}
+
+			// Lazy-load the student's persisted mark baseline once per session.
+			if (!currentState.markBaselineLoaded) {
+				try {
+					const db = createDb(this.env.HYPERDRIVE);
+					currentState.markBaseline = await loadBaselineState(
+						db,
+						currentState.studentId,
+					);
+				} catch (err) {
+					const error = err as Error;
+					console.error(
+						JSON.stringify({
+							level: "error",
+							message: "markBaseline load failed",
+							error: error.message,
+						}),
+					);
+				}
+				currentState.markBaselineLoaded = true;
+			}
+
+			const { candidates } = proposeMarks({
+				atSeconds: index * (CHUNK_MS / 1000),
+				scores,
+				baseline: currentState.markBaseline,
+				sessionSamples: currentState.sessionSamples as Partial<
+					Record<Dimension, number[]>
+				>,
+				emittedDimensions: new Set(currentState.emittedMarks),
+				firePersistence: DEFAULT_BASELINE_CONFIG.firePersistence,
+			});
+
+			for (const candidate of candidates) {
+				const [mpmSet] = extractMpmFeatures({
+					windowIndex: index,
+					perfNotes,
+					perfPedal,
+				});
+				if (mpmSet === undefined) continue;
+				const dimState =
+					currentState.markBaseline?.dimensions[candidate.dimension];
+				const lifecycle: "active" | "improving" | "resolved" =
+					dimState !== undefined && dimState.lifecycle !== "absent"
+						? dimState.lifecycle
+						: "active";
+				const confidence = dimState?.confidence ?? "exploratory";
+				currentState.emittedMarks = [
+					...currentState.emittedMarks,
+					candidate.dimension,
+				];
+				this.sendWs(ws, {
+					type: "mark",
+					mark: {
+						id: `${currentState.sessionId}-${candidate.dimension}-${index}`,
+						anchor: {
+							type: "timestamp" as const,
+							atSeconds: candidate.atSeconds,
+						},
+						taxonomy: candidate.taxonomy,
+						dimension: candidate.dimension,
+						evidence: evidenceFor(mpmSet, candidate.dimension),
+						lifecycle,
+						confidence,
+					},
+				});
+			}
+		}
+
+		// 6b. Bar analysis: Tier-2 (absolute MIDI) unconditionally. The chroma-driven
+		// Tier-1 branch is removed with MuQ (#162) — its chroma input no longer exists.
+		// The WASM aligner (alignChunkNotes/alignChunkChroma, #64) stays in the tree,
+		// dormant, for the follower issue that restores bar anchoring.
 		let chunkAnalysisTier = 3;
 		let chunkBarRange: [number, number] | null = null;
 		let chunkAnalysis: ChunkAnalysis | null = null;
@@ -859,105 +927,18 @@ export class SessionBrain extends DurableObject<Bindings> {
 
 		if (perfNotes.length > 0) {
 			try {
-				const scoreCtx = currentState.pieceIdentification
-					? await this.loadScoreContext(
-							currentState.pieceIdentification.pieceId,
-						)
-					: null;
-
-				if (scoreCtx !== null) {
-					// Tier-1 producer: chroma-align the chunk AND derive per-note onset/
-					// duration deviations vs the notated score (supersedes the bar-only
-					// alignChunkChroma — one chroma pass yields both alignments and
-					// bar_per_frame for cursor following).
-					const noteResult: ChunkNoteResult | null =
-						chromaBytes !== null && chromaFrameRateHz > 0
-							? (() => {
-									try {
-										return wasm.alignChunkNotes(
-											chromaBytes,
-											chromaFrames,
-											perfNotes,
-											scoreCtx.score.bars,
-											chromaFrameRateHz,
-											5.0,
-											index,
-											TIER1_ONSET_WINDOW_S,
-										);
-									} catch (e) {
-										console.log(
-											JSON.stringify({
-												level: "warn",
-												message: "alignChunkNotes failed",
-												error: e instanceof Error ? e.message : String(e),
-											}),
-										);
-										return null;
-									}
-								})()
-							: null;
-
-					if (noteResult !== null && noteResult.bar_map.alignments.length > 0) {
-						// Tier 1: score+reference deviations reach the teacher.
-						const { bar_map } = noteResult;
-						chunkBarRange = [bar_map.bar_start, bar_map.bar_end];
-						barMapAlignments.push(...bar_map.alignments);
-						const analysis1 = wasm.analyzeTier1(
-							bar_map,
-							perfNotes,
-							perfPedal,
-							scoresArray,
-							scoreCtx,
-						);
-						chunkAnalysis = analysis1;
-						chunkAnalysisTier = 1;
-
-						// Bar map for client cursor following (separate message, after
-						// the initial chunk_processed scores send).
-						this.sendWs(ws, {
-							type: "chunk_bar_map",
-							chunk_index: index,
-							bar_min: bar_map.bar_start,
-							bar_max: bar_map.bar_end,
-							bar_per_frame: noteResult.bar_per_frame,
-						});
-					} else {
-						// Alignment failed or matched no notes: fall back to Tier 2
-						// (absolute MIDI), preserving graceful degradation.
-						const analysis2 = wasm.analyzeTier2(
-							perfNotes,
-							perfPedal,
-							scoresArray,
-						);
-						chunkAnalysis = analysis2;
-						chunkAnalysisTier = analysis2.tier;
-						const barStr = analysis2.bar_range;
-						if (barStr !== null) {
-							const parts = barStr.split("-").map(Number);
-							if (
-								parts.length === 2 &&
-								parts[0] !== undefined &&
-								parts[1] !== undefined
-							) {
-								chunkBarRange = [parts[0], parts[1]];
-							}
-						}
-					}
-				} else {
-					// No score context: Tier 2 (MIDI only)
-					const analysis = wasm.analyzeTier2(perfNotes, perfPedal, scoresArray);
-					chunkAnalysis = analysis;
-					chunkAnalysisTier = analysis.tier;
-					const barStr = analysis.bar_range;
-					if (barStr !== null) {
-						const parts = barStr.split("-").map(Number);
-						if (
-							parts.length === 2 &&
-							parts[0] !== undefined &&
-							parts[1] !== undefined
-						) {
-							chunkBarRange = [parts[0], parts[1]];
-						}
+				const analysis = wasm.analyzeTier2(perfNotes, perfPedal, scoresArray);
+				chunkAnalysis = analysis;
+				chunkAnalysisTier = analysis.tier;
+				const barStr = analysis.bar_range;
+				if (barStr !== null) {
+					const parts = barStr.split("-").map(Number);
+					if (
+						parts.length === 2 &&
+						parts[0] !== undefined &&
+						parts[1] !== undefined
+					) {
+						chunkBarRange = [parts[0], parts[1]];
 					}
 				}
 			} catch (err) {
@@ -1218,14 +1199,9 @@ export class SessionBrain extends DurableObject<Bindings> {
 				if (moment !== null) {
 					const momentDim = moment.dimension as Dimension;
 
-					// Suppress high-uncertainty dims: if the gaussian head provided
-					// confidences and this dim's sigma exceeds threshold, skip it.
-					const gated =
-						muqConfidences !== null
-							? applyConfidenceGate(muqScores, muqConfidences)
-							: null;
-					const dimSuppressed =
-						gated !== null && gated.suppressed.includes(momentDim);
+					// The mock scorer carries no confidence signal (unlike the retired
+					// MuQ gaussian head), so there is nothing to suppress on here (#162).
+					const dimSuppressed = false;
 
 					const accMoment = {
 						chunkIndex: moment.chunk_index,
@@ -1252,21 +1228,21 @@ export class SessionBrain extends DurableObject<Bindings> {
 					if (!dimSuppressed) {
 						acc.accumulateMoment(accMoment);
 
-						this.sendWs(
-							ws,
-							buildObservationPayload(
-								moment,
-								currentState.isEvalSession
-									? {
-											predictions: scoresArray,
-											baselines,
-											analysisFacts: accMoment.llmAnalysis,
-											barRange: chunkBarRange,
-											analysisTier: chunkAnalysisTier,
-										}
-									: null,
-							),
-						);
+						// Real sessions no longer stream observations (#162) — marks are
+						// the delivery surface now. Eval sessions keep the observation
+						// stream so the teaching-knowledge eval stays comparable.
+						if (currentState.isEvalSession) {
+							this.sendWs(
+								ws,
+								buildObservationPayload(moment, {
+									predictions: scoresArray,
+									baselines,
+									analysisFacts: accMoment.llmAnalysis,
+									barRange: chunkBarRange,
+									analysisTier: chunkAnalysisTier,
+								}),
+							);
+						}
 					}
 				}
 			} catch (err) {
@@ -1890,27 +1866,34 @@ export class SessionBrain extends DurableObject<Bindings> {
 				);
 			}
 
-			if (validationError !== null) {
+			if (validationError !== null || artifact === null) {
 				console.error(
 					JSON.stringify({
 						level: "error",
-						message: "v6 validation_error",
+						message:
+							validationError !== null
+								? "v6 validation_error"
+								: "v6 produced no artifact",
 						error: validationError,
 						sessionId: state.sessionId,
 					}),
 				);
+				if (!state.isEvalSession) {
+					const sockets = this.ctx.getWebSockets();
+					const failurePayload = {
+						type: "review" as const,
+						verdict: null,
+						carry_forward: null,
+						no_comment_zones: state.noCommentZones.map((z) => ({
+							atSeconds: z.chunkIndex * (CHUNK_MS / 1000),
+							reason: z.reason,
+						})),
+					};
+					for (const sock of sockets) {
+						this.sendWs(sock, failurePayload);
+					}
+				}
 				return; // leave needsSynthesis=true for retry
-			}
-
-			if (artifact === null) {
-				console.error(
-					JSON.stringify({
-						level: "error",
-						message: "v6 produced no artifact",
-						sessionId: state.sessionId,
-					}),
-				);
-				return;
 			}
 
 			const loopComponents = artifact.assigned_loops.map((ref) =>
@@ -1956,16 +1939,58 @@ export class SessionBrain extends DurableObject<Bindings> {
 				loopComponents,
 				pendingComponent,
 			);
-			const wsPayloadWithEval =
-				evalContext !== null
-					? {
-							...wsPayload,
-							eval_context: buildEvalContext(evalContext, artifact),
-						}
-					: wsPayload;
 			const sockets = this.ctx.getWebSockets();
-			for (const sock of sockets) {
-				this.sendWs(sock, wsPayloadWithEval);
+
+			if (state.isEvalSession) {
+				const wsPayloadWithEval =
+					evalContext !== null
+						? {
+								...wsPayload,
+								eval_context: buildEvalContext(evalContext, artifact),
+							}
+						: wsPayload;
+				for (const sock of sockets) {
+					this.sendWs(sock, wsPayloadWithEval);
+				}
+			} else {
+				const reviewPayload = {
+					type: "review" as const,
+					verdict: artifact.headline,
+					carry_forward: artifact.next_session_focus,
+					no_comment_zones: state.noCommentZones.map((z) => ({
+						atSeconds: z.chunkIndex * (CHUNK_MS / 1000),
+						reason: z.reason,
+					})),
+				};
+				for (const sock of sockets) {
+					this.sendWs(sock, reviewPayload);
+				}
+			}
+
+			try {
+				const hasSamples = Object.values(state.sessionSamples).some(
+					(samples) => (samples?.length ?? 0) > 0,
+				);
+				if (hasSamples) {
+					const priorBaseline = state.markBaseline ?? initialBaselineState();
+					const foldedBaseline = updateBaseline(priorBaseline, {
+						timestamp: new Date().toISOString(),
+						scores: state.sessionSamples as Partial<
+							Record<Dimension, number[]>
+						>,
+					});
+					await saveBaselineState(db, state.studentId, foldedBaseline);
+				}
+			} catch (err) {
+				const error = err as Error;
+				console.error(
+					JSON.stringify({
+						level: "error",
+						message: "baseline fold/persist failed",
+						sessionId: state.sessionId,
+						error: error.message,
+					}),
+				);
 			}
 
 			if (state.conversationId !== null) {
@@ -2037,6 +2062,21 @@ export class SessionBrain extends DurableObject<Bindings> {
 					error: error.message,
 				}),
 			);
+			if (!state.isEvalSession) {
+				const sockets = this.ctx.getWebSockets();
+				const failurePayload = {
+					type: "review" as const,
+					verdict: null,
+					carry_forward: null,
+					no_comment_zones: state.noCommentZones.map((z) => ({
+						atSeconds: z.chunkIndex * (CHUNK_MS / 1000),
+						reason: z.reason,
+					})),
+				};
+				for (const sock of sockets) {
+					this.sendWs(sock, failurePayload);
+				}
+			}
 			// synthesisCompleted stays true (no duplicate), but needsSynthesis in DB stays true
 			// so the deferred /synthesize endpoint can retry via the DO
 		}
@@ -2195,7 +2235,10 @@ export class SessionBrain extends DurableObject<Bindings> {
 		await this.ctx.storage.put("state", state);
 	}
 
-	private async decrementChunksInFlight(): Promise<void> {
+	private async decrementChunksInFlight(noCommentZone?: {
+		chunkIndex: number;
+		reason: string;
+	}): Promise<void> {
 		// Serialized so a failed-fetch decrement cannot race a concurrent increment or
 		// finalizeChunk merge and lose the counter update. Never called from inside another
 		// blockConcurrencyWhile (only the pre-inference R2-failure paths use it), so no deadlock.
@@ -2203,6 +2246,9 @@ export class SessionBrain extends DurableObject<Bindings> {
 			try {
 				const state = await this.readState();
 				state.chunksInFlight = Math.max(0, state.chunksInFlight - 1);
+				if (noCommentZone) {
+					state.noCommentZones.push(noCommentZone);
+				}
 				state.version++;
 				await this.writeState(state);
 			} catch {

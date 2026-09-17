@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createLogger } from "../lib/logger";
 import type { Mark } from "../lib/mark";
 import { ObservationThrottle } from "../lib/observation-throttle";
+import type { ConfidentGuess } from "../lib/piece-ladder";
 import type {
 	DimScores,
 	ObservationEvent,
@@ -10,6 +11,7 @@ import type {
 } from "../lib/practice-api";
 import { practiceApi } from "../lib/practice-api";
 import { Sentry } from "../lib/sentry";
+import type { NoCommentZone } from "../lib/session-review";
 import type { RichMessage, SegmentLoopConfig } from "../lib/types";
 import { useAudioActivity } from "./useAudioActivity";
 import { useNetworkStatus } from "./useDom";
@@ -45,6 +47,10 @@ export interface UsePracticeSessionReturn {
 	elapsedSeconds: number;
 	observations: ObservationEvent[];
 	marks: Mark[];
+	confidentGuess: ConfidentGuess | null;
+	verdict: string | null;
+	carryForward: string | null;
+	noCommentZones: NoCommentZone[];
 	latestScores: DimScores | null;
 	summary: string | null;
 	error: string | null;
@@ -56,11 +62,12 @@ export interface UsePracticeSessionReturn {
 	energy: number;
 	analyserNode: AnalyserNode | null;
 	practiceMode: PracticeMode | null;
-	start: (conversationId?: string) => Promise<void>;
+	start: (conversationId?: string, pieceId?: string) => Promise<void>;
 	stop: () => void;
 	setPiece: (query: string) => void;
 	observationMessages: RichMessage[];
 	conversationId: string | null;
+	sessionId: string | null;
 	activeLoop: SegmentLoopConfig | null;
 }
 
@@ -78,6 +85,12 @@ export function usePracticeSession(
 	const [elapsedSeconds, setElapsedSeconds] = useState(0);
 	const [observations, setObservations] = useState<ObservationEvent[]>([]);
 	const [marks, setMarks] = useState<Mark[]>([]);
+	const [confidentGuess, setConfidentGuess] = useState<ConfidentGuess | null>(
+		null,
+	);
+	const [verdict, setVerdict] = useState<string | null>(null);
+	const [carryForward, setCarryForward] = useState<string | null>(null);
+	const [noCommentZones, setNoCommentZones] = useState<NoCommentZone[]>([]);
 	const [latestScores, setLatestScores] = useState<DimScores | null>(null);
 	const [summary, setSummary] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -200,8 +213,9 @@ export function usePracticeSession(
 
 		mediaRecorderRef.current = null;
 		wsRef.current = null;
+		// Landmine: this nulls sessionId at the exact moment synthesis/session_summary arrives (see handleWsMessage), so any live-review surface reading sessionId from that handler sees null -- future wiring (#162) must capture the id before cleanup() runs.
 		sessionIdRef.current = null;
-		// NOTE: conversationIdRef is NOT reset here -- AppChat reads it
+		// NOTE: conversationIdRef is NOT reset here -- callers read it
 		// after cleanup to navigate to the conversation. It's reset in start().
 		chunkIndexRef.current = 0;
 		reconnectAttemptsRef.current = 0;
@@ -301,19 +315,28 @@ export function usePracticeSession(
 					break;
 				}
 				case "piece_identified":
-					console.log(
-						JSON.stringify({
-							event: "piece_identified",
-							composer: data.composer,
-							title: data.title,
-						}),
-					);
+					// The event already carries exactly ConfidentGuess's four fields.
+					// The hook does NOT decide whether the guess wins --
+					// resolvePieceLadderState owns that precedence, and duplicating
+					// it here would give the codebase two copies of one policy.
+					setConfidentGuess({
+						pieceId: data.pieceId,
+						composer: data.composer,
+						title: data.title,
+						confidence: data.confidence,
+					});
 					break;
 				case "piece_set":
 					console.log("Piece context set:", data.query);
 					break;
 				case "mark": {
 					setMarks((prev) => [...prev, data.mark]);
+					break;
+				}
+				case "review": {
+					setVerdict(data.verdict);
+					setCarryForward(data.carry_forward);
+					setNoCommentZones(data.no_comment_zones);
 					break;
 				}
 				case "segment_loop_status": {
@@ -419,11 +442,15 @@ export function usePracticeSession(
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: isOnlineRef is read for its latest value at call time; depending on .current would recreate start() on every connectivity flap.
 	const start = useCallback(
-		async (conversationId?: string) => {
+		async (conversationId?: string, pieceId?: string) => {
 			setState("requesting-mic");
 			setElapsedSeconds(0);
 			setObservations([]);
 			setMarks([]);
+			setConfidentGuess(null);
+			setVerdict(null);
+			setCarryForward(null);
+			setNoCommentZones([]);
 			setLatestScores(null);
 			setSummary(null);
 			setError(null);
@@ -463,7 +490,7 @@ export function usePracticeSession(
 			let sessionId: string;
 			try {
 				const { sessionId: sid, conversationId: convId } =
-					await practiceApi.start(conversationId);
+					await practiceApi.start(conversationId, pieceId);
 				sessionId = sid;
 				sessionIdRef.current = sid;
 				conversationIdRef.current = convId;
@@ -743,6 +770,10 @@ export function usePracticeSession(
 		elapsedSeconds,
 		observations,
 		marks,
+		confidentGuess,
+		verdict,
+		carryForward,
+		noCommentZones,
 		latestScores,
 		summary,
 		error,
@@ -759,6 +790,7 @@ export function usePracticeSession(
 		setPiece,
 		observationMessages,
 		conversationId: conversationIdRef.current,
+		sessionId: sessionIdRef.current,
 		activeLoop,
 	};
 }

@@ -4,7 +4,7 @@
   "rules": {
     "META-001": {
       "level": "MUST",
-      "text": "Every TS-* rule id MUST appear both in docs/standards/rules.json and as a [ID] marker in its source document.",
+      "text": "Every rule sourced from a *_STYLE.md document MUST appear there as an [ID] marker, and every [ID] marker in a *_STYLE.md document MUST exist in docs/standards/rules.json.",
       "source": "docs/standards/rules.json",
       "scope": ["docs/standards/rules.json", "apps/api/TS_STYLE.md"],
       "status": "enforced",
@@ -29,7 +29,7 @@
     "PY-001": {
       "level": "MUST",
       "text": "CLI default paths MUST be anchored to __file__, never relative to the current working directory, because `just` recipes change CWD.",
-      "source": "CLAUDE.md#tooling",
+      "source": "docs/standards/PY_STYLE.md#3",
       "scope": ["**/*.py"],
       "status": "approved",
       "check": "cwd_relative_defaults"
@@ -227,6 +227,315 @@
       "source": "apps/api/TS_STYLE.md#12",
       "scope": ["apps/api/src/**"],
       "status": "enforced"
+    },
+    "TS-TYPE-002": {
+      "level": "MUST",
+      "text": "A chained type assertion (`as unknown as T`) MUST carry a `SAFETY:` comment on the same or preceding line stating the invariant that makes the cast sound; test files are exempt. Prefer fixing the source type so the cast disappears.",
+      "source": "apps/api/TS_STYLE.md#12",
+      "scope": ["apps/api/src/**"],
+      "status": "approved",
+      "check": "chained_assertion_safety"
+    },
+    "RS-ERR-001": {
+      "level": "MUST",
+      "text": "Non-test code MUST NOT call .unwrap() or .expect() on values that can fail from external input; return Err across the boundary. Clippy: unwrap_used, expect_used.",
+      "source": "apps/api/src/wasm/RUST_STYLE.md#1",
+      "scope": ["apps/api/src/wasm/**"],
+      "status": "approved"
+    },
+    "RS-ERR-002": {
+      "level": "SHOULD",
+      "text": "An invariant-backed .expect() SHOULD cite the exact check in its message and sit within a few lines of that check.",
+      "source": "apps/api/src/wasm/RUST_STYLE.md#1",
+      "scope": ["apps/api/src/wasm/**"],
+      "status": "approved"
+    },
+    "RS-ERR-003": {
+      "level": "MUST",
+      "text": "Float comparators MUST use total_cmp, never partial_cmp(..).unwrap(); NaN is a real input in audio/chroma data.",
+      "source": "apps/api/src/wasm/RUST_STYLE.md#1",
+      "scope": ["apps/api/src/wasm/**"],
+      "status": "approved"
+    },
+    "RS-ERR-004": {
+      "level": "MUST",
+      "text": "No panic!, unreachable!, todo!, or unimplemented! outside #[cfg(test)]. Clippy: panic, todo, unimplemented, unreachable (deny).",
+      "source": "apps/api/src/wasm/RUST_STYLE.md#1",
+      "scope": ["apps/api/src/wasm/**"],
+      "status": "enforced"
+    },
+    "RS-ERR-005": {
+      "level": "MUST",
+      "text": "Every #[wasm_bindgen]-exported function MUST return Result<T, JsValue> or a JSON String and never panic across the boundary.",
+      "source": "apps/api/src/wasm/RUST_STYLE.md#1",
+      "scope": ["apps/api/src/wasm/**"],
+      "status": "enforced"
+    },
+    "RS-WASM-001": {
+      "level": "MUST",
+      "text": "Boundary values containing a bool or Option<T> alongside other args in the same call MUST cross via serde_json strings, never serde_wasm_bindgen::to_value/from_value (workerd externref-aliasing corruption, already shipped once).",
+      "source": "apps/api/src/wasm/RUST_STYLE.md#2",
+      "scope": ["apps/api/src/wasm/**"],
+      "status": "enforced"
+    },
+    "RS-WASM-002": {
+      "level": "MUST",
+      "text": "Every exported function MUST carry a /// doc comment stating parameter and return shapes as the JS caller sees them.",
+      "source": "apps/api/src/wasm/RUST_STYLE.md#2",
+      "scope": ["apps/api/src/wasm/**"],
+      "status": "enforced"
+    },
+    "RS-WASM-003": {
+      "level": "SHOULD",
+      "text": "No convenience-overload exports whose only purpose is re-shuffling another export's argument shape.",
+      "source": "apps/api/src/wasm/RUST_STYLE.md#2",
+      "scope": ["apps/api/src/wasm/**"],
+      "status": "approved"
+    },
+    "RS-DEP-001": {
+      "level": "MUST",
+      "text": "No Rc, RefCell, Arc, Mutex, or unsafe without a comment stating the specific ownership or aliasing problem being solved; unsafe_code is forbid crate-wide.",
+      "source": "apps/api/src/wasm/RUST_STYLE.md#3",
+      "scope": ["apps/api/src/wasm/**"],
+      "status": "enforced"
+    },
+    "RS-DEP-002": {
+      "level": "MUST",
+      "text": "A new #[allow(clippy::...)] MUST carry a same-line or preceding-line comment naming why the lint does not apply.",
+      "source": "apps/api/src/wasm/RUST_STYLE.md#3",
+      "scope": ["apps/api/src/wasm/**"],
+      "status": "enforced"
+    },
+    "RS-STYLE-001": {
+      "level": "SHOULD",
+      "text": "The repeated .map_err(|e| JsValue::from_str(&e.to_string())) boilerplate SHOULD collapse into one shared js_err free function per crate -- a function, not a trait or macro.",
+      "source": "apps/api/src/wasm/RUST_STYLE.md#4",
+      "scope": ["apps/api/src/wasm/**"],
+      "status": "approved"
+    },
+    "RS-STYLE-002": {
+      "level": "MUST",
+      "text": "No speculative derives, traits, or generic parameters beyond a type's current usage; a trait with one implementor is unrequested flexibility.",
+      "source": "apps/api/src/wasm/RUST_STYLE.md#4",
+      "scope": ["apps/api/src/wasm/**"],
+      "status": "enforced"
+    },
+    "WEB-ERR-001": {
+      "level": "MUST",
+      "text": "A caught API/WebSocket/inference error MUST re-throw, set a caller-visible error state, or report to Sentry -- never silently return a default that masks the failure.",
+      "source": "apps/web/WEB_STYLE.md#1",
+      "scope": ["apps/web/src/**"],
+      "status": "approved"
+    },
+    "WEB-ERR-002": {
+      "level": "SHOULD",
+      "text": "Every catch block SHOULD do one of: Sentry capture, explicit UI error state, or a comment naming the specific benign condition it swallows.",
+      "source": "apps/web/WEB_STYLE.md#1",
+      "scope": ["apps/web/src/**"],
+      "status": "approved"
+    },
+    "WEB-QUERY-001": {
+      "level": "MUST",
+      "text": "Query keys MUST come from a shared per-domain factory, never string-literal arrays typed independently at call sites.",
+      "source": "apps/web/WEB_STYLE.md#2",
+      "scope": ["apps/web/src/**"],
+      "status": "approved"
+    },
+    "WEB-QUERY-002": {
+      "level": "MUST",
+      "text": "Server state MUST NOT be copied into a zustand store; zustand holds client-only UI state, react-query owns caching and invalidation.",
+      "source": "apps/web/WEB_STYLE.md#2",
+      "scope": ["apps/web/src/**"],
+      "status": "enforced"
+    },
+    "WEB-STATE-001": {
+      "level": "MUST",
+      "text": "No useEffect + useState to derive a value that is a pure function of props or in-scope state; compute it during render.",
+      "source": "apps/web/WEB_STYLE.md#2",
+      "scope": ["apps/web/src/**"],
+      "status": "approved"
+    },
+    "WEB-STATE-002": {
+      "level": "SHOULD",
+      "text": "useMemo/useCallback require a downstream dependency-array consumer or a comment citing a measured perf need; default is no memoization.",
+      "source": "apps/web/WEB_STYLE.md#2",
+      "scope": ["apps/web/src/**"],
+      "status": "approved"
+    },
+    "WEB-STATE-003": {
+      "level": "MUST",
+      "text": "A new createContext requires a cross-tree concern with no natural prop path; do not add context to avoid passing two props through two components.",
+      "source": "apps/web/WEB_STYLE.md#2",
+      "scope": ["apps/web/src/**"],
+      "status": "enforced"
+    },
+    "WEB-ROUTE-001": {
+      "level": "SHOULD",
+      "text": "A route loader, if introduced, only prefetches/seeds the query cache via the same shared query options the component subscribes to; useLoaderData is never the sole data source while react-query is present.",
+      "source": "apps/web/WEB_STYLE.md#2",
+      "scope": ["apps/web/src/**"],
+      "status": "proposed"
+    },
+    "WEB-UI-001": {
+      "level": "MUST",
+      "text": "No any in component props or event handlers; use the concrete DOM/React event type. as never is permitted only as the documented Hono RPC escape hatch.",
+      "source": "apps/web/WEB_STYLE.md#3",
+      "scope": ["apps/web/src/**"],
+      "status": "approved"
+    },
+    "WEB-UI-002": {
+      "level": "MUST",
+      "text": "No Tailwind arbitrary bracket values where a token equivalent exists in the @theme table; a genuinely one-off geometry value carries a comment.",
+      "source": "apps/web/WEB_STYLE.md#3",
+      "scope": ["apps/web/src/**"],
+      "status": "approved"
+    },
+    "WEB-UI-003": {
+      "level": "SHOULD",
+      "text": "style={{...}} only for values computed at runtime; static inline styles bypass the token table.",
+      "source": "apps/web/WEB_STYLE.md#3",
+      "scope": ["apps/web/src/**"],
+      "status": "approved"
+    },
+    "WEB-A11Y-001": {
+      "level": "MUST",
+      "text": "Every motion component or CSS animation with movement MUST respect prefers-reduced-motion, preferring an opacity fade over removal.",
+      "source": "apps/web/WEB_STYLE.md#4",
+      "scope": ["apps/web/src/**"],
+      "status": "enforced"
+    },
+    "WEB-A11Y-002": {
+      "level": "MUST",
+      "text": "Animation durations: press/hover 120-180ms, small state changes 180-260ms, user-initiated at most 300ms; ease-out entrances, ease-in exits, linear only for progress.",
+      "source": "apps/web/WEB_STYLE.md#4",
+      "scope": ["apps/web/src/**"],
+      "status": "approved"
+    },
+    "WEB-A11Y-003": {
+      "level": "MUST",
+      "text": "Interactive targets MUST have at least a 32px hit area; icons inside them are aria-hidden and never the sole accessible label.",
+      "source": "apps/web/WEB_STYLE.md#4",
+      "scope": ["apps/web/src/**"],
+      "status": "approved"
+    },
+    "WEB-A11Y-004": {
+      "level": "MUST",
+      "text": "New color/token pairs MUST pass WCAG AA in a real browser via bun run test:a11y; jsdom axe skips color-contrast.",
+      "source": "apps/web/WEB_STYLE.md#4",
+      "scope": ["apps/web/src/**"],
+      "status": "enforced"
+    },
+    "WEB-COMPONENT-001": {
+      "level": "SHOULD",
+      "text": "A component over ~300 non-test lines SHOULD be split unless it is one deep module with a single responsibility and a top-of-file comment saying so.",
+      "source": "apps/web/WEB_STYLE.md#5",
+      "scope": ["apps/web/src/**"],
+      "status": "approved"
+    },
+    "WEB-COMPONENT-002": {
+      "level": "MUST",
+      "text": "No prop that no current caller passes, and no prop-count creep past ~6-8 without grouping; future flexibility is not a caller.",
+      "source": "apps/web/WEB_STYLE.md#5",
+      "scope": ["apps/web/src/**"],
+      "status": "approved"
+    },
+    "PY-ERR-001": {
+      "level": "MUST",
+      "text": "No except Exception or bare except that neither re-raises nor routes through logging.exception; a deliberate broad catch carries # noqa: BLE001 plus a reason. Ruff: BLE001.",
+      "source": "docs/standards/PY_STYLE.md#1",
+      "scope": ["model/**", "apps/evals/**", "scripts/**"],
+      "status": "approved"
+    },
+    "PY-ERR-002": {
+      "level": "MUST",
+      "text": "No except-then-pass; re-raise, log with a reason, or delete the try/except.",
+      "source": "docs/standards/PY_STYLE.md#1",
+      "scope": ["model/**", "apps/evals/**", "scripts/**"],
+      "status": "approved"
+    },
+    "PY-ERR-003": {
+      "level": "SHOULD",
+      "text": "Re-raises inside except SHOULD chain with raise ... from e (or from None deliberately). Ruff: B904.",
+      "source": "docs/standards/PY_STYLE.md#1",
+      "scope": ["model/**", "apps/evals/**", "scripts/**"],
+      "status": "approved"
+    },
+    "PY-ERR-004": {
+      "level": "SHOULD",
+      "text": "Do not raise inside a try only to catch it in the same function's except; restructure as a direct conditional raise. Ruff: TRY301.",
+      "source": "docs/standards/PY_STYLE.md#1",
+      "scope": ["model/**", "apps/evals/**", "scripts/**"],
+      "status": "approved"
+    },
+    "PY-002": {
+      "level": "MUST",
+      "text": "No mutable default arguments; mutable class/dataclass defaults use field(default_factory=...). Ruff: B006, B008, RUF012.",
+      "source": "docs/standards/PY_STYLE.md#2",
+      "scope": ["model/**", "apps/evals/**", "scripts/**"],
+      "status": "approved"
+    },
+    "PY-003": {
+      "level": "SHOULD",
+      "text": "zip() over iterables whose lengths must match SHOULD pass strict=True; silent truncation is a silent fallback. Ruff: B905.",
+      "source": "docs/standards/PY_STYLE.md#2",
+      "scope": ["model/**", "apps/evals/**", "scripts/**"],
+      "status": "approved"
+    },
+    "PY-004": {
+      "level": "SHOULD",
+      "text": "No unused function/method parameters; remove them or prefix _. Ruff: ARG.",
+      "source": "docs/standards/PY_STYLE.md#2",
+      "scope": ["model/**", "apps/evals/**", "scripts/**"],
+      "status": "approved"
+    },
+    "PY-005": {
+      "level": "SHOULD",
+      "text": "File access SHOULD go through pathlib (Path.open(), not builtin open()/os.path). Ruff: PTH.",
+      "source": "docs/standards/PY_STYLE.md#2",
+      "scope": ["model/**", "apps/evals/**", "scripts/**"],
+      "status": "approved"
+    },
+    "PY-006": {
+      "level": "SHOULD",
+      "text": "No assign-then-immediately-return and no else after return/raise. Ruff: RET504, RET505, RET506, RET508.",
+      "source": "docs/standards/PY_STYLE.md#2",
+      "scope": ["model/**", "apps/evals/**", "scripts/**"],
+      "status": "approved"
+    },
+    "PY-008": {
+      "level": "MUST",
+      "text": "No stale # noqa suppressing a violation that no longer fires. Ruff: RUF100.",
+      "source": "docs/standards/PY_STYLE.md#2",
+      "scope": ["model/**", "apps/evals/**", "scripts/**"],
+      "status": "approved"
+    },
+    "PY-009": {
+      "level": "SHOULD",
+      "text": "New code SHOULD use numpy.random.default_rng(seed) passed explicitly, never global np.random state. Ruff: NPY002.",
+      "source": "docs/standards/PY_STYLE.md#2",
+      "scope": ["model/**", "apps/evals/**", "scripts/**"],
+      "status": "approved"
+    },
+    "PY-ML-001": {
+      "level": "MUST",
+      "text": "Code handling missing transcription, audio, or ground truth MUST raise a named exception; never substitute a weaker artifact and never return a sentinel a downstream aggregator could average into a metric.",
+      "source": "docs/standards/PY_STYLE.md#4",
+      "scope": ["model/**", "apps/evals/**", "scripts/**"],
+      "status": "approved"
+    },
+    "PY-ML-002": {
+      "level": "SHOULD",
+      "text": "Entry points SHOULD default filesystem paths from model/src/paths.py rather than re-deriving their own __file__ anchors.",
+      "source": "docs/standards/PY_STYLE.md#3",
+      "scope": ["model/**"],
+      "status": "proposed"
+    },
+    "PY-ML-003": {
+      "level": "MAY",
+      "text": "No new @dataclass config object for a script or function with exactly one call site; keyword arguments or module constants suffice until a second caller exists.",
+      "source": "docs/standards/PY_STYLE.md#4",
+      "scope": ["model/**", "apps/evals/**", "scripts/**"],
+      "status": "approved"
     },
     "TS-FILE-001": {
       "level": "SHOULD",

@@ -197,3 +197,198 @@ def test_a_fold_artifact_dir_passed_to_the_submission_path_is_refused(tmp_path):
 
     with pytest.raises(FileNotFoundError, match="emb_fold99.npz"):
         _build_all_data(artifact, tmp_path / "model")
+
+
+# --------------------------------------------------------------------------
+# The ensemble directory: K all-data members staged under one out_dir.
+# --------------------------------------------------------------------------
+
+
+def _member_artifact(root, name, seed=0):
+    """One member's all-data artifact dir: emb_fold99.npz + a stub adapter."""
+    from claim_measurement.difficulty.fold_plan import ALL_DATA_FOLD
+
+    artifact = root / name
+    artifact.mkdir(parents=True)
+    _fold_npz(artifact / f"emb_fold{ALL_DATA_FOLD}.npz", seed=seed)
+    adapter = artifact / ADAPTER_SUBDIR
+    adapter.mkdir()
+    (adapter / "adapter_config.json").write_text("{}")
+    return artifact
+
+
+def test_each_member_is_staged_under_its_source_directory_basename(tmp_path):
+    """Each of the K source artifact dirs becomes one members/<name>/ under
+    out_dir, with its own head fit on its own all-data rows -- reusing
+    build_model_dir's copy-not-symlink discipline per member."""
+    from claim_measurement.difficulty.build_model_dir import (
+        build_ensemble_model_dir,
+    )
+    from claim_measurement.difficulty.score_wav import MEMBERS_SUBDIR
+
+    artifact1 = _member_artifact(tmp_path, "alldata_s2026", seed=0)
+    artifact2 = _member_artifact(tmp_path, "alldata_s2027", seed=0)
+    out = tmp_path / "model"
+
+    build_ensemble_model_dir([artifact1, artifact2], out)
+
+    for name in ("alldata_s2026", "alldata_s2027"):
+        member_dir = out / MEMBERS_SUBDIR / name
+        assert (member_dir / ADAPTER_SUBDIR / "adapter_config.json").exists()
+        assert (member_dir / HEAD_FILENAME).exists()
+
+
+def test_two_members_with_the_same_basename_are_refused(tmp_path):
+    """Silently overwriting one member with the other would ship a
+    four-member ensemble labelled five -- refuse before any files are
+    copied."""
+    import pytest
+
+    from claim_measurement.difficulty.build_model_dir import (
+        build_ensemble_model_dir,
+    )
+
+    artifact_a = _member_artifact(tmp_path / "a", "alldata_s2026", seed=0)
+    artifact_b = _member_artifact(tmp_path / "b", "alldata_s2026", seed=1)
+    out = tmp_path / "model"
+
+    with pytest.raises(ValueError, match="alldata_s2026"):
+        build_ensemble_model_dir([artifact_a, artifact_b], out)
+
+    assert not out.exists()
+
+
+def test_a_staged_ensemble_directory_loads_as_one_head(tmp_path):
+    """The end of the vertical slice: what the builder writes is exactly what
+    load_scorer reads."""
+    from claim_measurement.difficulty.build_model_dir import (
+        build_ensemble_model_dir,
+    )
+    from claim_measurement.difficulty.score_wav import (
+        EnsembleHead,
+        discover_members,
+    )
+
+    # Same seed for both members so their grades share a median -- otherwise
+    # EnsembleHead.from_members' fallback-mismatch guard fires for a reason
+    # unrelated to what this test pins.
+    artifact1 = _member_artifact(tmp_path, "alldata_s2026", seed=0)
+    artifact2 = _member_artifact(tmp_path, "alldata_s2027", seed=0)
+    out = tmp_path / "model"
+
+    build_ensemble_model_dir([artifact1, artifact2], out)
+
+    members = discover_members(out)
+    head = EnsembleHead.from_members([read_ridge_head(m.head_path) for m in members])
+    assert head.n_members == 2
+
+
+def test_writing_members_clears_a_stale_legacy_adapter(tmp_path):
+    """discover_members refuses a directory holding both layouts -- leaving
+    the stale legacy behind would make the freshly-built ensemble directory
+    instantly unusable."""
+    from claim_measurement.difficulty.build_model_dir import (
+        build_ensemble_model_dir,
+    )
+    from claim_measurement.difficulty.score_wav import MEMBERS_SUBDIR
+
+    artifact1 = _member_artifact(tmp_path, "alldata_s2026", seed=0)
+    artifact2 = _member_artifact(tmp_path, "alldata_s2027", seed=0)
+    out = tmp_path / "model"
+    (out / ADAPTER_SUBDIR).mkdir(parents=True)
+    (out / ADAPTER_SUBDIR / "adapter_config.json").write_text("{}")
+    (out / HEAD_FILENAME).write_bytes(b"stale")
+
+    build_ensemble_model_dir([artifact1, artifact2], out)
+
+    assert not (out / ADAPTER_SUBDIR).exists()
+    assert not (out / HEAD_FILENAME).exists()
+    assert (out / MEMBERS_SUBDIR / "alldata_s2026").exists()
+
+
+def test_writing_the_legacy_layout_clears_a_stale_members_tree(tmp_path):
+    """The symmetric direction: build_model_dir must clear a stale members/
+    tree so the legacy layout it writes is not shadowed by an old ensemble."""
+    emb_path = tmp_path / "emb_fold0.npz"
+    _fold_npz(emb_path)
+    adapter_src = tmp_path / "src_adapter"
+    adapter_src.mkdir()
+    (adapter_src / "adapter_config.json").write_text("{}")
+    head = fit_head_from_fold_embeddings(emb_path)
+    out = tmp_path / "model"
+    stale_member_adapter = out / "members" / "stale_name" / "adapter"
+    stale_member_adapter.mkdir(parents=True)
+    (stale_member_adapter / "adapter_config.json").write_text("{}")
+    (out / "members" / "stale_name" / HEAD_FILENAME).write_bytes(b"stale")
+
+    build_model_dir(out, adapter_src, head, kind="test")
+
+    assert not (out / "members").exists()
+
+
+def test_rebuilding_with_fewer_members_drops_the_stale_ones(tmp_path):
+    """Rebuilding an ensemble with a smaller (or renamed) member set must not
+    leave prior members/<name>/ dirs behind -- discover_members walks the
+    whole members/ tree, so a stale leftover from an earlier, possibly
+    different training run would silently rejoin the ensemble. That ships a
+    plausible-looking "3-member" directory that is actually mixing in two
+    members nobody asked for."""
+    from claim_measurement.difficulty.build_model_dir import (
+        build_ensemble_model_dir,
+    )
+    from claim_measurement.difficulty.score_wav import MEMBERS_SUBDIR
+
+    out = tmp_path / "model"
+    stale_names = ["s2026", "s2027", "s2028", "s2029", "s2030"]
+    stale_artifacts = [
+        _member_artifact(tmp_path / "stale", name, seed=0) for name in stale_names
+    ]
+    build_ensemble_model_dir(stale_artifacts, out)
+    assert {p.name for p in (out / MEMBERS_SUBDIR).iterdir()} == set(stale_names)
+
+    fresh_artifacts = [
+        _member_artifact(tmp_path / "fresh", name, seed=1)
+        for name in ("s2026", "s2027", "s2028")
+    ]
+    build_ensemble_model_dir(fresh_artifacts, out)
+
+    assert {p.name for p in (out / MEMBERS_SUBDIR).iterdir()} == {
+        "s2026", "s2027", "s2028"}
+
+
+def test_from_ensemble_cli_writes_a_manifest_disclosing_member_count(tmp_path):
+    """MIREX 2026 makes training-data size, model size, and compute a
+    mandatory disclosure -- a five-member ensemble is five times the
+    inference compute, so the manifest must make K visible."""
+    from claim_measurement.difficulty.build_model_dir import main
+
+    artifact1 = _member_artifact(tmp_path, "alldata_s2026", seed=0)
+    artifact2 = _member_artifact(tmp_path, "alldata_s2027", seed=0)
+    out = tmp_path / "model"
+
+    assert main([
+        "--from-ensemble", str(artifact1),
+        "--from-ensemble", str(artifact2),
+        "--out-dir", str(out),
+    ]) == 0
+
+    manifest = json.loads((out / MANIFEST_FILENAME).read_text())
+    assert manifest["n_members"] == 2
+    assert "train-on-test" in manifest["warning"]
+
+
+def test_from_ensemble_still_participates_in_the_three_way_mutual_exclusion(tmp_path):
+    """Exactly one of --from-fold, --from-all-data, --from-ensemble may be
+    given -- not zero, not two-or-more."""
+    import pytest
+
+    from claim_measurement.difficulty.build_model_dir import main
+
+    artifact1 = _member_artifact(tmp_path, "alldata_s2026", seed=0)
+
+    with pytest.raises(SystemExit):
+        main([
+            "--from-fold", "0",
+            "--from-ensemble", str(artifact1),
+            "--out-dir", str(tmp_path / "model"),
+        ])

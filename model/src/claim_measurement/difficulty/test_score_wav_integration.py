@@ -78,24 +78,25 @@ pytestmark = [
 ]
 
 
-def _run(wav: Path, out: Path, on_failure: str = "raise"
-         ) -> subprocess.CompletedProcess:
+def _run(wav: Path, out: Path, on_failure: str = "raise",
+         model_dir: Path | None = None) -> subprocess.CompletedProcess:
     """Invoke score_wav.py exactly as the container will."""
     return subprocess.run(
         ["uv", "run", "--no-project", "--script", "score_wav.py",
-         "--model-dir", str(_MODEL_DIR), "--wav", str(wav), "--out", str(out),
+         "--model-dir", str(model_dir if model_dir is not None else _MODEL_DIR),
+         "--wav", str(wav), "--out", str(out),
          "--on-failure", on_failure,
          "--checkpoint", str(_CHECKPOINT), "--repo-root", str(_REPO_ROOT),
          "--model-config", str(_MODEL_CONFIG)],
         cwd=_DIFFICULTY_DIR, capture_output=True, text=True, timeout=_TIMEOUT_S)
 
 
-def _score(wav: Path, out: Path) -> float:
+def _score(wav: Path, out: Path, model_dir: Path | None = None) -> float:
     """Score one WAV and read the result from --out rather than stdout. The
     fork's MusicTokenizer prints its entire vocabulary to stdout on
     construction (~96KB), so stdout is not a usable interface -- a lesson worth
     pinned in a test rather than rediscovered inside a Docker build."""
-    result = _run(wav, out)
+    result = _run(wav, out, model_dir=model_dir)
     assert result.returncode == 0, (
         f"score_wav.py exited {result.returncode}\n"
         f"stderr tail:\n{result.stderr[-4000:]}")
@@ -181,6 +182,110 @@ def test_the_submission_day_flag_falls_back_instead_of_crashing(tmp_path):
 
     expected = read_ridge_head(_MODEL_DIR / "ridge_head.npz").fallback_score
     assert score == expected, "the fallback is the training corpus's median grade"
+
+
+# #175 Task 23: the real-backbone ensemble check. `build_ensemble_embedder`
+# attaches K peft LoRA adapters to ONE resident base via
+# `PeftModel.from_pretrained(adapter_name=...)` + `load_adapter` +
+# `set_adapter`, proven only against `_FakeOuter` in test_audio_emb_extract.py.
+# Whether `set_adapter` actually switches weights on the vendored fork's real
+# `LlamaForCausalLM` is this task's whole question, and the failure mode is
+# silent: if it no-ops, every member returns the SAME embedding and a
+# "K-member ensemble" is one adapter wearing K names.
+#
+# Two already-trained Experiment B (all-data) adapters double as the fixture --
+# training a throwaway pair would take GPU hours this task has no budget for.
+# The Hub names are `Jai-D/phase1-lora-7665-alldata-s{2026,2027}`; `hf
+# download <repo> --include "adapter/*"` populates the standard HF cache, which
+# is where this looks first so five people never re-fetch the same 46MB adapter.
+_ENSEMBLE_REPOS = (
+    "Jai-D/phase1-lora-7665-alldata-s2026",
+    "Jai-D/phase1-lora-7665-alldata-s2027",
+)
+_HF_CACHE_HUB = Path(
+    os.environ.get("HF_HOME", Path.home() / ".cache" / "huggingface")) / "hub"
+
+
+def _cached_adapter_artifact_dir(repo_id: str):
+    """The already-downloaded snapshot dir for `repo_id`, or None. Mirrors the
+    `hf` CLI's own cache layout (`models--<org>--<name>/snapshots/<sha>/`)
+    rather than shelling out to it, so a missing adapter is a skip reason, not
+    a network call inside a test."""
+    root = _HF_CACHE_HUB / f"models--{repo_id.replace('/', '--')}" / "snapshots"
+    if not root.is_dir():
+        return None
+    for snapshot in sorted(root.iterdir()):
+        if (snapshot / "adapter" / "adapter_config.json").exists() and \
+           (snapshot / "emb_fold99.npz").exists():
+            return snapshot
+    return None
+
+
+_ENSEMBLE_MEMBER_DIRS = [_cached_adapter_artifact_dir(r) for r in _ENSEMBLE_REPOS]
+_ENSEMBLE_MISSING_REPOS = [
+    r for r, d in zip(_ENSEMBLE_REPOS, _ENSEMBLE_MEMBER_DIRS, strict=True)
+    if d is None]
+# The skipif below guarantees this is the full list whenever the test runs, but
+# the guard is a decorator and cannot narrow the Optional for a type checker.
+# Filtering here states the invariant in the code rather than in a comment.
+_ENSEMBLE_CACHED_DIRS = [d for d in _ENSEMBLE_MEMBER_DIRS if d is not None]
+
+
+@pytest.mark.skipif(
+    bool(_ENSEMBLE_MISSING_REPOS),
+    reason="missing cached adapters (fetch with `hf download <repo> "
+           "--include \"adapter/*\"`): " + ", ".join(_ENSEMBLE_MISSING_REPOS))
+def test_the_two_member_ensemble_score_is_the_mean_of_its_members(tmp_path):
+    """The real-backbone counterpart of `test_build_model_dir.py`'s
+    `_FakeOuter`-only coverage (#175 Task 23). Builds two single-member model
+    dirs and one two-member `--from-ensemble` dir from the SAME two adapters,
+    scores the SAME WAV through all three via the real subprocess path, and
+    checks:
+
+    1. the two-member score equals the mean of the two single-member scores
+       (the ensemble contract), and
+    2. the two single-member scores are NOT equal to each other -- the
+       set_adapter-no-op guard. Without (2), (1) passes vacuously: if
+       `set_adapter` silently no-ops on the fork's real `LlamaForCausalLM`,
+       every member embeds identically, both single-member scores collapse to
+       the same number, and a broken ensemble would still satisfy
+       mean(x, x) == x.
+    """
+    from claim_measurement.difficulty.build_model_dir import (
+        _build_all_data,
+        _build_ensemble,
+    )
+
+    single_dirs = []
+    single_scores = []
+    for i, artifact_dir in enumerate(_ENSEMBLE_CACHED_DIRS):
+        out_dir = tmp_path / f"single_{i}"
+        _build_all_data(artifact_dir, out_dir)
+        single_dirs.append(out_dir)
+        single_scores.append(
+            _score(_HELD_OUT_WAV, tmp_path / f"single_{i}.tsv",
+                   model_dir=out_dir))
+
+    assert single_scores[0] != single_scores[1], (
+        f"both single-member scores are {single_scores[0]!r} -- set_adapter "
+        f"did not switch weights on the real backbone, so a K-member "
+        f"ensemble built from these adapters would be one adapter wearing K "
+        f"names")
+
+    ensemble_dir = tmp_path / "ensemble"
+    _build_ensemble(_ENSEMBLE_CACHED_DIRS, ensemble_dir)
+    ensemble_score = _score(_HELD_OUT_WAV, tmp_path / "ensemble.tsv",
+                            model_dir=ensemble_dir)
+
+    mean_score = sum(single_scores) / len(single_scores)
+    # float64 arithmetic through the SAME mean-then-ridge order on both sides
+    # (EnsembleHead averages ridge outputs, exactly what this line computes),
+    # so this is a bitwise-reproducibility check, not a numerical-tolerance
+    # one -- 1e-9 is many orders tighter than any difference a real
+    # set_adapter bug would produce.
+    assert ensemble_score == pytest.approx(mean_score, abs=1e-9), (
+        f"two-member ensemble score {ensemble_score} != mean of single-member "
+        f"scores {single_scores} (mean {mean_score})")
 
 
 if __name__ == "__main__":

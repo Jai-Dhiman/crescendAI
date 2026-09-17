@@ -12,14 +12,19 @@ from pathlib import Path
 import pytest
 
 from claim_measurement.difficulty.push_runtime_probe import (
+    main as push_runtime_probe_main,
     select_probe_set,
     stage_probe_bundle,
     wav_durations,
 )
 from claim_measurement.difficulty.runtime_probe import (
+    ADAPTER_REPOS,
+    _resolve_adapter_dirs,
+    assemble_ensemble_model_dir,
     assemble_model_dir,
     build_transcriber,
     fit_runtime,
+    member_head_dirs,
     project_budget,
 )
 
@@ -149,6 +154,72 @@ def test_staged_code_is_an_importable_package_tree(tmp_path):
     assert json.loads((staged / "manifest.json").read_text())["items"] == selection
 
 
+def test_stage_probe_bundle_stages_k_named_heads(tmp_path):
+    """The K-member probe needs K heads staged as `head/<name>/ridge_head.npz`
+    -- one per ensemble member -- while the single-head call shape (pinned
+    above) is untouched."""
+    wav_dir = _wav_dir(tmp_path)
+    module_dir = _module_dir()
+    selection = [{"wav": "a.wav", "seconds": 42.0, "target_s": 30.0}]
+
+    heads = {}
+    for name in ("s2026", "s2027"):
+        d = tmp_path / f"head_{name}"
+        d.mkdir()
+        (d / "ridge_head.npz").write_bytes(name.encode())
+        (d / "manifest.json").write_text("{}")
+        heads[name] = d
+
+    staged = tmp_path / "staged_multi"
+    stage_probe_bundle(wav_dir, None, module_dir, staged, selection,
+                       head_dirs=heads)
+
+    assert (staged / "head" / "s2026" / "ridge_head.npz").read_bytes() == b"s2026"
+    assert (staged / "head" / "s2027" / "ridge_head.npz").read_bytes() == b"s2027"
+
+
+def test_stage_probe_bundle_refuses_neither_head_source_given(tmp_path):
+    """Both None used to fall through to `_stage_one_head(None, ...)`, which
+    fails with `TypeError: unsupported operand type(s) for /: 'NoneType' and
+    'str'` -- a caller mistake reported as an internal crash instead of a
+    clear contract violation."""
+    wav_dir = _wav_dir(tmp_path)
+    selection = [{"wav": "a.wav", "seconds": 1.0, "target_s": 1.0}]
+
+    with pytest.raises(ValueError, match="exactly one of"):
+        stage_probe_bundle(wav_dir, None, _module_dir(), tmp_path / "s",
+                           selection)
+
+
+def test_stage_probe_bundle_refuses_both_head_sources_given(tmp_path):
+    """Passing both is as ambiguous as passing neither -- the docstring says
+    "exactly one", and the check must catch this direction too."""
+    wav_dir = _wav_dir(tmp_path)
+    head_dir = _head_dir(tmp_path)
+    selection = [{"wav": "a.wav", "seconds": 1.0, "target_s": 1.0}]
+
+    with pytest.raises(ValueError, match="exactly one of"):
+        stage_probe_bundle(wav_dir, head_dir, _module_dir(), tmp_path / "s",
+                           selection, head_dirs={"x": head_dir})
+
+
+def test_stage_probe_bundle_refuses_a_named_head_without_a_ridge_head(tmp_path):
+    wav_dir = _wav_dir(tmp_path)
+    module_dir = _module_dir()
+    selection = [{"wav": "a.wav", "seconds": 1.0, "target_s": 1.0}]
+
+    good = tmp_path / "head_good"
+    good.mkdir()
+    (good / "ridge_head.npz").write_bytes(b"")
+    (good / "manifest.json").write_text("{}")
+    bad = tmp_path / "head_bad"
+    bad.mkdir()
+
+    with pytest.raises(FileNotFoundError, match=r"ridge_head\.npz"):
+        stage_probe_bundle(wav_dir, None, module_dir, tmp_path / "s2",
+                           selection, head_dirs={"good": good, "bad": bad})
+
+
 def test_staging_refuses_a_head_dir_without_a_ridge_head(tmp_path):
     """An adapter with no head is not a model. Staging one would spend GPU
     time to find that out."""
@@ -161,6 +232,66 @@ def test_staging_refuses_a_head_dir_without_a_ridge_head(tmp_path):
     with pytest.raises(FileNotFoundError, match="ridge_head.npz"):
         stage_probe_bundle(wav_dir, head_dir, _module_dir(), tmp_path / "s",
                            [{"wav": "a.wav", "seconds": 1.0, "target_s": 1.0}])
+
+
+def _real_wav_dir(tmp_path):
+    """A wav/ that `soundfile.info` can actually open -- the CLI path runs
+    real duration probing, not the injected fake used above."""
+    import soundfile as sf
+
+    d = tmp_path / "wav"
+    d.mkdir()
+    sf.write(str(d / "a.wav"), [0.0] * 100, 8000)
+    return d
+
+
+def test_cli_multi_head_dir_reaches_stage_probe_bundle_with_k_heads(tmp_path):
+    """Task 22 added head_dirs + _stage_one_head, but main() only ever built
+    a single --head-dir and passed it as `head_dir` -- the K-head path was
+    unreachable from the CLI. Repeated --head-dir must now stage
+    head/<name>/ per member."""
+    wav_dir = _real_wav_dir(tmp_path)
+    heads_root = tmp_path / "heads"
+    heads_root.mkdir()
+    heads = {}
+    for name in ("s2026", "s2027"):
+        d = heads_root / name
+        d.mkdir()
+        (d / "ridge_head.npz").write_bytes(name.encode())
+        (d / "manifest.json").write_text("{}")
+        heads[name] = d
+    staging_dir = tmp_path / "staged"
+
+    rc = push_runtime_probe_main([
+        "--wav-dir", str(wav_dir),
+        "--head-dir", str(heads["s2026"]),
+        "--head-dir", str(heads["s2027"]),
+        "--staging-dir", str(staging_dir),
+        "--no-upload",
+    ])
+
+    assert rc == 0
+    assert (staging_dir / "head" / "s2026" / "ridge_head.npz").read_bytes() == b"s2026"
+    assert (staging_dir / "head" / "s2027" / "ridge_head.npz").read_bytes() == b"s2027"
+
+
+def test_cli_single_head_dir_still_stages_the_legacy_layout(tmp_path):
+    """The pre-existing single-head invocation shape must keep working
+    unchanged -- one --head-dir stages head/ rather than head/<name>/."""
+    wav_dir = _real_wav_dir(tmp_path)
+    head_dir = _head_dir(tmp_path)
+    staging_dir = tmp_path / "staged"
+
+    rc = push_runtime_probe_main([
+        "--wav-dir", str(wav_dir),
+        "--head-dir", str(head_dir),
+        "--staging-dir", str(staging_dir),
+        "--no-upload",
+    ])
+
+    assert rc == 0
+    assert (staging_dir / "head" / "ridge_head.npz").exists()
+    assert not (staging_dir / "head" / head_dir.name).exists()
 
 
 # --------------------------------------------------------------------------
@@ -248,3 +379,81 @@ def test_assemble_model_dir_joins_the_two_hub_halves(tmp_path):
 
     assert (dest / "adapter" / "adapter_config.json").exists()
     assert (dest / "ridge_head.npz").read_bytes() == b"npz"
+
+
+def test_assemble_ensemble_model_dir_builds_the_members_layout(tmp_path):
+    """The K-member probe needs the same `members/<name>/...` layout
+    `discover_members` (score_wav.py) reads, built from K separate Hub
+    adapter/head halves rather than one."""
+    names = ["s2026", "s2027"]
+    members = []
+    for name in names:
+        adapter_src = tmp_path / f"hub_adapter_{name}"
+        (adapter_src / "adapter").mkdir(parents=True)
+        (adapter_src / "adapter" / "adapter_config.json").write_text("{}")
+        head_src = tmp_path / f"hub_head_{name}"
+        head_src.mkdir()
+        (head_src / "ridge_head.npz").write_bytes(name.encode())
+        (head_src / "manifest.json").write_text("{}")
+        members.append((name, adapter_src, head_src))
+
+    dest = assemble_ensemble_model_dir(members, tmp_path / "ensemble_model")
+
+    assert (dest / "members" / "s2026" / "adapter"
+            / "adapter_config.json").exists()
+    assert (dest / "members" / "s2027" / "ridge_head.npz").read_bytes() == b"s2027"
+
+
+def test_member_head_dirs_reads_the_named_layout_not_a_shared_flat_head(
+        tmp_path):
+    """`main()` used to pass `probe_dir / "head"` for every K>1 member --
+    the legacy K=1 flat layout -- while `push_runtime_probe.py` stages
+    `head/<name>/` whenever it is given more than one `--head-dir`. Rehearsing
+    #175 Task 24 locally (build_model_dir -> push_runtime_probe --no-upload ->
+    runtime_probe --adapter-dir x5) hit this directly: the flat path does not
+    exist for K>1, so the job would crash on file copy before scoring a single
+    item -- a paid GPU job burned on plumbing, exactly what the offline
+    rehearsal exists to catch."""
+    probe_dir = tmp_path / "probe"
+    (probe_dir / "head" / "s2026").mkdir(parents=True)
+    (probe_dir / "head" / "s2027").mkdir(parents=True)
+
+    members = [("s2026", tmp_path / "adapter_s2026"),
+              ("s2027", tmp_path / "adapter_s2027")]
+
+    resolved = member_head_dirs(probe_dir, members)
+
+    assert resolved == [
+        ("s2026", tmp_path / "adapter_s2026", probe_dir / "head" / "s2026"),
+        ("s2027", tmp_path / "adapter_s2027", probe_dir / "head" / "s2027"),
+    ]
+
+
+def test_resolve_adapter_dirs_snapshots_all_five_repos_when_none_given():
+    """No --adapter-dir means the offline trio was not used, so all five
+    ensemble repos must be resolved off the Hub -- one snapshot call per
+    repo, matching ADAPTER_REPOS."""
+    calls = []
+
+    def fake_snapshot(repo, **kwargs):
+        calls.append((repo, kwargs))
+        return f"/cache/{repo.replace('/', '_')}"
+
+    resolved = _resolve_adapter_dirs(None, snapshot_fn=fake_snapshot)
+
+    assert [repo for repo, _ in calls] == ADAPTER_REPOS
+    assert len(resolved) == 5
+    assert resolved[0][0] == "phase1-lora-7665-alldata-s2026"
+    assert resolved[0][1] == Path("/cache/Jai-D_phase1-lora-7665-alldata-s2026")
+
+
+def test_resolve_adapter_dirs_uses_local_dirs_directly_without_a_snapshot():
+    """The offline trio must skip the Hub entirely -- a probe rehearsed
+    locally cannot depend on network access."""
+    def _forbidden(*_args, **_kwargs):
+        raise AssertionError("must not snapshot when --adapter-dir is given")
+
+    resolved = _resolve_adapter_dirs(
+        [Path("/local/a"), Path("/local/b")], snapshot_fn=_forbidden)
+
+    assert resolved == [("a", Path("/local/a")), ("b", Path("/local/b"))]

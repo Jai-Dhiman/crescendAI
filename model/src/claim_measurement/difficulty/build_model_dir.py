@@ -17,8 +17,12 @@ end-to-end seam can be executed before the all-data model is trained.
 trained on all 5,798 pieces, with no exclusions, because the MIREX test set is
 disjoint from PSyllabus by construction.
 
-**Neither directory may be used to report a tau-c.** Per #104: the recipe is
-validated on folds; a model directory is a deployment of that recipe.
+**`--from-ensemble DIR`** (repeatable, #175) stages K such all-data artifacts
+as `<model-dir>/members/<name>/` and scores as their mean (`EnsembleHead`).
+
+**None of these directories may be used to report a tau-c.** Per #104: the
+recipe is validated on folds; a model directory is a deployment of that
+recipe.
 
     cd model && uv run python -m claim_measurement.difficulty.build_model_dir \\
         --from-fold 0 \\
@@ -39,6 +43,7 @@ from claim_measurement.difficulty.fold_plan import ALL_DATA_FOLD
 from claim_measurement.difficulty.score_wav import (
     ADAPTER_SUBDIR,
     HEAD_FILENAME,
+    MEMBERS_SUBDIR,
     fit_head_from_fold_embeddings,
     write_manifest,
     write_ridge_head,
@@ -63,6 +68,11 @@ def build_model_dir(out_dir: Path, adapter_src: Path, head, **provenance) -> Pat
     not symlinked: this directory is what goes into a container image, and a
     symlink into the research tree would resolve to nothing there."""
     out_dir = Path(out_dir)
+    # A stale members/ tree left behind while writing the legacy layout would
+    # make discover_members refuse the directory -- it holds both layouts.
+    stale_members = out_dir / MEMBERS_SUBDIR
+    if stale_members.exists():
+        shutil.rmtree(stale_members)
     adapter_dst = out_dir / ADAPTER_SUBDIR
     if adapter_dst.exists():
         shutil.rmtree(adapter_dst)
@@ -112,6 +122,103 @@ def _build_all_data(artifact_dir: Path, out_dir: Path) -> int:
     return 0
 
 
+def build_ensemble_model_dir(member_artifact_dirs: list, out_dir: Path,
+                             **provenance) -> Path:
+    """Stage K all-data artifacts as ensemble members under one out_dir.
+
+    Each source dir is shaped like `_build_all_data`'s input --
+    `emb_fold{ALL_DATA_FOLD}.npz` + `adapter/` -- and per #168 every member is
+    trained on the identical all-data pool with no exclusions, so each head is
+    fit the same way `_build_all_data` fits its one head. `build_model_dir` is
+    reused per member (pointed at `out_dir/members/<name>`) rather than
+    reimplemented, to keep the copy-not-symlink discipline shared with the
+    single-adapter path.
+    """
+    out_dir = Path(out_dir)
+    member_artifact_dirs = [Path(d) for d in member_artifact_dirs]
+
+    names = [d.name for d in member_artifact_dirs]
+    seen = set()
+    for name in names:
+        if name in seen:
+            raise ValueError(
+                f"two ensemble members share the basename {name!r} -- "
+                f"silently overwriting one with the other would ship a "
+                f"{len(names) - 1}-member ensemble labelled {len(names)}")
+        seen.add(name)
+
+    # A stale legacy adapter left behind while writing members/ would make
+    # discover_members refuse the directory -- it holds both layouts.
+    legacy_adapter = out_dir / ADAPTER_SUBDIR
+    if legacy_adapter.exists():
+        shutil.rmtree(legacy_adapter)
+    legacy_head = out_dir / HEAD_FILENAME
+    if legacy_head.exists():
+        legacy_head.unlink()
+
+    # A stale members/ tree from a prior build with a different (e.g.
+    # smaller, or renamed) member set would leave old member dirs behind --
+    # discover_members would silently fold them back into the "new" ensemble.
+    members_root = out_dir / MEMBERS_SUBDIR
+    if members_root.exists():
+        shutil.rmtree(members_root)
+
+    for member_dir in member_artifact_dirs:
+        emb_path = member_dir / f"emb_fold{ALL_DATA_FOLD}.npz"
+        if not emb_path.exists():
+            raise FileNotFoundError(
+                f"{emb_path} does not exist -- --from-ensemble expects each "
+                f"member's fold-{ALL_DATA_FOLD} training run's output dir")
+        head = fit_head_from_fold_embeddings(emb_path, exclude_seg_ids=None)
+        member_out = out_dir / MEMBERS_SUBDIR / member_dir.name
+        build_model_dir(member_out, member_dir / ADAPTER_SUBDIR, head, **provenance)
+
+    return out_dir
+
+
+ENSEMBLE_WARNING = (
+    "No tau-c may be reported from this directory: every labelled piece is "
+    "in its training set, so any evaluation is train-on-test. The recipe was "
+    "validated on folds; see #104.")
+
+
+def _build_ensemble(member_artifact_dirs: list, out_dir: Path) -> int:
+    """The ensemble SUBMISSION directory: K all-data members, scored as their
+    mean. The top-level manifest discloses K -- MIREX 2026 makes compute a
+    mandatory disclosure, and a K-member ensemble is K times the inference
+    compute."""
+    out_dir = Path(out_dir)
+    build_ensemble_model_dir(
+        member_artifact_dirs, out_dir,
+        kind="SUBMISSION ensemble member -- trained on all pool pieces, "
+             "nothing held out",
+        fold=ALL_DATA_FOLD, held_out_pieces=0, warning=ENSEMBLE_WARNING)
+
+    from claim_measurement.difficulty.score_wav import read_ridge_head
+
+    member_names = sorted(Path(d).name for d in member_artifact_dirs)
+    members_info = []
+    for name in member_names:
+        head = read_ridge_head(out_dir / MEMBERS_SUBDIR / name / HEAD_FILENAME)
+        members_info.append({
+            "name": name,
+            "fallback_score": head.fallback_score,
+            "embedding_dim": head.n_features,
+        })
+
+    write_manifest(
+        out_dir,
+        kind="SUBMISSION ensemble -- trained on all pool pieces, nothing "
+             "held out",
+        n_members=len(member_names),
+        members=members_info,
+        warning=ENSEMBLE_WARNING)
+
+    print(f"wrote {out_dir}: SUBMISSION ensemble of {len(member_names)} "
+          f"members {member_names}")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -121,14 +228,24 @@ def main(argv=None) -> int:
         "--from-all-data", type=Path, default=None,
         help="build the SUBMISSION directory from a fold-99 artifact dir "
              "(adapter/ + emb_fold99.npz from the all-data training run)")
+    ap.add_argument(
+        "--from-ensemble", type=Path, action="append", default=None,
+        help="build the ensemble SUBMISSION directory from K all-data "
+             "artifact dirs (repeatable)")
     ap.add_argument("--fold-emb-dir", type=Path, default=None)
     ap.add_argument("--out-dir", type=Path, required=True)
     ap.add_argument("--data-root", type=Path, default=None)
     ap.add_argument("--features37-dir", type=Path, default=None)
     args = ap.parse_args(argv)
 
-    if (args.from_fold is None) == (args.from_all_data is None):
-        ap.error("pass exactly one of --from-fold or --from-all-data")
+    n_sources = sum(x is not None for x in
+                    (args.from_fold, args.from_all_data, args.from_ensemble))
+    if n_sources != 1:
+        ap.error("pass exactly one of --from-fold, --from-all-data, or "
+                 "--from-ensemble")
+
+    if args.from_ensemble is not None:
+        return _build_ensemble(args.from_ensemble, args.out_dir)
 
     if args.from_all_data is not None:
         return _build_all_data(args.from_all_data, args.out_dir)

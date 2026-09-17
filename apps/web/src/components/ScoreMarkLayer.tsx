@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useState } from "react";
+import { type ReactNode, type RefObject, useEffect, useState } from "react";
 import type { Mark } from "../lib/mark";
 import type { BarLocator, MeasureRect } from "../lib/mark-placement";
 import { placeMarks } from "../lib/mark-placement";
@@ -9,6 +9,10 @@ interface ScoreMarkLayerProps {
 	containerRef: RefObject<HTMLElement | null>;
 	bars: readonly BarLocator[];
 	marks: readonly Mark[];
+	/** Overrides the default evidence-only MarkDetail expansion. SessionReview
+	 * uses this to swap in own-audio playback + drill entry without forking
+	 * placement/measurement logic. */
+	renderDetail?: (mark: Mark, onClose: () => void) => ReactNode;
 }
 
 /**
@@ -23,6 +27,7 @@ export function ScoreMarkLayer({
 	containerRef,
 	bars,
 	marks,
+	renderDetail,
 }: ScoreMarkLayerProps) {
 	const [rects, setRects] = useState<ReadonlyMap<string, MeasureRect>>(
 		new Map(),
@@ -77,9 +82,12 @@ export function ScoreMarkLayer({
 						expanded={expandedId === mark.id}
 						onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
 					/>
-					{expandedId === mark.id && (
-						<MarkDetail mark={mark} onClose={() => setExpandedId(null)} />
-					)}
+					{expandedId === mark.id &&
+						(renderDetail ? (
+							renderDetail(mark, () => setExpandedId(null))
+						) : (
+							<MarkDetail mark={mark} onClose={() => setExpandedId(null)} />
+						))}
 				</div>
 			))}
 			{unplaced.length > 0 && (

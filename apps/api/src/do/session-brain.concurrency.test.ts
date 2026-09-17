@@ -11,26 +11,17 @@ vi.mock("../services/inference", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../services/inference")>();
 	return {
 		...actual,
-		callMuqEndpoint: vi.fn(async () => {
-			await new Promise((r) => setTimeout(r, 10));
-			return {
-				scores: {
-					dynamics: 0.5,
-					timing: 0.5,
-					pedaling: 0.5,
-					articulation: 0.5,
-					phrasing: 0.5,
-					interpretation: 0.5,
-				},
-				confidences: null,
-				chromaBytes: null,
-				chromaFrames: 0,
-				chromaFrameRateHz: 0,
-			};
-		}),
 		callAmtEndpoint: vi.fn(async () => {
 			await new Promise((r) => setTimeout(r, 10));
-			return { notes: [], pedalEvents: [] };
+			return {
+				notes: Array.from({ length: 10 }, (_, i) => ({
+					pitch: 60,
+					onset: i * 0.3,
+					offset: i * 0.3 + 0.2,
+					velocity: 70,
+				})),
+				pedalEvents: [],
+			};
 		}),
 	};
 });
@@ -66,6 +57,7 @@ describe("handleChunkReady concurrency (#11 chunksInFlight race, #12 version-bai
 			seeded.baselinesLoaded = true; // skip the Hyperdrive baseline query
 			seeded.baselines = null; // skip teaching-moment selection (gated on baselines)
 			seeded.pieceLocked = true; // skip piece identification (gated on !pieceLocked)
+			seeded.markBaselineLoaded = true; // skip the Hyperdrive mark-baseline query
 			await state.storage.put("state", seeded);
 
 			// Fire all N through the PUBLIC WebSocket message handler, concurrently.

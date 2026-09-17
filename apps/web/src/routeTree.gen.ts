@@ -16,9 +16,8 @@ import { Route as PracticePreviewRouteImport } from './routes/practice-preview'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
-import { Route as AppSandboxRouteImport } from './routes/app.sandbox'
-import { Route as AppChatsRouteImport } from './routes/app.chats'
-import { Route as AppCConversationIdRouteImport } from './routes/app.c.$conversationId'
+import { Route as AppPracticeRouteImport } from './routes/app.practice'
+import { Route as AppPiecePieceIdRouteImport } from './routes/app.piece.$pieceId'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -55,19 +54,14 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppSandboxRoute = AppSandboxRouteImport.update({
-  id: '/sandbox',
-  path: '/sandbox',
+const AppPracticeRoute = AppPracticeRouteImport.update({
+  id: '/practice',
+  path: '/practice',
   getParentRoute: () => AppRoute,
 } as any)
-const AppChatsRoute = AppChatsRouteImport.update({
-  id: '/chats',
-  path: '/chats',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppCConversationIdRoute = AppCConversationIdRouteImport.update({
-  id: '/c/$conversationId',
-  path: '/c/$conversationId',
+const AppPiecePieceIdRoute = AppPiecePieceIdRouteImport.update({
+  id: '/piece/$pieceId',
+  path: '/piece/$pieceId',
   getParentRoute: () => AppRoute,
 } as any)
 
@@ -78,10 +72,9 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/signin': typeof SigninRoute
   '/terms': typeof TermsRoute
-  '/app/chats': typeof AppChatsRoute
-  '/app/sandbox': typeof AppSandboxRoute
+  '/app/practice': typeof AppPracticeRoute
   '/app/': typeof AppIndexRoute
-  '/app/c/$conversationId': typeof AppCConversationIdRoute
+  '/app/piece/$pieceId': typeof AppPiecePieceIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -89,10 +82,9 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/signin': typeof SigninRoute
   '/terms': typeof TermsRoute
-  '/app/chats': typeof AppChatsRoute
-  '/app/sandbox': typeof AppSandboxRoute
+  '/app/practice': typeof AppPracticeRoute
   '/app': typeof AppIndexRoute
-  '/app/c/$conversationId': typeof AppCConversationIdRoute
+  '/app/piece/$pieceId': typeof AppPiecePieceIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -102,10 +94,9 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/signin': typeof SigninRoute
   '/terms': typeof TermsRoute
-  '/app/chats': typeof AppChatsRoute
-  '/app/sandbox': typeof AppSandboxRoute
+  '/app/practice': typeof AppPracticeRoute
   '/app/': typeof AppIndexRoute
-  '/app/c/$conversationId': typeof AppCConversationIdRoute
+  '/app/piece/$pieceId': typeof AppPiecePieceIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -116,10 +107,9 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/signin'
     | '/terms'
-    | '/app/chats'
-    | '/app/sandbox'
+    | '/app/practice'
     | '/app/'
-    | '/app/c/$conversationId'
+    | '/app/piece/$pieceId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -127,10 +117,9 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/signin'
     | '/terms'
-    | '/app/chats'
-    | '/app/sandbox'
+    | '/app/practice'
     | '/app'
-    | '/app/c/$conversationId'
+    | '/app/piece/$pieceId'
   id:
     | '__root__'
     | '/'
@@ -139,10 +128,9 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/signin'
     | '/terms'
-    | '/app/chats'
-    | '/app/sandbox'
+    | '/app/practice'
     | '/app/'
-    | '/app/c/$conversationId'
+    | '/app/piece/$pieceId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -205,42 +193,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/sandbox': {
-      id: '/app/sandbox'
-      path: '/sandbox'
-      fullPath: '/app/sandbox'
-      preLoaderRoute: typeof AppSandboxRouteImport
+    '/app/practice': {
+      id: '/app/practice'
+      path: '/practice'
+      fullPath: '/app/practice'
+      preLoaderRoute: typeof AppPracticeRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/chats': {
-      id: '/app/chats'
-      path: '/chats'
-      fullPath: '/app/chats'
-      preLoaderRoute: typeof AppChatsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/c/$conversationId': {
-      id: '/app/c/$conversationId'
-      path: '/c/$conversationId'
-      fullPath: '/app/c/$conversationId'
-      preLoaderRoute: typeof AppCConversationIdRouteImport
+    '/app/piece/$pieceId': {
+      id: '/app/piece/$pieceId'
+      path: '/piece/$pieceId'
+      fullPath: '/app/piece/$pieceId'
+      preLoaderRoute: typeof AppPiecePieceIdRouteImport
       parentRoute: typeof AppRoute
     }
   }
 }
 
 interface AppRouteChildren {
-  AppChatsRoute: typeof AppChatsRoute
-  AppSandboxRoute: typeof AppSandboxRoute
+  AppPracticeRoute: typeof AppPracticeRoute
   AppIndexRoute: typeof AppIndexRoute
-  AppCConversationIdRoute: typeof AppCConversationIdRoute
+  AppPiecePieceIdRoute: typeof AppPiecePieceIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
-  AppChatsRoute: AppChatsRoute,
-  AppSandboxRoute: AppSandboxRoute,
+  AppPracticeRoute: AppPracticeRoute,
   AppIndexRoute: AppIndexRoute,
-  AppCConversationIdRoute: AppCConversationIdRoute,
+  AppPiecePieceIdRoute: AppPiecePieceIdRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Mark } from "../lib/mark";
+import { resolveAnchor } from "../lib/mark";
 import { scoreRenderer } from "../lib/score-renderer";
 import { ScoreStand } from "./ScoreStand";
 
@@ -102,5 +104,51 @@ describe("ScoreStand", () => {
 				"1",
 			),
 		);
+	});
+
+	it("renders a custom mark detail via renderDetail when a mark is expanded", async () => {
+		vi.mocked(scoreRenderer.getPage).mockImplementation(
+			async (_pieceId, pageN) =>
+				pageN === 1 ? '<svg><g id="m1"></g></svg>' : "<svg></svg>",
+		);
+
+		const mark: Mark = {
+			id: "m1",
+			anchor: resolveAnchor({
+				atSeconds: 5,
+				bars: [1, 1],
+				alignmentQuality: 1,
+			}),
+			taxonomy: "needs_work",
+			dimension: "pedaling",
+			evidence: "test evidence",
+			lifecycle: "active",
+		};
+
+		render(
+			<ScoreStand
+				pieceId="chopin-nocturne-op9-no2"
+				marks={[mark]}
+				elapsedSeconds={0}
+				isRecording={false}
+				renderDetail={(m, onClose) => (
+					<button
+						type="button"
+						data-testid={`custom-${m.id}`}
+						onClick={onClose}
+					>
+						custom
+					</button>
+				)}
+			/>,
+		);
+
+		await waitFor(() =>
+			expect(
+				screen.getByLabelText(/Needs work: Pedaling, bar 1/),
+			).toBeInTheDocument(),
+		);
+		fireEvent.click(screen.getByLabelText(/Needs work: Pedaling, bar 1/));
+		expect(screen.getByTestId("custom-m1")).toBeInTheDocument();
 	});
 });

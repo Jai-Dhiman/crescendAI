@@ -3,10 +3,17 @@ import { usePauseTracker } from "../hooks/usePauseTracker";
 import type { Mark } from "../lib/mark";
 import type { ConfidentGuess } from "../lib/piece-ladder";
 import { resolvePieceLadderState } from "../lib/piece-ladder";
+import type {
+	CarryForward,
+	NoCommentZone,
+	VerdictState,
+	WsGap,
+} from "../lib/session-review";
 import { ConfirmPieceChip } from "./ConfirmPieceChip";
 import { PieceLessMode } from "./PieceLessMode";
 import { ScoreStand } from "./ScoreStand";
 import { SessionEndedBanner } from "./SessionEndedBanner";
+import { SessionReview } from "./SessionReview";
 
 interface PracticeModeProps {
 	userPickedPieceId: string | null;
@@ -18,14 +25,27 @@ interface PracticeModeProps {
 	/** Ends the session for real. The only exit from this full-screen surface;
 	 * unlike SessionEndedBanner's resume, this is terminal. */
 	onStop: () => void;
+	/** Defaults to "practice" so every existing caller (routes/app.tsx, the
+	 * /practice-preview harness) that never passes this is unaffected. */
+	phase?: "practice" | "review";
+	sessionId?: string;
+	verdict?: VerdictState;
+	onRetryVerdict?: () => void;
+	carryForward?: CarryForward | null;
+	wsGaps?: readonly WsGap[];
+	noCommentZones?: readonly NoCommentZone[];
+	onWorkOnThis?: (mark: Mark) => void;
+	/** Leaves the review surface. Distinct from onStop: by the time review is
+	 * showing, recording has already ended. */
+	onExitReview?: () => void;
 }
 
 /**
  * The orchestrator: the one component that knows all four practice
  * sub-surfaces exist. Everything it delegates to (ScoreStand, PieceLessMode,
  * ConfirmPieceChip, SessionEndedBanner) takes plain props and touches
- * neither the WS nor the session hook directly -- AppChat is the only place
- * that wires usePracticeSession's live state into these props.
+ * neither the WS nor the session hook directly -- routes/app.tsx is the only
+ * place that wires usePracticeSession's live state into these props.
  *
  * The stop control is rendered here, not inside ScoreStand/PieceLessMode/
  * SessionEndedBanner, so it is guaranteed present across every ladder state
@@ -48,9 +68,18 @@ export function PracticeMode({
 	isPlaying,
 	isRecording,
 	onStop,
+	phase = "practice",
+	sessionId,
+	verdict,
+	onRetryVerdict,
+	carryForward,
+	wsGaps,
+	noCommentZones,
+	onWorkOnThis,
+	onExitReview,
 }: PracticeModeProps) {
 	const [dismissed, setDismissed] = useState(false);
-	const pause = usePauseTracker(isPlaying);
+	const pause = usePauseTracker(phase === "practice" && isPlaying);
 
 	const ladderState = resolvePieceLadderState({
 		userPicked: userPickedPieceId,
@@ -68,17 +97,41 @@ export function PracticeMode({
 	return (
 		<div className="flex h-full flex-col">
 			<div className="flex shrink-0 items-center justify-end border-b border-border-subtle px-4 py-2">
-				<button
-					type="button"
-					onClick={onStop}
-					aria-label="Stop recording"
-					className="rounded-full bg-danger px-4 py-2 text-body-sm text-on-accent"
-				>
-					Stop
-				</button>
+				{phase === "review" ? (
+					<button
+						type="button"
+						onClick={onExitReview}
+						aria-label="Done"
+						className="rounded-full bg-accent px-4 py-2 text-body-sm text-on-accent"
+					>
+						Done
+					</button>
+				) : (
+					<button
+						type="button"
+						onClick={onStop}
+						aria-label="Stop recording"
+						className="rounded-full bg-danger px-4 py-2 text-body-sm text-on-accent"
+					>
+						Stop
+					</button>
+				)}
 			</div>
 			<div className="flex min-h-0 flex-1 flex-col">
-				{pause.autoStopped ? (
+				{phase === "review" ? (
+					<SessionReview
+						pieceId={pieceId}
+						sessionId={sessionId ?? ""}
+						marks={marks}
+						durationSeconds={elapsedSeconds}
+						verdict={verdict ?? { status: "loading" }}
+						onRetryVerdict={onRetryVerdict ?? (() => {})}
+						carryForward={carryForward ?? null}
+						wsGaps={wsGaps ?? []}
+						noCommentZones={noCommentZones ?? []}
+						onWorkOnThis={onWorkOnThis ?? (() => {})}
+					/>
+				) : pause.autoStopped ? (
 					<SessionEndedBanner onResume={pause.resume} />
 				) : (
 					<>

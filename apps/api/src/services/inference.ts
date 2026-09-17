@@ -21,14 +21,6 @@ export interface MuqConfidences {
 	interpretation: number;
 }
 
-export interface MuqResult {
-	scores: MuqScores;
-	confidences: MuqConfidences | null;
-	chromaBytes: Uint8Array | null;
-	chromaFrames: number;
-	chromaFrameRateHz: number;
-}
-
 export interface PerfNote {
 	pitch: number;
 	onset: number;
@@ -46,27 +38,10 @@ export interface AmtResult {
 	pedalEvents: PerfPedalEvent[];
 }
 
-interface MuqResponseRaw {
-	predictions: Record<string, number>;
-	confidences?: Record<string, number>;
-	chroma_b64?: string;
-	chroma_frames?: number;
-	chroma_frame_rate_hz?: number;
-}
-
 interface AmtResponseRaw {
 	midi_notes: PerfNote[];
 	pedal_events: PerfPedalEvent[];
 }
-
-const MUQ_DIMS = [
-	"dynamics",
-	"timing",
-	"pedaling",
-	"articulation",
-	"phrasing",
-	"interpretation",
-] as const;
 
 async function fetchWithRetry(
 	url: string,
@@ -135,31 +110,6 @@ async function fetchWithRetry(
 	throw new InferenceError(lastErr);
 }
 
-export async function callMuqEndpoint(
-	env: Bindings,
-	audioBytes: ArrayBuffer,
-): Promise<MuqResult> {
-	const response = await fetchWithRetry(
-		env.MUQ_ENDPOINT,
-		{
-			method: "POST",
-			headers: { "Content-Type": "audio/webm;codecs=opus" },
-			body: audioBytes,
-		},
-		RETRY_DELAYS_MS,
-	);
-
-	if (!response.ok) {
-		const body = await response.text().catch(() => "");
-		throw new InferenceError(
-			`MuQ returned ${response.status}: ${body.slice(0, 200)}`,
-		);
-	}
-
-	const raw = (await response.json()) as MuqResponseRaw;
-	return parseMuqResponse(raw);
-}
-
 function encodeBase64(buffer: ArrayBuffer): string {
 	const bytes = new Uint8Array(buffer);
 	// Encode in fixed-size blocks; spreading the whole array into
@@ -170,59 +120,6 @@ function encodeBase64(buffer: ArrayBuffer): string {
 		binary += String.fromCharCode(...bytes.subarray(i, i + BLOCK));
 	}
 	return btoa(binary);
-}
-
-/** Parse a raw MuQ JSON response into a typed MuqResult. Exported for unit testing. */
-export function parseMuqResponse(raw: MuqResponseRaw): MuqResult {
-	const missingDims = MUQ_DIMS.filter(
-		(dim) => typeof raw.predictions[dim] !== "number",
-	);
-	if (missingDims.length > 0) {
-		throw new InferenceError(
-			`MuQ response missing dimensions: ${missingDims.join(", ")}`,
-		);
-	}
-
-	const scores: MuqScores = {
-		dynamics: raw.predictions.dynamics,
-		timing: raw.predictions.timing,
-		pedaling: raw.predictions.pedaling,
-		articulation: raw.predictions.articulation,
-		phrasing: raw.predictions.phrasing,
-		interpretation: raw.predictions.interpretation,
-	};
-
-	const confidences: MuqConfidences | null = raw.confidences
-		? {
-				dynamics: raw.confidences.dynamics ?? 1.0,
-				timing: raw.confidences.timing ?? 1.0,
-				pedaling: raw.confidences.pedaling ?? 1.0,
-				articulation: raw.confidences.articulation ?? 1.0,
-				phrasing: raw.confidences.phrasing ?? 1.0,
-				interpretation: raw.confidences.interpretation ?? 1.0,
-			}
-		: null;
-
-	let chromaBytes: Uint8Array | null = null;
-	let chromaFrames = 0;
-	let chromaFrameRateHz = 0;
-
-	if (
-		raw.chroma_b64 !== undefined &&
-		raw.chroma_frames !== undefined &&
-		raw.chroma_frames > 0
-	) {
-		const binaryStr = atob(raw.chroma_b64);
-		const bytes = new Uint8Array(binaryStr.length);
-		for (let i = 0; i < binaryStr.length; i++) {
-			bytes[i] = binaryStr.charCodeAt(i);
-		}
-		chromaBytes = bytes;
-		chromaFrames = raw.chroma_frames;
-		chromaFrameRateHz = raw.chroma_frame_rate_hz ?? 50.0;
-	}
-
-	return { scores, confidences, chromaBytes, chromaFrames, chromaFrameRateHz };
 }
 
 export async function callAmtEndpoint(

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { Mark } from "../lib/mark";
 import type { LaneItem } from "../lib/timeline-lanes";
@@ -23,6 +24,7 @@ interface MarkPosition {
 interface SessionTimelineStripProps {
 	durationSeconds: number;
 	marks: readonly Mark[];
+	renderDetail?: (mark: Mark, onClose: () => void) => ReactNode;
 }
 
 /**
@@ -35,6 +37,7 @@ interface SessionTimelineStripProps {
 export function SessionTimelineStrip({
 	durationSeconds,
 	marks,
+	renderDetail,
 }: SessionTimelineStripProps) {
 	const [expandedId, setExpandedId] = useState<string | null>(null);
 	const [layout, setLayout] = useState<ReadonlyMap<string, MarkPosition>>(
@@ -121,9 +124,12 @@ export function SessionTimelineStrip({
 						expanded={expandedId === mark.id}
 						onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
 					/>
-					{expandedId === mark.id && (
-						<MarkDetail mark={mark} onClose={() => setExpandedId(null)} />
-					)}
+					{expandedId === mark.id &&
+						(renderDetail ? (
+							renderDetail(mark, () => setExpandedId(null))
+						) : (
+							<MarkDetail mark={mark} onClose={() => setExpandedId(null)} />
+						))}
 				</div>
 			))}
 		</div>

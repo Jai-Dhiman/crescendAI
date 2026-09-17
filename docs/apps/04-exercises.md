@@ -1,6 +1,6 @@
 # Exercises and Focused Practice
 
-> **Status (2026-03-19):** Exercise DB schema DEFINED. Endpoints IMPLEMENTED (`GET /api/exercises`, exercise tracking). CEO review (2026-03-19): Exercises ship as artifacts in the unified container system (see `05-ui-system.md`). Exercise artifact is the only artifact type in the web beta. Focus mode DEFERRED to Phase 3.
+> **Status (2026-03-19, historical):** Exercise DB schema DEFINED. Endpoints IMPLEMENTED (`GET /api/exercises`, exercise tracking). CEO review (2026-03-19): exercises originally shipped as artifacts in the chat-container artifact system. That delivery mechanism, and Focus mode's chat-gated design, are superseded by the score-first redesign — see the 2026-08-04 status update below.
 >
 > **Status update (2026-06-10, #29):** S1 shipped — legacy `proposed_exercises`/`create_exercise` paths replaced by the typed `ExerciseRoutingDecision` contract persisting to `pending_exercises`. See [S1 Contract](#s1-exercise-routing-contract-shipped-29) below. The former rebuild index is retired; this document is the durable home for the shipped FILTER -> RANK -> ADAPT design and its remaining gates.
 >
@@ -12,7 +12,7 @@
 >
 > **Status update (2026-06-28, relevance@1 eval + cosine RANK built — #103, epic #44 S6):** Two things landed as tested infrastructure (production selection behavior UNCHANGED — the cosine ranker is committed but not yet wired into the serve path). (1) **Relevance@1 LLM-judge** (`apps/evals/pipeline/exercise_routing/relevance.py`): given a diagnosed weakness (dimension + teaching-moment context) and the chosen drill's `title`+`techniques`, a judge rates 0-3 pedagogical fit; `selector_relevance_at_1` = fraction ≥2, wired into `exercise-routing-eval` over the dominant-weakness selection of every invoked session (`build_selector_case`, a counterfactual that is powered even when most routes are `own_passage_loop`). The judge runs through the **authenticated `crescendai` AI Gateway** (`gateway_judge.py`, `cf-aig-authorization`; the shared `LLMClient`'s legacy `crescendai-background` gateway now 401s). Validated against the real judge: it flags the existing defect — `pedaling → chopin_001` = 3 (appropriate), `timing → chopin_etude_001` = 0 (an arpeggio etude for a timing weakness). This is the gap `dimension_match` (label-equality) is structurally blind to. (2) **Cosine RANK** (`cosine-select.ts` + Python mirror `cosine_select.py`): FILTER-then-RANK — filter the catalog to `target_dimension`, then cosine-rank within it against an Aria embedding of the student's weak passage, over a committed L2-normalized 154-drill catalog asset (`exercise_embeddings.json`, exported by `export_embeddings.py`). `embed_server.py` serves `aria-medium-embedding` for the serve-time query (the Worker has no torch). The manifest now carries `title`+`techniques`+`source` so the judge and ranker see WHICH drill was picked. **NOT yet locked / not yet live:** the baseline number and the cosine A/B re-measure are deferred (local disk full → R2 can't persist chunks → eval yields 0 chunks; AMT — the weak-passage MIDI source for the cosine query — only runs via the now-fixed local container, which needs disk + Docker). `selectPrimitive` already honors an explicit `primitive_id`, so wiring is synthesis → embed → cosine → `routing.primitive_id`. See FILTER→RANK→ADAPT below.
 >
-> **Status update (2026-08-04, score-first redesign — epic #154):** The chat-first entry point below is being replaced. Under the redesign, exercises (now called "drills") launch from a mark on the score or session timeline — "work on this" — not from chat artifacts; the unified chat-container artifact system referenced in this doc is removed (#164). The `own_passage_loop`/`corpus_drill` schemas, the exercise DB, and the FILTER -> RANK -> ADAPT recommendation model below are unaffected and survive as-is. MuQ evaluation references below are pipeline history; scoring retargets to MoonBeam-839M over MPM-style features (#162). See `docs/apps/05-ui-system.md` for the drill entry point and `docs/apps/02-pipeline.md` for the retargeted pipeline.
+> **Status update (2026-08-16, score-first redesign shipped — epics #154/#162, cleanup #164):** The chat-first entry point below has been replaced. Exercises (now called "drills") launch from a mark on the score or session timeline — "work on this" — not from chat artifacts; the web chat UI, the unified chat-container artifact system, and the `create_exercise` chat-tool framing are all deleted. The `own_passage_loop`/`corpus_drill` schemas, the exercise DB, and the FILTER -> RANK -> ADAPT recommendation model below survive as-is. MuQ evaluation references below are pipeline history; scoring retargets to MoonBeam-839M over MPM-style features, currently served by a deterministic mock scorer (#162). See `docs/apps/05-ui-system.md` for the drill entry point and `docs/apps/02-pipeline.md` for the retargeted pipeline.
 >
 > **Status update (2026-06-27, 154-drill corpus reaches the product — #102, builds on #49):** The corpus the LLM can route to grew **22 → 154** primitives, closing the **pedaling=0 gap** (0 → 37 pedaling-routable drills; all 6 dimensions now routable). (1) `build_render_assets.build()` was reworked to enumerate the roster from `model/data/embed_ready_manifest.json` + `technique_tags.toml` (the authoritative per-primitive dimensions/key) instead of the 22 committed `*.xml`, and regenerates `apps/api/src/services/exercise_primitives_manifest.json` (154 entries `{dimensions, key, totalBars}`, the durable tracked record `corpus-drill.ts` routes over). (2) Each drill gets ONE render-gated asset, tiered by source fidelity: **A** committed MusicXML → MXL (20 Hanon + czerny_001 + burgmuller_001); **B** Chopin etudes → Verovio-native **MEI** from the original public-domain `.krn` (cleanest; `getPieceData` prefers `.mei`, 24 drills); **C** Mutopia prebuilt MIDI → partitura MusicXML → MXL (legible PoC engraving, 108 drills). `seed-exercise-assets` seeds both `.mei` + `.mxl` from the unified `model/data/exercise_primitives/assets/` dir to local R2 `scores/v1/{id}`. (3) Selection logic in `corpus-drill.ts` is unchanged; the stable-first per dimension simply resolves over a 7× larger library (pedaling → `chopin_001`, timing → `chopin_etude_001`). VERIFIED in the real browser Verovio worker (`/app/sandbox`, `just dev-light`): a tier-C pedaling drill and a tier-B etude MEI both render real sheet music. Local-first, NOT deployed — prod R2 seeding of the 154 assets is a separate deliberate step (tier-C MXL is legible-not-publication-grade; etude `.mei` is PD-clean).
 
@@ -203,55 +203,32 @@ ORDER BY
 LIMIT 3;
 ```
 
-The API exposes this as `GET /api/exercises?dimension=dynamics&level=intermediate&student_id=...`, returning the top 3 candidates. On iOS, SwiftData mirrors the same filter logic locally, querying cached exercises first and falling back to the API if the cache is stale. New exercises reach iOS devices via the sync protocol (`POST /api/sync` response includes `exerciseUpdates`).
+The API exposes this as `GET /api/exercises?dimension=dynamics&level=intermediate&student_id=...`, returning the top 3 candidates. (The pre-pivot iOS app mirrored this filter logic locally in SwiftData, querying cached exercises first and falling back to the API; iOS was deleted 2026-08-16, #164, and will need this caching layer rebuilt when it returns.)
 
 ---
 
 ## Focus Mode (Guided Practice)
 
-> **Deferred to Phase 3.** The CEO review (2026-03-19) scoped focus mode out of the web beta. Beta ships with inline exercise artifacts in chat. Focus mode (multi-exercise guided sequences) ships after the core observe-prescribe loop is validated with real users.
+> **Still deferred, design not yet retargeted.** The CEO review (2026-03-19) scoped focus mode out of the web beta; it was never built. The description below (chat-delivered introduction/feedback at each stage, MuQ HF-endpoint evaluation per attempt) is pre-pivot design history, kept for its teaching-loop shape, not as a current spec. Before this is built, its entry points and evaluation need to be redesigned around marks and drills (`05-ui-system.md`) instead of chat, and around the Transkun -> MPM -> MoonBeam-839M scoring path (currently a deterministic mock scorer, #162) instead of MuQ.
 
 Focus mode transforms the app from a passive listener into an active teacher. It is the teaching loop: observe, identify, diagnose, prescribe, evaluate.
 
-### Entry Points
+### Entry Points (pre-pivot design, needs redesign around marks)
 
-**System-initiated** -- after teaching-moment selection (02-pipeline.md) identifies a dimension as the top teaching moment in 3+ of the last 5 sessions:
+**System-initiated** -- after teaching-moment selection (02-pipeline.md) identifies a dimension as the top teaching moment in 3+ of the last 5 sessions, the system would prompt the student to start a focused session on it -- the offer and accept/dismiss interaction need a mark/drill-surface equivalent of the old chat prompt.
 
-> "I've noticed pedaling keeps coming up. Want to do a focused session on it next time?"
+**Student-initiated** -- the student requests focused work on a dimension, either from an open mark ("work on this") or from the piece page. The system enters focus mode for that dimension immediately.
 
-The student can accept, dismiss, or say "later."
+### Session Flow (pre-pivot design, needs redesign around marks)
 
-**Student-initiated** -- the student says or taps "I want to work on my dynamics" or "Let's focus on pedaling." The system enters focus mode for that dimension immediately.
-
-### Session Flow
-
-A focus session has 5 stages:
-
-1. **Introduction.** The teacher LLM sets context:
-   > "Let's work on your pedaling. I've been hearing some harmonic bleed in your Chopin -- the sustain is carrying across chord changes. We'll do 3 exercises to sharpen that."
-
-2. **Curated exercise.** Query the exercise DB for a matching curated exercise (target dimension, student level, repertoire match). Present the title and instructions. Student plays. MuQ evaluates the attempt, focused on the target dimension. Teacher gives brief feedback:
-   > "Better -- the chord change at the top was cleaner. Try it once more and really listen for the bass note ringing over."
-
-3. **Custom exercise.** The LLM generates an exercise using the student's actual passage where the issue was detected:
-   > "Now take bars 20-24 of your Nocturne. Play just the LH with pedal. Lift and re-engage on each new harmony. Then add the RH and keep the same pedal discipline."
-
-   Student plays. MuQ evaluates. Teacher feedback.
-
-4. **Integration.** Student plays the full passage with everything from the previous exercises applied. MuQ evaluates. Compare the target dimension score to the original teaching moment that triggered focus mode:
-   > "That's markedly cleaner. The harmonic changes in bars 22-23 aren't bleeding anymore. Keep this awareness next time you run through the whole piece."
-
-5. **Wrap-up.** Record before/after scores in `student_exercises`. Update the student model: "Focused on pedaling in session N." Suggest next steps:
-   > "Try running through the piece now and I'll listen for whether the pedaling holds in context."
-
-The student can skip an exercise or end the session early at any point.
+A focus session was designed as 5 stages -- introduction, a curated exercise with evaluated feedback, a custom exercise grounded in the student's own passage, an integration pass, and a wrap-up that records before/after scores and updates the student model. Originally each stage's feedback was delivered as chat prose after a MuQ-scored attempt; redesigned, each stage's feedback is a mark (or a small set of marks) on the drill's score clip, and the wrap-up is a mini session-review (verdict + before/after, no chat). The student can skip an exercise or end the session early at any point.
 
 ### Focused Evaluation
 
-MuQ inference runs via the cloud HF endpoint on each exercise attempt, using the same inference path as regular practice. The key difference is how feedback is delivered:
+Each exercise attempt is scored through the same pipeline as regular practice (Transkun AMT -> MPM features -> MoonBeam-839M, currently the deterministic mock scorer, #162), not a separate evaluation path. The key difference from regular practice is how feedback is filtered:
 
-- **Weight to target dimension only.** If the student is working on pedaling, suppress observations about timing even if timing is worse than usual.
-- **Non-target exception.** Only surface a non-target observation if that dimension is severely below baseline (a large negative deviation) -- something is badly off.
+- **Weight to target dimension only.** If the student is working on pedaling, suppress marks about timing even if timing is worse than usual.
+- **Non-target exception.** Only surface a non-target mark if that dimension is severely below baseline (a large negative deviation) -- something is badly off.
 - **Before/after comparison.** Each exercise attempt records the target dimension score. The wrap-up computes overall improvement.
 
 This keeps the session focused and avoids overwhelming the student with unrelated feedback.
@@ -332,8 +309,8 @@ The two-stage subagent pipeline (02-pipeline.md) uses exercise history as contex
 | Exercise UI components (`exercise_set`, notation rendering) | `05-ui-system.md` | Frontend rendering of exercise cards and notation |
 | 6-dimension taxonomy | `model/02-teacher-grounded-taxonomy.md` | All exercises and evaluations use these 6 dimensions |
 | D1 sync protocol | `docs/architecture.md` (Sync section) | Exercise data syncs to iOS via `POST /api/sync` |
-| MuQ cloud inference | `02-pipeline.md` | Focus mode evaluation uses the same HF endpoint inference path |
-| Drill entry point (was: unified artifact container) | `05-ui-system.md` | Drills launch from a mark ("work on this"), not a chat artifact; the `<Artifact>` container system is removed under #164 |
+| Transkun AMT + MPM + MoonBeam-839M scoring (mock scorer until the head ships) | `02-pipeline.md` | Focus mode evaluation uses the same scoring path as regular practice (#162) |
+| Drill entry point (was: unified artifact container) | `05-ui-system.md` | Drills launch from a mark ("work on this"), not a chat artifact; the `<Artifact>` container system and the web chat UI were removed under #164 |
 
 ---
 

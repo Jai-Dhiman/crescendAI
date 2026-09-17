@@ -15,6 +15,9 @@ import pytest
 
 from claim_measurement.difficulty.score_wav import (
     ALPHAS,
+    EnsembleHead,
+    RidgeHead,
+    discover_members,
     fit_ridge_head,
     read_ridge_head,
     score_wav,
@@ -34,6 +37,12 @@ def _training_data(n=120, dim=8, seed=0):
     X = rng.normal(size=(n, dim))
     y = X @ rng.normal(size=dim) + rng.normal(scale=0.1, size=n)
     return X, y
+
+
+def _head(dim=4, coef=1.0, fallback=5.0):
+    return RidgeHead(mean=np.zeros(dim), scale=np.ones(dim),
+                     coef=np.full(dim, coef), intercept=0.0,
+                     fallback_score=fallback)
 
 
 # --------------------------------------------------------------------------
@@ -104,6 +113,112 @@ def test_a_constant_feature_does_not_divide_by_zero():
 
     assert np.all(head.scale > 0)
     assert np.isfinite(head.predict(X[0]))
+
+
+# --------------------------------------------------------------------------
+# The ensemble: K RidgeHeads, scored as the mean of their predictions.
+# --------------------------------------------------------------------------
+
+
+def test_the_ensemble_score_is_the_mean_of_its_members_own_predictions():
+    """A #175 ensemble is not one shared head fit on pooled embeddings -- it is
+    K independently-fit heads, each scoring its own member's embedding, and the
+    ensemble score is the plain mean of those K numbers."""
+    heads = [_head(coef=1.0), _head(coef=2.0), _head(coef=3.0)]
+    vectors = np.array([[1.0, 0.0, 0.0, 0.0]] * 3)
+
+    ensemble = EnsembleHead.from_members(heads)
+
+    individually = [h.predict(v) for h, v in zip(heads, vectors, strict=True)]
+    assert ensemble.predict(vectors) == pytest.approx(float(np.mean(individually)))
+    assert ensemble.n_members == 3
+
+
+def test_one_member_is_an_ensemble_of_one_not_a_separate_code_path():
+    """#175's design has no single-vs-ensemble branch: a legacy one-adapter
+    model directory is just an EnsembleHead with one member. If this ever
+    stopped matching plain RidgeHead.predict, the two code paths would have
+    drifted apart and the legacy container would score differently from what
+    was measured."""
+    head = _head(coef=2.0)
+    vector = np.array([[1.0, 1.0, 0.0, 0.0]])
+
+    ensemble = EnsembleHead.from_members([head])
+
+    assert ensemble.n_members == 1
+    assert ensemble.predict(vector) == pytest.approx(head.predict(vector[0]))
+    assert ensemble.fallback_score == head.fallback_score
+
+
+def test_members_whose_fallback_disagrees_are_refused():
+    """fallback_score is a property of the training pool a head was fit on
+    (docstring on RidgeHead). Members with different fallbacks were fit on
+    different pools, which means the directory mixes artifacts from different
+    runs -- silently averaging them would score through a model nobody
+    actually trained."""
+    with pytest.raises(ValueError, match="fallback"):
+        EnsembleHead.from_members([_head(fallback=5.0), _head(fallback=6.0)])
+
+
+def test_a_vector_matrix_of_the_wrong_shape_is_refused():
+    """predict() zips members against rows positionally; a mismatched matrix
+    means the embedder produced a different number of member embeddings than
+    the ensemble has heads -- a build-time wiring bug, not a data problem, and
+    it must fail loudly rather than silently truncate via zip."""
+    ensemble = EnsembleHead.from_members([_head(), _head()])
+
+    with pytest.raises(ValueError, match="2 members"):
+        ensemble.predict(np.zeros((3, 4)))
+
+
+def test_members_are_discovered_in_sorted_order(make_model_dir):
+    """Float addition is not associative, so the mean over members depends on
+    summation order. Sorting by name (not directory-listing order, which is
+    filesystem-dependent) is what makes two container runs reproduce
+    bit-identically -- #166's determinism criterion."""
+    model_dir = make_model_dir({"s2030": _head(), "s2026": _head(),
+                                "s2028": _head()})
+
+    members = discover_members(model_dir)
+
+    assert [m.name for m in members] == ["s2026", "s2028", "s2030"]
+    assert members[0].adapter_dir == model_dir / "members" / "s2026" / "adapter"
+    assert members[0].head_path == model_dir / "members" / "s2026" / "ridge_head.npz"
+
+
+def test_a_legacy_single_adapter_directory_is_a_one_member_ensemble(make_model_dir):
+    """Every model directory the harness has produced before #175 uses the
+    legacy layout. `discover_members` must keep reading it as a one-member
+    ensemble so an un-migrated directory still scores through the same code
+    path as a K>1 one."""
+    model_dir = make_model_dir({"only": _head()}, layout="legacy")
+
+    members = discover_members(model_dir)
+
+    assert len(members) == 1
+    assert members[0].adapter_dir == model_dir / "adapter"
+    assert members[0].head_path == model_dir / "ridge_head.npz"
+
+
+def test_a_directory_with_neither_layout_fails_loudly(tmp_path):
+    """An empty or misbuilt model directory means the container image was
+    staged wrong. Returning an empty member list would make the ensemble
+    silently score nothing rather than telling the operator the build is
+    broken."""
+    with pytest.raises(FileNotFoundError, match="no adapter"):
+        discover_members(tmp_path)
+
+
+def test_a_directory_holding_both_layouts_is_refused(make_model_dir, tmp_path):
+    """A directory that has both a members/ tree and a stale legacy adapter is
+    ambiguous about which model is the real one. Silently preferring one layout
+    would score through a model nobody chose, so this must refuse rather than
+    guess."""
+    model_dir = make_model_dir({"s2026": _head()}, root=tmp_path / "mixed")
+    make_model_dir({"stale": _head()}, layout="legacy", root=tmp_path / "mixed")
+
+    with pytest.raises(ValueError, match="both"):
+        discover_members(model_dir)
 
 
 # --------------------------------------------------------------------------
@@ -193,6 +308,37 @@ def test_scoring_the_same_wav_twice_gives_a_bit_identical_score(tmp_path):
     second = score_wav(wav, transcribe=_fake_transcribe(), embed=embed, head=head)
 
     assert first == second
+
+
+def test_a_wav_is_transcribed_once_no_matter_how_many_members(tmp_path):
+    """Transcription owns the linear runtime term (0.036x realtime).
+    Transcribing per member would be a ~5x regression on the dominant cost and
+    put the 24h/1-GPU exclusion clause in play."""
+    wav = tmp_path / "piece.wav"
+    wav.write_bytes(b"")
+    calls, embed_calls = [], []
+
+    def embed(midi_path):
+        embed_calls.append(midi_path)
+        return np.array([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]])
+
+    head = EnsembleHead.from_members([_head(coef=1.0), _head(coef=3.0)])
+
+    score = score_wav(wav, _fake_transcribe(calls), embed, head)
+
+    assert len(calls) == 1, "one WAV, one transcription"
+    assert len(embed_calls) == 1, "one WAV, one embed call for all members"
+    assert score == pytest.approx((1.0 + 3.0) / 2)
+
+
+def test_a_non_finite_entry_in_any_member_row_is_a_failure(tmp_path):
+    wav = tmp_path / "piece.wav"
+    wav.write_bytes(b"")
+    bad = np.array([[1.0, 0.0, 0.0, 0.0], [np.nan, 0.0, 0.0, 0.0]])
+    head = EnsembleHead.from_members([_head(), _head()])
+
+    with pytest.raises(ValueError, match="non-finite"):
+        score_wav(wav, _fake_transcribe(), lambda _p: bad, head)
 
 
 # --------------------------------------------------------------------------
@@ -338,7 +484,8 @@ def test_load_scorer_rejects_an_unknown_failure_mode(tmp_path):
                     model_config=None, on_failure="fallbcak")
 
 
-def test_load_scorer_binds_the_device_onto_the_transcriber(tmp_path, monkeypatch):
+def test_load_scorer_binds_the_device_onto_the_transcriber(make_model_dir,
+                                                            monkeypatch):
     """--device must reach Transkun, not only the MoonBeam forward pass.
 
     transkun_cli shells out to an isolated env, so a device set on the caller's
@@ -356,20 +503,43 @@ def test_load_scorer_binds_the_device_onto_the_transcriber(tmp_path, monkeypatch
         seen["device"] = device
         return _NOTES, []
 
-    x, y = _training_data(dim=4)
-    head = fit_ridge_head(x, y, fallback_score=float(np.median(y)))
-    monkeypatch.setattr(sw, "read_ridge_head", lambda p: head)
-    monkeypatch.setattr(sw, "build_fold_embedder",
-                        lambda *a, **k: (lambda notes: np.zeros(4)))
+    model_dir = make_model_dir({"only": _head(dim=4)}, layout="legacy")
+    monkeypatch.setattr(sw, "build_ensemble_embedder",
+                        lambda *a, **k: (lambda notes: np.zeros((1, 4))))  # noqa: ARG005
     monkeypatch.setattr(realaudio_check, "_import_transcribe_wav",
                         lambda: _fake_transcribe_wav)
 
-    scorer = sw.load_scorer(tmp_path, checkpoint=tmp_path, repo_root=tmp_path,
-                            model_config=tmp_path, device="cuda")
-    score, ok = scorer(tmp_path / "any.wav")
+    scorer = sw.load_scorer(model_dir, checkpoint=model_dir, repo_root=model_dir,
+                            model_config=model_dir, device="cuda")
+    score, ok = scorer(model_dir / "any.wav")
 
     assert ok and isinstance(score, float)
     assert seen["device"] == "cuda"
+
+
+def test_load_scorer_still_reads_a_legacy_model_directory(make_model_dir,
+                                                           monkeypatch):
+    """The regression guard on not breaking a working submission path:
+    discover_members returns one member, and build_ensemble_embedder is called
+    with exactly [model_dir / "adapter"]."""
+    from claim_measurement.difficulty import score_wav as sw
+
+    model_dir = make_model_dir({"only": _head(dim=4)}, layout="legacy")
+    seen = {}
+
+    def fake_embedder(adapter_dirs, *a, **k):  # noqa: ARG001
+        seen["adapter_dirs"] = list(adapter_dirs)
+        return lambda midi: np.zeros((1, 4))  # noqa: ARG005
+
+    monkeypatch.setattr(sw, "build_ensemble_embedder", fake_embedder)
+
+    scorer = sw.load_scorer(model_dir, checkpoint=model_dir, repo_root=model_dir,
+                            model_config=model_dir,
+                            transcribe=_fake_transcribe())
+    score, ok = scorer(model_dir / "any.wav")
+
+    assert ok and isinstance(score, float)
+    assert seen["adapter_dirs"] == [model_dir / "adapter"]
 
 
 # --------------------------------------------------------------------------

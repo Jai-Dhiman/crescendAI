@@ -1,5 +1,10 @@
 import type { AnthropicChatRequest } from "../harness/loop/tool-format";
 import { toOpenAIChatRequest } from "../harness/loop/tool-format";
+import {
+	gatewayId,
+	unifiedChatCompletionsHeaders,
+	unifiedChatCompletionsUrl,
+} from "../lib/ai-gateway";
 import { InferenceError } from "../lib/errors";
 import type { Bindings } from "../lib/types";
 
@@ -108,15 +113,10 @@ export async function callWorkersAIStream(
 	env: Bindings,
 	body: AnthropicChatRequest,
 ): Promise<ReadableStream> {
-	const url = `${env.AI_GATEWAY_ENDPOINT}/workers-ai/v1/chat/completions`;
 	const oaiBody = toOpenAIChatRequest(body);
-	const res = await fetch(url, {
+	const res = await fetch(unifiedChatCompletionsUrl(env), {
 		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			"cf-aig-authorization": `Bearer ${env.AI_GATEWAY_TOKEN}`,
-			Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
-		},
+		headers: unifiedChatCompletionsHeaders(env),
 		body: JSON.stringify({ ...oaiBody, stream: true }),
 	});
 
@@ -141,34 +141,29 @@ export async function callWorkersAI(
 	maxTokens: number = 100,
 	chatTemplateKwargs?: { enable_thinking?: boolean; clear_thinking?: boolean },
 ): Promise<string> {
-	const url = `${env.AI_GATEWAY_ENDPOINT}/workers-ai/v1/chat/completions`;
-	const body: Record<string, unknown> = {
-		model,
+	const inputs: Record<string, unknown> = {
 		messages,
 		max_tokens: maxTokens,
 	};
 	if (chatTemplateKwargs) {
-		body.chat_template_kwargs = chatTemplateKwargs;
+		inputs.chat_template_kwargs = chatTemplateKwargs;
 	}
-	const res = await fetch(url, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
-			"cf-aig-authorization": `Bearer ${env.AI_GATEWAY_TOKEN}`,
-		},
-		body: JSON.stringify(body),
-	});
-	if (!res.ok) {
-		throw new InferenceError(`Workers AI error: ${res.status}`);
-	}
-	const data = (await res.json()) as {
-		choices: Array<{ message: { content: string } }>;
+	// `model` is chosen at runtime and is not always present in the generated
+	// AiModels catalog, so the binding's model-keyed generics cannot be satisfied
+	// statically. The response is validated below instead.
+	const data = (await env.AI.run(model as keyof AiModels, inputs as never, {
+		gateway: { id: gatewayId(env) },
+	})) as {
+		response?: string;
+		choices?: Array<{ message?: { content?: string } }>;
 	};
-	if (!data.choices?.[0]?.message?.content) {
+	// Chat-completion models (verified live: @cf/google/gemma-4-26b-a4b-it)
+	// return the OpenAI shape through the binding; others return { response }.
+	const content = data?.response ?? data?.choices?.[0]?.message?.content;
+	if (!content) {
 		throw new InferenceError(
 			`Workers AI returned no content. model=${model} body=${JSON.stringify(data).slice(0, 500)}`,
 		);
 	}
-	return data.choices[0].message.content;
+	return content;
 }
