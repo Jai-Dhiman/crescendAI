@@ -203,3 +203,4 @@ docs/mirex/technical-report/*.log
 docs/mirex/technical-report/*.out
 docs/mirex/technical-report/*.bbl
 docs/mirex/technical-report/*.blg
+docs/mirex/technical-report/*.png

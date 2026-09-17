@@ -1,0 +1,185 @@
+% -----------------------------------------------
+% MIREX 2026 -- Music Performance Difficulty Prediction
+% CrescendAI technical report (ISMIR 2026 LBD format)
+% -----------------------------------------------
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[lbd]{ismir}
+\usepackage{amsmath,cite,url}
+\usepackage{graphicx}
+\usepackage{color}
+\usepackage{booktabs}
+\def\lbd{}
+
+\title{Transcription-First Piano Difficulty Estimation with a Fine-Tuned
+Symbolic Foundation Model}
+
+\oneauthor
+  {Jai Dhiman}
+  {CrescendAI \\ {\tt jaidhiman2000@gmail.com}}
+
+\def\authorname{J. Dhiman}
+
+\sloppy
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+We describe the CrescendAI submission to the MIREX 2026 Music Performance
+Difficulty Prediction task. The system is transcription-first: audio is
+converted to MIDI with Transkun, the resulting symbolic sequence is encoded by
+MoonBeam-839M fine-tuned with LoRA adapters, token embeddings are mean-pooled
+over the whole piece, and a ridge head emits one real-valued difficulty score.
+The submitted system averages the predictions of five adapters that differ only
+by training seed. Training used 7{,}665 transcriptions of the public Piano
+Syllabus corpus; no other data was used, and the evaluation repertoire is
+disjoint from that corpus by the task's own construction. On composer-disjoint
+cross-validation the recipe scores Kendall's $\tau_c$ 0.8430 for a single
+adapter and 0.8461 for the five-adapter ensemble, against 0.8068 for a
+supervision-matched hand-feature baseline on identical folds. We also estimate
+the ceiling imposed by label noise at $\tau_c$ 0.8668, leaving roughly $+0.024$
+of headroom on this corpus. We report no score for the submitted model itself:
+it is trained on every labelled piece available to us, so any evaluation of it
+would be train-on-test.
+\end{abstract}
+
+\section{System Overview}\label{sec:overview}
+
+The container implements \texttt{WAV path} $\rightarrow$ \texttt{float}. Four
+stages run per item:
+
+\begin{enumerate}
+\itemsep0em
+\item \textbf{Transcription.} Transkun~\cite{transkun} converts the recording
+      to a MIDI note sequence with onsets, offsets, velocities, and sustain
+      pedal.
+\item \textbf{Encoding.} The sequence is tokenised and passed through
+      MoonBeam-839M~\cite{moonbeam2025}, a MIDI-native causal language model,
+      carrying LoRA adapters~\cite{hu2022lora}. Sequences longer than the
+      1024-token context are split into consecutive chunks and every chunk is
+      encoded; encoder cost is therefore linear in piece duration.
+\item \textbf{Pooling.} Token embeddings are averaged over the whole piece.
+\item \textbf{Regression.} A ridge head maps the pooled embedding to a scalar.
+\end{enumerate}
+
+We chose transcription-first over an audio-native model after a frozen
+bake-off in which MoonBeam-839M with mean pooling reached $\tau_c$ 0.8257
+against 0.7790 for a competing symbolic encoder on identical folds. A control
+established that the gain is backbone-specific rather than an artefact of the
+pooling operator.
+
+\section{Training Data}\label{sec:data}
+
+\textbf{Dataset.} Piano Syllabus
+(PSyllabus)~\cite{ramoneda2025audio,psyllabus2025dataset}, Zenodo
+\texttt{10.5281/zenodo.14794592}: 7{,}901 recordings of solo piano repertoire,
+graded on an 11-level scale aggregated from 18 grading systems. No other corpus
+contributed to training.
+
+\textbf{Size actually used.} PSyllabus distributes labels and video identifiers
+rather than audio, so recordings were fetched individually and transcribed
+locally. We obtained and transcribed \textbf{7{,}665 of 7{,}901 pieces
+(97.0\%)}; the remaining 236 are no longer retrievable (186 removed, 48
+private, 2 region-blocked). The five submitted adapters were each trained on
+all 7{,}665, with nothing held out.
+
+\textbf{Preprocessing.} Audio is transcribed to MIDI with Transkun; no manual
+cleaning, filtering, or repertoire curation was applied. Training samples a
+single random 1024-token window per piece per epoch, while inference encodes
+every chunk and mean-pools, so the training and inference views deliberately
+differ. We swept the training window length and retained 1024.
+
+\textbf{Contamination control.} The task specifies that the evaluation
+repertoire is drawn from sources outside existing public piano difficulty
+datasets. PSyllabus is such a dataset, so disjointness holds by construction.
+We disclose the corpus in full so that organisers can verify this directly; at
+the time of writing the announced list of forbidden pieces and composers had
+not been published, so no intersection against it could be computed. An
+automated check is held ready to run against that list should it appear.
+
+\section{Model and Label Space}\label{sec:model}
+
+\textbf{Architecture.} MoonBeam-839M with LoRA on the top 5 of 15 transformer
+layers, adapting the seven projection matrices in each
+($\{q,k,v,o,\mathrm{gate},\mathrm{up},\mathrm{down}\}$, 35 modules). The
+backbone is otherwise frozen. Training ran 3 epochs at learning rate
+$10^{-4}$.
+
+\textbf{Label space.} PSyllabus grades are ordinal with 11 levels, and the
+published grade is the rounded mean of the judgements of one or more grading
+boards ($r = 0.981$ against the raw board mean). We apply \emph{no} remapping:
+the head is fit by ridge regression directly on the integer grade and emits an
+unrounded real value, because the task's metric is rank-based and its own scale
+is undisclosed. Emitting a continuous score avoids committing to a granularity
+we cannot observe.
+
+\textbf{Post-processing.} The submitted score is the unweighted mean of the
+five member predictions. Members differ only by training seed (2026--2030),
+which varies both LoRA initialisation and window sampling. Scores are neither
+clipped nor rounded. On an item that fails to transcribe or encode, the
+container emits the corpus median and logs the failure to \texttt{stderr}; this
+bounds the effect of unreadable inputs on the run as a whole rather than
+aborting it.
+
+\section{Validation}\label{sec:validation}
+
+All figures below come from composer-disjoint 5-fold cross-validation over 900
+evaluation pieces spanning 900 distinct composers, with byte-identical folds
+across arms and paired bootstrap over pieces (2000 resamples, seed 2026).
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lc}
+\toprule
+arm (identical folds, $n=900$) & $\tau_c$ \\
+\midrule
+37 hand features, ridge (matched) & 0.8068 \\
+MoonBeam-839M frozen, mean-pool & 0.8257 \\
+MoonBeam-839M + LoRA, single adapter & 0.8430 \\
+\textbf{5-adapter prediction mean (recipe)} & \textbf{0.8461} \\
+\midrule
+\emph{estimated label ceiling} & \emph{0.8668} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The fine-tuned encoder beats the supervision-matched hand-feature baseline by a
+margin whose 95\% bootstrap interval excludes zero, and the five-adapter
+ensemble beats a single adapter by $+0.0051$ CI95$[+0.0019,+0.0082]$. The
+per-adapter spread (std 0.0033) is the same order as the ensemble gain, which
+is consistent with variance averaging rather than any member holding unique
+signal.
+
+\textbf{Label ceiling.} Fitting a graded response model~\cite{samejima1969grm}
+to all 13{,}659 raw board judgements, with per-board discriminations and
+thresholds, gives the $\tau_c$ that a \emph{perfect} model would score against
+this label: \textbf{0.8668} CI95$[0.8549, 0.8805]$. Total remaining headroom on
+this corpus is therefore about $+0.024$. A posterior-predictive check indicates
+the fit understates board agreement, so the estimate is conservative. This
+ceiling is specific to this corpus's board composition; the MIREX test set is
+independently curated and its own ceiling is unmeasurable from here.
+
+\textbf{What we do not claim.} Published results on PSyllabus are not
+comparable to the figures above: they use random rather than composer-disjoint
+splits, a different subset, and a different grade mix. We make no claim of
+improving on them. We likewise report no $\tau_c$ for the submitted model,
+because every labelled piece is in its training set.
+
+\section{Compute}\label{sec:compute}
+
+Measured on one NVIDIA L4 over 8 recordings spanning 15--1806\,s, 0/8 failures:
+the five-member ensemble costs $4.97\,\mathrm{s} + 0.0400 \times
+\mathrm{duration}$ per item, against $4.93\,\mathrm{s} + 0.0360 \times
+\mathrm{duration}$ for a single adapter. At our corpus's median piece length of
+103\,s this is roughly 9{,}500 items per 24 hours on one GPU. The ensemble's
+cost falls almost entirely on the slope rather than the fixed term, because the
+encoder processes every chunk of a piece. Peak GPU memory was not measured and
+is not declared. The submitted image is self-contained and performs no network
+access at inference time.
+
+\bibliography{references}
+
+\end{document}
