@@ -171,14 +171,27 @@ because every labelled piece is in its training set.
 \section{Compute}\label{sec:compute}
 
 Measured on one NVIDIA L4 over 8 recordings spanning 15--1806\,s, 0/8 failures:
-the five-member ensemble costs $4.97\,\mathrm{s} + 0.0400 \times
+the five-member ensemble costs $5.00\,\mathrm{s} + 0.0410 \times
 \mathrm{duration}$ per item, against $4.93\,\mathrm{s} + 0.0360 \times
-\mathrm{duration}$ for a single adapter. At our corpus's median piece length of
-103\,s this is roughly 9{,}500 items per 24 hours on one GPU. The ensemble's
-cost falls almost entirely on the slope rather than the fixed term, because the
-encoder processes every chunk of a piece. Peak GPU memory was not measured and
-is not declared. The submitted image is self-contained and performs no network
-access at inference time.
+\mathrm{duration}$ for a single adapter. An earlier run of the same protocol on
+a separately built copy of the model gave $4.97\,\mathrm{s} + 0.0400 \times
+\mathrm{duration}$, so the figure reproduces. At our corpus's median piece length of
+103\,s this is an \textbf{average inference time of 9.2\,s per piece}, or
+roughly 9{,}400 items per 24 hours on one GPU; at the mean duration of our
+evaluation set (150\,s) the average is 11.2\,s per piece. The ensemble's cost
+falls almost entirely on the slope rather than the fixed term, because the
+encoder processes every chunk of a piece.
+
+\textbf{Peak GPU memory is 5{,}976\,MiB} (roughly 5.8\,GiB), sampled
+device-wide at 0.5\,s intervals across the whole run. We report the device
+figure rather than the framework's own counters because the pipeline spans two
+processes: the encoder's allocator reserved 3{,}858\,MiB, and the remainder is
+CUDA context plus the Transkun transcriber, which runs in a separate process
+with its own context. A framework-only number would have omitted the
+transcriber entirely. An 8\,GiB card is sufficient.
+
+The submitted image is self-contained and performs no network access at
+inference time.
 
 \bibliography{references}
 
