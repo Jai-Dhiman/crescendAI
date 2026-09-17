@@ -15,6 +15,7 @@ run takes over a minute on CPU:
 MIREX_DEVICE is forced to cpu here: the image defaults to cuda because the
 contract gives 24h on one GPU, and a dev machine has no CUDA.
 """
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -44,6 +45,29 @@ pytestmark = [
     pytest.mark.skipif(
         not _image_exists(), reason=f"docker image {IMAGE} is not built"),
 ]
+
+
+
+def _declared_fallback() -> float:
+    """The fallback the IMAGE declares, read from its own manifest.
+
+    Not a literal. This was hardcoded to 5.0, which was the fallback of the
+    single-adapter model directory the test was written against; the
+    five-member submission directory declares 6.0, so the constant would have
+    failed the first time the real submission image was tested -- or, worse,
+    been "fixed" by editing the number rather than by asking which model was in
+    the image. Reading the manifest states the actual invariant: a failed item
+    emits the fallback this model declares."""
+    result = subprocess.run(
+        ["docker", "run", "--rm", "--entrypoint", "cat", IMAGE,
+         "/app/model/manifest.json"],
+        capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stderr[-2000:]
+    manifest = json.loads(result.stdout)
+    members = manifest.get("members")
+    if members:
+        return float(members[0]["fallback_score"])
+    return float(manifest["fallback_score"])
 
 
 def _run(args, mounts=(), on_failure="raise") -> subprocess.CompletedProcess:
@@ -99,7 +123,7 @@ def test_the_container_defaults_to_a_loud_but_non_fatal_fallback():
         capture_output=True, text=True, timeout=TIMEOUT_S)
 
     assert result.returncode == 0, result.stderr[-3000:]
-    assert float(result.stdout.strip()) == pytest.approx(5.0)
+    assert float(result.stdout.strip()) == pytest.approx(_declared_fallback())
     assert "SCORE_FAILURE" in result.stderr, "the fallback must stay LOUD"
 
 
