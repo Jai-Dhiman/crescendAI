@@ -47,7 +47,9 @@ import argparse
 import functools
 import json
 import shutil
+import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -55,6 +57,110 @@ BUNDLE_REPO = "Jai-D/phase1-lora-bundle"
 ADAPTER_REPOS = [f"Jai-D/phase1-lora-7665-alldata-s{i}" for i in range(2026, 2031)]
 CHECKPOINT_REPO = "guozixunnicolas/moonbeam-midi-foundation-model"
 CHECKPOINT_FILE = "moonbeam_839M.pt"
+
+
+
+# --- GPU memory, which MIREX requires us to declare ------------------------
+#
+# "Compute declaration: GPU memory footprint and average inference time per
+# piece" is listed under the task page's *required* submission items, so this
+# is not instrumentation for our own curiosity.
+#
+# It is measured at the DEVICE level, by polling nvidia-smi, rather than from
+# torch's allocator counters alone. torch only sees its own process, and this
+# pipeline's first stage -- Transkun -- runs in a SEPARATE process with its own
+# CUDA context (transkun_cli shells out to `uv run --no-project --with
+# transkun`, because its torch pin is incompatible with the MoonBeam stack).
+# A torch-only figure would therefore omit the transcriber entirely and
+# understate the footprint an evaluator must actually provide. The torch
+# numbers are still recorded, because the gap between them and the device
+# figure is the part we do not otherwise see.
+
+GPU_POLL_INTERVAL_S = 0.5
+
+
+def _nvidia_smi_used_mib() -> int | None:
+    """Device-wide memory in use, or None where there is no nvidia-smi. A CPU
+    run legitimately has no GPU figure; that is not an error."""
+    try:
+        proc = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    first = proc.stdout.strip().split("\n")[0].strip()
+    try:
+        return int(first)
+    except ValueError:
+        return None
+
+
+class GpuMemorySampler:
+    """Poll device memory on a background thread, keeping the maximum.
+
+    Sampling rather than a single reading at the end: peak usage occurs during
+    a forward pass over the longest piece, and by the time the run finishes the
+    allocator has already released it. A post-hoc reading would report a
+    trough and call it a footprint."""
+
+    def __init__(self, interval_s: float = GPU_POLL_INTERVAL_S, probe=None):
+        self._interval_s = interval_s
+        self._probe = probe or _nvidia_smi_used_mib
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self.peak_mib: int | None = None
+        self.samples = 0
+
+    def _sample_once(self) -> None:
+        value = self._probe()
+        if value is None:
+            return
+        self.samples += 1
+        if self.peak_mib is None or value > self.peak_mib:
+            self.peak_mib = value
+
+    def _loop(self) -> None:
+        while not self._stop.is_set():
+            self._sample_once()
+            self._stop.wait(self._interval_s)
+
+    def start(self) -> "GpuMemorySampler":
+        self._sample_once()   # a baseline, so a run shorter than one interval
+                              # still yields a figure rather than None
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._thread.start()
+        return self
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=5 * self._interval_s + 5)
+        self._sample_once()
+
+    def __enter__(self) -> "GpuMemorySampler":
+        return self.start()
+
+    def __exit__(self, *exc) -> None:
+        self.stop()
+
+
+def torch_gpu_peak_mib() -> dict | None:
+    """This process's torch allocator peaks. Reserved, not just allocated:
+    reserved is what the caching allocator actually holds from the driver, so
+    it is the number an evaluator must have free."""
+    try:
+        import torch
+    except ImportError:
+        return None
+    if not torch.cuda.is_available():
+        return None
+    return {
+        "allocated_mib": round(torch.cuda.max_memory_allocated() / 2**20, 1),
+        "reserved_mib": round(torch.cuda.max_memory_reserved() / 2**20, 1),
+    }
 
 
 def _resolve_adapter_dirs(adapter_dir_args, repos=ADAPTER_REPOS,
@@ -277,6 +383,9 @@ def main(argv=None) -> int:
 
     from claim_measurement.difficulty.score_wav import load_scorer
 
+    # Started BEFORE the scorer loads: the 839M weights are part of the
+    # footprint an evaluator must provide for, not an overhead to subtract.
+    gpu_sampler = GpuMemorySampler().start()
     load_t0 = time.perf_counter()
     scorer = load_scorer(
         model_dir,
@@ -346,8 +455,28 @@ def main(argv=None) -> int:
           f"({100.0 * len(failures) / max(1, len(rows)):.1f}%) "
           f"-- the contract excludes a submission above 5%")
 
+    gpu_sampler.stop()
+    torch_peak = torch_gpu_peak_mib()
+    gpu_memory = {
+        "device_peak_mib": gpu_sampler.peak_mib,
+        "device_samples": gpu_sampler.samples,
+        "torch_process_peak": torch_peak,
+    }
+    if gpu_sampler.peak_mib is not None:
+        print(f"\nGPU memory (device-wide peak, nvidia-smi, "
+              f"{gpu_sampler.samples} samples): {gpu_sampler.peak_mib} MiB")
+        if torch_peak is not None:
+            print(f"  of which this process's torch allocator reserved "
+                  f"{torch_peak['reserved_mib']} MiB "
+                  f"(allocated {torch_peak['allocated_mib']} MiB); the "
+                  f"remainder is CUDA context plus the Transkun subprocess")
+        print("  -> this is the figure for the required compute declaration")
+    else:
+        print("\nGPU memory: not measured (no nvidia-smi on this host). "
+              "Expected on a CPU run; a cuda run reporting this is a problem.")
+
     summary = {"device": args.device, "load_s": round(load_s, 1),
-               "fit": fit, "rows": rows}
+               "fit": fit, "gpu_memory": gpu_memory, "rows": rows}
     (args.out_dir / "runtime_summary.json").write_text(
         json.dumps(summary, indent=2) + "\n")
     print(f"\nwrote {rows_path} and {args.out_dir / 'runtime_summary.json'}")

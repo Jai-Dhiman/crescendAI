@@ -7,12 +7,16 @@ is pinned is the part that would silently produce a wrong ANSWER rather than a
 loud failure: the probe's duration spread and the fit read off it.
 """
 import json
+import time
 from pathlib import Path
 
 import pytest
 
+from claim_measurement.difficulty import runtime_probe
 from claim_measurement.difficulty.push_runtime_probe import (
     main as push_runtime_probe_main,
+)
+from claim_measurement.difficulty.push_runtime_probe import (
     select_probe_set,
     stage_probe_bundle,
     wav_durations,
@@ -457,3 +461,72 @@ def test_resolve_adapter_dirs_uses_local_dirs_directly_without_a_snapshot():
         [Path("/local/a"), Path("/local/b")], snapshot_fn=_forbidden)
 
     assert resolved == [("a", Path("/local/a")), ("b", Path("/local/b"))]
+
+
+# --- GPU memory sampling (#171) --------------------------------------------
+# MIREX lists "Compute declaration: GPU memory footprint and average inference
+# time per piece" under its REQUIRED submission items, so these cover a
+# deliverable rather than a diagnostic.
+
+def test_the_sampler_keeps_the_peak_not_the_last_reading():
+    """The whole reason for sampling: peak usage happens mid-run, during the
+    forward pass over the longest piece. By the end the allocator has released
+    it, so a single reading taken at the end reports a trough."""
+    readings = iter([1000, 8000, 1200])
+    sampler = runtime_probe.GpuMemorySampler(
+        interval_s=0.001, probe=lambda: next(readings, 1200))
+
+    with sampler:
+        time.sleep(0.05)
+
+    assert sampler.peak_mib == 8000
+
+
+def test_no_nvidia_smi_yields_no_figure_rather_than_a_zero():
+    """A CPU run has no GPU figure, and that is not an error. Reporting 0 MiB
+    would be a measurement; None is the absence of one, and the declaration
+    must not claim a footprint nobody observed."""
+    sampler = runtime_probe.GpuMemorySampler(interval_s=0.001,
+                                             probe=lambda: None)
+
+    with sampler:
+        time.sleep(0.01)
+
+    assert sampler.peak_mib is None
+    assert sampler.samples == 0
+
+
+def test_a_run_shorter_than_one_poll_interval_still_reports():
+    """The baseline sample on entry exists so a --limit 1 smoke run does not
+    come back with None and read as 'no GPU present'."""
+    sampler = runtime_probe.GpuMemorySampler(interval_s=3600,
+                                             probe=lambda: 4242)
+
+    with sampler:
+        pass
+
+    assert sampler.peak_mib == 4242
+
+
+def test_unparseable_nvidia_smi_output_is_not_mistaken_for_a_reading(monkeypatch):
+    """nvidia-smi printing a warning, or an empty line, must not become a
+    figure. Anything unparseable is absence, not zero."""
+    class _Proc:
+        returncode = 0
+        stdout = "\n"
+
+    monkeypatch.setattr(runtime_probe.subprocess, "run",
+                        lambda *_a, **_k: _Proc())
+
+    assert runtime_probe._nvidia_smi_used_mib() is None
+
+
+def test_a_missing_nvidia_smi_binary_is_absence_not_a_crash(monkeypatch):
+    """The probe runs on CPU hosts routinely; an OSError from the missing
+    binary must not take the whole measurement run down at the final step."""
+    def _boom(*_a, **_k):
+        raise OSError("no such file")
+
+    monkeypatch.setattr(runtime_probe.subprocess, "run", _boom)
+
+    assert runtime_probe._nvidia_smi_used_mib() is None
