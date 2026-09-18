@@ -17,6 +17,7 @@ contract gives 24h on one GPU, and a dev machine has no CUDA.
 """
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -156,3 +157,44 @@ def test_a_directory_of_wavs_is_accepted_as_one_invocation():
         path, score = line.rsplit(",", 1)
         assert path.startswith("/wav/")
         assert -5.0 < float(score) < 20.0
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None,
+                    reason="needs ffmpeg to build the format fixtures")
+def test_the_contracts_input_formats_all_score_the_same_piece_alike(tmp_path):
+    """#171: the task page specifies input as "WAV, 44.1 kHz, mono or stereo".
+
+    Our entire corpus is mono 24 kHz, so until this ran the pipeline had never
+    been fed EITHER the contract's sample rate or its channel count -- and
+    "transkun resamples internally" was an assumption, not a measurement.
+
+    Scoring the same musical content in all three shapes makes the claim
+    falsifiable: a channel-mixing or resampling defect would move the score,
+    because the transcription feeding the encoder would change.
+
+    Measured spread on 2026-09-18 was 0.0044 on an 11-level grade scale
+    (3.4510 / 3.4548 / 3.4554). The 0.05 bound is an order of magnitude above
+    that -- loose enough for transcription nondeterminism, tight enough that
+    halving the amplitude by averaging channels wrong would fail it."""
+    src = WAV_DIR / HELD_OUT
+    audio = tmp_path / "audio"
+    audio.mkdir()
+    shutil.copy2(src, audio / "a_mono_native.wav")
+    for name, args in (("b_mono_44k", ["-ar", "44100", "-ac", "1"]),
+                       ("c_stereo_44k", ["-ar", "44100", "-ac", "2"])):
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(src),
+                        *args, str(audio / f"{name}.wav")],
+                       check=True, capture_output=True, timeout=300)
+
+    result = _run(["--format", "csv", "/fmt"],
+                  mounts=[(str(audio), "/fmt")])
+
+    assert result.returncode == 0, result.stderr[-3000:]
+    lines = result.stdout.strip().split("\n")
+    assert len(lines) == 3, f"expected 3 scores, got {lines}"
+    by_file = dict(line.rsplit(",", 1) for line in lines)
+    scores = [float(v) for v in by_file.values()]
+    spread = max(scores) - min(scores)
+    assert spread < 0.05, (
+        f"sample rate / channel count moved the score by {spread:.4f}: "
+        f"{by_file}")
