@@ -125,6 +125,19 @@ ENV MIREX_DEVICE=cuda
 # with `-e MIREX_ON_FAILURE=raise` when debugging -- that is what the container
 # tests do to prove a real failure is still reachable.
 ENV MIREX_ON_FAILURE=fallback
+# Transkun's own default is 900s, which a 30-minute piece exceeds on CPU --
+# measured: the 1805.7s probe recording timed out at 900s in this image and fell
+# back to the corpus median. The contract is explicit that "there is no
+# inference-time limit per piece", only the 24-hour total, so a tight per-piece
+# timeout buys nothing and costs a real score: a timeout yields a median
+# fallback, which counts toward nothing but drags tau-c down.
+#
+# 3600s is ~45x the measured end-to-end cost of the longest probe item on an L4
+# (79.2s for 1805.7s of audio), so it fires only on a genuine hang -- which is
+# what a timeout is for. The 24h budget remains the real constraint and is
+# enforced by the organisers, not by us.
+ENV TRANSKUN_TIMEOUT_S=3600
+
 # A cache miss must fail loudly rather than silently reaching PyPI mid-run.
 ENV UV_OFFLINE=1
 

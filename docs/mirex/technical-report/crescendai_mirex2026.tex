@@ -190,8 +190,10 @@ CUDA context plus the Transkun transcriber, which runs in a separate process
 with its own context. A framework-only number would have omitted the
 transcriber entirely. An 8\,GiB card is sufficient.
 
-The submitted image is self-contained and performs no network access at
-inference time.
+The container also requires \textbf{10\,GiB of host RAM} (9\,GiB is killed
+during model load), because the encoder and the transcriber occupy separate
+processes. The submitted image is self-contained and performs no network access
+at inference time.
 
 \bibliography{references}
 

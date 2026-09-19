@@ -18,12 +18,21 @@ the container emits one score.
 | Image OS | Debian 13 (trixie), from `python:3.12.14-slim-trixie` |
 | GPU | One NVIDIA GPU. CPU works but will not meet the 24h budget |
 | Host software | Docker Engine with buildx, NVIDIA container toolkit |
-| Disk | ~21GB for the image |
+| Disk | ~23GB for the image |
+| **Host RAM** | **10 GiB minimum, 12 GiB recommended.** Measured: 9 GiB is SIGKILLed during model load, 10 GiB succeeds — on both a 30s and a 1806s piece |
 | Network | **None at run time.** The image is fully self-contained |
 
 Everything the model needs — Python 3.12, torch, `peft==0.11.1`, Transkun, the
 1.6GB MoonBeam checkpoint — is inside the image. The host needs only Docker and
 the NVIDIA runtime.
+
+**Host RAM is worth checking before a long run.** The pipeline spans two
+processes — the encoder and a separate Transkun transcriber — and
+under-provisioning does not produce a graceful error: the kernel SIGKILLs the
+container, which no Python handler can catch, so the fallback policy below
+cannot help. The figures above were measured with `--memory-swap` equal to
+`--memory`, i.e. with swap disabled; allowing swap lets a smaller limit "pass"
+while thrashing to disk.
 
 The image base is pinned to `python:3.12.14-slim-trixie` rather than
 `python:3.12-slim`. That tag is a floating alias which has already moved from
@@ -106,15 +115,19 @@ Measured on one NVIDIA L4 (`l4x1`), 8 real recordings spanning 15s–1806s,
 
 | | per item |
 |---|---|
-| 5-member ensemble (submitted) | **4.97s + 0.0400 × duration** |
+| 5-member ensemble (submitted) | **5.00s + 0.0410 × duration** |
 | single adapter (reference) | 4.93s + 0.0360 × duration |
 
-At our corpus's median piece length of 103s that is **≈9,500 items per 24h on
-one GPU**. Encoder cost is linear in duration, not a per-piece constant, so
-scale the slope rather than the fixed term when estimating a different test
-set.
+At our corpus's median piece length of 103s that is an **average of 9.2s per
+piece, ≈9,400 items per 24h on one GPU**. Encoder cost is linear in duration,
+not a per-piece constant, so scale the slope rather than the fixed term when
+estimating a different test set.
 
-Peak GPU memory was not measured and is not declared.
+**Peak GPU memory: 5,976 MiB** (~5.8 GiB), sampled device-wide. An 8 GiB card
+suffices. This is a device-level figure rather than a framework counter because
+Transkun runs in its own process with its own CUDA context; the encoder's own
+allocator reserved only 3,858 MiB, which would have under-declared the
+requirement by ~40%.
 
 ---
 
