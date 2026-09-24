@@ -17,7 +17,7 @@ Symbolic Foundation Model}
 
 \oneauthor
   {Jai Dhiman}
-  {CrescendAI \\ {\tt jaidhiman2000@gmail.com}}
+  {Independent Researcher \\ {\tt jaidhiman2000@gmail.com}}
 
 \def\authorname{J. Dhiman}
 
@@ -28,10 +28,11 @@ Symbolic Foundation Model}
 \maketitle
 
 \begin{abstract}
-We describe the CrescendAI submission to the MIREX 2026 Music Performance
+We describe CrescendAI, our submission to the MIREX 2026 Music Performance
 Difficulty Prediction task. The system is transcription-first: audio is
-converted to MIDI with Transkun, the resulting symbolic sequence is encoded by
-MoonBeam-839M fine-tuned with LoRA adapters, token embeddings are mean-pooled
+converted to MIDI with Transkun, an automatic piano transcription model, and
+the resulting symbolic sequence is encoded by MoonBeam-839M, a MIDI-native
+foundation model, fine-tuned with LoRA adapters; token embeddings are mean-pooled
 over the whole piece, and a ridge head emits one real-valued difficulty score.
 The submitted system averages the predictions of five adapters that differ only
 by training seed. Training used 7{,}665 transcriptions of the public Piano
@@ -39,11 +40,10 @@ Syllabus corpus; no other data was used, and the evaluation repertoire is
 disjoint from that corpus by the task's own construction. On composer-disjoint
 cross-validation the recipe scores Kendall's $\tau_c$ 0.8430 for a single
 adapter and 0.8461 for the five-adapter ensemble, against 0.8068 for a
-supervision-matched hand-feature baseline on identical folds. We also estimate
-the ceiling imposed by label noise at $\tau_c$ 0.8668, leaving roughly $+0.024$
-of headroom on this corpus. We report no score for the submitted model itself:
-it is trained on every labelled piece available to us, so any evaluation of it
-would be train-on-test.
+supervision-matched hand-feature baseline on identical folds, and within 0.024
+of an estimated label-noise ceiling of $\tau_c$ 0.8668. The submitted model
+applies that same recipe to all 7{,}665 pieces with nothing held out, so we
+report no score for it: any evaluation would be train-on-test.
 \end{abstract}
 
 \section{System Overview}\label{sec:overview}
