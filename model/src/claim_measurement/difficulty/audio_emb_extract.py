@@ -109,9 +109,13 @@ def fold_of_seg_ids(seg_ids: list, composers: np.ndarray, n_folds: int,
 
 def build_fold_embedder(adapter_dir: Path, checkpoint: Path, repo_root: Path,
                          model_config: Path, loader_factory=_real_loader,
-                         device=None):
+                         device=None, window_len: int | None = None):
     """A `embed(midi_path) -> np.ndarray` closure over the base MoonBeam
     backbone with one fold's LoRA adapter applied.
+
+    `window_len` overrides the extraction chunk length (config max_len, 1024)
+    for window_sweep.py's #168 arms; None keeps the config value, which every
+    measurement before that sweep used.
 
     The `.eval()` below is load-bearing and must not be removed: LoRA is
     configured with lora_dropout=0.05, and torch.no_grad() does NOT disable
@@ -140,10 +144,11 @@ def build_fold_embedder(adapter_dir: Path, checkpoint: Path, repo_root: Path,
     if device is not None:
         peft_model.to(device)
     transformer = peft_model.model.model  # inner transformer, LoRA-injected
+    chunk_len = max_len if window_len is None else int(window_len)
 
     def embed(midi_path: Path) -> np.ndarray:
         return _extract_full_piece(transformer, tokenize(Path(midi_path)),
-                                    max_len, device=device)
+                                    chunk_len, device=device)
 
     return embed
 

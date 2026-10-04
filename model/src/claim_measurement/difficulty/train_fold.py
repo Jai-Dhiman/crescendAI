@@ -599,6 +599,17 @@ def main(argv: list[str] | None = None, loader_factory=_real_loader,
     out_dir.mkdir(parents=True, exist_ok=True)
     peft_model.save_pretrained(str(out_dir / "adapter"))
 
+    # Bank the adapter BEFORE extraction. Training is ~90 min of GPU time and
+    # extraction another ~30; a container killed in between -- a timeout, a
+    # pre-paid balance running out -- otherwise discards a FINISHED adapter
+    # that is already sitting on the container's disk. #168 lost five runs
+    # that way. The upload is seconds for a 3.2M-parameter LoRA, and the final
+    # upload below re-sends the same folder with the embeddings added.
+    if args.output_repo is not None:
+        uploader(out_dir, args.output_repo)
+        print(f"fold {args.fold}: banked adapter to {args.output_repo} "
+              f"before extraction", flush=True)
+
     peft_model.eval()
     extract_started = time.perf_counter()
     with torch.no_grad():
