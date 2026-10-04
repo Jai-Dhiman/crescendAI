@@ -38,12 +38,11 @@ describe("parseCatalog molecules", () => {
 });
 
 describe("parseCatalog compounds", () => {
-	it("returns 4 compounds including session-synthesis", () => {
+	it("returns 3 compounds including session-synthesis", () => {
 		const catalog = parseCatalog(SKILLS_DIR);
-		expect(catalog.compounds).toHaveLength(4);
+		expect(catalog.compounds).toHaveLength(3);
 		const names = catalog.compounds.map((c) => c.name);
 		expect(names).toContain("session-synthesis");
-		expect(names).toContain("live-practice-companion");
 		expect(names).toContain("piece-onboarding");
 		expect(names).toContain("weekly-review");
 	});
